@@ -1,0 +1,264 @@
+package io.qml4j.parser;
+
+import io.qml4j.parser.ast.Ast;
+import org.antlr.v4.runtime.tree.TerminalNode;
+
+import java.util.ArrayList;
+import java.util.List;
+
+final class AstBuilder extends QmlBaseVisitor<Object> {
+
+    @Override
+    public Ast.QmlDocument visitQmlDocument(QmlParser.QmlDocumentContext ctx) {
+        List<Ast.ImportNode> imports = new ArrayList<>();
+        for (QmlParser.ImportDeclarationContext ic : ctx.importDeclaration()) {
+            imports.add(visitImportDeclaration(ic));
+        }
+        Ast.ObjectNode root = (Ast.ObjectNode) visit(ctx.rootObject().objectDeclaration());
+        return new Ast.QmlDocument(imports, root);
+    }
+
+    @Override
+    public Ast.ImportNode visitImportDeclaration(QmlParser.ImportDeclarationContext ctx) {
+        String moduleOrPath;
+        boolean isString = false;
+        if (ctx.StringLiteral() != null) {
+            moduleOrPath = unquote(ctx.StringLiteral().getText());
+            isString = true;
+        } else {
+            moduleOrPath = ctx.qualifiedId().getText();
+        }
+        String version = ctx.version() != null ? ctx.version().getText() : null;
+        String alias = ctx.Identifier() != null ? ctx.Identifier().getText() : null;
+        return new Ast.ImportNode(isString, moduleOrPath, version, alias);
+    }
+
+    @Override
+    public Ast.ObjectNode visitObjectDeclaration(QmlParser.ObjectDeclarationContext ctx) {
+        String type = ctx.qualifiedId().getText();
+        List<Ast.ObjectMember> members = new ArrayList<>();
+        for (QmlParser.ObjectMemberContext mc : ctx.objectMember()) {
+            members.add((Ast.ObjectMember) visit(mc));
+        }
+        return new Ast.ObjectNode(type, members);
+    }
+
+    @Override
+    public Ast.ObjectMember visitObjectMember(QmlParser.ObjectMemberContext ctx) {
+        if (ctx.propertyDeclaration() != null) return (Ast.ObjectMember) visit(ctx.propertyDeclaration());
+        if (ctx.propertyBinding() != null) return (Ast.ObjectMember) visit(ctx.propertyBinding());
+        Ast.ObjectNode child = (Ast.ObjectNode) visit(ctx.objectDeclaration());
+        return new Ast.ChildObject(child);
+    }
+
+    @Override
+    public Ast.PropertyDeclaration visitPropertyDeclaration(QmlParser.PropertyDeclarationContext ctx) {
+        boolean isDefault = false, isRequired = false, isReadonly = false;
+        for (QmlParser.ModifierContext mc : ctx.modifier()) {
+            String t = mc.getText();
+            if ("default".equals(t)) isDefault = true;
+            else if ("required".equals(t)) isRequired = true;
+            else if ("readonly".equals(t)) isReadonly = true;
+        }
+        String type = ctx.typeName().getText();
+        String name = ctx.Identifier().getText();
+        Ast.Value init = ctx.value() != null ? (Ast.Value) visit(ctx.value()) : null;
+        return new Ast.PropertyDeclaration(isDefault, isRequired, isReadonly, type, name, init);
+    }
+
+    @Override
+    public Ast.PropertyBinding visitPropertyBinding(QmlParser.PropertyBindingContext ctx) {
+        List<String> path = new ArrayList<>();
+        for (TerminalNode id : ctx.qualifiedId().Identifier()) path.add(id.getText());
+        Ast.Value v = (Ast.Value) visit(ctx.value());
+        return new Ast.PropertyBinding(path, v);
+    }
+
+    @Override
+    public Ast.Value visitValue(QmlParser.ValueContext ctx) {
+        if (ctx.objectDeclaration() != null && ctx.objectDeclaration().size() == 1 && ctx.getChildCount() == 1) {
+            return new Ast.ObjectValue((Ast.ObjectNode) visit(ctx.objectDeclaration(0)));
+        }
+        if (!ctx.objectDeclaration().isEmpty()) {
+            List<Ast.ObjectNode> objs = new ArrayList<>();
+            for (QmlParser.ObjectDeclarationContext oc : ctx.objectDeclaration()) {
+                objs.add((Ast.ObjectNode) visit(oc));
+            }
+            return new Ast.ObjectListValue(objs);
+        }
+        return new Ast.ExpressionValue((Ast.Expression) visit(ctx.expression()));
+    }
+
+    // ---- Expressions ----
+
+    @Override
+    public Ast.Expression visitExpression(QmlParser.ExpressionContext ctx) {
+        return (Ast.Expression) visit(ctx.condExpr());
+    }
+
+    @Override
+    public Ast.Expression visitCondExpr(QmlParser.CondExprContext ctx) {
+        Ast.Expression cond = (Ast.Expression) visit(ctx.logicalOrExpr());
+        if (ctx.expression().isEmpty()) return cond;
+        Ast.Expression thenE = (Ast.Expression) visit(ctx.expression(0));
+        Ast.Expression elseE = (Ast.Expression) visit(ctx.expression(1));
+        return new Ast.CondExpr(cond, thenE, elseE);
+    }
+
+    @Override
+    public Ast.Expression visitLogicalOrExpr(QmlParser.LogicalOrExprContext ctx) {
+        return leftAssoc(ctx.logicalAndExpr(), "||");
+    }
+
+    @Override
+    public Ast.Expression visitLogicalAndExpr(QmlParser.LogicalAndExprContext ctx) {
+        return leftAssoc(ctx.bitwiseOrExpr(), "&&");
+    }
+
+    @Override
+    public Ast.Expression visitBitwiseOrExpr(QmlParser.BitwiseOrExprContext ctx) {
+        return leftAssoc(ctx.bitwiseXorExpr(), "|");
+    }
+
+    @Override
+    public Ast.Expression visitBitwiseXorExpr(QmlParser.BitwiseXorExprContext ctx) {
+        return leftAssoc(ctx.bitwiseAndExpr(), "^");
+    }
+
+    @Override
+    public Ast.Expression visitBitwiseAndExpr(QmlParser.BitwiseAndExprContext ctx) {
+        return leftAssoc(ctx.equalityExpr(), "&");
+    }
+
+    @Override
+    public Ast.Expression visitEqualityExpr(QmlParser.EqualityExprContext ctx) {
+        Ast.Expression left = (Ast.Expression) visit(ctx.relationalExpr(0));
+        for (int i = 0; i < ctx.equalityOp().size(); i++) {
+            String op = ctx.equalityOp(i).getText();
+            Ast.Expression right = (Ast.Expression) visit(ctx.relationalExpr(i + 1));
+            left = new Ast.BinaryExpr(op, left, right);
+        }
+        return left;
+    }
+
+    @Override
+    public Ast.Expression visitRelationalExpr(QmlParser.RelationalExprContext ctx) {
+        Ast.Expression left = (Ast.Expression) visit(ctx.additiveExpr(0));
+        for (int i = 0; i < ctx.relationalOp().size(); i++) {
+            String op = ctx.relationalOp(i).getText();
+            Ast.Expression right = (Ast.Expression) visit(ctx.additiveExpr(i + 1));
+            left = new Ast.BinaryExpr(op, left, right);
+        }
+        return left;
+    }
+
+    @Override
+    public Ast.Expression visitAdditiveExpr(QmlParser.AdditiveExprContext ctx) {
+        Ast.Expression left = (Ast.Expression) visit(ctx.multiplicativeExpr(0));
+        for (int i = 0; i < ctx.additiveOp().size(); i++) {
+            String op = ctx.additiveOp(i).getText();
+            Ast.Expression right = (Ast.Expression) visit(ctx.multiplicativeExpr(i + 1));
+            left = new Ast.BinaryExpr(op, left, right);
+        }
+        return left;
+    }
+
+    @Override
+    public Ast.Expression visitMultiplicativeExpr(QmlParser.MultiplicativeExprContext ctx) {
+        Ast.Expression left = (Ast.Expression) visit(ctx.unaryExpr(0));
+        for (int i = 0; i < ctx.multiplicativeOp().size(); i++) {
+            String op = ctx.multiplicativeOp(i).getText();
+            Ast.Expression right = (Ast.Expression) visit(ctx.unaryExpr(i + 1));
+            left = new Ast.BinaryExpr(op, left, right);
+        }
+        return left;
+    }
+
+    @Override
+    public Ast.Expression visitUnaryExpr(QmlParser.UnaryExprContext ctx) {
+        if (ctx.unaryOp() != null) {
+            return new Ast.UnaryExpr(ctx.unaryOp().getText(), (Ast.Expression) visit(ctx.unaryExpr()));
+        }
+        return (Ast.Expression) visit(ctx.postfixExpr());
+    }
+
+    @Override
+    public Ast.Expression visitPostfixExpr(QmlParser.PostfixExprContext ctx) {
+        Ast.Expression cur = (Ast.Expression) visit(ctx.primaryExpr());
+        for (QmlParser.PostfixSuffixContext sc : ctx.postfixSuffix()) {
+            if (sc instanceof QmlParser.MemberAccessContext) {
+                QmlParser.MemberAccessContext m = (QmlParser.MemberAccessContext) sc;
+                cur = new Ast.MemberExpr(cur, m.Identifier().getText());
+            } else {
+                QmlParser.CallContext c = (QmlParser.CallContext) sc;
+                List<Ast.Expression> args = new ArrayList<>();
+                for (QmlParser.ExpressionContext e : c.expression()) {
+                    args.add((Ast.Expression) visit(e));
+                }
+                cur = new Ast.CallExpr(cur, args);
+            }
+        }
+        return cur;
+    }
+
+    @Override
+    public Ast.Expression visitPrimaryExpr(QmlParser.PrimaryExprContext ctx) {
+        if (ctx.literal() != null) return (Ast.Expression) visit(ctx.literal());
+        if (ctx.Identifier() != null) return new Ast.IdentifierExpr(ctx.Identifier().getText());
+        return (Ast.Expression) visit(ctx.expression());
+    }
+
+    @Override
+    public Ast.Expression visitLiteral(QmlParser.LiteralContext ctx) {
+        if (ctx.IntegerLiteral() != null) {
+            return new Ast.LiteralExpr(Ast.LiteralKind.INT, Long.parseLong(ctx.IntegerLiteral().getText()));
+        }
+        if (ctx.FloatLiteral() != null) {
+            return new Ast.LiteralExpr(Ast.LiteralKind.FLOAT, Double.parseDouble(ctx.FloatLiteral().getText()));
+        }
+        if (ctx.StringLiteral() != null) {
+            return new Ast.LiteralExpr(Ast.LiteralKind.STRING, unquote(ctx.StringLiteral().getText()));
+        }
+        String t = ctx.getText();
+        switch (t) {
+            case "true": return new Ast.LiteralExpr(Ast.LiteralKind.BOOL, Boolean.TRUE);
+            case "false": return new Ast.LiteralExpr(Ast.LiteralKind.BOOL, Boolean.FALSE);
+            case "null": return new Ast.LiteralExpr(Ast.LiteralKind.NULL, null);
+            case "undefined": return new Ast.LiteralExpr(Ast.LiteralKind.UNDEFINED, null);
+            default: throw new IllegalStateException("unknown literal: " + t);
+        }
+    }
+
+    private Ast.Expression leftAssoc(List<? extends org.antlr.v4.runtime.ParserRuleContext> operands, String op) {
+        Ast.Expression left = (Ast.Expression) visit(operands.get(0));
+        for (int i = 1; i < operands.size(); i++) {
+            left = new Ast.BinaryExpr(op, left, (Ast.Expression) visit(operands.get(i)));
+        }
+        return left;
+    }
+
+    private static String unquote(String raw) {
+        if (raw.length() < 2) return raw;
+        char q = raw.charAt(0);
+        if (q != '"' && q != '\'') return raw;
+        StringBuilder sb = new StringBuilder(raw.length() - 2);
+        for (int i = 1; i < raw.length() - 1; i++) {
+            char c = raw.charAt(i);
+            if (c == '\\' && i + 1 < raw.length() - 1) {
+                char n = raw.charAt(++i);
+                switch (n) {
+                    case 'n': sb.append('\n'); break;
+                    case 't': sb.append('\t'); break;
+                    case 'r': sb.append('\r'); break;
+                    case '\\': sb.append('\\'); break;
+                    case '"': sb.append('"'); break;
+                    case '\'': sb.append('\''); break;
+                    default: sb.append(n);
+                }
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+}

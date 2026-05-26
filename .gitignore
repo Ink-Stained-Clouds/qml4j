@@ -1,0 +1,11 @@
+target/
+*.class
+*.iml
+.idea/
+.vscode/
+.classpath
+.project
+.settings/
+m0-smoke/cp.txt
+m0-smoke/classes.dex
+m0-smoke/out.png
