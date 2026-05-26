@@ -35,6 +35,7 @@ qml4j aims to be a fully native-Java path from QML source to pixels.
 | `qml4j-compiler` | ASM bytecode codegen — every `.qml` object → a synthetic `Component$N` class; every non-literal binding → a synthetic `Binding$M` class |
 | `qml4j-render` | `Item / Rectangle / Text / Column`, Skija-based `Renderer`, `SurfaceBackend` SPI, `QmlView` |
 | `qml4j-demo-desktop` | LWJGL3 + GLFW host + `GlfwSurfaceBackend` |
+| `android-shell` | Separate Gradle project: APK with `DexClassLoaderBackend` (D8 → DEX → `InMemoryDexClassLoader`) and Skija GL via `GLSurfaceView` |
 
 ### Design choices
 
@@ -114,10 +115,28 @@ Not yet:
 - `Image`, `Loader`
 - `Qt.binding()`, `Connections`
 
+## Android
+
+The `android-shell` module is a separate Gradle project (AGP 8.5, Gradle 8.7, JDK 21).
+
+```sh
+mvn install -DskipTests   # publish qml4j-* to mavenLocal first
+cd android-shell
+ANDROID_HOME=$HOME/android-sdk ./gradlew :app:assembleDebug
+adb install app/build/outputs/apk/debug/app-debug.apk
+```
+
+The APK ships:
+- `qml4j-*` jars (transitively from mavenLocal)
+- `skija-android-arm64` (the `libskija.so` is extracted from the jar into `jniLibs/arm64-v8a` at build time)
+- `com.android.tools:r8:8.13.17` for in-process dexing
+
+At runtime, `DexClassLoaderBackend.defineClasses(Map<String, byte[]>)` invokes D8 in-process to convert all generated `.class` bytes into a single dex `byte[]`, then loads them via `InMemoryDexClassLoader` (API 26+).
+
 ## Roadmap
 
 - **M7** — MouseArea + signals/slots (handlers also compiled to methods)
-- **M8** — `android-shell` with `DexClassLoaderBackend` (R8 D8 in-process) and a HelloRectangle APK
+- **M8** — ~~`android-shell` with `DexClassLoaderBackend` and a HelloRectangle APK~~ **done (build chain)**; device install verification still pending
 - **M9** — `anchors`, `Image`, `Loader`
 
 See `qml4j-engine/src/main/java/io/qml4j/engine/ClassLoaderBackend.java` for the SPI that decouples the JVM and Android dexing paths.

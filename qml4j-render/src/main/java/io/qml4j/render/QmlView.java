@@ -32,11 +32,8 @@ public final class QmlView {
         Ast.QmlDocument doc = Qml4j.parse(qml);
         CompiledUnit unit = compiler.compile(doc, types);
         ClassLoaderBackend backend = engine.backend();
-        Class<?> rootClass = null;
-        for (Map.Entry<String, byte[]> e : unit.classes().entrySet()) {
-            Class<?> c = backend.defineClass(e.getKey(), e.getValue());
-            if (e.getKey().equals(unit.rootClassName())) rootClass = c;
-        }
+        Map<String, Class<?>> defined = backend.defineClasses(unit.classes());
+        Class<?> rootClass = defined.get(unit.rootClassName());
         if (rootClass == null) {
             throw new IllegalStateException("compiled unit missing root class");
         }
