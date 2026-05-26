@@ -12,6 +12,15 @@ import java.nio.charset.StandardCharsets;
 
 public final class MainActivity extends Activity {
 
+    static {
+        // Skija's auto-loader detects os.name=Linux, arch=aarch64 and looks
+        // for the .so as a JAR resource at io/github/humbleui/skija/linux/arm64/.
+        // We ship it via jniLibs/arm64-v8a/ instead, so bypass the auto-loader
+        // and load via System.loadLibrary ourselves.
+        System.setProperty("skija.staticLoad", "false");
+        System.loadLibrary("skija");
+    }
+
     private QmlGLSurfaceView glView;
 
     @Override
