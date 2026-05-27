@@ -9,6 +9,7 @@ import org.objectweb.asm.Opcodes;
 
 import java.lang.reflect.Field;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 final class ExpressionCodegen {
@@ -24,31 +25,46 @@ final class ExpressionCodegen {
     private final String componentInternal;
     private final Map<String, Class<? extends QObject>> idTypes;
     private final Map<String, Integer> signalParams;
+    private final Map<String, Integer> localVars;
 
     ExpressionCodegen(String outerInternal, String bindingInternal, Class<?> outerType) {
         this(outerInternal, bindingInternal, outerType, null,
              Collections.<String, Class<? extends QObject>>emptyMap(),
-             Collections.<String, Integer>emptyMap());
+             Collections.<String, Integer>emptyMap(),
+             new LinkedHashMap<String, Integer>());
     }
 
     ExpressionCodegen(String outerInternal, String bindingInternal, Class<?> outerType,
                       String componentInternal,
                       Map<String, Class<? extends QObject>> idTypes) {
         this(outerInternal, bindingInternal, outerType, componentInternal, idTypes,
-             Collections.<String, Integer>emptyMap());
+             Collections.<String, Integer>emptyMap(),
+             new LinkedHashMap<String, Integer>());
     }
 
     ExpressionCodegen(String outerInternal, String bindingInternal, Class<?> outerType,
                       String componentInternal,
                       Map<String, Class<? extends QObject>> idTypes,
                       Map<String, Integer> signalParams) {
+        this(outerInternal, bindingInternal, outerType, componentInternal, idTypes,
+             signalParams, new LinkedHashMap<String, Integer>());
+    }
+
+    ExpressionCodegen(String outerInternal, String bindingInternal, Class<?> outerType,
+                      String componentInternal,
+                      Map<String, Class<? extends QObject>> idTypes,
+                      Map<String, Integer> signalParams,
+                      Map<String, Integer> localVars) {
         this.outerInternal = outerInternal;
         this.bindingInternal = bindingInternal;
         this.outerType = outerType;
         this.componentInternal = componentInternal;
         this.idTypes = idTypes != null ? idTypes : Collections.<String, Class<? extends QObject>>emptyMap();
         this.signalParams = signalParams != null ? signalParams : Collections.<String, Integer>emptyMap();
+        this.localVars = localVars != null ? localVars : new LinkedHashMap<String, Integer>();
     }
+
+    Map<String, Integer> localVars() { return localVars; }
 
     void emit(MethodVisitor mv, Ast.Expression e) {
         if (e instanceof Ast.LiteralExpr) {
@@ -102,6 +118,11 @@ final class ExpressionCodegen {
     }
 
     private void emitIdentifier(MethodVisitor mv, Ast.IdentifierExpr id) {
+        Integer localSlot = localVars.get(id.name);
+        if (localSlot != null) {
+            mv.visitVarInsn(Opcodes.ALOAD, localSlot);
+            return;
+        }
         Integer paramSlot = signalParams.get(id.name);
         if (paramSlot != null) {
             mv.visitVarInsn(Opcodes.ALOAD, 1);
@@ -189,6 +210,13 @@ final class ExpressionCodegen {
                                false);
         } else if (a.target instanceof Ast.IdentifierExpr) {
             String name = ((Ast.IdentifierExpr) a.target).name;
+            Integer localSlot = localVars.get(name);
+            if (localSlot != null) {
+                emit(mv, a.value);
+                mv.visitInsn(Opcodes.DUP);
+                mv.visitVarInsn(Opcodes.ASTORE, localSlot);
+                return;
+            }
             Field f = findPropertyField(outerType, name);
             String declOwner = org.objectweb.asm.Type.getInternalName(f.getDeclaringClass());
             mv.visitVarInsn(Opcodes.ALOAD, 0);

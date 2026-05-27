@@ -438,6 +438,92 @@ class QmlCompilerTest {
     }
 
     @Test
+    void handlerStatementBlockMultipleStatements() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  signal pinged()\n" +
+            "  onPinged: {\n" +
+            "    width = 10;\n" +
+            "    height = 20;\n" +
+            "    ref = \"done\";\n" +
+            "  }\n" +
+            "}");
+        io.qml4j.engine.Signal sig = (io.qml4j.engine.Signal) it.getClass().getField("pinged").get(it);
+        sig.emit();
+        assertEquals(10L, it.width.peek().longValue());
+        assertEquals(20L, it.height.peek().longValue());
+        assertEquals("done", it.ref.peek());
+    }
+
+    @Test
+    void handlerStatementBlockVarDeclaration() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  signal pinged()\n" +
+            "  onPinged: {\n" +
+            "    var sum = width + height;\n" +
+            "    ref = sum;\n" +
+            "  }\n" +
+            "}");
+        it.width.set(7);
+        it.height.set(3);
+        io.qml4j.engine.Signal sig = (io.qml4j.engine.Signal) it.getClass().getField("pinged").get(it);
+        sig.emit();
+        assertEquals(10L, ((Number) it.ref.peek()).longValue());
+    }
+
+    @Test
+    void handlerStatementBlockIfElse() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  signal pinged()\n" +
+            "  onPinged: {\n" +
+            "    if (width > 5) {\n" +
+            "      ref = \"big\";\n" +
+            "    } else {\n" +
+            "      ref = \"small\";\n" +
+            "    }\n" +
+            "  }\n" +
+            "}");
+        io.qml4j.engine.Signal sig = (io.qml4j.engine.Signal) it.getClass().getField("pinged").get(it);
+        it.width.set(10);
+        sig.emit();
+        assertEquals("big", it.ref.peek());
+        it.width.set(2);
+        sig.emit();
+        assertEquals("small", it.ref.peek());
+    }
+
+    @Test
+    void handlerStatementBlockIfNoElse() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  signal pinged()\n" +
+            "  onPinged: {\n" +
+            "    if (width > 5) ref = \"big\";\n" +
+            "  }\n" +
+            "}");
+        io.qml4j.engine.Signal sig = (io.qml4j.engine.Signal) it.getClass().getField("pinged").get(it);
+        it.ref.set("untouched");
+        it.width.set(2);
+        sig.emit();
+        assertEquals("untouched", it.ref.peek());
+        it.width.set(10);
+        sig.emit();
+        assertEquals("big", it.ref.peek());
+    }
+
+    @Test
+    void statementBlockOnNonHandlerRejected() {
+        Ast.QmlDocument doc = Qml4j.parse(
+            "TestItem {\n" +
+            "  width: { var x = 5; x }\n" +
+            "}");
+        assertThrows(UnsupportedOperationException.class,
+            () -> COMPILER.compile(doc, REGISTRY));
+    }
+
+    @Test
     void eachCompileProducesUniqueClassName() {
         Ast.QmlDocument doc1 = Qml4j.parse("TestItem {}");
         Ast.QmlDocument doc2 = Qml4j.parse("TestItem {}");

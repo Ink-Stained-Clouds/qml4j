@@ -166,26 +166,36 @@ public final class QmlCompiler {
                                          customSignalParams, path.get(0));
                 return;
             }
-            if (!(b.value instanceof Ast.ExpressionValue)) {
-                throw new UnsupportedOperationException("only expression bindings supported");
+            boolean isExprVal = b.value instanceof Ast.ExpressionValue;
+            boolean isStmtBlock = b.value instanceof Ast.StatementBlockValue;
+            if (!isExprVal && !isStmtBlock) {
+                throw new UnsupportedOperationException("only expression/statement bindings supported");
             }
-            Ast.Expression e = ((Ast.ExpressionValue) b.value).expr;
             if (path.size() == 1) {
                 String key = path.get(0);
                 String signalName = signalNameFromHandler(key);
-                if (signalName != null && customSignals.contains(signalName)) {
-                    emitCustomSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
-                                            handlerCounter, classes,
-                                            customSignalOwner, signalName, e, idTypes,
-                                            customSignalParams.get(signalName));
+                boolean isCustomHandler = signalName != null && customSignals.contains(signalName);
+                Field signalField = (signalName != null && !isCustomHandler)
+                    ? findSignalFieldOrNull(outerType, signalName) : null;
+                boolean isHandler = isCustomHandler || signalField != null;
+                if (isStmtBlock && !isHandler) {
+                    throw new UnsupportedOperationException(
+                        "statement block only allowed as signal handler body: " + key);
+                }
+                if (isHandler) {
+                    Ast.Statement handlerBody = toStatement(b.value);
+                    if (isCustomHandler) {
+                        emitCustomSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
+                                                handlerCounter, classes,
+                                                customSignalOwner, signalName, handlerBody, idTypes,
+                                                customSignalParams.get(signalName));
+                    } else {
+                        emitSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
+                                          handlerCounter, classes, signalField, handlerBody, idTypes);
+                    }
                     return;
                 }
-                Field signalField = signalName != null ? findSignalFieldOrNull(outerType, signalName) : null;
-                if (signalField != null) {
-                    emitSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
-                                      handlerCounter, classes, signalField, e, idTypes);
-                    return;
-                }
+                Ast.Expression e = ((Ast.ExpressionValue) b.value).expr;
                 if (PropertyChangeSink.class.isAssignableFrom(outerType) && !"target".equals(key)) {
                     emitChangeSinkAssignment(ctor, outerType, outerLocal, componentBinaryName,
                                              bindingCounter, classes, key, e, idTypes);
@@ -200,6 +210,11 @@ public final class QmlCompiler {
                 return;
             }
             if (path.size() == 2) {
+                if (!isExprVal) {
+                    throw new UnsupportedOperationException(
+                        "statement block not allowed in grouped binding: " + path);
+                }
+                Ast.Expression e = ((Ast.ExpressionValue) b.value).expr;
                 emitGroupedBinding(ctor, outerType, outerLocal, componentBinaryName,
                                    bindingCounter, classes, path.get(0), path.get(1), e, idTypes);
                 return;
@@ -580,11 +595,19 @@ public final class QmlCompiler {
         }
     }
 
+    private static Ast.Statement toStatement(Ast.Value v) {
+        if (v instanceof Ast.StatementBlockValue) {
+            return ((Ast.StatementBlockValue) v).block;
+        }
+        Ast.Expression expr = ((Ast.ExpressionValue) v).expr;
+        return new Ast.Block(Collections.<Ast.Statement>singletonList(new Ast.ExprStmt(expr)));
+    }
+
     private void emitCustomSignalHandler(MethodVisitor ctor, Class<? extends QObject> outerType,
                                          int outerLocal, String componentBinaryName,
                                          int[] handlerCounter, Map<String, byte[]> classes,
                                          String signalOwnerInternal, String signalName,
-                                         Ast.Expression body,
+                                         Ast.Statement body,
                                          Map<String, Class<? extends QObject>> idTypes,
                                          List<String> signalParams) {
         String outerInternal = Type.getInternalName(outerType);
@@ -612,7 +635,7 @@ public final class QmlCompiler {
     private void emitSignalHandler(MethodVisitor ctor, Class<? extends QObject> outerType,
                                    int outerLocal, String componentBinaryName,
                                    int[] handlerCounter, Map<String, byte[]> classes,
-                                   Field signalField, Ast.Expression body,
+                                   Field signalField, Ast.Statement body,
                                    Map<String, Class<? extends QObject>> idTypes) {
         String declOwner = Type.getInternalName(signalField.getDeclaringClass());
         String outerInternal = Type.getInternalName(outerType);
@@ -640,7 +663,7 @@ public final class QmlCompiler {
     }
 
     private byte[] emitHandlerClass(String handlerInternal, String outerInternal,
-                                    Class<?> outerType, Ast.Expression body,
+                                    Class<?> outerType, Ast.Statement body,
                                     String componentInternal,
                                     Map<String, Class<? extends QObject>> idTypes,
                                     List<String> signalParams) {
@@ -675,10 +698,12 @@ public final class QmlCompiler {
         invoke.visitCode();
         Map<String, Integer> paramIdx = new LinkedHashMap<>();
         for (int i = 0; i < signalParams.size(); i++) paramIdx.put(signalParams.get(i), i);
+        Map<String, Integer> localVars = new LinkedHashMap<>();
         ExpressionCodegen codegen = new ExpressionCodegen(outerInternal, handlerInternal, outerType,
-                                                          componentInternal, idTypes, paramIdx);
-        codegen.emit(invoke, body);
-        invoke.visitInsn(Opcodes.POP);
+                                                          componentInternal, idTypes,
+                                                          paramIdx, localVars);
+        StatementCodegen stmts = new StatementCodegen(codegen, 2);
+        stmts.emit(invoke, body);
         invoke.visitInsn(Opcodes.RETURN);
         invoke.visitMaxs(0, 0);
         invoke.visitEnd();

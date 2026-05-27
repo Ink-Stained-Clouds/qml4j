@@ -66,11 +66,42 @@ propertyBinding
 value
     : objectDeclaration
     | '[' objectDeclaration (',' objectDeclaration)* ','? ']'
+    | statementBlock
     | expression
     ;
 
+statementBlock
+    : '{' statement* '}'
+    ;
+
+statement
+    : statementBlock
+    | varStatement
+    | ifStatement
+    | expressionStatement
+    ;
+
+varStatement
+    : ('var' | 'let' | 'const') Identifier ('=' expression)? ';'?
+    ;
+
+ifStatement
+    : 'if' '(' expression ')' statement ('else' statement)?
+    ;
+
+expressionStatement
+    : expression ';'?
+    ;
+
 qualifiedId
-    : Identifier ('.' Identifier)*
+    : idLike ('.' idLike)*
+    ;
+
+idLike
+    : Identifier
+    | 'var'
+    | 'let'
+    | 'const'
     ;
 
 // JS expression subset

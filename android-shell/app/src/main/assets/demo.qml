@@ -86,7 +86,16 @@ Rectangle {
 
         MouseArea {
             anchors.fill: parent
-            onClicked: dot.x = dot.x === 400 ? 800 : 400
+            onClicked: {
+                var atLeft = dot.x === 400;
+                if (atLeft) {
+                    dot.x = 800;
+                    dot.color = "#ff80ff";
+                } else {
+                    dot.x = 400;
+                    dot.color = "#ffcc00";
+                }
+            }
         }
 
         Text {

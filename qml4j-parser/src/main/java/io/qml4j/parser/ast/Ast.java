@@ -129,6 +129,55 @@ public final class Ast {
         @Override public String toString() { return expr.toString(); }
     }
 
+    public static final class StatementBlockValue extends Value {
+        public final Block block;
+        public StatementBlockValue(Block block) { this.block = block; }
+        @Override public String toString() { return block.toString(); }
+    }
+
+    public static abstract class Statement {}
+
+    public static final class Block extends Statement {
+        public final List<Statement> statements;
+        public Block(List<Statement> statements) {
+            this.statements = Collections.unmodifiableList(statements);
+        }
+        @Override public String toString() { return "{" + statements + "}"; }
+    }
+
+    public static final class ExprStmt extends Statement {
+        public final Expression expr;
+        public ExprStmt(Expression expr) { this.expr = expr; }
+        @Override public String toString() { return expr + ";"; }
+    }
+
+    public static final class VarDecl extends Statement {
+        public final String name;
+        public final Expression init;
+        public VarDecl(String name, Expression init) {
+            this.name = name;
+            this.init = init;
+        }
+        @Override public String toString() {
+            return "var " + name + (init != null ? " = " + init : "") + ";";
+        }
+    }
+
+    public static final class IfStmt extends Statement {
+        public final Expression cond;
+        public final Statement thenBranch;
+        public final Statement elseBranch;
+        public IfStmt(Expression cond, Statement thenBranch, Statement elseBranch) {
+            this.cond = cond;
+            this.thenBranch = thenBranch;
+            this.elseBranch = elseBranch;
+        }
+        @Override public String toString() {
+            return "if (" + cond + ") " + thenBranch
+                + (elseBranch != null ? " else " + elseBranch : "");
+        }
+    }
+
     public static abstract class Expression {}
 
     public enum LiteralKind { INT, FLOAT, STRING, BOOL, NULL, UNDEFINED }

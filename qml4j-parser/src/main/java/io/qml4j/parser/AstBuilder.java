@@ -1,7 +1,6 @@
 package io.qml4j.parser;
 
 import io.qml4j.parser.ast.Ast;
-import org.antlr.v4.runtime.tree.TerminalNode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -92,7 +91,7 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     @Override
     public Ast.PropertyBinding visitPropertyBinding(QmlParser.PropertyBindingContext ctx) {
         List<String> path = new ArrayList<>();
-        for (TerminalNode id : ctx.qualifiedId().Identifier()) path.add(id.getText());
+        for (QmlParser.IdLikeContext id : ctx.qualifiedId().idLike()) path.add(id.getText());
         Ast.Value v = (Ast.Value) visit(ctx.value());
         return new Ast.PropertyBinding(path, v);
     }
@@ -109,7 +108,51 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
             }
             return new Ast.ObjectListValue(objs);
         }
+        if (ctx.statementBlock() != null) {
+            return new Ast.StatementBlockValue(visitStatementBlock(ctx.statementBlock()));
+        }
         return new Ast.ExpressionValue((Ast.Expression) visit(ctx.expression()));
+    }
+
+    @Override
+    public Ast.Block visitStatementBlock(QmlParser.StatementBlockContext ctx) {
+        List<Ast.Statement> stmts = new ArrayList<>();
+        for (QmlParser.StatementContext sc : ctx.statement()) {
+            stmts.add(visitStatement(sc));
+        }
+        return new Ast.Block(stmts);
+    }
+
+    @Override
+    public Ast.Statement visitStatement(QmlParser.StatementContext ctx) {
+        if (ctx.statementBlock() != null) return visitStatementBlock(ctx.statementBlock());
+        if (ctx.varStatement() != null) return visitVarStatement(ctx.varStatement());
+        if (ctx.ifStatement() != null) return visitIfStatement(ctx.ifStatement());
+        return visitExpressionStatement(ctx.expressionStatement());
+    }
+
+    @Override
+    public Ast.VarDecl visitVarStatement(QmlParser.VarStatementContext ctx) {
+        String name = ctx.Identifier().getText();
+        Ast.Expression init = ctx.expression() != null
+            ? (Ast.Expression) visit(ctx.expression())
+            : null;
+        return new Ast.VarDecl(name, init);
+    }
+
+    @Override
+    public Ast.IfStmt visitIfStatement(QmlParser.IfStatementContext ctx) {
+        Ast.Expression cond = (Ast.Expression) visit(ctx.expression());
+        Ast.Statement thenBranch = visitStatement(ctx.statement(0));
+        Ast.Statement elseBranch = ctx.statement().size() > 1
+            ? visitStatement(ctx.statement(1))
+            : null;
+        return new Ast.IfStmt(cond, thenBranch, elseBranch);
+    }
+
+    @Override
+    public Ast.ExprStmt visitExpressionStatement(QmlParser.ExpressionStatementContext ctx) {
+        return new Ast.ExprStmt((Ast.Expression) visit(ctx.expression()));
     }
 
     // ---- Expressions ----
