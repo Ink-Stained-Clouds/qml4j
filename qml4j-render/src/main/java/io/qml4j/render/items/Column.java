@@ -1,6 +1,6 @@
-package io.qml4j.render;
+package io.qml4j.render.items;
 
-import io.qml4j.engine.Property;
+import io.qml4j.engine.binding.Property;
 
 public class Column extends Item {
     public final Property<Number> spacing = new Property<>(0);

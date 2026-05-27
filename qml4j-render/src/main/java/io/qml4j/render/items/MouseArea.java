@@ -1,4 +1,4 @@
-package io.qml4j.render;
+package io.qml4j.render.items;
 
 import io.qml4j.engine.Signal;
 

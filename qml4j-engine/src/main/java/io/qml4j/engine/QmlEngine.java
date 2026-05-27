@@ -1,5 +1,8 @@
 package io.qml4j.engine;
 
+import io.qml4j.engine.classloader.ClassLoaderBackend;
+import io.qml4j.engine.classloader.JvmClassLoaderBackend;
+
 public final class QmlEngine {
 
     private final ClassLoaderBackend backend;

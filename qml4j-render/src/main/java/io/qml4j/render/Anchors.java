@@ -1,6 +1,8 @@
 package io.qml4j.render;
 
-import io.qml4j.engine.Property;
+import io.qml4j.render.items.Item;
+
+import io.qml4j.engine.binding.Property;
 
 public final class Anchors {
     public final Property<Item> fill = new Property<>(null);

@@ -1,4 +1,10 @@
-package io.qml4j.engine;
+package io.qml4j.engine.classloader;
+
+import io.qml4j.engine.QmlEngine;
+import io.qml4j.engine.QObject;
+import io.qml4j.engine.RuntimeHelpers;
+import io.qml4j.engine.Signal;
+import io.qml4j.engine.Context;
 
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassWriter;

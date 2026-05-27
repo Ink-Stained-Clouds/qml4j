@@ -1,6 +1,8 @@
-package io.qml4j.render;
+package io.qml4j.render.items;
 
-import io.qml4j.engine.Property;
+import io.qml4j.render.Anchors;
+
+import io.qml4j.engine.binding.Property;
 import io.qml4j.engine.QObject;
 
 import java.util.ArrayList;

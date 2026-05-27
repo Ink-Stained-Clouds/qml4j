@@ -1,6 +1,13 @@
 package io.qml4j.render;
 
 import io.qml4j.engine.QmlEngine;
+import io.qml4j.render.items.Column;
+import io.qml4j.render.items.Image;
+import io.qml4j.render.items.Item;
+import io.qml4j.render.items.Loader;
+import io.qml4j.render.items.MouseArea;
+import io.qml4j.render.items.Rectangle;
+import io.qml4j.render.items.Text;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -212,7 +219,7 @@ class QmlViewTest {
             "}");
         Rectangle r = (Rectangle) root.children.get(0);
         assertEquals(30L, r.width.peek().longValue());
-        io.qml4j.engine.DirtyQueue dq = v.dirtyQueue();
+        io.qml4j.engine.binding.DirtyQueue dq = v.dirtyQueue();
         dq.install();
         try {
             root.width.set(100);

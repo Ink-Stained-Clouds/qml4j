@@ -1,4 +1,4 @@
-package io.qml4j.engine;
+package io.qml4j.engine.binding;
 
 import java.util.Iterator;
 import java.util.LinkedHashSet;

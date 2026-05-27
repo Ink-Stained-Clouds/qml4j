@@ -1,6 +1,6 @@
-package io.qml4j.compiler;
+package io.qml4j.compiler.bytecode;
 
-import io.qml4j.engine.Property;
+import io.qml4j.engine.binding.Property;
 import io.qml4j.parser.ast.Ast;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
@@ -11,7 +11,7 @@ import java.lang.reflect.Field;
 final class ExpressionCodegen {
 
     static final String HELPERS_INTERNAL = "io/qml4j/engine/RuntimeHelpers";
-    static final String PROPERTY_INTERNAL = "io/qml4j/engine/Property";
+    static final String PROPERTY_INTERNAL = "io/qml4j/engine/binding/Property";
     private static final String BINARY_DESC = "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;";
     private static final String UNARY_DESC = "(Ljava/lang/Object;)Ljava/lang/Object;";
 

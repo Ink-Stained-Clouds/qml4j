@@ -1,4 +1,4 @@
-package io.qml4j.engine;
+package io.qml4j.engine.classloader;
 
 public final class JvmClassLoaderBackend implements ClassLoaderBackend {
 

@@ -1,6 +1,8 @@
-package io.qml4j.compiler;
+package io.qml4j.compiler.bytecode;
 
-import io.qml4j.engine.Property;
+import io.qml4j.compiler.CompiledUnit;
+import io.qml4j.compiler.TypeRegistry;
+import io.qml4j.engine.binding.Property;
 import io.qml4j.engine.QObject;
 import io.qml4j.parser.ast.Ast;
 import org.objectweb.asm.ClassWriter;
@@ -20,9 +22,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public final class QmlCompiler {
 
-    private static final String PROPERTY_INTERNAL = "io/qml4j/engine/Property";
+    private static final String PROPERTY_INTERNAL = "io/qml4j/engine/binding/Property";
     private static final String PROPERTY_DESC = "L" + PROPERTY_INTERNAL + ";";
-    private static final String BINDING_INTERNAL = "io/qml4j/engine/Binding";
+    private static final String BINDING_INTERNAL = "io/qml4j/engine/binding/Binding";
     private static final String SIGNAL_INTERNAL = "io/qml4j/engine/Signal";
     private static final String SIGNAL_DESC = "L" + SIGNAL_INTERNAL + ";";
     private static final String RUNNABLE_INTERNAL = "java/lang/Runnable";

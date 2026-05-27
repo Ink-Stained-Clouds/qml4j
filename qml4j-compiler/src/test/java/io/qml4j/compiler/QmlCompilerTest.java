@@ -1,7 +1,8 @@
 package io.qml4j.compiler;
 
-import io.qml4j.engine.JvmClassLoaderBackend;
-import io.qml4j.engine.Property;
+import io.qml4j.compiler.bytecode.QmlCompiler;
+import io.qml4j.engine.classloader.JvmClassLoaderBackend;
+import io.qml4j.engine.binding.Property;
 import io.qml4j.engine.QObject;
 import io.qml4j.parser.Qml4j;
 import io.qml4j.parser.ast.Ast;

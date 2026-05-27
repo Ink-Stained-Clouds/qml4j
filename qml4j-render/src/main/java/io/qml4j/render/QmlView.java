@@ -1,11 +1,14 @@
 package io.qml4j.render;
 
+import io.qml4j.render.items.Item;
+import io.qml4j.render.items.MouseArea;
+
 import io.github.humbleui.skija.Canvas;
 import io.qml4j.compiler.CompiledUnit;
-import io.qml4j.compiler.QmlCompiler;
+import io.qml4j.compiler.bytecode.QmlCompiler;
 import io.qml4j.compiler.TypeRegistry;
-import io.qml4j.engine.ClassLoaderBackend;
-import io.qml4j.engine.DirtyQueue;
+import io.qml4j.engine.classloader.ClassLoaderBackend;
+import io.qml4j.engine.binding.DirtyQueue;
 import io.qml4j.engine.QmlEngine;
 import io.qml4j.parser.Qml4j;
 import io.qml4j.parser.ast.Ast;

@@ -9,7 +9,7 @@ import com.android.tools.r8.origin.Origin;
 
 import dalvik.system.InMemoryDexClassLoader;
 
-import io.qml4j.engine.ClassLoaderBackend;
+import io.qml4j.engine.classloader.ClassLoaderBackend;
 
 import java.nio.ByteBuffer;
 import java.util.LinkedHashMap;

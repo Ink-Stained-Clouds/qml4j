@@ -1,5 +1,7 @@
 package io.qml4j.engine;
 
+import io.qml4j.engine.binding.Property;
+
 import java.lang.reflect.Field;
 
 public final class RuntimeHelpers {

@@ -1,4 +1,4 @@
-package io.qml4j.engine;
+package io.qml4j.engine.classloader;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
