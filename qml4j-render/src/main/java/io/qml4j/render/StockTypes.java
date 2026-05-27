@@ -5,6 +5,7 @@ import io.qml4j.render.items.Image;
 import io.qml4j.render.items.Item;
 import io.qml4j.render.items.Loader;
 import io.qml4j.render.items.MouseArea;
+import io.qml4j.render.items.NumberAnimation;
 import io.qml4j.render.items.Rectangle;
 import io.qml4j.render.items.Text;
 
@@ -22,6 +23,7 @@ public final class StockTypes {
             .register("Column", Column.class)
             .register("MouseArea", MouseArea.class)
             .register("Image", Image.class)
-            .register("Loader", Loader.class);
+            .register("Loader", Loader.class)
+            .register("NumberAnimation", NumberAnimation.class);
     }
 }

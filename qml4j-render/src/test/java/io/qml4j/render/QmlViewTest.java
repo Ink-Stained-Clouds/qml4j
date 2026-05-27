@@ -254,6 +254,92 @@ class QmlViewTest {
     }
 
     @Test
+    void numberAnimationLinearTicksTowardTarget() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle {\n" +
+            "  width: 100; height: 100\n" +
+            "  NumberAnimation {\n" +
+            "    target: parent\n" +
+            "    from: 0; to: 1000; duration: 100\n" +
+            "    running: true\n" +
+            "  }\n" +
+            "}");
+        Rectangle r = (Rectangle) root;
+        io.qml4j.render.items.NumberAnimation anim =
+            (io.qml4j.render.items.NumberAnimation) r.children.get(0);
+        anim.property.set("width");
+        long t0 = 1_000_000_000L;
+        anim.tick(t0);
+        anim.tick(t0 + 50_000_000L); // 50ms = 50%
+        assertEquals(500.0, r.width.peek().doubleValue(), 1.0);
+        anim.tick(t0 + 200_000_000L); // past end → clamp + stop
+        assertEquals(1000.0, r.width.peek().doubleValue(), 1e-6);
+        assertEquals(Boolean.FALSE, anim.running.peek());
+    }
+
+    @Test
+    void numberAnimationZeroDurationJumps() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle {\n" +
+            "  width: 10; height: 10\n" +
+            "  NumberAnimation {\n" +
+            "    target: parent\n" +
+            "    from: 0; to: 42; duration: 0\n" +
+            "    running: true\n" +
+            "  }\n" +
+            "}");
+        Rectangle r = (Rectangle) root;
+        io.qml4j.render.items.NumberAnimation anim =
+            (io.qml4j.render.items.NumberAnimation) r.children.get(0);
+        anim.property.set("width");
+        anim.tick(1L);
+        assertEquals(42.0, r.width.peek().doubleValue(), 1e-9);
+        assertEquals(Boolean.FALSE, anim.running.peek());
+    }
+
+    @Test
+    void numberAnimationNotRunningSkips() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle {\n" +
+            "  width: 7; height: 7\n" +
+            "  NumberAnimation { target: parent; from: 0; to: 99; duration: 100 }\n" +
+            "}");
+        Rectangle r = (Rectangle) root;
+        io.qml4j.render.items.NumberAnimation anim =
+            (io.qml4j.render.items.NumberAnimation) r.children.get(0);
+        anim.property.set("width");
+        anim.tick(1L);
+        anim.tick(50_000_000L);
+        assertEquals(7L, r.width.peek().longValue());
+    }
+
+    @Test
+    void numberAnimationEaseOutQuadEndsAtTarget() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle {\n" +
+            "  width: 0; height: 10\n" +
+            "  NumberAnimation {\n" +
+            "    target: parent\n" +
+            "    from: 0; to: 100; duration: 100\n" +
+            "    easing: \"easeOutQuad\"\n" +
+            "    running: true\n" +
+            "  }\n" +
+            "}");
+        Rectangle r = (Rectangle) root;
+        io.qml4j.render.items.NumberAnimation anim =
+            (io.qml4j.render.items.NumberAnimation) r.children.get(0);
+        anim.property.set("width");
+        long t0 = 0L;
+        anim.tick(t0);
+        anim.tick(t0 + 50_000_000L); // 50%, eased = 1 - 0.25 = 0.75
+        assertEquals(75.0, r.width.peek().doubleValue(), 1e-6);
+    }
+
+    @Test
     void parseColorRgb() {
         assertEquals(0xFFFF0000, Renderer.parseColor("#ff0000"));
         assertEquals(0xFF00FF00, Renderer.parseColor("#00ff00"));

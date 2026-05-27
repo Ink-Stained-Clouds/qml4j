@@ -2,6 +2,7 @@ package io.qml4j.render;
 
 import io.qml4j.render.items.Item;
 import io.qml4j.render.items.MouseArea;
+import io.qml4j.render.items.NumberAnimation;
 
 import io.github.humbleui.skija.Canvas;
 import io.qml4j.compiler.CompiledUnit;
@@ -97,6 +98,7 @@ public final class QmlView {
     public void renderFrame(SurfaceBackend backend) {
         dirty.install();
         try {
+            tickAnimations(root, System.nanoTime());
             dirty.flush();
             Canvas canvas = backend.acquireCanvas();
             renderer.render(canvas, root);
@@ -104,6 +106,19 @@ public final class QmlView {
         } finally {
             dirty.uninstall();
         }
+    }
+
+    public void tickAnimations(long nowNanos) {
+        if (root == null) return;
+        tickAnimations(root, nowNanos);
+    }
+
+    private void tickAnimations(Item node, long now) {
+        if (node == null) return;
+        if (node instanceof NumberAnimation) {
+            ((NumberAnimation) node).tick(now);
+        }
+        for (Item c : node.children) tickAnimations(c, now);
     }
 
     public DirtyQueue dirtyQueue() {

@@ -111,6 +111,7 @@ Shipped since v0:
 - v0.1 — `MouseArea`, `Signal`, `on<Sig>:` handlers compiled to `Runnable` classes; assignment expressions
 - v0.2 — `anchors.fill` / `anchors.centerIn` / `anchors.margins` (+ per-side); `Image` with pluggable `ResourceLoader`; `Loader` for nested QML
 - v0.3 — opacity composes down the tree; `DirtyQueue` coalesces redundant binding re-evaluations per frame; `signal foo()` custom declarations on the root object
+- v0.4 — `id:` resolution in bindings; signal arguments; child-object custom signals; `NumberAnimation` (target/from/to/duration/easing) ticked per frame in `QmlView.renderFrame`
 
 Not yet:
 - `function` / `var` / control flow statements
@@ -133,6 +134,7 @@ These are real and worth knowing before building on top of qml4j:
 - **`Image` dimensions read from header parse, not Skia.** Animated / multi-frame formats and unusual codecs may report 0×0 even when Skia would decode them.
 - **Renderer is not thread-safe.** All `render()` and `dispatchClick` calls must come from the same thread (the GL thread on Android).
 - **No release-mode dexing tested.** R8 / proguard are disabled to keep Skija reflection alive; APK is debug-only for now.
+- **`property` is a reserved keyword.** Grammar uses it for `property type name:` declarations, so `NumberAnimation { property: "width" }` won't parse — set the binding target name from Java (`anim.property.set("width")`) for now. Qt QML disambiguates contextually; our lexer doesn't.
 
 ## Android
 
@@ -159,7 +161,7 @@ At runtime, `DexClassLoaderBackend.defineClasses(Map<String, byte[]>)` invokes D
 - ~~**M9** — `anchors`, `Image`, `Loader`~~ **done**
 - ~~**M10** — opacity composition, dirty queue, custom signals~~ **done**
 - ~~**M11** — `id:` resolution in bindings; signal arguments; child-object signals~~ **done**
-- **M12** — `States` / `Transitions` / `Animation`
+- **M12** — `States` / `Transitions` / `Animation` (M12a `NumberAnimation` **done**; M12b `State`/`PropertyChanges`, M12c `Transition` next)
 - **M13** — `ListView` / `Repeater`
 
 See `qml4j-engine/src/main/java/io/qml4j/engine/ClassLoaderBackend.java` for the SPI that decouples the JVM and Android dexing paths.
