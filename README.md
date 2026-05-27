@@ -2,7 +2,7 @@
 
 A pure-Java QML engine: parse `.qml` → JIT-compile to JVM bytecode (ASM) → render with Skia (Skija). Targets desktop today; Android (D8 → DEX → `InMemoryDexClassLoader`) is the next milestone.
 
-> Status: pre-alpha. v0 builds and tests pass on the JVM. Desktop window not yet wired to an X display; Android shell not yet started.
+> Status: pre-alpha. v0 + v0.1 + v0.2 ship: parser, JIT bytecode compiler, Skija renderer, anchors / Image / MouseArea / signals, Android APK with in-process D8 dexing.
 
 ## Why
 
@@ -107,13 +107,33 @@ QML:
 - `parent` member access in bindings tracks dependency reactively
 - `Item / Rectangle / Text / Column` stock types
 
+Shipped since v0:
+- v0.1 — `MouseArea`, `Signal`, `on<Sig>:` handlers compiled to `Runnable` classes; assignment expressions
+- v0.2 — `anchors.fill` / `anchors.centerIn` / `anchors.margins` (+ per-side); `Image` with pluggable `ResourceLoader`; `Loader` for nested QML
+
 Not yet:
 - `function` / `var` / control flow statements
-- Signals & slots
-- `anchors`, `States`, `Transitions`, `Animation`, `Behavior`
-- `ListView`, `Repeater`, modules, singletons
-- `Image`, `Loader`
+- Custom signal declarations (`signal foo()`)
+- `States`, `Transitions`, `Animation`, `Behavior`
+- `ListView`, `Repeater`, modules, singletons, `import`
 - `Qt.binding()`, `Connections`
+- `anchors.left`/`right`/`top`/`bottom`/`baseline` to another item's edge (only `fill`/`centerIn` so far)
+
+## Known limitations / tech debt
+
+These are real and worth knowing before building on top of qml4j:
+
+- **Opacity does not compose down the tree.** Each `Item` reads its own `opacity` and applies it to its paint; a parent at 0.5 does not dim its children. Will need a `Canvas.saveLayerAlpha` per subtree.
+- **No frame-coalesced dirty re-evaluation.** `DirtyQueue` exists but isn't wired — every frame `peek()`s every property. Works because all bindings re-evaluate lazily on first `get()`, but every binding currently runs at least once per frame.
+- **`id:` references unsupported in bindings.** Compiler resolves `parent.x` and context globals, but not sibling-by-id (`btn.width`). The `id:` keyword parses fine and is ignored.
+- **No custom signal declarations.** `signal clicked()` in user QML won't work; only built-in signals on stock types (`MouseArea.clicked`) are reachable.
+- **Skija-on-Android JNI is fragile.** Several Skija APIs crash in `NewObjectV NULL jclass` on Android because cached `jclass` refs are populated via `FindClass` in a context where the app classloader isn't visible. We currently work around `_nGetImageInfo` (parse PNG/JPG header in Java) and `Paint._nGetColor4f` (avoid `setAlphaf`). Other Skija APIs may hit the same pattern when touched — expect to add workarounds incrementally rather than fix root cause (would need a Skija patch).
+- **Generated classes have no `LineNumberTable`.** Stack traces from binding evaluation point at synthetic class line 0, not back at `.qml` source lines.
+- **Type system is `Object` + `Number` everywhere.** No type inference; runtime coerces on each operation. Numeric precision degrades through bind chains; string + number relies on `RuntimeHelpers.add` semantics.
+- **No hot reload.** Source changes require process restart (or, for `Loader`, mutating its `source` property).
+- **`Image` dimensions read from header parse, not Skia.** Animated / multi-frame formats and unusual codecs may report 0×0 even when Skia would decode them.
+- **Renderer is not thread-safe.** All `render()` and `dispatchClick` calls must come from the same thread (the GL thread on Android).
+- **No release-mode dexing tested.** R8 / proguard are disabled to keep Skija reflection alive; APK is debug-only for now.
 
 ## Android
 
@@ -135,9 +155,12 @@ At runtime, `DexClassLoaderBackend.defineClasses(Map<String, byte[]>)` invokes D
 
 ## Roadmap
 
-- **M7** — MouseArea + signals/slots (handlers also compiled to methods)
-- **M8** — ~~`android-shell` with `DexClassLoaderBackend` and a HelloRectangle APK~~ **done (build chain)**; device install verification still pending
-- **M9** — `anchors`, `Image`, `Loader`
+- ~~**M7** — MouseArea + signals/slots~~ **done**
+- ~~**M8** — `android-shell` with `DexClassLoaderBackend` and a HelloRectangle APK~~ **done, device-verified**
+- ~~**M9** — `anchors`, `Image`, `Loader`~~ **done**
+- **M10** — opacity composition, dirty queue, custom signals
+- **M11** — `States` / `Transitions` / `Animation`
+- **M12** — `ListView` / `Repeater`
 
 See `qml4j-engine/src/main/java/io/qml4j/engine/ClassLoaderBackend.java` for the SPI that decouples the JVM and Android dexing paths.
 
