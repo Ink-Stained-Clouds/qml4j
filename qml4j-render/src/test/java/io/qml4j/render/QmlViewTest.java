@@ -422,6 +422,108 @@ class QmlViewTest {
     }
 
     @Test
+    void transitionTweensFromBeforeToAfterAcrossStateChange() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle {\n" +
+            "  id: r\n" +
+            "  width: 100; height: 10\n" +
+            "  states: [State { name: \"big\"; PropertyChanges { target: r; width: 300 } }]\n" +
+            "  transitions: [Transition { from: \"*\"; to: \"*\"; NumberAnimation { duration: 100 } }]\n" +
+            "}");
+        Rectangle r = (Rectangle) root;
+        r.state.set("big");
+        // Ephemeral anim should now sit in children with from=100, to=300, running=true.
+        // Width should be set back to 100 to start tween.
+        assertEquals(100.0, r.width.peek().doubleValue(), 1e-6);
+        // Manually tick the ephemeral anim (it's the last child added).
+        io.qml4j.render.items.NumberAnimation eph = null;
+        for (Item c : r.children) {
+            if (c instanceof io.qml4j.render.items.NumberAnimation
+                && ((io.qml4j.render.items.NumberAnimation) c).ephemeral) {
+                eph = (io.qml4j.render.items.NumberAnimation) c;
+                break;
+            }
+        }
+        assertNotNull(eph);
+        long t0 = 1_000_000_000L;
+        eph.tick(t0);
+        eph.tick(t0 + 50_000_000L); // 50%
+        assertEquals(200.0, r.width.peek().doubleValue(), 1.0);
+        eph.tick(t0 + 150_000_000L); // past end
+        assertEquals(300.0, r.width.peek().doubleValue(), 1e-6);
+        assertEquals(Boolean.FALSE, eph.running.peek());
+    }
+
+    @Test
+    void transitionFromToFiltersBlockNonMatchingChanges() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle {\n" +
+            "  id: r\n" +
+            "  width: 10; height: 10\n" +
+            "  states: [\n" +
+            "    State { name: \"a\"; PropertyChanges { target: r; width: 50 } },\n" +
+            "    State { name: \"b\"; PropertyChanges { target: r; width: 90 } }\n" +
+            "  ]\n" +
+            "  transitions: [\n" +
+            "    Transition { from: \"a\"; to: \"b\"; NumberAnimation { duration: 100 } }\n" +
+            "  ]\n" +
+            "}");
+        Rectangle r = (Rectangle) root;
+        // First state change "" → "a" does NOT match transition (from="a" required).
+        r.state.set("a");
+        assertEquals(50L, r.width.peek().longValue());
+        int before = r.children.size();
+        // Second state change "a" → "b" DOES match.
+        r.state.set("b");
+        // ephemeral spawned; width rewound to 50
+        assertEquals(50.0, r.width.peek().doubleValue(), 1e-6);
+        assertEquals(before + 1, r.children.size());
+    }
+
+    @Test
+    void transitionPropertiesCsvFiltersWhichToAnimate() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle {\n" +
+            "  id: r\n" +
+            "  width: 10; height: 10\n" +
+            "  states: [State { name: \"go\"; PropertyChanges { target: r; width: 100; height: 200 } }]\n" +
+            "  transitions: [Transition { NumberAnimation { properties: \"width\"; duration: 50 } }]\n" +
+            "}");
+        Rectangle r = (Rectangle) root;
+        r.state.set("go");
+        // height is applied immediately (not in animation filter)
+        assertEquals(200L, r.height.peek().longValue());
+        // width is rewound to 10 by the spawned ephemeral
+        assertEquals(10.0, r.width.peek().doubleValue(), 1e-6);
+    }
+
+    @Test
+    void qmlViewPrunesFinishedEphemerals() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle {\n" +
+            "  id: r\n" +
+            "  width: 0; height: 10\n" +
+            "  states: [State { name: \"go\"; PropertyChanges { target: r; width: 100 } }]\n" +
+            "  transitions: [Transition { NumberAnimation { duration: 10 } }]\n" +
+            "}");
+        Rectangle r = (Rectangle) root;
+        int baseline = r.children.size();
+        r.state.set("go");
+        assertEquals(baseline + 1, r.children.size());
+        // Drive ticks via QmlView's package-private path: call the public tickAnimations.
+        long t0 = 5_000_000_000L;
+        v.tickAnimations(t0);
+        v.tickAnimations(t0 + 50_000_000L);
+        // ephemeral has finished and should be pruned by tickAnimations cleanup
+        assertEquals(100.0, r.width.peek().doubleValue(), 1e-6);
+        assertEquals(baseline, r.children.size());
+    }
+
+    @Test
     void parseColorRgb() {
         assertEquals(0xFFFF0000, Renderer.parseColor("#ff0000"));
         assertEquals(0xFF00FF00, Renderer.parseColor("#00ff00"));

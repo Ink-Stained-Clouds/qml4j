@@ -111,7 +111,7 @@ Shipped since v0:
 - v0.1 — `MouseArea`, `Signal`, `on<Sig>:` handlers compiled to `Runnable` classes; assignment expressions
 - v0.2 — `anchors.fill` / `anchors.centerIn` / `anchors.margins` (+ per-side); `Image` with pluggable `ResourceLoader`; `Loader` for nested QML
 - v0.3 — opacity composes down the tree; `DirtyQueue` coalesces redundant binding re-evaluations per frame; `signal foo()` custom declarations on the root object
-- v0.4 — `id:` resolution in bindings; signal arguments; child-object custom signals; `NumberAnimation` (target/from/to/duration/easing) ticked per frame in `QmlView.renderFrame`; `State` + `PropertyChanges` with `state:` switching (revert prior, apply next; binding expressions evaluated at apply time)
+- v0.4 — `id:` resolution in bindings; signal arguments; child-object custom signals; `NumberAnimation` (target/from/to/duration/easing) ticked per frame in `QmlView.renderFrame`; `State` + `PropertyChanges` with `state:` switching (revert prior, apply next; binding expressions evaluated at apply time); `Transition { from; to; NumberAnimation }` tweens between states by spawning ephemeral animations from snapshotted before/after values; `properties: "a,b"` csv filter on `NumberAnimation`
 
 Not yet:
 - `function` / `var` / control flow statements
@@ -161,7 +161,7 @@ At runtime, `DexClassLoaderBackend.defineClasses(Map<String, byte[]>)` invokes D
 - ~~**M9** — `anchors`, `Image`, `Loader`~~ **done**
 - ~~**M10** — opacity composition, dirty queue, custom signals~~ **done**
 - ~~**M11** — `id:` resolution in bindings; signal arguments; child-object signals~~ **done**
-- **M12** — `States` / `Transitions` / `Animation` (M12a `NumberAnimation` **done**; M12b `State`/`PropertyChanges` **done**; M12c `Transition` next)
+- ~~**M12** — `States` / `Transitions` / `Animation` (M12a `NumberAnimation`; M12b `State`/`PropertyChanges`; M12c `Transition`)~~ **done**
 - **M13** — `ListView` / `Repeater`
 
 See `qml4j-engine/src/main/java/io/qml4j/engine/ClassLoaderBackend.java` for the SPI that decouples the JVM and Android dexing paths.

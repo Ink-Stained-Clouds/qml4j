@@ -10,6 +10,7 @@ import io.qml4j.render.items.PropertyChanges;
 import io.qml4j.render.items.Rectangle;
 import io.qml4j.render.items.State;
 import io.qml4j.render.items.Text;
+import io.qml4j.render.items.Transition;
 
 import io.qml4j.compiler.TypeRegistry;
 
@@ -28,6 +29,7 @@ public final class StockTypes {
             .register("Loader", Loader.class)
             .register("NumberAnimation", NumberAnimation.class)
             .register("State", State.class)
-            .register("PropertyChanges", PropertyChanges.class);
+            .register("PropertyChanges", PropertyChanges.class)
+            .register("Transition", Transition.class);
     }
 }

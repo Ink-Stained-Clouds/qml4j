@@ -118,7 +118,16 @@ public final class QmlView {
         if (node instanceof NumberAnimation) {
             ((NumberAnimation) node).tick(now);
         }
-        for (Item c : node.children) tickAnimations(c, now);
+        for (int i = node.children.size() - 1; i >= 0; i--) {
+            Item c = node.children.get(i);
+            tickAnimations(c, now);
+            if (c instanceof NumberAnimation) {
+                NumberAnimation a = (NumberAnimation) c;
+                if (a.ephemeral && !Boolean.TRUE.equals(a.running.peek())) {
+                    node.children.remove(i);
+                }
+            }
+        }
     }
 
     public DirtyQueue dirtyQueue() {

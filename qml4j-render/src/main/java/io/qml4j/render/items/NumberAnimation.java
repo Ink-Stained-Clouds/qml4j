@@ -6,11 +6,14 @@ import io.qml4j.engine.binding.Property;
 public class NumberAnimation extends Item {
     public final Property<Object> target = new Property<>(null);
     public final Property<String> property = new Property<>(null);
+    public final Property<String> properties = new Property<>(null);
     public final Property<Number> from = new Property<>(0);
     public final Property<Number> to = new Property<>(0);
     public final Property<Number> duration = new Property<>(250);
     public final Property<Boolean> running = new Property<>(Boolean.FALSE);
     public final Property<String> easing = new Property<>("linear");
+
+    public boolean ephemeral;
 
     private long startNanos = -1L;
 

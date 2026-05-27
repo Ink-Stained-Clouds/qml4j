@@ -6,7 +6,9 @@ import io.qml4j.engine.binding.Binding;
 import io.qml4j.engine.binding.Property;
 
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 
 public class PropertyChanges extends Item implements PropertyChangeSink {
     public final Property<Object> target = new Property<>(null);
@@ -37,6 +39,16 @@ public class PropertyChanges extends Item implements PropertyChangeSink {
             saved.put(e.getKey(), RuntimeHelpers.readMember(t, e.getKey()));
             RuntimeHelpers.writeMember(t, e.getKey(), e.getValue().evaluate());
         }
+    }
+
+    public Object targetValue() {
+        return target.peek();
+    }
+
+    public Set<String> propertyNames() {
+        Set<String> all = new LinkedHashSet<>(literals.keySet());
+        all.addAll(bindings.keySet());
+        return all;
     }
 
     public void revert() {
