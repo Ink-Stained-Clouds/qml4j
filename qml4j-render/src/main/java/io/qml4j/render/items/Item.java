@@ -18,4 +18,25 @@ public class Item extends QObject {
     public final Property<Item> parent = new Property<>(null);
     public final List<Item> children = new ArrayList<>();
     public final Anchors anchors = new Anchors();
+
+    public final Property<String> state = new Property<>(null);
+    public final List<State> states = new ArrayList<>();
+    private State activeState;
+
+    public Item() {
+        state.addListener(this::applyState);
+    }
+
+    private void applyState(String name) {
+        State next = null;
+        if (name != null && !name.isEmpty()) {
+            for (State s : states) {
+                if (name.equals(s.name.peek())) { next = s; break; }
+            }
+        }
+        if (next == activeState) return;
+        if (activeState != null) activeState.revert();
+        activeState = next;
+        if (activeState != null) activeState.apply();
+    }
 }

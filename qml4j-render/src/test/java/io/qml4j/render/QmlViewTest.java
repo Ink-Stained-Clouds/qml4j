@@ -340,6 +340,88 @@ class QmlViewTest {
     }
 
     @Test
+    void stateAppliesPropertyChangesToTarget() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle {\n" +
+            "  id: r\n" +
+            "  width: 100; height: 50; color: \"#ff0000\"\n" +
+            "  states: [\n" +
+            "    State {\n" +
+            "      name: \"big\"\n" +
+            "      PropertyChanges { target: r; width: 300; color: \"#00ff00\" }\n" +
+            "    }\n" +
+            "  ]\n" +
+            "  state: \"big\"\n" +
+            "}");
+        Rectangle r = (Rectangle) root;
+        assertEquals(300L, r.width.peek().longValue());
+        assertEquals("#00ff00", r.color.peek());
+        // revert by clearing state
+        r.state.set("");
+        assertEquals(100L, r.width.peek().longValue());
+        assertEquals("#ff0000", r.color.peek());
+    }
+
+    @Test
+    void stateSwitchRevertsPreviousAndAppliesNext() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle {\n" +
+            "  id: r\n" +
+            "  width: 10; height: 10; color: \"#000000\"\n" +
+            "  states: [\n" +
+            "    State { name: \"a\"; PropertyChanges { target: r; width: 100 } },\n" +
+            "    State { name: \"b\"; PropertyChanges { target: r; width: 200; color: \"#abcdef\" } }\n" +
+            "  ]\n" +
+            "}");
+        Rectangle r = (Rectangle) root;
+        r.state.set("a");
+        assertEquals(100L, r.width.peek().longValue());
+        assertEquals("#000000", r.color.peek());
+        r.state.set("b");
+        assertEquals(200L, r.width.peek().longValue());
+        assertEquals("#abcdef", r.color.peek());
+        r.state.set("a");
+        assertEquals(100L, r.width.peek().longValue());
+        assertEquals("#000000", r.color.peek());
+    }
+
+    @Test
+    void stateAppliesAtInitialAssignmentRegardlessOfMemberOrder() {
+        // `state:` written BEFORE `states:` in source — compiler must still
+        // emit state assignment last so the lookup finds the populated list.
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle {\n" +
+            "  id: r\n" +
+            "  width: 1; height: 1\n" +
+            "  state: \"x\"\n" +
+            "  states: [\n" +
+            "    State { name: \"x\"; PropertyChanges { target: r; width: 77 } }\n" +
+            "  ]\n" +
+            "}");
+        Rectangle r = (Rectangle) root;
+        assertEquals(77L, r.width.peek().longValue());
+    }
+
+    @Test
+    void propertyChangesEvaluatesBindingExpression() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle {\n" +
+            "  id: r\n" +
+            "  width: 10; height: 20\n" +
+            "  states: [\n" +
+            "    State { name: \"calc\"; PropertyChanges { target: r; width: r.height * 3 + 1 } }\n" +
+            "  ]\n" +
+            "  state: \"calc\"\n" +
+            "}");
+        Rectangle r = (Rectangle) root;
+        assertEquals(61L, r.width.peek().longValue());
+    }
+
+    @Test
     void parseColorRgb() {
         assertEquals(0xFFFF0000, Renderer.parseColor("#ff0000"));
         assertEquals(0xFF00FF00, Renderer.parseColor("#00ff00"));
