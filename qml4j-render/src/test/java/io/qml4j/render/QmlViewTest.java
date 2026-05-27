@@ -456,6 +456,48 @@ class QmlViewTest {
     }
 
     @Test
+    void transitionAnimatesRevertBackToEmptyState() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle {\n" +
+            "  id: r\n" +
+            "  width: 100; height: 10\n" +
+            "  states: [State { name: \"big\"; PropertyChanges { target: r; width: 300 } }]\n" +
+            "  transitions: [Transition { NumberAnimation { duration: 100 } }]\n" +
+            "}");
+        Rectangle r = (Rectangle) root;
+        r.state.set("big");
+        int afterEnter = r.children.size();
+        // Drain the enter animation so width settles at 300.
+        for (Item c : r.children) {
+            if (c instanceof io.qml4j.render.items.NumberAnimation
+                && ((io.qml4j.render.items.NumberAnimation) c).ephemeral) {
+                io.qml4j.render.items.NumberAnimation a = (io.qml4j.render.items.NumberAnimation) c;
+                a.tick(0L);
+                a.tick(200_000_000L);
+            }
+        }
+        assertEquals(300.0, r.width.peek().doubleValue(), 1e-6);
+
+        // Revert to empty state — must spawn a shrink animation, not snap.
+        r.state.set("");
+        assertEquals(300.0, r.width.peek().doubleValue(), 1e-6); // rewound to before-value
+        io.qml4j.render.items.NumberAnimation shrink = null;
+        for (Item c : r.children) {
+            if (c instanceof io.qml4j.render.items.NumberAnimation
+                && ((io.qml4j.render.items.NumberAnimation) c).ephemeral
+                && Boolean.TRUE.equals(((io.qml4j.render.items.NumberAnimation) c).running.peek())) {
+                shrink = (io.qml4j.render.items.NumberAnimation) c;
+            }
+        }
+        assertNotNull(shrink, "revert direction must spawn an ephemeral animation");
+        long t0 = 2_000_000_000L;
+        shrink.tick(t0);
+        shrink.tick(t0 + 200_000_000L);
+        assertEquals(100.0, r.width.peek().doubleValue(), 1e-6);
+    }
+
+    @Test
     void transitionFromToFiltersBlockNonMatchingChanges() {
         QmlView v = newView();
         Item root = v.load(

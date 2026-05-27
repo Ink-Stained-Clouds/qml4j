@@ -14,6 +14,7 @@ import io.github.humbleui.skija.Surface;
 import io.github.humbleui.skija.SurfaceOrigin;
 
 import io.qml4j.engine.QmlEngine;
+import io.qml4j.engine.binding.DirtyQueue;
 import io.qml4j.render.QmlView;
 import io.qml4j.render.ResourceLoader;
 import io.qml4j.render.SurfaceBackend;
@@ -27,6 +28,7 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
     private final QmlEngine engine;
     private final ResourceLoader resources;
     private QmlView view;
+    // FQN: GLSurfaceView.Renderer (inherited) shadows imported Renderer in a subclass.
     private final io.qml4j.render.Renderer renderer = new io.qml4j.render.Renderer();
     private SkijaGlSurface surface;
 
@@ -79,9 +81,17 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
         @Override
         public void onDrawFrame(GL10 gl) {
             if (view == null) return;
-            Canvas canvas = surface.acquireCanvas();
-            renderer.render(canvas, view.root());
-            surface.present();
+            DirtyQueue dq = view.dirtyQueue();
+            dq.install();
+            try {
+                view.tickAnimations(System.nanoTime());
+                dq.flush();
+                Canvas canvas = surface.acquireCanvas();
+                renderer.render(canvas, view.root());
+                surface.present();
+            } finally {
+                dq.uninstall();
+            }
         }
     }
 
