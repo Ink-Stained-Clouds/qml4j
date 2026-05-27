@@ -56,6 +56,7 @@ public final class Renderer {
 
     private void draw(Canvas canvas, Item node, float inheritedAlpha) {
         if (!node.visible.peek()) return;
+        if (node instanceof Text) measureText((Text) node);
         applyAnchors(node);
         if (node instanceof Loader) {
             resolveLoader((Loader) node);
@@ -82,15 +83,49 @@ public final class Renderer {
         }
     }
 
+    private void measureText(Text t) {
+        float size = t.fontSize.peek().floatValue();
+        String s = t.text.peek();
+        if (s == null) s = "";
+        boolean canMeasureW = !t.width.isBound() && ownsWidth(t);
+        boolean canMeasureH = !t.height.isBound() && ownsHeight(t);
+        if (!canMeasureW && !canMeasureH) return;
+        if (s.equals(t.lastMeasuredText) && size == t.lastMeasuredSize) return;
+        try (Font font = font(size)) {
+            if (canMeasureW) {
+                float w = font.measureTextWidth(s);
+                t.width.set(w);
+                t.lastSetWidth = w;
+            }
+            if (canMeasureH) {
+                t.height.set(size);
+                t.lastSetHeight = size;
+            }
+        }
+        t.lastMeasuredText = s;
+        t.lastMeasuredSize = size;
+    }
+
+    private static boolean ownsWidth(Text t) {
+        if (Double.isNaN(t.lastSetWidth)) return t.width.peek().doubleValue() == 0.0;
+        return t.width.peek().doubleValue() == t.lastSetWidth;
+    }
+
+    private static boolean ownsHeight(Text t) {
+        if (Double.isNaN(t.lastSetHeight)) return t.height.peek().doubleValue() == 0.0;
+        return t.height.peek().doubleValue() == t.lastSetHeight;
+    }
+
     static void applyAnchors(Item node) {
         Anchors a = node.anchors;
+        float baseM = a.margins.peek().floatValue();
+        float lm = marginOr(a.leftMargin.peek(), baseM);
+        float rm = marginOr(a.rightMargin.peek(), baseM);
+        float tm = marginOr(a.topMargin.peek(), baseM);
+        float bm = marginOr(a.bottomMargin.peek(), baseM);
+
         Item fill = a.fill.peek();
         if (fill != null) {
-            float baseM = a.margins.peek().floatValue();
-            float lm = marginOr(a.leftMargin.peek(), baseM);
-            float rm = marginOr(a.rightMargin.peek(), baseM);
-            float tm = marginOr(a.topMargin.peek(), baseM);
-            float bm = marginOr(a.bottomMargin.peek(), baseM);
             node.x.set(lm);
             node.y.set(tm);
             node.width.set(fill.width.peek().floatValue() - lm - rm);
@@ -103,6 +138,77 @@ public final class Renderer {
             float h = node.height.peek().floatValue();
             node.x.set((ci.width.peek().floatValue() - w) / 2f);
             node.y.set((ci.height.peek().floatValue() - h) / 2f);
+            return;
+        }
+        applyHorizontalAnchors(node, lm, rm, a);
+        applyVerticalAnchors(node, tm, bm, a);
+    }
+
+    private static void applyHorizontalAnchors(Item node, float lm, float rm, Anchors a) {
+        AnchorLine left = a.left.peek();
+        AnchorLine right = a.right.peek();
+        AnchorLine hcenter = a.horizontalCenter.peek();
+        if (left != null && right != null) {
+            float l = resolveX(left, node) + lm;
+            float r = resolveX(right, node) - rm;
+            node.x.set(l);
+            node.width.set(r - l);
+        } else if (left != null) {
+            node.x.set(resolveX(left, node) + lm);
+        } else if (right != null) {
+            float w = node.width.peek().floatValue();
+            node.x.set(resolveX(right, node) - rm - w);
+        } else if (hcenter != null) {
+            float w = node.width.peek().floatValue();
+            float off = a.horizontalCenterOffset.peek().floatValue();
+            node.x.set(resolveX(hcenter, node) - w / 2f + off);
+        }
+    }
+
+    private static void applyVerticalAnchors(Item node, float tm, float bm, Anchors a) {
+        AnchorLine top = a.top.peek();
+        AnchorLine bottom = a.bottom.peek();
+        AnchorLine vcenter = a.verticalCenter.peek();
+        if (top != null && bottom != null) {
+            float t = resolveY(top, node) + tm;
+            float b = resolveY(bottom, node) - bm;
+            node.y.set(t);
+            node.height.set(b - t);
+        } else if (top != null) {
+            node.y.set(resolveY(top, node) + tm);
+        } else if (bottom != null) {
+            float h = node.height.peek().floatValue();
+            node.y.set(resolveY(bottom, node) - bm - h);
+        } else if (vcenter != null) {
+            float h = node.height.peek().floatValue();
+            float off = a.verticalCenterOffset.peek().floatValue();
+            node.y.set(resolveY(vcenter, node) - h / 2f + off);
+        }
+    }
+
+    private static float resolveX(AnchorLine line, Item node) {
+        Item src = line.source;
+        boolean srcIsParent = src == node.parent.peek();
+        float base = srcIsParent ? 0f : src.x.peek().floatValue();
+        float w = src.width.peek().floatValue();
+        switch (line.edge) {
+            case LEFT: return base;
+            case RIGHT: return base + w;
+            case HORIZONTAL_CENTER: return base + w / 2f;
+            default: throw new IllegalStateException("not a horizontal edge: " + line.edge);
+        }
+    }
+
+    private static float resolveY(AnchorLine line, Item node) {
+        Item src = line.source;
+        boolean srcIsParent = src == node.parent.peek();
+        float base = srcIsParent ? 0f : src.y.peek().floatValue();
+        float h = src.height.peek().floatValue();
+        switch (line.edge) {
+            case TOP: return base;
+            case BOTTOM: return base + h;
+            case VERTICAL_CENTER: return base + h / 2f;
+            default: throw new IllegalStateException("not a vertical edge: " + line.edge);
         }
     }
 

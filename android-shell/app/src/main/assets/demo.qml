@@ -40,7 +40,7 @@ Rectangle {
         }
 
         Text {
-            x: 16
+            anchors.horizontalCenter: parent.horizontalCenter
             y: 16
             text: "tap to toggle"
             color: "#ffffff"
@@ -99,8 +99,7 @@ Rectangle {
         }
 
         Text {
-            x: 8
-            y: 30
+            anchors.centerIn: parent
             text: "tap me"
             color: "#000000"
             fontSize: 22

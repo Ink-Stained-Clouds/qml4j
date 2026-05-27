@@ -160,6 +160,91 @@ class QmlViewTest {
     }
 
     @Test
+    void anchorsLeftRightStretchesAcrossParent() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item {\n" +
+            "  width: 200; height: 100\n" +
+            "  Rectangle {\n" +
+            "    anchors.left: parent.left\n" +
+            "    anchors.right: parent.right\n" +
+            "    anchors.leftMargin: 5\n" +
+            "    anchors.rightMargin: 15\n" +
+            "    color: \"#0000ff\"\n" +
+            "  }\n" +
+            "}");
+        Rectangle r = (Rectangle) root.children.get(0);
+        Renderer.applyAnchors(r);
+        assertEquals(5.0, r.x.peek().doubleValue(), 1e-6);
+        assertEquals(180.0, r.width.peek().doubleValue(), 1e-6);
+    }
+
+    @Test
+    void anchorsRightOnlyOffsetsByOwnWidth() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item {\n" +
+            "  width: 200; height: 100\n" +
+            "  Rectangle {\n" +
+            "    width: 30; height: 30\n" +
+            "    anchors.right: parent.right\n" +
+            "    anchors.rightMargin: 10\n" +
+            "    color: \"#ff00ff\"\n" +
+            "  }\n" +
+            "}");
+        Rectangle r = (Rectangle) root.children.get(0);
+        Renderer.applyAnchors(r);
+        assertEquals(160.0, r.x.peek().doubleValue(), 1e-6);
+    }
+
+    @Test
+    void anchorsHorizontalCenterCentersHorizontally() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item {\n" +
+            "  width: 200; height: 100\n" +
+            "  Rectangle {\n" +
+            "    width: 40; height: 20\n" +
+            "    anchors.horizontalCenter: parent.horizontalCenter\n" +
+            "    anchors.top: parent.top\n" +
+            "    color: \"#00ffff\"\n" +
+            "  }\n" +
+            "}");
+        Rectangle r = (Rectangle) root.children.get(0);
+        Renderer.applyAnchors(r);
+        assertEquals(80.0, r.x.peek().doubleValue(), 1e-6);
+        assertEquals(0.0, r.y.peek().doubleValue(), 1e-6);
+    }
+
+    @Test
+    void anchorsAnchorToSiblingRightEdge() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item {\n" +
+            "  width: 300; height: 100\n" +
+            "  Rectangle { id: a; x: 10; width: 50; height: 50; color: \"#ff0000\" }\n" +
+            "  Rectangle {\n" +
+            "    anchors.left: a.right\n" +
+            "    anchors.leftMargin: 8\n" +
+            "    width: 20; height: 20\n" +
+            "    color: \"#00ff00\"\n" +
+            "  }\n" +
+            "}");
+        Rectangle b = (Rectangle) root.children.get(1);
+        Renderer.applyAnchors(b);
+        assertEquals(68.0, b.x.peek().doubleValue(), 1e-6);
+    }
+
+    @Test
+    void itemEdgeAnchorLineIdentifiesSource() {
+        QmlView v = newView();
+        Item root = v.load("Item { width: 100 }");
+        io.qml4j.render.AnchorLine line = root.right.peek();
+        assertTrue(line.source == root);
+        assertEquals(io.qml4j.render.AnchorLine.Edge.RIGHT, line.edge);
+    }
+
+    @Test
     void imageTypeLoadsSource() {
         QmlView v = newView();
         Item root = v.load(
