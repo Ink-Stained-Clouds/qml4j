@@ -2,6 +2,9 @@ Rectangle {
     id: root
     color: "#202028"
 
+    signal bumped()
+    onBumped: badge.color = badge.color === "#80ff80" ? "#ff8080" : "#80ff80"
+
     Rectangle {
         id: box
         x: 60
@@ -95,6 +98,7 @@ Rectangle {
                     dot.x = 400;
                     dot.color = "#ffcc00";
                 }
+                root.bumped.emit();
             }
         }
 

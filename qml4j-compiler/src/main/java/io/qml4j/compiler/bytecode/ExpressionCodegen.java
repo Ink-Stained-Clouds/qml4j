@@ -82,7 +82,7 @@ final class ExpressionCodegen {
         } else if (e instanceof Ast.AssignmentExpr) {
             emitAssignment(mv, (Ast.AssignmentExpr) e);
         } else if (e instanceof Ast.CallExpr) {
-            throw new UnsupportedOperationException("M5: function calls not supported");
+            emitCall(mv, (Ast.CallExpr) e);
         } else {
             throw new IllegalStateException("unknown expression: " + e.getClass().getName());
         }
@@ -230,6 +230,28 @@ final class ExpressionCodegen {
             throw new UnsupportedOperationException(
                 "assignment target must be identifier or member access, got " + a.target.getClass().getSimpleName());
         }
+    }
+
+    private void emitCall(MethodVisitor mv, Ast.CallExpr c) {
+        if (!(c.callee instanceof Ast.MemberExpr)) {
+            throw new UnsupportedOperationException(
+                "only method calls of the form receiver.method(...) are supported");
+        }
+        Ast.MemberExpr m = (Ast.MemberExpr) c.callee;
+        emit(mv, m.target);
+        mv.visitLdcInsn(m.property);
+        pushInt(mv, c.args.size());
+        mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");
+        for (int i = 0; i < c.args.size(); i++) {
+            mv.visitInsn(Opcodes.DUP);
+            pushInt(mv, i);
+            emit(mv, c.args.get(i));
+            mv.visitInsn(Opcodes.AASTORE);
+        }
+        mv.visitMethodInsn(Opcodes.INVOKESTATIC, HELPERS_INTERNAL,
+                           "callMethod",
+                           "(Ljava/lang/Object;Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/Object;",
+                           false);
     }
 
     private void emitCond(MethodVisitor mv, Ast.CondExpr c) {

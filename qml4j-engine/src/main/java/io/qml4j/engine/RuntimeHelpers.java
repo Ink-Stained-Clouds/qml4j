@@ -164,4 +164,41 @@ public final class RuntimeHelpers {
         }
         return val;
     }
+
+    public static Object callMethod(Object receiver, String name, Object[] args) {
+        if (receiver == null) {
+            throw new NullPointerException("cannot call '" + name + "' on null receiver");
+        }
+        Class<?> cls = receiver.getClass();
+        int n = args.length;
+        java.lang.reflect.Method exact = null;
+        java.lang.reflect.Method varargs = null;
+        for (java.lang.reflect.Method m : cls.getMethods()) {
+            if (!m.getName().equals(name)) continue;
+            int pc = m.getParameterCount();
+            if (pc == n && !m.isVarArgs()) { exact = m; break; }
+            if (m.isVarArgs() && pc - 1 <= n) varargs = m;
+        }
+        try {
+            if (exact != null) return exact.invoke(receiver, args);
+            if (varargs != null) {
+                int fixed = varargs.getParameterCount() - 1;
+                Object[] reshaped = new Object[fixed + 1];
+                System.arraycopy(args, 0, reshaped, 0, fixed);
+                Object[] rest = new Object[n - fixed];
+                System.arraycopy(args, fixed, rest, 0, n - fixed);
+                reshaped[fixed] = rest;
+                return varargs.invoke(receiver, reshaped);
+            }
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException) throw (RuntimeException) cause;
+            if (cause instanceof Error) throw (Error) cause;
+            throw new RuntimeException(cause);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+        throw new IllegalArgumentException(
+            "no method '" + name + "' with " + n + " args on " + cls.getName());
+    }
 }

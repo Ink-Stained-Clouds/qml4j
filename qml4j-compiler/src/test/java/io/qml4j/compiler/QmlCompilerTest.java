@@ -438,6 +438,54 @@ class QmlCompilerTest {
     }
 
     @Test
+    void handlerCanEmitOwnSignalViaId() throws Exception {
+        TestItem root = instantiate(
+            "TestItem {\n" +
+            "  id: r\n" +
+            "  signal pinged()\n" +
+            "  signal poked()\n" +
+            "  onPoked: r.pinged.emit()\n" +
+            "  onPinged: ref = \"pinged\"\n" +
+            "}");
+        io.qml4j.engine.Signal poked = (io.qml4j.engine.Signal) root.getClass().getField("poked").get(root);
+        poked.emit();
+        assertEquals("pinged", root.ref.peek());
+    }
+
+    @Test
+    void handlerCanEmitSignalWithArgs() throws Exception {
+        TestItem root = instantiate(
+            "TestItem {\n" +
+            "  id: r\n" +
+            "  signal pressed(int x, int y)\n" +
+            "  signal trigger()\n" +
+            "  onTrigger: r.pressed.emit(7, 9)\n" +
+            "  onPressed: ref = x + y\n" +
+            "}");
+        io.qml4j.engine.Signal trigger = (io.qml4j.engine.Signal) root.getClass().getField("trigger").get(root);
+        trigger.emit();
+        assertEquals(16L, ((Number) root.ref.peek()).longValue());
+    }
+
+    @Test
+    void handlerCanEmitChildSignalViaChildId() throws Exception {
+        TestItem root = instantiate(
+            "TestItem {\n" +
+            "  id: r\n" +
+            "  signal trigger()\n" +
+            "  TestItem {\n" +
+            "    id: c\n" +
+            "    signal poked(int v)\n" +
+            "    onPoked: r.ref = v\n" +
+            "  }\n" +
+            "  onTrigger: c.poked.emit(100)\n" +
+            "}");
+        io.qml4j.engine.Signal trigger = (io.qml4j.engine.Signal) root.getClass().getField("trigger").get(root);
+        trigger.emit();
+        assertEquals(100L, ((Number) root.ref.peek()).longValue());
+    }
+
+    @Test
     void handlerStatementBlockMultipleStatements() throws Exception {
         TestItem it = instantiate(
             "TestItem {\n" +
