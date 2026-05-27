@@ -27,12 +27,21 @@ objectDeclaration
 
 objectMember
     : propertyDeclaration
+    | signalDeclaration
     | propertyBinding
     | objectDeclaration
     ;
 
 propertyDeclaration
     : modifier* 'property' typeName Identifier (':' value)? ';'?
+    ;
+
+signalDeclaration
+    : 'signal' Identifier ('(' (signalParam (',' signalParam)*)? ')')? ';'?
+    ;
+
+signalParam
+    : typeName? Identifier
     ;
 
 modifier

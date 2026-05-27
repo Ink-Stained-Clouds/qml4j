@@ -101,7 +101,12 @@ public final class Property<T> {
                 BindingEvaluationContext.pop();
             }
 
-            Runnable invalidate = this::reevaluate;
+            Runnable reeval = this::reevaluate;
+            Runnable invalidate = () -> {
+                DirtyQueue dq = DirtyQueue.current();
+                if (dq != null) dq.enqueue(reeval);
+                else reeval.run();
+            };
             for (Property<?> dep : reads) {
                 if (dep == this) continue;
                 dep.addInvalidationListener(invalidate);

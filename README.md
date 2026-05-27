@@ -110,10 +110,11 @@ QML:
 Shipped since v0:
 - v0.1 — `MouseArea`, `Signal`, `on<Sig>:` handlers compiled to `Runnable` classes; assignment expressions
 - v0.2 — `anchors.fill` / `anchors.centerIn` / `anchors.margins` (+ per-side); `Image` with pluggable `ResourceLoader`; `Loader` for nested QML
+- v0.3 — opacity composes down the tree; `DirtyQueue` coalesces redundant binding re-evaluations per frame; `signal foo()` custom declarations on the root object
 
 Not yet:
 - `function` / `var` / control flow statements
-- Custom signal declarations (`signal foo()`)
+- Custom signal declarations on child objects (only root for now), signal arguments are parsed but unused
 - `States`, `Transitions`, `Animation`, `Behavior`
 - `ListView`, `Repeater`, modules, singletons, `import`
 - `Qt.binding()`, `Connections`
@@ -123,10 +124,8 @@ Not yet:
 
 These are real and worth knowing before building on top of qml4j:
 
-- **Opacity does not compose down the tree.** Each `Item` reads its own `opacity` and applies it to its paint; a parent at 0.5 does not dim its children. Will need a `Canvas.saveLayerAlpha` per subtree.
-- **No frame-coalesced dirty re-evaluation.** `DirtyQueue` exists but isn't wired — every frame `peek()`s every property. Works because all bindings re-evaluate lazily on first `get()`, but every binding currently runs at least once per frame.
 - **`id:` references unsupported in bindings.** Compiler resolves `parent.x` and context globals, but not sibling-by-id (`btn.width`). The `id:` keyword parses fine and is ignored.
-- **No custom signal declarations.** `signal clicked()` in user QML won't work; only built-in signals on stock types (`MouseArea.clicked`) are reachable.
+- **Custom signals only on the root object.** `signal foo()` works on the root (a synthetic subclass is generated and gets a `Signal` field), but children use stock types and can't be augmented. Signal arguments are parsed but ignored at emit/handler time.
 - **Skija-on-Android JNI is fragile.** Several Skija APIs crash in `NewObjectV NULL jclass` on Android because cached `jclass` refs are populated via `FindClass` in a context where the app classloader isn't visible. We currently work around `_nGetImageInfo` (parse PNG/JPG header in Java) and `Paint._nGetColor4f` (avoid `setAlphaf`). Other Skija APIs may hit the same pattern when touched — expect to add workarounds incrementally rather than fix root cause (would need a Skija patch).
 - **Generated classes have no `LineNumberTable`.** Stack traces from binding evaluation point at synthetic class line 0, not back at `.qml` source lines.
 - **Type system is `Object` + `Number` everywhere.** No type inference; runtime coerces on each operation. Numeric precision degrades through bind chains; string + number relies on `RuntimeHelpers.add` semantics.
@@ -158,9 +157,10 @@ At runtime, `DexClassLoaderBackend.defineClasses(Map<String, byte[]>)` invokes D
 - ~~**M7** — MouseArea + signals/slots~~ **done**
 - ~~**M8** — `android-shell` with `DexClassLoaderBackend` and a HelloRectangle APK~~ **done, device-verified**
 - ~~**M9** — `anchors`, `Image`, `Loader`~~ **done**
-- **M10** — opacity composition, dirty queue, custom signals
-- **M11** — `States` / `Transitions` / `Animation`
-- **M12** — `ListView` / `Repeater`
+- ~~**M10** — opacity composition, dirty queue, custom signals~~ **done**
+- **M11** — `id:` resolution in bindings; signal arguments; child-object signals
+- **M12** — `States` / `Transitions` / `Animation`
+- **M13** — `ListView` / `Repeater`
 
 See `qml4j-engine/src/main/java/io/qml4j/engine/ClassLoaderBackend.java` for the SPI that decouples the JVM and Android dexing paths.
 

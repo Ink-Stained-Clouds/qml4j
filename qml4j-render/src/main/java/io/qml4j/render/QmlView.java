@@ -5,6 +5,7 @@ import io.qml4j.compiler.CompiledUnit;
 import io.qml4j.compiler.QmlCompiler;
 import io.qml4j.compiler.TypeRegistry;
 import io.qml4j.engine.ClassLoaderBackend;
+import io.qml4j.engine.DirtyQueue;
 import io.qml4j.engine.QmlEngine;
 import io.qml4j.parser.Qml4j;
 import io.qml4j.parser.ast.Ast;
@@ -17,6 +18,7 @@ public final class QmlView {
     private final TypeRegistry types;
     private final QmlCompiler compiler = new QmlCompiler();
     private final Renderer renderer = new Renderer();
+    private final DirtyQueue dirty = new DirtyQueue();
     private Item root;
 
     public QmlView(QmlEngine engine, TypeRegistry types) {
@@ -90,9 +92,19 @@ public final class QmlView {
     }
 
     public void renderFrame(SurfaceBackend backend) {
-        Canvas canvas = backend.acquireCanvas();
-        renderer.render(canvas, root);
-        backend.present();
+        dirty.install();
+        try {
+            dirty.flush();
+            Canvas canvas = backend.acquireCanvas();
+            renderer.render(canvas, root);
+            backend.present();
+        } finally {
+            dirty.uninstall();
+        }
+    }
+
+    public DirtyQueue dirtyQueue() {
+        return dirty;
     }
 
     public Renderer renderer() {

@@ -9,9 +9,13 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public final class QmlCompiler {
@@ -43,13 +47,37 @@ public final class QmlCompiler {
         cw.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
                  componentInternal, null, rootInternal, null);
 
+        Set<String> rootSignalNames = new LinkedHashSet<>();
+        for (Ast.ObjectMember m : doc.root.members) {
+            if (m instanceof Ast.SignalDeclaration) {
+                Ast.SignalDeclaration sd = (Ast.SignalDeclaration) m;
+                if (!rootSignalNames.add(sd.name)) {
+                    throw new IllegalArgumentException("duplicate signal: " + sd.name);
+                }
+                if (findSignalFieldOrNull(rootType, sd.name) != null) {
+                    throw new IllegalArgumentException(
+                        "signal '" + sd.name + "' shadows existing field on " + rootType.getName());
+                }
+                cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
+                              sd.name, SIGNAL_DESC, null, null).visitEnd();
+            }
+        }
+
         MethodVisitor ctor = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
         ctor.visitCode();
         ctor.visitVarInsn(Opcodes.ALOAD, 0);
         ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, rootInternal, "<init>", "()V", false);
+        for (String sig : rootSignalNames) {
+            ctor.visitVarInsn(Opcodes.ALOAD, 0);
+            ctor.visitTypeInsn(Opcodes.NEW, SIGNAL_INTERNAL);
+            ctor.visitInsn(Opcodes.DUP);
+            ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, SIGNAL_INTERNAL, "<init>", "()V", false);
+            ctor.visitFieldInsn(Opcodes.PUTFIELD, componentInternal, sig, SIGNAL_DESC);
+        }
 
         emitObjectBody(ctor, rootType, 0, doc.root, registry,
-                       localCounter, bindingCounter, handlerCounter, classes, componentBinaryName);
+                       localCounter, bindingCounter, handlerCounter, classes, componentBinaryName,
+                       componentInternal, rootSignalNames);
 
         ctor.visitInsn(Opcodes.RETURN);
         ctor.visitMaxs(0, 0);
@@ -63,17 +91,29 @@ public final class QmlCompiler {
     private void emitObjectBody(MethodVisitor ctor, Class<? extends QObject> outerType,
                                 int outerLocal, Ast.ObjectNode obj, TypeRegistry registry,
                                 int[] localCounter, int[] bindingCounter, int[] handlerCounter,
-                                Map<String, byte[]> classes, String componentBinaryName) {
+                                Map<String, byte[]> classes, String componentBinaryName,
+                                String customSignalOwner, Set<String> customSignals) {
+        boolean isRoot = outerLocal == 0;
         for (Ast.ObjectMember m : obj.members) {
+            if (m instanceof Ast.SignalDeclaration) {
+                if (!isRoot) {
+                    throw new UnsupportedOperationException(
+                        "signal declarations are only supported on the root object");
+                }
+                continue;
+            }
             emitMember(ctor, outerType, outerLocal, m, registry,
-                       localCounter, bindingCounter, handlerCounter, classes, componentBinaryName);
+                       localCounter, bindingCounter, handlerCounter, classes, componentBinaryName,
+                       isRoot ? customSignalOwner : null,
+                       isRoot ? customSignals : Collections.<String>emptySet());
         }
     }
 
     private void emitMember(MethodVisitor ctor, Class<? extends QObject> outerType,
                             int outerLocal, Ast.ObjectMember m, TypeRegistry registry,
                             int[] localCounter, int[] bindingCounter, int[] handlerCounter,
-                            Map<String, byte[]> classes, String componentBinaryName) {
+                            Map<String, byte[]> classes, String componentBinaryName,
+                            String customSignalOwner, Set<String> customSignals) {
         if (m instanceof Ast.PropertyBinding) {
             Ast.PropertyBinding b = (Ast.PropertyBinding) m;
             List<String> path = b.path;
@@ -85,6 +125,12 @@ public final class QmlCompiler {
             if (path.size() == 1) {
                 String key = path.get(0);
                 String signalName = signalNameFromHandler(key);
+                if (signalName != null && customSignals.contains(signalName)) {
+                    emitCustomSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
+                                            handlerCounter, classes,
+                                            customSignalOwner, signalName, e);
+                    return;
+                }
                 Field signalField = signalName != null ? findSignalFieldOrNull(outerType, signalName) : null;
                 if (signalField != null) {
                     emitSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
@@ -110,6 +156,10 @@ public final class QmlCompiler {
             emitChildObject(ctor, outerType, outerLocal, ((Ast.ChildObject) m).object, registry,
                             localCounter, bindingCounter, handlerCounter, classes, componentBinaryName);
             return;
+        }
+        if (m instanceof Ast.SignalDeclaration) {
+            throw new UnsupportedOperationException(
+                "signal declarations are only supported on the root object");
         }
         if (m instanceof Ast.PropertyDeclaration) {
             throw new UnsupportedOperationException("property declarations not yet supported");
@@ -152,7 +202,8 @@ public final class QmlCompiler {
         }
 
         emitObjectBody(ctor, childType, childLocal, child, registry,
-                       localCounter, bindingCounter, handlerCounter, classes, componentBinaryName);
+                       localCounter, bindingCounter, handlerCounter, classes, componentBinaryName,
+                       null, Collections.<String>emptySet());
     }
 
     private static Field findPropertyField(Class<?> outerType, String name) {
@@ -292,6 +343,29 @@ public final class QmlCompiler {
         } catch (NoSuchFieldException e) {
             return null;
         }
+    }
+
+    private void emitCustomSignalHandler(MethodVisitor ctor, Class<? extends QObject> outerType,
+                                         int outerLocal, String componentBinaryName,
+                                         int[] handlerCounter, Map<String, byte[]> classes,
+                                         String signalOwnerInternal, String signalName,
+                                         Ast.Expression body) {
+        String outerInternal = Type.getInternalName(outerType);
+        int n = handlerCounter[0]++;
+        String handlerBinaryName = componentBinaryName + "$Handler$" + n;
+        String handlerInternal = handlerBinaryName.replace('.', '/');
+        byte[] handlerBytes = emitHandlerClass(handlerInternal, outerInternal, outerType, body);
+        classes.put(handlerBinaryName, handlerBytes);
+
+        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+        ctor.visitFieldInsn(Opcodes.GETFIELD, signalOwnerInternal, signalName, SIGNAL_DESC);
+        ctor.visitTypeInsn(Opcodes.NEW, handlerInternal);
+        ctor.visitInsn(Opcodes.DUP);
+        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, handlerInternal, "<init>",
+                             "(L" + outerInternal + ";)V", false);
+        ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, SIGNAL_INTERNAL,
+                             "connect", "(L" + RUNNABLE_INTERNAL + ";)V", false);
     }
 
     private void emitSignalHandler(MethodVisitor ctor, Class<? extends QObject> outerType,

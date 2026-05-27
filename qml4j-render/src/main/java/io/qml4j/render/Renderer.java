@@ -43,10 +43,10 @@ public final class Renderer {
 
     public void render(Canvas canvas, Item root) {
         if (root == null) return;
-        draw(canvas, root);
+        draw(canvas, root, 1f);
     }
 
-    private void draw(Canvas canvas, Item node) {
+    private void draw(Canvas canvas, Item node, float inheritedAlpha) {
         if (!node.visible.peek()) return;
         applyAnchors(node);
         if (node instanceof Loader) {
@@ -59,7 +59,7 @@ public final class Renderer {
         float y = node.y.peek().floatValue();
         float w = node.width.peek().floatValue();
         float h = node.height.peek().floatValue();
-        float alpha = node.opacity.peek().floatValue();
+        float alpha = inheritedAlpha * node.opacity.peek().floatValue();
         if (alpha <= 0f) return;
 
         int savedCount = canvas.save();
@@ -67,7 +67,7 @@ public final class Renderer {
             canvas.translate(x, y);
             paintNode(canvas, node, w, h, alpha);
             for (Item child : node.children) {
-                draw(canvas, child);
+                draw(canvas, child, alpha);
             }
         } finally {
             canvas.restoreToCount(savedCount);

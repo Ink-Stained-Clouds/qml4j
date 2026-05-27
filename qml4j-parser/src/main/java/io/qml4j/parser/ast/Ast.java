@@ -77,6 +77,16 @@ public final class Ast {
         @Override public String toString() { return String.join(".", path) + ": " + value; }
     }
 
+    public static final class SignalDeclaration extends ObjectMember {
+        public final String name;
+        public final List<String> paramNames;
+        public SignalDeclaration(String name, List<String> paramNames) {
+            this.name = name;
+            this.paramNames = Collections.unmodifiableList(paramNames);
+        }
+        @Override public String toString() { return "signal " + name + paramNames; }
+    }
+
     public static final class ChildObject extends ObjectMember {
         public final ObjectNode object;
         public ChildObject(ObjectNode object) { this.object = object; }

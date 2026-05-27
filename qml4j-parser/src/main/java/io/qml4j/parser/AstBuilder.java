@@ -46,9 +46,20 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     @Override
     public Ast.ObjectMember visitObjectMember(QmlParser.ObjectMemberContext ctx) {
         if (ctx.propertyDeclaration() != null) return (Ast.ObjectMember) visit(ctx.propertyDeclaration());
+        if (ctx.signalDeclaration() != null) return (Ast.ObjectMember) visit(ctx.signalDeclaration());
         if (ctx.propertyBinding() != null) return (Ast.ObjectMember) visit(ctx.propertyBinding());
         Ast.ObjectNode child = (Ast.ObjectNode) visit(ctx.objectDeclaration());
         return new Ast.ChildObject(child);
+    }
+
+    @Override
+    public Ast.SignalDeclaration visitSignalDeclaration(QmlParser.SignalDeclarationContext ctx) {
+        String name = ctx.Identifier().getText();
+        List<String> params = new ArrayList<>();
+        for (QmlParser.SignalParamContext pc : ctx.signalParam()) {
+            params.add(pc.Identifier().getText());
+        }
+        return new Ast.SignalDeclaration(name, params);
     }
 
     @Override

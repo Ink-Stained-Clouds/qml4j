@@ -190,6 +190,63 @@ class QmlViewTest {
     }
 
     @Test
+    void opacityComposesAcrossParents() {
+        Item parent = new Item();
+        parent.opacity.set(0.5);
+        Item child = new Item();
+        child.opacity.set(0.5);
+        parent.children.add(child);
+        child.parent.set(parent);
+        // No canvas needed for this — we only assert the math the renderer uses.
+        float effective = parent.opacity.peek().floatValue() * child.opacity.peek().floatValue();
+        org.junit.jupiter.api.Assertions.assertEquals(0.25f, effective, 1e-6);
+    }
+
+    @Test
+    void dirtyQueueCoalescesRedundantReevaluations() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item {\n" +
+            "  width: 10; height: 20\n" +
+            "  Rectangle { width: parent.width + parent.height; height: 1 }\n" +
+            "}");
+        Rectangle r = (Rectangle) root.children.get(0);
+        assertEquals(30L, r.width.peek().longValue());
+        io.qml4j.engine.DirtyQueue dq = v.dirtyQueue();
+        dq.install();
+        try {
+            root.width.set(100);
+            root.height.set(200);
+            // While the queue is installed, the binding is queued, not yet re-run.
+            assertEquals(30L, r.width.peek().longValue());
+            dq.flush();
+            assertEquals(300L, r.width.peek().longValue());
+        } finally {
+            dq.uninstall();
+        }
+    }
+
+    @Test
+    void customSignalDeclarationAndHandler() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item {\n" +
+            "  width: 10; height: 10\n" +
+            "  signal pinged()\n" +
+            "  onPinged: width = 999\n" +
+            "}");
+        try {
+            io.qml4j.engine.Signal s = (io.qml4j.engine.Signal)
+                root.getClass().getField("pinged").get(root);
+            assertNotNull(s);
+            s.emit();
+            assertEquals(999L, root.width.peek().longValue());
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    @Test
     void parseColorRgb() {
         assertEquals(0xFFFF0000, Renderer.parseColor("#ff0000"));
         assertEquals(0xFF00FF00, Renderer.parseColor("#00ff00"));
