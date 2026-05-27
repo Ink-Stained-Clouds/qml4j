@@ -19,6 +19,9 @@ public final class QmlCompiler {
     private static final String PROPERTY_INTERNAL = "io/qml4j/engine/Property";
     private static final String PROPERTY_DESC = "L" + PROPERTY_INTERNAL + ";";
     private static final String BINDING_INTERNAL = "io/qml4j/engine/Binding";
+    private static final String SIGNAL_INTERNAL = "io/qml4j/engine/Signal";
+    private static final String SIGNAL_DESC = "L" + SIGNAL_INTERNAL + ";";
+    private static final String RUNNABLE_INTERNAL = "java/lang/Runnable";
     private static final String LIST_INTERNAL = "java/util/List";
     private static final String LIST_DESC = "L" + LIST_INTERNAL + ";";
 
@@ -33,6 +36,7 @@ public final class QmlCompiler {
 
         Map<String, byte[]> classes = new LinkedHashMap<>();
         int[] bindingCounter = {0};
+        int[] handlerCounter = {0};
         int[] localCounter = {1};
 
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
@@ -45,7 +49,7 @@ public final class QmlCompiler {
         ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, rootInternal, "<init>", "()V", false);
 
         emitObjectBody(ctor, rootType, 0, doc.root, registry,
-                       localCounter, bindingCounter, classes, componentBinaryName);
+                       localCounter, bindingCounter, handlerCounter, classes, componentBinaryName);
 
         ctor.visitInsn(Opcodes.RETURN);
         ctor.visitMaxs(0, 0);
@@ -58,41 +62,53 @@ public final class QmlCompiler {
 
     private void emitObjectBody(MethodVisitor ctor, Class<? extends QObject> outerType,
                                 int outerLocal, Ast.ObjectNode obj, TypeRegistry registry,
-                                int[] localCounter, int[] bindingCounter,
+                                int[] localCounter, int[] bindingCounter, int[] handlerCounter,
                                 Map<String, byte[]> classes, String componentBinaryName) {
         for (Ast.ObjectMember m : obj.members) {
             emitMember(ctor, outerType, outerLocal, m, registry,
-                       localCounter, bindingCounter, classes, componentBinaryName);
+                       localCounter, bindingCounter, handlerCounter, classes, componentBinaryName);
         }
     }
 
     private void emitMember(MethodVisitor ctor, Class<? extends QObject> outerType,
                             int outerLocal, Ast.ObjectMember m, TypeRegistry registry,
-                            int[] localCounter, int[] bindingCounter,
+                            int[] localCounter, int[] bindingCounter, int[] handlerCounter,
                             Map<String, byte[]> classes, String componentBinaryName) {
         if (m instanceof Ast.PropertyBinding) {
             Ast.PropertyBinding b = (Ast.PropertyBinding) m;
             List<String> path = b.path;
             if (path.size() == 1 && "id".equals(path.get(0))) return;
-            if (path.size() != 1) {
-                throw new UnsupportedOperationException("grouped property path not supported: " + path);
-            }
             if (!(b.value instanceof Ast.ExpressionValue)) {
                 throw new UnsupportedOperationException("only expression bindings supported");
             }
             Ast.Expression e = ((Ast.ExpressionValue) b.value).expr;
-            String propName = path.get(0);
-            if (e instanceof Ast.LiteralExpr) {
-                emitLiteralAssignment(ctor, outerType, outerLocal, propName, (Ast.LiteralExpr) e);
-            } else {
-                emitExpressionBinding(ctor, outerType, outerLocal, componentBinaryName,
-                                      bindingCounter, classes, propName, e);
+            if (path.size() == 1) {
+                String key = path.get(0);
+                String signalName = signalNameFromHandler(key);
+                Field signalField = signalName != null ? findSignalFieldOrNull(outerType, signalName) : null;
+                if (signalField != null) {
+                    emitSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
+                                      handlerCounter, classes, signalField, e);
+                    return;
+                }
+                if (e instanceof Ast.LiteralExpr) {
+                    emitLiteralAssignment(ctor, outerType, outerLocal, key, (Ast.LiteralExpr) e);
+                } else {
+                    emitExpressionBinding(ctor, outerType, outerLocal, componentBinaryName,
+                                          bindingCounter, classes, key, e);
+                }
+                return;
             }
-            return;
+            if (path.size() == 2) {
+                emitGroupedBinding(ctor, outerType, outerLocal, componentBinaryName,
+                                   bindingCounter, classes, path.get(0), path.get(1), e);
+                return;
+            }
+            throw new UnsupportedOperationException("nested grouped property path not supported: " + path);
         }
         if (m instanceof Ast.ChildObject) {
             emitChildObject(ctor, outerType, outerLocal, ((Ast.ChildObject) m).object, registry,
-                            localCounter, bindingCounter, classes, componentBinaryName);
+                            localCounter, bindingCounter, handlerCounter, classes, componentBinaryName);
             return;
         }
         if (m instanceof Ast.PropertyDeclaration) {
@@ -103,7 +119,7 @@ public final class QmlCompiler {
 
     private void emitChildObject(MethodVisitor ctor, Class<? extends QObject> outerType,
                                  int outerLocal, Ast.ObjectNode child, TypeRegistry registry,
-                                 int[] localCounter, int[] bindingCounter,
+                                 int[] localCounter, int[] bindingCounter, int[] handlerCounter,
                                  Map<String, byte[]> classes, String componentBinaryName) {
         Class<? extends QObject> childType = registry.resolve(child.typeName);
         String childInternal = Type.getInternalName(childType);
@@ -136,7 +152,7 @@ public final class QmlCompiler {
         }
 
         emitObjectBody(ctor, childType, childLocal, child, registry,
-                       localCounter, bindingCounter, classes, componentBinaryName);
+                       localCounter, bindingCounter, handlerCounter, classes, componentBinaryName);
     }
 
     private static Field findPropertyField(Class<?> outerType, String name) {
@@ -207,6 +223,135 @@ public final class QmlCompiler {
                              "(L" + outerInternal + ";)V", false);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
                              "bind", "(L" + BINDING_INTERNAL + ";)V", false);
+    }
+
+    private void emitGroupedBinding(MethodVisitor ctor, Class<? extends QObject> outerType,
+                                    int outerLocal, String componentBinaryName,
+                                    int[] bindingCounter, Map<String, byte[]> classes,
+                                    String groupName, String propName, Ast.Expression expr) {
+        Field groupField;
+        try {
+            groupField = outerType.getField(groupName);
+        } catch (NoSuchFieldException ex) {
+            throw new IllegalArgumentException(
+                "no group field '" + groupName + "' on " + outerType.getName());
+        }
+        if (Property.class.isAssignableFrom(groupField.getType())) {
+            throw new IllegalArgumentException(
+                "field '" + groupName + "' on " + outerType.getName()
+                + " is a Property, not a grouped object");
+        }
+        Class<?> groupType = groupField.getType();
+        Field propField = findPropertyField(groupType, propName);
+        String groupDeclOwner = Type.getInternalName(groupField.getDeclaringClass());
+        String propDeclOwner = Type.getInternalName(propField.getDeclaringClass());
+        String groupTypeInternal = Type.getInternalName(groupType);
+        String outerInternal = Type.getInternalName(outerType);
+
+        if (expr instanceof Ast.LiteralExpr) {
+            ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+            ctor.visitFieldInsn(Opcodes.GETFIELD, groupDeclOwner, groupName,
+                                "L" + groupTypeInternal + ";");
+            ctor.visitFieldInsn(Opcodes.GETFIELD, propDeclOwner, propName, PROPERTY_DESC);
+            loadLiteral(ctor, (Ast.LiteralExpr) expr);
+            ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
+                                 "set", "(Ljava/lang/Object;)V", false);
+            return;
+        }
+
+        int n = bindingCounter[0]++;
+        String bindingBinaryName = componentBinaryName + "$Binding$" + n;
+        String bindingInternal = bindingBinaryName.replace('.', '/');
+        byte[] bindingBytes = emitBindingClass(bindingInternal, outerInternal, outerType, expr);
+        classes.put(bindingBinaryName, bindingBytes);
+
+        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+        ctor.visitFieldInsn(Opcodes.GETFIELD, groupDeclOwner, groupName,
+                            "L" + groupTypeInternal + ";");
+        ctor.visitFieldInsn(Opcodes.GETFIELD, propDeclOwner, propName, PROPERTY_DESC);
+        ctor.visitTypeInsn(Opcodes.NEW, bindingInternal);
+        ctor.visitInsn(Opcodes.DUP);
+        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, bindingInternal, "<init>",
+                             "(L" + outerInternal + ";)V", false);
+        ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
+                             "bind", "(L" + BINDING_INTERNAL + ";)V", false);
+    }
+
+    private static String signalNameFromHandler(String key) {
+        if (key.length() < 3 || !key.startsWith("on")) return null;
+        char c = key.charAt(2);
+        if (!Character.isUpperCase(c)) return null;
+        return Character.toLowerCase(c) + key.substring(3);
+    }
+
+    private static Field findSignalFieldOrNull(Class<?> type, String name) {
+        try {
+            Field f = type.getField(name);
+            return io.qml4j.engine.Signal.class.isAssignableFrom(f.getType()) ? f : null;
+        } catch (NoSuchFieldException e) {
+            return null;
+        }
+    }
+
+    private void emitSignalHandler(MethodVisitor ctor, Class<? extends QObject> outerType,
+                                   int outerLocal, String componentBinaryName,
+                                   int[] handlerCounter, Map<String, byte[]> classes,
+                                   Field signalField, Ast.Expression body) {
+        String declOwner = Type.getInternalName(signalField.getDeclaringClass());
+        String outerInternal = Type.getInternalName(outerType);
+
+        int n = handlerCounter[0]++;
+        String handlerBinaryName = componentBinaryName + "$Handler$" + n;
+        String handlerInternal = handlerBinaryName.replace('.', '/');
+
+        byte[] handlerBytes = emitHandlerClass(handlerInternal, outerInternal, outerType, body);
+        classes.put(handlerBinaryName, handlerBytes);
+
+        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+        ctor.visitFieldInsn(Opcodes.GETFIELD, declOwner, signalField.getName(), SIGNAL_DESC);
+        ctor.visitTypeInsn(Opcodes.NEW, handlerInternal);
+        ctor.visitInsn(Opcodes.DUP);
+        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, handlerInternal, "<init>",
+                             "(L" + outerInternal + ";)V", false);
+        ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, SIGNAL_INTERNAL,
+                             "connect", "(L" + RUNNABLE_INTERNAL + ";)V", false);
+    }
+
+    private byte[] emitHandlerClass(String handlerInternal, String outerInternal,
+                                    Class<?> outerType, Ast.Expression body) {
+        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
+        cw.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
+                 handlerInternal, null, "java/lang/Object",
+                 new String[]{RUNNABLE_INTERNAL});
+
+        cw.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL,
+                      "outer", "L" + outerInternal + ";", null, null).visitEnd();
+
+        MethodVisitor ctor = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>",
+                                            "(L" + outerInternal + ";)V", null, null);
+        ctor.visitCode();
+        ctor.visitVarInsn(Opcodes.ALOAD, 0);
+        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
+        ctor.visitVarInsn(Opcodes.ALOAD, 0);
+        ctor.visitVarInsn(Opcodes.ALOAD, 1);
+        ctor.visitFieldInsn(Opcodes.PUTFIELD, handlerInternal, "outer", "L" + outerInternal + ";");
+        ctor.visitInsn(Opcodes.RETURN);
+        ctor.visitMaxs(0, 0);
+        ctor.visitEnd();
+
+        MethodVisitor run = cw.visitMethod(Opcodes.ACC_PUBLIC, "run", "()V", null, null);
+        run.visitCode();
+        ExpressionCodegen codegen = new ExpressionCodegen(outerInternal, handlerInternal, outerType);
+        codegen.emit(run, body);
+        run.visitInsn(Opcodes.POP);
+        run.visitInsn(Opcodes.RETURN);
+        run.visitMaxs(0, 0);
+        run.visitEnd();
+
+        cw.visitEnd();
+        return cw.toByteArray();
     }
 
     private byte[] emitBindingClass(String bindingInternal, String outerInternal,

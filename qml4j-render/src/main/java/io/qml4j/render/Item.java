@@ -15,4 +15,5 @@ public class Item extends QObject {
     public final Property<Number> opacity = new Property<>(1.0);
     public final Property<Item> parent = new Property<>(null);
     public final List<Item> children = new ArrayList<>();
+    public final Anchors anchors = new Anchors();
 }

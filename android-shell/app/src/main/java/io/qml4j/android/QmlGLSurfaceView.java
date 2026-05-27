@@ -2,6 +2,7 @@ package io.qml4j.android;
 
 import android.content.Context;
 import android.opengl.GLSurfaceView;
+import android.view.MotionEvent;
 
 import io.github.humbleui.skija.BackendRenderTarget;
 import io.github.humbleui.skija.Canvas;
@@ -14,6 +15,7 @@ import io.github.humbleui.skija.SurfaceOrigin;
 
 import io.qml4j.engine.QmlEngine;
 import io.qml4j.render.QmlView;
+import io.qml4j.render.ResourceLoader;
 import io.qml4j.render.SurfaceBackend;
 
 import javax.microedition.khronos.egl.EGLConfig;
@@ -23,18 +25,35 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
 
     private final String qmlSource;
     private final QmlEngine engine;
+    private final ResourceLoader resources;
     private QmlView view;
     private final io.qml4j.render.Renderer renderer = new io.qml4j.render.Renderer();
     private SkijaGlSurface surface;
 
-    public QmlGLSurfaceView(Context ctx, QmlEngine engine, String qmlSource) {
+    public QmlGLSurfaceView(Context ctx, QmlEngine engine, String qmlSource, ResourceLoader resources) {
         super(ctx);
         this.engine = engine;
         this.qmlSource = qmlSource;
+        this.resources = resources;
         setEGLContextClientVersion(2);
         setEGLConfigChooser(8, 8, 8, 8, 0, 8);
         setRenderer(new GlRenderer());
         setRenderMode(RENDERMODE_CONTINUOUSLY);
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent ev) {
+        if (ev.getActionMasked() == MotionEvent.ACTION_UP) {
+            final float x = ev.getX();
+            final float y = ev.getY();
+            queueEvent(new Runnable() {
+                @Override public void run() {
+                    if (view != null) view.dispatchClick(x, y);
+                }
+            });
+            return true;
+        }
+        return ev.getActionMasked() == MotionEvent.ACTION_DOWN;
     }
 
     private final class GlRenderer implements GLSurfaceView.Renderer {
@@ -47,8 +66,9 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
         public void onSurfaceChanged(GL10 gl, int width, int height) {
             surface.resize(width, height);
             if (view == null) {
-                view = QmlView.withStockTypes(engine);
+                view = QmlView.withStockTypes(engine).resources(resources);
                 view.load(qmlSource);
+                renderer.setResourceLoader(resources);
             }
             if (view.root() != null) {
                 view.root().width.set(width);

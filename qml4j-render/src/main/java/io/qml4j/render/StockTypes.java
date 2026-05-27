@@ -11,6 +11,8 @@ public final class StockTypes {
             .register("Item", Item.class)
             .register("Rectangle", Rectangle.class)
             .register("Text", Text.class)
-            .register("Column", Column.class);
+            .register("Column", Column.class)
+            .register("MouseArea", MouseArea.class)
+            .register("Image", Image.class);
     }
 }

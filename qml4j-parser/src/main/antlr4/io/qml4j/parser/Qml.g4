@@ -61,7 +61,11 @@ qualifiedId
 
 // JS expression subset
 expression
-    : condExpr
+    : assignmentExpr
+    ;
+
+assignmentExpr
+    : condExpr ('=' assignmentExpr)?
     ;
 
 condExpr

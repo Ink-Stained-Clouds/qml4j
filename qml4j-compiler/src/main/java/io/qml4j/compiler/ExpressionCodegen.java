@@ -38,6 +38,8 @@ final class ExpressionCodegen {
             emitBinary(mv, (Ast.BinaryExpr) e);
         } else if (e instanceof Ast.CondExpr) {
             emitCond(mv, (Ast.CondExpr) e);
+        } else if (e instanceof Ast.AssignmentExpr) {
+            emitAssignment(mv, (Ast.AssignmentExpr) e);
         } else if (e instanceof Ast.CallExpr) {
             throw new UnsupportedOperationException("M5: function calls not supported");
         } else {
@@ -132,6 +134,33 @@ final class ExpressionCodegen {
             case "|":   return "bitOr";
             case "^":   return "bitXor";
             default: throw new IllegalStateException("binary op: " + op);
+        }
+    }
+
+    private void emitAssignment(MethodVisitor mv, Ast.AssignmentExpr a) {
+        if (a.target instanceof Ast.MemberExpr) {
+            Ast.MemberExpr m = (Ast.MemberExpr) a.target;
+            emit(mv, m.target);
+            mv.visitLdcInsn(m.property);
+            emit(mv, a.value);
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, HELPERS_INTERNAL,
+                               "writeMember",
+                               "(Ljava/lang/Object;Ljava/lang/String;Ljava/lang/Object;)Ljava/lang/Object;",
+                               false);
+        } else if (a.target instanceof Ast.IdentifierExpr) {
+            String name = ((Ast.IdentifierExpr) a.target).name;
+            Field f = findPropertyField(outerType, name);
+            String declOwner = org.objectweb.asm.Type.getInternalName(f.getDeclaringClass());
+            mv.visitVarInsn(Opcodes.ALOAD, 0);
+            mv.visitFieldInsn(Opcodes.GETFIELD, bindingInternal, "outer", "L" + outerInternal + ";");
+            mv.visitFieldInsn(Opcodes.GETFIELD, declOwner, name, "L" + PROPERTY_INTERNAL + ";");
+            emit(mv, a.value);
+            mv.visitInsn(Opcodes.DUP_X1);
+            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
+                               "set", "(Ljava/lang/Object;)V", false);
+        } else {
+            throw new UnsupportedOperationException(
+                "assignment target must be identifier or member access, got " + a.target.getClass().getSimpleName());
         }
     }
 

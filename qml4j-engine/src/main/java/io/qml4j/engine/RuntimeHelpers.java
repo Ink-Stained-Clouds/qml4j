@@ -115,6 +115,32 @@ public final class RuntimeHelpers {
 
     public static Object not(Object x) { return !truthy(x); }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static Object writeMember(Object target, String name, Object value) {
+        if (target == null) {
+            throw new NullPointerException("cannot assign '" + name + "' on null target");
+        }
+        Class<?> c = target.getClass();
+        Field f;
+        try {
+            f = c.getField(name);
+        } catch (NoSuchFieldException e) {
+            throw new IllegalArgumentException(
+                "no member '" + name + "' on " + c.getName());
+        }
+        try {
+            Object cur = f.get(target);
+            if (cur instanceof Property) {
+                ((Property) cur).set(value);
+            } else {
+                f.set(target, value);
+            }
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+        return value;
+    }
+
     public static Object readMember(Object target, String name) {
         if (target == null) return null;
         Class<?> c = target.getClass();

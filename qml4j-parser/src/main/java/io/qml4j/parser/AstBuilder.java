@@ -93,7 +93,15 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
 
     @Override
     public Ast.Expression visitExpression(QmlParser.ExpressionContext ctx) {
-        return (Ast.Expression) visit(ctx.condExpr());
+        return (Ast.Expression) visit(ctx.assignmentExpr());
+    }
+
+    @Override
+    public Ast.Expression visitAssignmentExpr(QmlParser.AssignmentExprContext ctx) {
+        Ast.Expression left = (Ast.Expression) visit(ctx.condExpr());
+        if (ctx.assignmentExpr() == null) return left;
+        Ast.Expression right = (Ast.Expression) visit(ctx.assignmentExpr());
+        return new Ast.AssignmentExpr(left, right);
     }
 
     @Override

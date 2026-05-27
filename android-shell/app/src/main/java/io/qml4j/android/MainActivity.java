@@ -19,6 +19,22 @@ public final class MainActivity extends Activity {
         // and load via System.loadLibrary ourselves.
         System.setProperty("skija.staticLoad", "false");
         System.loadLibrary("skija");
+        // Pre-warm Skija classes so any JNI FindClass / class-ref caching
+        // happens with the app classloader visible on the stack.
+        try {
+            Class.forName("io.github.humbleui.skija.ImageInfo");
+            Class.forName("io.github.humbleui.skija.ColorInfo");
+            Class.forName("io.github.humbleui.skija.ColorSpace");
+            Class.forName("io.github.humbleui.skija.Color4f");
+            Class.forName("io.github.humbleui.skija.Image");
+            Class.forName("io.github.humbleui.skija.Canvas");
+            Class.forName("io.github.humbleui.skija.Paint");
+            Class.forName("io.github.humbleui.skija.Font");
+            Class.forName("io.github.humbleui.types.Rect");
+            Class.forName("io.github.humbleui.types.IRect");
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private QmlGLSurfaceView glView;
@@ -37,7 +53,8 @@ public final class MainActivity extends Activity {
         QmlEngine engine = new QmlEngine(
             new DexClassLoaderBackend(getClass().getClassLoader()));
 
-        glView = new QmlGLSurfaceView(this, engine, qml);
+        glView = new QmlGLSurfaceView(this, engine, qml,
+            new AssetResourceLoader(getAssets()));
         setContentView(glView);
     }
 

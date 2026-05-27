@@ -28,6 +28,11 @@ public final class QmlView {
         return new QmlView(engine, StockTypes.registry());
     }
 
+    public QmlView resources(ResourceLoader loader) {
+        renderer.setResourceLoader(loader);
+        return this;
+    }
+
     public Item load(String qml) {
         Ast.QmlDocument doc = Qml4j.parse(qml);
         CompiledUnit unit = compiler.compile(doc, types);
@@ -53,6 +58,30 @@ public final class QmlView {
 
     public Item root() {
         return root;
+    }
+
+    public boolean dispatchClick(float x, float y) {
+        if (root == null) return false;
+        return hitTest(root, x, y);
+    }
+
+    private boolean hitTest(Item item, float x, float y) {
+        if (!item.visible.peek()) return false;
+        float ix = item.x.peek().floatValue();
+        float iy = item.y.peek().floatValue();
+        float w = item.width.peek().floatValue();
+        float h = item.height.peek().floatValue();
+        float lx = x - ix;
+        float ly = y - iy;
+        if (lx < 0 || ly < 0 || lx > w || ly > h) return false;
+        for (int i = item.children.size() - 1; i >= 0; i--) {
+            if (hitTest(item.children.get(i), lx, ly)) return true;
+        }
+        if (item instanceof MouseArea) {
+            ((MouseArea) item).clicked.emit();
+            return true;
+        }
+        return false;
     }
 
     public void renderFrame(SurfaceBackend backend) {

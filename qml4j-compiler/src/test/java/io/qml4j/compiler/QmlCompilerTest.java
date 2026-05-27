@@ -254,8 +254,15 @@ class QmlCompilerTest {
     }
 
     @Test
-    void groupedPathRejected() {
-        Ast.QmlDocument doc = Qml4j.parse("TestItem { anchors.left: 10 }");
+    void unknownGroupRejected() {
+        Ast.QmlDocument doc = Qml4j.parse("TestItem { mystery.left: 10 }");
+        assertThrows(IllegalArgumentException.class,
+            () -> COMPILER.compile(doc, REGISTRY));
+    }
+
+    @Test
+    void deepGroupedPathRejected() {
+        Ast.QmlDocument doc = Qml4j.parse("TestItem { a.b.c: 10 }");
         assertThrows(UnsupportedOperationException.class,
             () -> COMPILER.compile(doc, REGISTRY));
     }

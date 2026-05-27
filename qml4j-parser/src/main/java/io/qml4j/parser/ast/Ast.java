@@ -170,6 +170,16 @@ public final class Ast {
         @Override public String toString() { return "(" + left + " " + op + " " + right + ")"; }
     }
 
+    public static final class AssignmentExpr extends Expression {
+        public final Expression target;
+        public final Expression value;
+        public AssignmentExpr(Expression target, Expression value) {
+            this.target = target;
+            this.value = value;
+        }
+        @Override public String toString() { return "(" + target + " = " + value + ")"; }
+    }
+
     public static final class CondExpr extends Expression {
         public final Expression cond;
         public final Expression thenBranch;
