@@ -13,6 +13,7 @@ public final class StockTypes {
             .register("Text", Text.class)
             .register("Column", Column.class)
             .register("MouseArea", MouseArea.class)
-            .register("Image", Image.class);
+            .register("Image", Image.class)
+            .register("Loader", Loader.class);
     }
 }

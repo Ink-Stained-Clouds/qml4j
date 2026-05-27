@@ -13,9 +13,14 @@ public final class Renderer {
     private Paint paint;
     private Typeface defaultTypeface;
     private ResourceLoader resources;
+    private ComponentFactory factory;
 
     public void setResourceLoader(ResourceLoader loader) {
         this.resources = loader;
+    }
+
+    public void setComponentFactory(ComponentFactory factory) {
+        this.factory = factory;
     }
 
     private Paint paint() {
@@ -44,6 +49,9 @@ public final class Renderer {
     private void draw(Canvas canvas, Item node) {
         if (!node.visible.peek()) return;
         applyAnchors(node);
+        if (node instanceof Loader) {
+            resolveLoader((Loader) node);
+        }
         if (node instanceof Column) {
             ((Column) node).layout();
         }
@@ -185,6 +193,38 @@ public final class Renderer {
             }
         }
         return new int[]{0, 0};
+    }
+
+    void resolveLoader(Loader node) {
+        String src = node.source.peek();
+        if (src == null || src.isEmpty()) {
+            if (node.loadedItem != null) {
+                node.children.remove(node.loadedItem);
+                node.loadedItem = null;
+                node.loadedSource = null;
+                node.item.set(null);
+            }
+            return;
+        }
+        if (src.equals(node.loadedSource)) return;
+        if (factory == null || resources == null) return;
+        byte[] bytes = resources.load(src);
+        if (bytes == null) return;
+        String qml = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+        Item child;
+        try {
+            child = factory.create(qml);
+        } catch (Throwable t) {
+            return;
+        }
+        if (node.loadedItem != null) {
+            node.children.remove(node.loadedItem);
+        }
+        node.loadedItem = child;
+        node.loadedSource = src;
+        child.parent.set(node);
+        node.children.add(child);
+        node.item.set(child);
     }
 
     private Font font(float size) {

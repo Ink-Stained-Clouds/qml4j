@@ -22,6 +22,7 @@ public final class QmlView {
     public QmlView(QmlEngine engine, TypeRegistry types) {
         this.engine = engine;
         this.types = types;
+        renderer.setComponentFactory(this::instantiate);
     }
 
     public static QmlView withStockTypes(QmlEngine engine) {
@@ -34,6 +35,11 @@ public final class QmlView {
     }
 
     public Item load(String qml) {
+        root = instantiate(qml);
+        return root;
+    }
+
+    private Item instantiate(String qml) {
         Ast.QmlDocument doc = Qml4j.parse(qml);
         CompiledUnit unit = compiler.compile(doc, types);
         ClassLoaderBackend backend = engine.backend();
@@ -52,8 +58,7 @@ public final class QmlView {
             throw new IllegalArgumentException(
                 "root QML type must extend Item, got " + inst.getClass().getName());
         }
-        root = (Item) inst;
-        return root;
+        return (Item) inst;
     }
 
     public Item root() {

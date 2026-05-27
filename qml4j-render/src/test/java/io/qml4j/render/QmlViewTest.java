@@ -164,6 +164,32 @@ class QmlViewTest {
     }
 
     @Test
+    void loaderResolvesNestedQml() {
+        QmlView v = newView();
+        v.resources(name -> {
+            if ("child.qml".equals(name)) {
+                return "Rectangle { width: 40; height: 30; color: \"#abcdef\" }"
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            }
+            return null;
+        });
+        Item root = v.load(
+            "Item {\n" +
+            "  width: 200; height: 200\n" +
+            "  Loader { source: \"child.qml\" }\n" +
+            "}");
+        Loader loader = (Loader) root.children.get(0);
+        v.renderer().resolveLoader(loader);
+        assertNotNull(loader.item.peek());
+        assertTrue(loader.item.peek() instanceof Rectangle);
+        Rectangle r = (Rectangle) loader.item.peek();
+        assertEquals(40L, r.width.peek().longValue());
+        assertEquals("#abcdef", r.color.peek());
+        assertEquals(1, loader.children.size());
+        assertSame(loader, r.parent.peek());
+    }
+
+    @Test
     void parseColorRgb() {
         assertEquals(0xFFFF0000, Renderer.parseColor("#ff0000"));
         assertEquals(0xFF00FF00, Renderer.parseColor("#00ff00"));
