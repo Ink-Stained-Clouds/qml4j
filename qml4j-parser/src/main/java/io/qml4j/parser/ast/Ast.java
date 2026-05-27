@@ -93,6 +93,20 @@ public final class Ast {
         @Override public String toString() { return object.toString(); }
     }
 
+    public static final class BehaviorMember extends ObjectMember {
+        public final String typeName;
+        public final String propertyName;
+        public final List<ObjectMember> members;
+        public BehaviorMember(String typeName, String propertyName, List<ObjectMember> members) {
+            this.typeName = typeName;
+            this.propertyName = propertyName;
+            this.members = Collections.unmodifiableList(members);
+        }
+        @Override public String toString() {
+            return typeName + " on " + propertyName + " " + members;
+        }
+    }
+
     public static abstract class Value {}
 
     public static final class ObjectValue extends Value {

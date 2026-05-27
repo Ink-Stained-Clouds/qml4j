@@ -28,8 +28,13 @@ objectDeclaration
 objectMember
     : propertyDeclaration
     | signalDeclaration
+    | behaviorDeclaration
     | propertyBinding
     | objectDeclaration
+    ;
+
+behaviorDeclaration
+    : qualifiedId 'on' Identifier '{' objectMember* '}'
     ;
 
 propertyDeclaration

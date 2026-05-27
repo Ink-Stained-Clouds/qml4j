@@ -1,5 +1,6 @@
 package io.qml4j.render;
 
+import io.qml4j.render.items.Behavior;
 import io.qml4j.render.items.Column;
 import io.qml4j.render.items.Image;
 import io.qml4j.render.items.Item;
@@ -30,6 +31,7 @@ public final class StockTypes {
             .register("NumberAnimation", NumberAnimation.class)
             .register("State", State.class)
             .register("PropertyChanges", PropertyChanges.class)
-            .register("Transition", Transition.class);
+            .register("Transition", Transition.class)
+            .register("Behavior", Behavior.class);
     }
 }

@@ -32,13 +32,22 @@ public class PropertyChanges extends Item implements PropertyChangeSink {
         Object t = target.peek();
         if (t == null) return;
         for (Map.Entry<String, Object> e : literals.entrySet()) {
-            saved.put(e.getKey(), RuntimeHelpers.readMember(t, e.getKey()));
+            saveBaselineOnce(t, e.getKey());
             RuntimeHelpers.writeMember(t, e.getKey(), e.getValue());
         }
         for (Map.Entry<String, Binding> e : bindings.entrySet()) {
-            saved.put(e.getKey(), RuntimeHelpers.readMember(t, e.getKey()));
+            saveBaselineOnce(t, e.getKey());
             RuntimeHelpers.writeMember(t, e.getKey(), e.getValue().evaluate());
         }
+    }
+
+    // Baseline is captured once on the first apply and preserved across
+    // revert/apply cycles. Re-sampling during an in-flight animation would
+    // promote the mid-tween value to "original", trapping the property
+    // partway between states after rapid toggles.
+    private void saveBaselineOnce(Object t, String name) {
+        if (saved.containsKey(name)) return;
+        saved.put(name, RuntimeHelpers.readMember(t, name));
     }
 
     public Object targetValue() {
@@ -53,11 +62,9 @@ public class PropertyChanges extends Item implements PropertyChangeSink {
 
     public void revert() {
         Object t = target.peek();
-        if (t != null) {
-            for (Map.Entry<String, Object> e : saved.entrySet()) {
-                RuntimeHelpers.writeMember(t, e.getKey(), e.getValue());
-            }
+        if (t == null) return;
+        for (Map.Entry<String, Object> e : saved.entrySet()) {
+            RuntimeHelpers.writeMember(t, e.getKey(), e.getValue());
         }
-        saved.clear();
     }
 }

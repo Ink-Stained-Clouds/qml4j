@@ -212,6 +212,12 @@ public final class QmlCompiler {
                             idTypes, customSignalParams);
             return;
         }
+        if (m instanceof Ast.BehaviorMember) {
+            emitBehaviorMember(ctor, outerType, outerLocal, (Ast.BehaviorMember) m, registry,
+                               localCounter, bindingCounter, handlerCounter, classes,
+                               componentBinaryName, idTypes, customSignalParams);
+            return;
+        }
         if (m instanceof Ast.SignalDeclaration) {
             throw new IllegalStateException("signal declaration should be handled at object scope");
         }
@@ -338,6 +344,38 @@ public final class QmlCompiler {
         ctor.visitEnd();
         cw.visitEnd();
         return cw.toByteArray();
+    }
+
+    private void emitBehaviorMember(MethodVisitor ctor, Class<? extends QObject> outerType,
+                                    int outerLocal, Ast.BehaviorMember bm, TypeRegistry registry,
+                                    int[] localCounter, int[] bindingCounter, int[] handlerCounter,
+                                    Map<String, byte[]> classes, String componentBinaryName,
+                                    Map<String, Class<? extends QObject>> idTypes,
+                                    Map<String, List<String>> outerSignalParams) {
+        Class<? extends QObject> behaviorType = registry.resolve(bm.typeName);
+        verifyAttachable(behaviorType);
+        Ast.ObjectNode synth = new Ast.ObjectNode(bm.typeName, bm.members);
+        int behaviorLocal = localCounter[0];
+        emitChildObjectInto(ctor, outerType, outerLocal, synth, registry,
+                            localCounter, bindingCounter, handlerCounter, classes,
+                            componentBinaryName, idTypes, outerSignalParams, "children");
+
+        String behaviorInternal = Type.getInternalName(behaviorType);
+        ctor.visitVarInsn(Opcodes.ALOAD, behaviorLocal);
+        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+        ctor.visitLdcInsn(bm.propertyName);
+        ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, behaviorInternal,
+                             "attach", "(Ljava/lang/Object;Ljava/lang/String;)V", false);
+    }
+
+    private static void verifyAttachable(Class<?> type) {
+        try {
+            type.getMethod("attach", Object.class, String.class);
+        } catch (NoSuchMethodException e) {
+            throw new IllegalArgumentException(
+                "type '" + type.getName() + "' used as Behavior must have "
+                + "attach(Object, String) method");
+        }
     }
 
     private void emitObjectListAssignment(MethodVisitor ctor, Class<? extends QObject> outerType,

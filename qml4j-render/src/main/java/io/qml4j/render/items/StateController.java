@@ -116,8 +116,22 @@ final class StateController {
         if (targetFilter != null && targetFilter != k.target) return;
         if (propFilter != null && !contains(propFilter, k.name)) return;
         if (!(beforeVal instanceof Number) || !(afterVal instanceof Number)) return;
+        cancelEphemeralsFor(k);
         owner.children.add(buildEphemeral(tpl, k, (Number) beforeVal, (Number) afterVal));
         RuntimeHelpers.writeMember(k.target, k.name, beforeVal);
+    }
+
+    private void cancelEphemeralsFor(TargetKey k) {
+        for (int i = owner.children.size() - 1; i >= 0; i--) {
+            Item c = owner.children.get(i);
+            if (!(c instanceof NumberAnimation)) continue;
+            NumberAnimation a = (NumberAnimation) c;
+            if (!a.ephemeral) continue;
+            if (a.target.peek() != k.target) continue;
+            if (!k.name.equals(a.property.peek())) continue;
+            a.running.set(Boolean.FALSE);
+            owner.children.remove(i);
+        }
     }
 
     private static NumberAnimation buildEphemeral(NumberAnimation tpl, TargetKey k,

@@ -3,7 +3,7 @@ package io.qml4j.render.items;
 import io.qml4j.engine.RuntimeHelpers;
 import io.qml4j.engine.binding.Property;
 
-public class NumberAnimation extends Item {
+public class NumberAnimation extends Item implements Animatable {
     public final Property<Object> target = new Property<>(null);
     public final Property<String> property = new Property<>(null);
     public final Property<String> properties = new Property<>(null);
@@ -21,6 +21,7 @@ public class NumberAnimation extends Item {
         visible.set(Boolean.FALSE);
     }
 
+    @Override
     public void tick(long nowNanos) {
         if (!Boolean.TRUE.equals(running.peek())) {
             startNanos = -1L;
@@ -42,7 +43,7 @@ public class NumberAnimation extends Item {
         double frac = elapsedMs / durMs;
         boolean done = frac >= 1.0;
         if (done) frac = 1.0;
-        double eased = ease(easing.peek(), frac);
+        double eased = Easings.apply(easing.peek(), frac);
         double a = from.peek().doubleValue();
         double b = to.peek().doubleValue();
         double v = a + (b - a) * eased;
@@ -53,14 +54,4 @@ public class NumberAnimation extends Item {
         }
     }
 
-    private static double ease(String name, double t) {
-        if (name == null || "linear".equals(name)) return t;
-        switch (name) {
-            case "easeInQuad":  return t * t;
-            case "easeOutQuad": return 1.0 - (1.0 - t) * (1.0 - t);
-            case "easeInOutQuad":
-                return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-            default: return t;
-        }
-    }
 }

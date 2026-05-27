@@ -1,5 +1,6 @@
 package io.qml4j.render;
 
+import io.qml4j.render.items.Animatable;
 import io.qml4j.render.items.Item;
 import io.qml4j.render.items.MouseArea;
 import io.qml4j.render.items.NumberAnimation;
@@ -115,8 +116,8 @@ public final class QmlView {
 
     private void tickAnimations(Item node, long now) {
         if (node == null) return;
-        if (node instanceof NumberAnimation) {
-            ((NumberAnimation) node).tick(now);
+        if (node instanceof Animatable) {
+            ((Animatable) node).tick(now);
         }
         for (int i = node.children.size() - 1; i >= 0; i--) {
             Item c = node.children.get(i);

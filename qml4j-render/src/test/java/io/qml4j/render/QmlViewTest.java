@@ -566,6 +566,127 @@ class QmlViewTest {
     }
 
     @Test
+    void rapidStateTogglesPreserveOriginalBaseline() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle {\n" +
+            "  id: r\n" +
+            "  width: 100; height: 10\n" +
+            "  states: [State { name: \"big\"; PropertyChanges { target: r; width: 300 } }]\n" +
+            "  transitions: [Transition { NumberAnimation { duration: 100 } }]\n" +
+            "}");
+        Rectangle r = (Rectangle) root;
+        long t = 1_000_000_000L;
+        // Five rapid toggles, each cutting into the previous tween at ~30%.
+        for (int i = 0; i < 5; i++) {
+            r.state.set(i % 2 == 0 ? "big" : "");
+            v.tickAnimations(t);
+            t += 30_000_000L;
+            v.tickAnimations(t);
+            t += 100_000L;
+        }
+        // Final state is "" (after 5 toggles starting with "big").
+        r.state.set("");
+        v.tickAnimations(t);
+        t += 300_000_000L;
+        v.tickAnimations(t);
+        assertEquals(100.0, r.width.peek().doubleValue(), 1e-6);
+    }
+
+    @Test
+    void rapidStateToggleCancelsPriorEphemeral() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle {\n" +
+            "  id: r\n" +
+            "  width: 100; height: 10\n" +
+            "  states: [State { name: \"big\"; PropertyChanges { target: r; width: 300 } }]\n" +
+            "  transitions: [Transition { NumberAnimation { duration: 100 } }]\n" +
+            "}");
+        Rectangle r = (Rectangle) root;
+        // Enter "big": ephemeral E1 starts (100 → 300).
+        r.state.set("big");
+        long t0 = 1_000_000_000L;
+        v.tickAnimations(t0);
+        v.tickAnimations(t0 + 30_000_000L); // ~30% through
+        // Revert mid-flight: must cancel E1 before spawning E2.
+        r.state.set("");
+        int ephemerals = countEphemerals(r);
+        assertEquals(1, ephemerals, "prior ephemeral must be cancelled");
+        long t1 = 2_000_000_000L;
+        v.tickAnimations(t1);
+        v.tickAnimations(t1 + 200_000_000L);
+        assertEquals(100.0, r.width.peek().doubleValue(), 1e-6);
+    }
+
+    private static int countEphemerals(Item parent) {
+        int n = 0;
+        for (Item c : parent.children) {
+            if (c instanceof io.qml4j.render.items.NumberAnimation
+                && ((io.qml4j.render.items.NumberAnimation) c).ephemeral) n++;
+        }
+        return n;
+    }
+
+    @Test
+    void behaviorAnimatesDirectPropertySet() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle {\n" +
+            "  width: 100; height: 10\n" +
+            "  Behavior on width { NumberAnimation { duration: 100 } }\n" +
+            "}");
+        Rectangle r = (Rectangle) root;
+        r.width.set(300);
+        // Behavior rewinds property to start before first tick.
+        assertEquals(100.0, r.width.peek().doubleValue(), 1e-6);
+        long t0 = 1_000_000_000L;
+        v.tickAnimations(t0);
+        v.tickAnimations(t0 + 50_000_000L);
+        assertEquals(200.0, r.width.peek().doubleValue(), 1.0);
+        v.tickAnimations(t0 + 200_000_000L);
+        assertEquals(300.0, r.width.peek().doubleValue(), 1e-6);
+    }
+
+    @Test
+    void behaviorIgnoresEqualWrites() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle {\n" +
+            "  width: 100; height: 10\n" +
+            "  Behavior on width { NumberAnimation { duration: 100 } }\n" +
+            "}");
+        Rectangle r = (Rectangle) root;
+        r.width.set(100);
+        long t0 = 1_000_000_000L;
+        v.tickAnimations(t0);
+        v.tickAnimations(t0 + 200_000_000L);
+        assertEquals(100.0, r.width.peek().doubleValue(), 1e-6);
+    }
+
+    @Test
+    void behaviorRedirectsMidFlight() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle {\n" +
+            "  width: 0; height: 10\n" +
+            "  Behavior on width { NumberAnimation { duration: 100 } }\n" +
+            "}");
+        Rectangle r = (Rectangle) root;
+        r.width.set(100);
+        long t0 = 1_000_000_000L;
+        v.tickAnimations(t0);
+        v.tickAnimations(t0 + 50_000_000L); // halfway → ~50
+        double mid = r.width.peek().doubleValue();
+        assertEquals(50.0, mid, 2.0);
+        r.width.set(200); // redirect from current (~50) to 200
+        long t1 = 2_000_000_000L;
+        v.tickAnimations(t1);
+        v.tickAnimations(t1 + 200_000_000L);
+        assertEquals(200.0, r.width.peek().doubleValue(), 1e-6);
+    }
+
+    @Test
     void parseColorRgb() {
         assertEquals(0xFFFF0000, Renderer.parseColor("#ff0000"));
         assertEquals(0xFF00FF00, Renderer.parseColor("#00ff00"));

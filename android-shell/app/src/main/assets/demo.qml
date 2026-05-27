@@ -73,4 +73,28 @@ Rectangle {
             fontSize: 24
         }
     }
+
+    Rectangle {
+        id: dot
+        x: 400
+        y: 980
+        width: 80
+        height: 80
+        color: "#ffcc00"
+
+        Behavior on x { NumberAnimation { duration: 350; easing: "easeOutQuad" } }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: dot.x = dot.x === 400 ? 800 : 400
+        }
+
+        Text {
+            x: 8
+            y: 30
+            text: "tap me"
+            color: "#000000"
+            fontSize: 22
+        }
+    }
 }
