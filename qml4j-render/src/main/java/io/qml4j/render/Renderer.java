@@ -2,16 +2,33 @@ package io.qml4j.render;
 
 import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.skija.Font;
+import io.github.humbleui.skija.FontMgr;
+import io.github.humbleui.skija.FontStyle;
 import io.github.humbleui.skija.Paint;
+import io.github.humbleui.skija.Typeface;
 import io.github.humbleui.types.Rect;
 
 public final class Renderer {
 
     private Paint paint;
+    private Typeface defaultTypeface;
 
     private Paint paint() {
         if (paint == null) paint = new Paint();
         return paint;
+    }
+
+    private Typeface defaultTypeface() {
+        if (defaultTypeface != null) return defaultTypeface;
+        FontMgr mgr = FontMgr.getDefault();
+        if (mgr != null) {
+            String[] candidates = {null, "sans-serif", "Roboto", "Droid Sans", "Arial"};
+            for (String name : candidates) {
+                Typeface t = mgr.matchFamilyStyle(name, FontStyle.NORMAL);
+                if (t != null) { defaultTypeface = t; return t; }
+            }
+        }
+        return null;
     }
 
     public void render(Canvas canvas, Item root) {
@@ -64,6 +81,8 @@ public final class Renderer {
     }
 
     private Font font(float size) {
+        Typeface tf = defaultTypeface();
+        if (tf != null) return new Font(tf, size);
         return new Font().setSize(size);
     }
 
@@ -71,6 +90,10 @@ public final class Renderer {
         if (paint != null) {
             paint.close();
             paint = null;
+        }
+        if (defaultTypeface != null) {
+            defaultTypeface.close();
+            defaultTypeface = null;
         }
     }
 
