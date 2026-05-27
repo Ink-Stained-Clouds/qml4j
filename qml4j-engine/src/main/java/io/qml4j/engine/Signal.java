@@ -5,19 +5,30 @@ import java.util.List;
 
 public final class Signal {
 
-    private final List<Runnable> handlers = new ArrayList<>();
+    private static final Object[] EMPTY = new Object[0];
 
-    public void connect(Runnable handler) {
+    private final List<SignalHandler> handlers = new ArrayList<>();
+
+    public void connect(SignalHandler handler) {
         handlers.add(handler);
     }
 
-    public void disconnect(Runnable handler) {
+    public void connect(Runnable handler) {
+        handlers.add(args -> handler.run());
+    }
+
+    public void disconnect(SignalHandler handler) {
         handlers.remove(handler);
     }
 
     public void emit() {
-        for (Runnable h : new ArrayList<>(handlers)) {
-            h.run();
+        emit(EMPTY);
+    }
+
+    public void emit(Object... args) {
+        Object[] payload = args != null ? args : EMPTY;
+        for (SignalHandler h : new ArrayList<>(handlers)) {
+            h.invoke(payload);
         }
     }
 }

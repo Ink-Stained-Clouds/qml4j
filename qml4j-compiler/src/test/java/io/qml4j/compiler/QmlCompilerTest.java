@@ -123,6 +123,118 @@ class QmlCompilerTest {
     }
 
     @Test
+    void idReferenceResolvesToRoot() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  id: root\n" +
+            "  width: 10\n" +
+            "  height: root.width * 3\n" +
+            "}");
+        assertEquals(30L, it.height.peek().longValue());
+        it.width.set(7);
+        assertEquals(21L, it.height.peek().longValue());
+    }
+
+    @Test
+    void idReferenceFromChildToAncestor() throws Exception {
+        TestItem root = instantiate(
+            "TestItem {\n" +
+            "  id: outer\n" +
+            "  width: 50\n" +
+            "  TestItem {\n" +
+            "    width: outer.width + 1\n" +
+            "  }\n" +
+            "}");
+        assertEquals(51L, root.children.get(0).width.peek().longValue());
+        root.width.set(99);
+        assertEquals(100L, root.children.get(0).width.peek().longValue());
+    }
+
+    @Test
+    void idReferenceCrossSibling() throws Exception {
+        TestItem root = instantiate(
+            "TestItem {\n" +
+            "  TestItem {\n" +
+            "    id: a\n" +
+            "    width: 4\n" +
+            "  }\n" +
+            "  TestItem {\n" +
+            "    width: a.width + 10\n" +
+            "  }\n" +
+            "}");
+        assertEquals(14L, root.children.get(1).width.peek().longValue());
+        root.children.get(0).width.set(20);
+        assertEquals(30L, root.children.get(1).width.peek().longValue());
+    }
+
+    @Test
+    void customSignalEmitNoArgs() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  signal pinged()\n" +
+            "  onPinged: ref = \"pong\"\n" +
+            "}");
+        io.qml4j.engine.Signal sig = (io.qml4j.engine.Signal) it.getClass().getField("pinged").get(it);
+        sig.emit();
+        assertEquals("pong", it.ref.peek());
+    }
+
+    @Test
+    void customSignalArgsAccessibleInHandler() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  signal pressed(int x, int y)\n" +
+            "  onPressed: ref = x + y\n" +
+            "}");
+        io.qml4j.engine.Signal sig = (io.qml4j.engine.Signal) it.getClass().getField("pressed").get(it);
+        sig.emit(3L, 4L);
+        assertEquals(7L, ((Number) it.ref.peek()).longValue());
+        sig.emit(100L, 200L);
+        assertEquals(300L, ((Number) it.ref.peek()).longValue());
+    }
+
+    @Test
+    void childObjectCustomSignal() throws Exception {
+        TestItem root = instantiate(
+            "TestItem {\n" +
+            "  id: r\n" +
+            "  TestItem {\n" +
+            "    id: c\n" +
+            "    signal poked(int v)\n" +
+            "    onPoked: r.ref = v\n" +
+            "  }\n" +
+            "}");
+        TestItem child = root.children.get(0);
+        io.qml4j.engine.Signal sig =
+            (io.qml4j.engine.Signal) child.getClass().getField("poked").get(child);
+        sig.emit(42L);
+        assertEquals(42L, ((Number) root.ref.peek()).longValue());
+    }
+
+    @Test
+    void customSignalArgsWithStringPayload() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  signal said(msg)\n" +
+            "  onSaid: name = msg\n" +
+            "}");
+        io.qml4j.engine.Signal sig = (io.qml4j.engine.Signal) it.getClass().getField("said").get(it);
+        sig.emit("hello");
+        assertEquals("hello", it.name.peek());
+    }
+
+    @Test
+    void duplicateIdRejected() {
+        Ast.QmlDocument doc = Qml4j.parse(
+            "TestItem {\n" +
+            "  id: foo\n" +
+            "  TestItem { id: foo }\n" +
+            "}");
+        assertThrows(IllegalArgumentException.class,
+            () -> COMPILER.compile(doc, REGISTRY));
+    }
+
+    @Test
     void unknownPropertyRejected() {
         Ast.QmlDocument doc = Qml4j.parse("TestItem { missing: 1 }");
         assertThrows(IllegalArgumentException.class,

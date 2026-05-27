@@ -158,7 +158,7 @@ At runtime, `DexClassLoaderBackend.defineClasses(Map<String, byte[]>)` invokes D
 - ~~**M8** — `android-shell` with `DexClassLoaderBackend` and a HelloRectangle APK~~ **done, device-verified**
 - ~~**M9** — `anchors`, `Image`, `Loader`~~ **done**
 - ~~**M10** — opacity composition, dirty queue, custom signals~~ **done**
-- **M11** — `id:` resolution in bindings; signal arguments; child-object signals
+- ~~**M11** — `id:` resolution in bindings; signal arguments; child-object signals~~ **done**
 - **M12** — `States` / `Transitions` / `Animation`
 - **M13** — `ListView` / `Repeater`
 

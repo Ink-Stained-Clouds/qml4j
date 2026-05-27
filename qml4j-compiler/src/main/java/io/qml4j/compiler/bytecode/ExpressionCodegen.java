@@ -1,5 +1,6 @@
 package io.qml4j.compiler.bytecode;
 
+import io.qml4j.engine.QObject;
 import io.qml4j.engine.binding.Property;
 import io.qml4j.parser.ast.Ast;
 import org.objectweb.asm.Label;
@@ -7,6 +8,8 @@ import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 
 import java.lang.reflect.Field;
+import java.util.Collections;
+import java.util.Map;
 
 final class ExpressionCodegen {
 
@@ -18,11 +21,33 @@ final class ExpressionCodegen {
     private final String outerInternal;
     private final String bindingInternal;
     private final Class<?> outerType;
+    private final String componentInternal;
+    private final Map<String, Class<? extends QObject>> idTypes;
+    private final Map<String, Integer> signalParams;
 
     ExpressionCodegen(String outerInternal, String bindingInternal, Class<?> outerType) {
+        this(outerInternal, bindingInternal, outerType, null,
+             Collections.<String, Class<? extends QObject>>emptyMap(),
+             Collections.<String, Integer>emptyMap());
+    }
+
+    ExpressionCodegen(String outerInternal, String bindingInternal, Class<?> outerType,
+                      String componentInternal,
+                      Map<String, Class<? extends QObject>> idTypes) {
+        this(outerInternal, bindingInternal, outerType, componentInternal, idTypes,
+             Collections.<String, Integer>emptyMap());
+    }
+
+    ExpressionCodegen(String outerInternal, String bindingInternal, Class<?> outerType,
+                      String componentInternal,
+                      Map<String, Class<? extends QObject>> idTypes,
+                      Map<String, Integer> signalParams) {
         this.outerInternal = outerInternal;
         this.bindingInternal = bindingInternal;
         this.outerType = outerType;
+        this.componentInternal = componentInternal;
+        this.idTypes = idTypes != null ? idTypes : Collections.<String, Class<? extends QObject>>emptyMap();
+        this.signalParams = signalParams != null ? signalParams : Collections.<String, Integer>emptyMap();
     }
 
     void emit(MethodVisitor mv, Ast.Expression e) {
@@ -77,6 +102,21 @@ final class ExpressionCodegen {
     }
 
     private void emitIdentifier(MethodVisitor mv, Ast.IdentifierExpr id) {
+        Integer paramSlot = signalParams.get(id.name);
+        if (paramSlot != null) {
+            mv.visitVarInsn(Opcodes.ALOAD, 1);
+            pushInt(mv, paramSlot);
+            mv.visitInsn(Opcodes.AALOAD);
+            return;
+        }
+        Class<? extends QObject> idType = idTypes.get(id.name);
+        if (idType != null && componentInternal != null) {
+            mv.visitVarInsn(Opcodes.ALOAD, 0);
+            mv.visitFieldInsn(Opcodes.GETFIELD, bindingInternal, "root", "L" + componentInternal + ";");
+            mv.visitFieldInsn(Opcodes.GETFIELD, componentInternal, id.name,
+                              "L" + org.objectweb.asm.Type.getInternalName(idType) + ";");
+            return;
+        }
         Field f = findPropertyField(outerType, id.name);
         String declOwner = org.objectweb.asm.Type.getInternalName(f.getDeclaringClass());
         mv.visitVarInsn(Opcodes.ALOAD, 0);
@@ -176,6 +216,18 @@ final class ExpressionCodegen {
         mv.visitLabel(elseL);
         emit(mv, c.elseBranch);
         mv.visitLabel(endL);
+    }
+
+    private static void pushInt(MethodVisitor mv, int v) {
+        if (v >= 0 && v <= 5) {
+            mv.visitInsn(Opcodes.ICONST_0 + v);
+        } else if (v >= Byte.MIN_VALUE && v <= Byte.MAX_VALUE) {
+            mv.visitIntInsn(Opcodes.BIPUSH, v);
+        } else if (v >= Short.MIN_VALUE && v <= Short.MAX_VALUE) {
+            mv.visitIntInsn(Opcodes.SIPUSH, v);
+        } else {
+            mv.visitLdcInsn(v);
+        }
     }
 
     private static Field findPropertyField(Class<?> outerType, String name) {
