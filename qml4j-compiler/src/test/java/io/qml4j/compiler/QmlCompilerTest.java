@@ -1,12 +1,15 @@
 package io.qml4j.compiler;
 
 import io.qml4j.compiler.bytecode.QmlCompiler;
+import io.qml4j.engine.Signal;
 import io.qml4j.engine.classloader.JvmClassLoaderBackend;
 import io.qml4j.engine.binding.Property;
 import io.qml4j.engine.QObject;
 import io.qml4j.parser.Qml4j;
 import io.qml4j.parser.ast.Ast;
 import org.junit.jupiter.api.Test;
+
+import java.lang.reflect.Field;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -569,6 +572,117 @@ class QmlCompilerTest {
             "}");
         assertThrows(UnsupportedOperationException.class,
             () -> COMPILER.compile(doc, REGISTRY));
+    }
+
+    private static Property<?> declaredProp(Object obj, String name) throws Exception {
+        Field f = obj.getClass().getField(name);
+        return (Property<?>) f.get(obj);
+    }
+
+    @Test
+    void rootDeclaredIntDefault() throws Exception {
+        TestItem it = instantiate("TestItem { property int count }");
+        assertEquals(0L, ((Number) declaredProp(it, "count").peek()).longValue());
+    }
+
+    @Test
+    void rootDeclaredRealDefault() throws Exception {
+        TestItem it = instantiate("TestItem { property real ratio }");
+        assertEquals(0.0, ((Number) declaredProp(it, "ratio").peek()).doubleValue(), 0);
+    }
+
+    @Test
+    void rootDeclaredStringDefault() throws Exception {
+        TestItem it = instantiate("TestItem { property string label }");
+        assertEquals("", declaredProp(it, "label").peek());
+    }
+
+    @Test
+    void rootDeclaredBoolDefault() throws Exception {
+        TestItem it = instantiate("TestItem { property bool enabled }");
+        assertEquals(Boolean.FALSE, declaredProp(it, "enabled").peek());
+    }
+
+    @Test
+    void rootDeclaredVarDefault() throws Exception {
+        TestItem it = instantiate("TestItem { property var payload }");
+        assertNull(declaredProp(it, "payload").peek());
+    }
+
+    @Test
+    void rootDeclaredLiteralInit() throws Exception {
+        TestItem it = instantiate("TestItem { property int count: 42 }");
+        assertEquals(42L, ((Number) declaredProp(it, "count").peek()).longValue());
+    }
+
+    @Test
+    void rootDeclaredBindingFromIntrinsic() throws Exception {
+        TestItem it = instantiate(
+            "TestItem { width: 10; property int doubled: width * 2 }");
+        assertEquals(20L, ((Number) declaredProp(it, "doubled").peek()).longValue());
+    }
+
+    @Test
+    void rootDeclaredBindingReactsToIntrinsic() throws Exception {
+        TestItem it = instantiate(
+            "TestItem { width: 5; property int doubled: width * 2 }");
+        assertEquals(10L, ((Number) declaredProp(it, "doubled").peek()).longValue());
+        it.width.set(7);
+        assertEquals(14L, ((Number) declaredProp(it, "doubled").peek()).longValue());
+    }
+
+    @Test
+    void rootDeclaredReadByIntrinsicBinding() throws Exception {
+        TestItem it = instantiate(
+            "TestItem { property int base: 4; width: base * 3 }");
+        assertEquals(12L, it.width.peek().longValue());
+        ((Property<Object>) declaredProp(it, "base")).set(5L);
+        assertEquals(15L, it.width.peek().longValue());
+    }
+
+    @Test
+    void childDeclaredPropertyDefault() throws Exception {
+        TestItem it = instantiate(
+            "TestItem { TestItem { id: c; property int n } }");
+        TestItem c = it.children.get(0);
+        assertEquals(0L, ((Number) declaredProp(c, "n").peek()).longValue());
+    }
+
+    @Test
+    void childDeclaredPropertyInBinding() throws Exception {
+        TestItem it = instantiate(
+            "TestItem { TestItem { id: c; property int n: 3; width: n * 5 } }");
+        TestItem c = it.children.get(0);
+        assertEquals(15L, c.width.peek().longValue());
+        ((Property<Object>) declaredProp(c, "n")).set(4L);
+        assertEquals(20L, c.width.peek().longValue());
+    }
+
+    @Test
+    void handlerAssignsDeclaredProperty() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {"
+          + "  signal poke()"
+          + "  property int count: 0"
+          + "  onPoke: count = count + 1"
+          + "}");
+        Field sigField = it.getClass().getField("poke");
+        Signal sig = (Signal) sigField.get(it);
+        sig.emit();
+        sig.emit();
+        assertEquals(2L, ((Number) declaredProp(it, "count").peek()).longValue());
+    }
+
+    @Test
+    void declaredPropertyShadowingFieldRejected() {
+        assertThrows(IllegalArgumentException.class, () ->
+            instantiate("TestItem { property int width }"));
+    }
+
+    @Test
+    void duplicateDeclaredPropertyRejected() {
+        assertThrows(IllegalArgumentException.class, () ->
+            instantiate("TestItem { property int a; property int a }"));
     }
 
     @Test

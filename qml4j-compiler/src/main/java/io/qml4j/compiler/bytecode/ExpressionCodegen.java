@@ -6,6 +6,7 @@ import io.qml4j.parser.ast.Ast;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
 
 import java.lang.reflect.Field;
 import java.util.Collections;
@@ -26,12 +27,14 @@ final class ExpressionCodegen {
     private final Map<String, Class<? extends QObject>> idTypes;
     private final Map<String, Integer> signalParams;
     private final Map<String, Integer> localVars;
+    private final Map<String, String> declaredProps;
 
     ExpressionCodegen(String outerInternal, String bindingInternal, Class<?> outerType) {
         this(outerInternal, bindingInternal, outerType, null,
              Collections.<String, Class<? extends QObject>>emptyMap(),
              Collections.<String, Integer>emptyMap(),
-             new LinkedHashMap<String, Integer>());
+             new LinkedHashMap<String, Integer>(),
+             Collections.<String, String>emptyMap());
     }
 
     ExpressionCodegen(String outerInternal, String bindingInternal, Class<?> outerType,
@@ -39,7 +42,18 @@ final class ExpressionCodegen {
                       Map<String, Class<? extends QObject>> idTypes) {
         this(outerInternal, bindingInternal, outerType, componentInternal, idTypes,
              Collections.<String, Integer>emptyMap(),
-             new LinkedHashMap<String, Integer>());
+             new LinkedHashMap<String, Integer>(),
+             Collections.<String, String>emptyMap());
+    }
+
+    static ExpressionCodegen forBinding(String outerInternal, String bindingInternal, Class<?> outerType,
+                                        String componentInternal,
+                                        Map<String, Class<? extends QObject>> idTypes,
+                                        Map<String, String> declaredProps) {
+        return new ExpressionCodegen(outerInternal, bindingInternal, outerType, componentInternal, idTypes,
+                                     Collections.<String, Integer>emptyMap(),
+                                     new LinkedHashMap<String, Integer>(),
+                                     declaredProps);
     }
 
     ExpressionCodegen(String outerInternal, String bindingInternal, Class<?> outerType,
@@ -47,7 +61,8 @@ final class ExpressionCodegen {
                       Map<String, Class<? extends QObject>> idTypes,
                       Map<String, Integer> signalParams) {
         this(outerInternal, bindingInternal, outerType, componentInternal, idTypes,
-             signalParams, new LinkedHashMap<String, Integer>());
+             signalParams, new LinkedHashMap<String, Integer>(),
+             Collections.<String, String>emptyMap());
     }
 
     ExpressionCodegen(String outerInternal, String bindingInternal, Class<?> outerType,
@@ -55,6 +70,16 @@ final class ExpressionCodegen {
                       Map<String, Class<? extends QObject>> idTypes,
                       Map<String, Integer> signalParams,
                       Map<String, Integer> localVars) {
+        this(outerInternal, bindingInternal, outerType, componentInternal, idTypes,
+             signalParams, localVars, Collections.<String, String>emptyMap());
+    }
+
+    ExpressionCodegen(String outerInternal, String bindingInternal, Class<?> outerType,
+                      String componentInternal,
+                      Map<String, Class<? extends QObject>> idTypes,
+                      Map<String, Integer> signalParams,
+                      Map<String, Integer> localVars,
+                      Map<String, String> declaredProps) {
         this.outerInternal = outerInternal;
         this.bindingInternal = bindingInternal;
         this.outerType = outerType;
@@ -62,6 +87,7 @@ final class ExpressionCodegen {
         this.idTypes = idTypes != null ? idTypes : Collections.<String, Class<? extends QObject>>emptyMap();
         this.signalParams = signalParams != null ? signalParams : Collections.<String, Integer>emptyMap();
         this.localVars = localVars != null ? localVars : new LinkedHashMap<String, Integer>();
+        this.declaredProps = declaredProps != null ? declaredProps : Collections.<String, String>emptyMap();
     }
 
     Map<String, Integer> localVars() { return localVars; }
@@ -130,21 +156,42 @@ final class ExpressionCodegen {
             mv.visitInsn(Opcodes.AALOAD);
             return;
         }
+        String declaredOwner = declaredProps.get(id.name);
+        if (declaredOwner != null) {
+            loadDeclaredPropertyField(mv, id.name, declaredOwner);
+            mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
+                               "get", "()Ljava/lang/Object;", false);
+            return;
+        }
         Class<? extends QObject> idType = idTypes.get(id.name);
         if (idType != null && componentInternal != null) {
             mv.visitVarInsn(Opcodes.ALOAD, 0);
             mv.visitFieldInsn(Opcodes.GETFIELD, bindingInternal, "root", "L" + componentInternal + ";");
             mv.visitFieldInsn(Opcodes.GETFIELD, componentInternal, id.name,
-                              "L" + org.objectweb.asm.Type.getInternalName(idType) + ";");
+                              "L" + Type.getInternalName(idType) + ";");
             return;
         }
         Field f = findPropertyField(outerType, id.name);
-        String declOwner = org.objectweb.asm.Type.getInternalName(f.getDeclaringClass());
+        String declOwner = Type.getInternalName(f.getDeclaringClass());
         mv.visitVarInsn(Opcodes.ALOAD, 0);
         mv.visitFieldInsn(Opcodes.GETFIELD, bindingInternal, "outer", "L" + outerInternal + ";");
         mv.visitFieldInsn(Opcodes.GETFIELD, declOwner, id.name, "L" + PROPERTY_INTERNAL + ";");
         mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
                            "get", "()Ljava/lang/Object;", false);
+    }
+
+    private void loadDeclaredPropertyField(MethodVisitor mv, String name, String ownerInternal) {
+        if (componentInternal != null && ownerInternal.equals(componentInternal)) {
+            mv.visitVarInsn(Opcodes.ALOAD, 0);
+            mv.visitFieldInsn(Opcodes.GETFIELD, bindingInternal, "root",
+                              "L" + componentInternal + ";");
+        } else {
+            mv.visitVarInsn(Opcodes.ALOAD, 0);
+            mv.visitFieldInsn(Opcodes.GETFIELD, bindingInternal, "outer",
+                              "L" + outerInternal + ";");
+            mv.visitTypeInsn(Opcodes.CHECKCAST, ownerInternal);
+        }
+        mv.visitFieldInsn(Opcodes.GETFIELD, ownerInternal, name, "L" + PROPERTY_INTERNAL + ";");
     }
 
     private void emitMember(MethodVisitor mv, Ast.MemberExpr m) {
@@ -217,8 +264,17 @@ final class ExpressionCodegen {
                 mv.visitVarInsn(Opcodes.ASTORE, localSlot);
                 return;
             }
+            String declaredOwner = declaredProps.get(name);
+            if (declaredOwner != null) {
+                loadDeclaredPropertyField(mv, name, declaredOwner);
+                emit(mv, a.value);
+                mv.visitInsn(Opcodes.DUP_X1);
+                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
+                                   "set", "(Ljava/lang/Object;)V", false);
+                return;
+            }
             Field f = findPropertyField(outerType, name);
-            String declOwner = org.objectweb.asm.Type.getInternalName(f.getDeclaringClass());
+            String declOwner = Type.getInternalName(f.getDeclaringClass());
             mv.visitVarInsn(Opcodes.ALOAD, 0);
             mv.visitFieldInsn(Opcodes.GETFIELD, bindingInternal, "outer", "L" + outerInternal + ";");
             mv.visitFieldInsn(Opcodes.GETFIELD, declOwner, name, "L" + PROPERTY_INTERNAL + ";");

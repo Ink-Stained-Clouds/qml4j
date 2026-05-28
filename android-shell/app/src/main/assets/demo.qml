@@ -2,8 +2,13 @@ Rectangle {
     id: root
     color: "#202028"
 
+    property int taps: 0
+
     signal bumped()
-    onBumped: badge.color = badge.color === "#80ff80" ? "#ff8080" : "#80ff80"
+    onBumped: {
+        badge.color = badge.color === "#80ff80" ? "#ff8080" : "#80ff80";
+        root.taps = root.taps + 1;
+    }
 
     Rectangle {
         id: box
@@ -75,6 +80,14 @@ Rectangle {
             color: "#000000"
             fontSize: 24
         }
+    }
+
+    Text {
+        x: 500
+        y: 900
+        text: "taps: " + root.taps
+        color: "#a0a0c0"
+        fontSize: 32
     }
 
     Rectangle {
