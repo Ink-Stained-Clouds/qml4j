@@ -1,6 +1,9 @@
 package io.qml4j.render;
 
+import io.qml4j.engine.DelegateFactory;
+import io.qml4j.engine.QObject;
 import io.qml4j.render.items.Column;
+import io.qml4j.render.items.Component;
 import io.qml4j.render.items.Image;
 import io.qml4j.render.items.Item;
 import io.qml4j.render.items.Loader;
@@ -314,13 +317,24 @@ public final class Renderer {
     }
 
     void resolveLoader(Loader node) {
+        Component sc = node.sourceComponent.peek();
+        if (sc != null) {
+            resolveLoaderComponent(node, sc);
+            return;
+        }
+        if (node.loadedComponent != null) {
+            clearLoadedItem(node);
+            node.loadedComponent = null;
+        }
+        resolveLoaderSource(node);
+    }
+
+    private void resolveLoaderSource(Loader node) {
         String src = node.source.peek();
         if (src == null || src.isEmpty()) {
             if (node.loadedItem != null) {
-                node.children.remove(node.loadedItem);
-                node.loadedItem = null;
+                clearLoadedItem(node);
                 node.loadedSource = null;
-                node.item.set(null);
             }
             return;
         }
@@ -335,14 +349,40 @@ public final class Renderer {
         } catch (Throwable t) {
             return;
         }
+        attachLoadedItem(node, child);
+        node.loadedSource = src;
+    }
+
+    private void resolveLoaderComponent(Loader node, Component sc) {
+        if (sc == node.loadedComponent && node.loadedItem != null) return;
+        DelegateFactory df = sc.factory();
+        if (df == null) return;
+        QObject created = df.create(0, null);
+        if (!(created instanceof Item)) {
+            throw new IllegalStateException("Loader sourceComponent must produce an Item, got "
+                + (created == null ? "null" : created.getClass().getName()));
+        }
+        attachLoadedItem(node, (Item) created);
+        node.loadedComponent = sc;
+        node.loadedSource = null;
+    }
+
+    private void attachLoadedItem(Loader node, Item child) {
         if (node.loadedItem != null) {
             node.children.remove(node.loadedItem);
         }
         node.loadedItem = child;
-        node.loadedSource = src;
         child.parent.set(node);
         node.children.add(child);
         node.item.set(child);
+    }
+
+    private void clearLoadedItem(Loader node) {
+        if (node.loadedItem != null) {
+            node.children.remove(node.loadedItem);
+            node.loadedItem = null;
+        }
+        node.item.set(null);
     }
 
     private Font font(float size) {

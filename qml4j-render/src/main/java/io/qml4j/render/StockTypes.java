@@ -2,6 +2,7 @@ package io.qml4j.render;
 
 import io.qml4j.render.items.Behavior;
 import io.qml4j.render.items.Column;
+import io.qml4j.render.items.Component;
 import io.qml4j.render.items.Image;
 import io.qml4j.render.items.Item;
 import io.qml4j.render.items.Loader;
@@ -38,6 +39,7 @@ public final class StockTypes {
             .register("PropertyChanges", PropertyChanges.class)
             .register("Transition", Transition.class)
             .register("Behavior", Behavior.class)
-            .register("Repeater", Repeater.class);
+            .register("Repeater", Repeater.class)
+            .register("Component", Component.class);
     }
 }

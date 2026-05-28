@@ -2,6 +2,7 @@ package io.qml4j.render;
 
 import io.qml4j.engine.QmlEngine;
 import io.qml4j.render.items.Column;
+import io.qml4j.render.items.Component;
 import io.qml4j.render.items.Image;
 import io.qml4j.render.items.Item;
 import io.qml4j.render.items.Loader;
@@ -865,6 +866,90 @@ class QmlViewTest {
         } catch (ReflectiveOperationException ex) {
             throw new RuntimeException(ex);
         }
+    }
+
+    @Test
+    void componentExposesDelegateFactory() {
+        Item root = newView().load(
+            "Item {\n" +
+            "  Component { id: tmpl\n" +
+            "    Rectangle { width: 30; height: 20; color: \"#112233\" }\n" +
+            "  }\n" +
+            "}");
+        assertEquals(1, root.children.size());
+        Component c = (Component) root.children.get(0);
+        assertNotNull(c.factory());
+        Item made = (Item) c.factory().create(0, null);
+        assertTrue(made instanceof Rectangle);
+        assertEquals(30L, made.width.peek().longValue());
+        assertEquals("#112233", ((Rectangle) made).color.peek());
+    }
+
+    @Test
+    void loaderSourceComponentInstantiatesChild() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item {\n" +
+            "  width: 200; height: 200\n" +
+            "  Component { id: tmpl\n" +
+            "    Rectangle { width: 40; height: 25; color: \"#aabbcc\" }\n" +
+            "  }\n" +
+            "  Loader { id: ld; sourceComponent: tmpl }\n" +
+            "}");
+        Loader loader = (Loader) root.children.get(1);
+        v.renderer().resolveLoader(loader);
+        assertNotNull(loader.item.peek());
+        Rectangle r = (Rectangle) loader.item.peek();
+        assertEquals(40L, r.width.peek().longValue());
+        assertEquals("#aabbcc", r.color.peek());
+        assertEquals(1, loader.children.size());
+        assertSame(loader, r.parent.peek());
+    }
+
+    @Test
+    void loaderSourceComponentSwapsOnChange() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item {\n" +
+            "  Component { id: a\n" +
+            "    Rectangle { width: 10; height: 10; color: \"#aa0000\" }\n" +
+            "  }\n" +
+            "  Component { id: b\n" +
+            "    Rectangle { width: 20; height: 20; color: \"#00bb00\" }\n" +
+            "  }\n" +
+            "  Loader { id: ld; sourceComponent: a }\n" +
+            "}");
+        Loader loader = (Loader) root.children.get(2);
+        v.renderer().resolveLoader(loader);
+        Rectangle first = (Rectangle) loader.item.peek();
+        assertEquals("#aa0000", first.color.peek());
+
+        Component b = (Component) root.children.get(1);
+        loader.sourceComponent.set(b);
+        v.renderer().resolveLoader(loader);
+        Rectangle second = (Rectangle) loader.item.peek();
+        assertEquals("#00bb00", second.color.peek());
+        assertEquals(1, loader.children.size());
+    }
+
+    @Test
+    void loaderClearsWhenSourceComponentNulled() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item {\n" +
+            "  Component { id: tmpl\n" +
+            "    Rectangle { width: 5; height: 5 }\n" +
+            "  }\n" +
+            "  Loader { id: ld; sourceComponent: tmpl }\n" +
+            "}");
+        Loader loader = (Loader) root.children.get(1);
+        v.renderer().resolveLoader(loader);
+        assertNotNull(loader.item.peek());
+
+        loader.sourceComponent.set(null);
+        v.renderer().resolveLoader(loader);
+        assertEquals(null, loader.item.peek());
+        assertEquals(0, loader.children.size());
     }
 
     @Test

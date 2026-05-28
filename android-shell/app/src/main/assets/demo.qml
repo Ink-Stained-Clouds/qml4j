@@ -292,6 +292,27 @@ Rectangle {
         }
     }
 
+    Component {
+        id: chip
+        Rectangle {
+            width: 120
+            height: 44
+            color: "#5070ff"
+            Text {
+                anchors.centerIn: parent
+                text: "from chip"
+                color: "#ffffff"
+                fontSize: 20
+            }
+        }
+    }
+
+    Loader {
+        x: 500
+        y: 1140
+        sourceComponent: chip
+    }
+
     Item {
         id: blinker
         x: 60
