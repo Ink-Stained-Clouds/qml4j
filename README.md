@@ -113,13 +113,21 @@ Shipped since v0:
 - v0.3 — opacity composes down the tree; `DirtyQueue` coalesces redundant binding re-evaluations per frame; `signal foo()` custom declarations on the root object
 - v0.4 — `id:` resolution in bindings; signal arguments; child-object custom signals; `NumberAnimation` (target/from/to/duration/easing) ticked per frame in `QmlView.renderFrame`; `State` + `PropertyChanges` with `state:` switching (revert prior, apply next; binding expressions evaluated at apply time); `Transition { from; to; NumberAnimation }` tweens between states by spawning ephemeral animations from snapshotted before/after values; `properties: "a,b"` csv filter on `NumberAnimation`
 
-Not yet:
-- `function` / `var` / control flow statements
-- Custom signal declarations on child objects (only root for now), signal arguments are parsed but unused
-- `States`, `Transitions`, `Animation`, `Behavior`
-- `ListView`, `Repeater`, modules, singletons, `import`
-- `Qt.binding()`, `Connections`
-- `anchors.left`/`right`/`top`/`bottom`/`baseline` to another item's edge (only `fill`/`centerIn` so far)
+Shipped since the v0.4 line above:
+- v0.5 — `Behavior on <prop> { NumberAnimation { ... } }` (M12d); JS statement blocks in signal handlers — `var`, assignment, `if/else`, sequences (M12e)
+- v0.6 — edge anchors with `AnchorLine` (`anchors.left: other.right`, etc.) and auto-measured `Text` width/height (M13)
+- v0.7 — method calls on QObjects from handlers via reflection (`r.signal.emit(...)`, `box.state = ...`) (M14)
+- v0.8 — user-declared `property <type> name` on root and child scopes with literal/binding initializers (M15)
+- v0.9 — `property alias foo: id.prop` (M16): reads/writes/dependencies routed through the target Property
+
+Not yet (see `ROADMAP.md` for the planned order):
+- `function` declarations, `for`/`while`/`break`/`continue`, array/object literals (Phase F)
+- `Repeater`, `ListModel`, `ListView` (Phase G)
+- `Component` + `Loader { sourceComponent }`, multi-file imports, `Connections` (Phase H)
+- `Keys`, `FocusScope`, `TextInput` (Phase I)
+- `ColorAnimation`, `ParallelAnimation`/`SequentialAnimation` (Phase J)
+- cross-item edge anchor margins, `Row`/`Grid`, `GridView` (Phase K)
+- `Qt.binding()`, modules/singletons, QML profiler
 
 ## Known limitations / tech debt
 
@@ -156,13 +164,9 @@ At runtime, `DexClassLoaderBackend.defineClasses(Map<String, byte[]>)` invokes D
 
 ## Roadmap
 
-- ~~**M7** — MouseArea + signals/slots~~ **done**
-- ~~**M8** — `android-shell` with `DexClassLoaderBackend` and a HelloRectangle APK~~ **done, device-verified**
-- ~~**M9** — `anchors`, `Image`, `Loader`~~ **done**
-- ~~**M10** — opacity composition, dirty queue, custom signals~~ **done**
-- ~~**M11** — `id:` resolution in bindings; signal arguments; child-object signals~~ **done**
-- ~~**M12** — `States` / `Transitions` / `Animation` (M12a `NumberAnimation`; M12b `State`/`PropertyChanges`; M12c `Transition`)~~ **done**
-- **M13** — `ListView` / `Repeater`
+Done: M7–M16 (signals, Android dexing, anchors+Image+Loader, opacity+dirty queue+custom signals, id resolution + signal args, States/Transitions/NumberAnimation/Behavior, statement blocks, edge anchors, method calls, declared properties, property alias).
+
+Next: **M17 — `function` declarations**, then loops, then `Repeater`. Full plan and rationale in **[ROADMAP.md](./ROADMAP.md)**.
 
 See `qml4j-engine/src/main/java/io/qml4j/engine/ClassLoaderBackend.java` for the SPI that decouples the JVM and Android dexing paths.
 
