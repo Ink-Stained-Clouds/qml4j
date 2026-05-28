@@ -342,6 +342,27 @@ Rectangle {
         onClicked: root.relayHits = root.relayHits + 1
     }
 
+    Rectangle {
+        x: 320
+        y: 1720
+        width: 360
+        height: 120
+        color: pad.isPressed ? "#406040" : "#303040"
+
+        MouseArea {
+            id: pad
+            anchors.fill: parent
+        }
+
+        Text {
+            x: 12
+            y: 12
+            text: pad.isPressed ? "drag: x=" + pad.mouseX + " y=" + pad.mouseY : "press & drag here"
+            color: "#ffffff"
+            fontSize: 22
+        }
+    }
+
     Item {
         id: blinker
         x: 60

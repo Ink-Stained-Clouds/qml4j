@@ -45,17 +45,35 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
 
     @Override
     public boolean onTouchEvent(MotionEvent ev) {
-        if (ev.getActionMasked() == MotionEvent.ACTION_UP) {
-            final float x = ev.getX();
-            final float y = ev.getY();
-            queueEvent(new Runnable() {
-                @Override public void run() {
-                    if (view != null) view.dispatchClick(x, y);
-                }
-            });
-            return true;
+        final int action = ev.getActionMasked();
+        final float x = ev.getX();
+        final float y = ev.getY();
+        switch (action) {
+            case MotionEvent.ACTION_DOWN:
+                queueEvent(new Runnable() {
+                    @Override public void run() {
+                        if (view != null) view.dispatchPointerDown(x, y);
+                    }
+                });
+                return true;
+            case MotionEvent.ACTION_MOVE:
+                queueEvent(new Runnable() {
+                    @Override public void run() {
+                        if (view != null) view.dispatchPointerMove(x, y);
+                    }
+                });
+                return true;
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                queueEvent(new Runnable() {
+                    @Override public void run() {
+                        if (view != null) view.dispatchPointerUp(x, y);
+                    }
+                });
+                return true;
+            default:
+                return false;
         }
-        return ev.getActionMasked() == MotionEvent.ACTION_DOWN;
     }
 
     private final class GlRenderer implements GLSurfaceView.Renderer {

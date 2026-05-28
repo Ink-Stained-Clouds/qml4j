@@ -132,28 +132,79 @@ public final class QmlView {
         return root;
     }
 
+    private MouseArea captured;
+    private float captureX;
+    private float captureY;
+
     public boolean dispatchClick(float x, float y) {
-        if (root == null) return false;
-        return hitTest(root, x, y);
+        return dispatchPointerDown(x, y) && dispatchPointerUp(x, y);
     }
 
-    private boolean hitTest(Item item, float x, float y) {
-        if (!item.visible.peek()) return false;
+    public boolean dispatchPointerDown(float x, float y) {
+        if (root == null) return false;
+        MouseArea hit = hitTestMouseArea(root, x, y);
+        if (hit == null) return false;
+        captured = hit;
+        float[] local = localCoords(hit, x, y);
+        captureX = local[0];
+        captureY = local[1];
+        hit.mouseX.set(local[0]);
+        hit.mouseY.set(local[1]);
+        hit.isPressed.set(Boolean.TRUE);
+        hit.pressed.emit();
+        return true;
+    }
+
+    public boolean dispatchPointerMove(float x, float y) {
+        if (captured == null) return false;
+        float[] local = localCoords(captured, x, y);
+        captured.mouseX.set(local[0]);
+        captured.mouseY.set(local[1]);
+        captured.positionChanged.emit();
+        return true;
+    }
+
+    public boolean dispatchPointerUp(float x, float y) {
+        if (captured == null) return false;
+        MouseArea target = captured;
+        float[] local = localCoords(target, x, y);
+        target.mouseX.set(local[0]);
+        target.mouseY.set(local[1]);
+        target.isPressed.set(Boolean.FALSE);
+        target.released.emit();
+        boolean inside = local[0] >= 0 && local[1] >= 0
+            && local[0] <= target.width.peek().floatValue()
+            && local[1] <= target.height.peek().floatValue();
+        if (inside) target.clicked.emit();
+        captured = null;
+        return true;
+    }
+
+    private MouseArea hitTestMouseArea(Item item, float x, float y) {
+        if (!item.visible.peek()) return null;
         float ix = item.x.peek().floatValue();
         float iy = item.y.peek().floatValue();
         float w = item.width.peek().floatValue();
         float h = item.height.peek().floatValue();
         float lx = x - ix;
         float ly = y - iy;
-        if (lx < 0 || ly < 0 || lx > w || ly > h) return false;
+        if (lx < 0 || ly < 0 || lx > w || ly > h) return null;
         for (int i = item.children.size() - 1; i >= 0; i--) {
-            if (hitTest(item.children.get(i), lx, ly)) return true;
+            MouseArea hit = hitTestMouseArea(item.children.get(i), lx, ly);
+            if (hit != null) return hit;
         }
-        if (item instanceof MouseArea) {
-            ((MouseArea) item).clicked.emit();
-            return true;
+        return item instanceof MouseArea ? (MouseArea) item : null;
+    }
+
+    private float[] localCoords(Item target, float rootX, float rootY) {
+        float ox = 0, oy = 0;
+        Item cur = target;
+        while (cur != null) {
+            ox += cur.x.peek().floatValue();
+            oy += cur.y.peek().floatValue();
+            cur = cur.parent.peek();
         }
-        return false;
+        return new float[]{rootX - ox, rootY - oy};
     }
 
     public void renderFrame(SurfaceBackend backend) {

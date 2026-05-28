@@ -860,10 +860,14 @@ class QmlViewTest {
     }
 
     private static void assertHitsEquals(Item root, long expected) {
+        assertEquals(expected, propLong(root, "hits"));
+    }
+
+    private static long propLong(Item root, String name) {
         try {
-            io.qml4j.engine.binding.Property<?> hits =
-                (io.qml4j.engine.binding.Property<?>) root.getClass().getField("hits").get(root);
-            assertEquals(expected, ((Number) hits.peek()).longValue());
+            io.qml4j.engine.binding.Property<?> p =
+                (io.qml4j.engine.binding.Property<?>) root.getClass().getField(name).get(root);
+            return ((Number) p.peek()).longValue();
         } catch (ReflectiveOperationException ex) {
             throw new RuntimeException(ex);
         }
@@ -1095,6 +1099,93 @@ class QmlViewTest {
             "}");
         v.dispatchClick(10, 10);
         assertHitsEquals(root, 1);
+    }
+
+    @Test
+    void pointerDownEmitsPressedAndSetsIsPressed() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 200\n" +
+            "  property int presses: 0\n" +
+            "  MouseArea { id: ma; width: 200; height: 200\n" +
+            "    onPressed: parent.presses = parent.presses + 1\n" +
+            "  }\n" +
+            "}");
+        MouseArea ma = (MouseArea) root.children.get(0);
+        assertEquals(Boolean.FALSE, ma.isPressed.peek());
+        v.dispatchPointerDown(10, 10);
+        assertEquals(1, (int) propLong(root, "presses"));
+        assertEquals(Boolean.TRUE, ma.isPressed.peek());
+        v.dispatchPointerUp(10, 10);
+        assertEquals(Boolean.FALSE, ma.isPressed.peek());
+    }
+
+    @Test
+    void pointerUpInsideEmitsReleasedAndClicked() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 200\n" +
+            "  property int releases: 0\n" +
+            "  property int clicks: 0\n" +
+            "  MouseArea { width: 200; height: 200\n" +
+            "    onReleased: parent.releases = parent.releases + 1\n" +
+            "    onClicked: parent.clicks = parent.clicks + 1\n" +
+            "  }\n" +
+            "}");
+        v.dispatchPointerDown(10, 10);
+        v.dispatchPointerUp(20, 20);
+        assertEquals(1, (int) propLong(root, "releases"));
+        assertEquals(1, (int) propLong(root, "clicks"));
+    }
+
+    @Test
+    void pointerUpOutsideEmitsReleasedButNotClicked() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 400; height: 400\n" +
+            "  property int releases: 0\n" +
+            "  property int clicks: 0\n" +
+            "  MouseArea { x: 0; y: 0; width: 50; height: 50\n" +
+            "    onReleased: parent.releases = parent.releases + 1\n" +
+            "    onClicked: parent.clicks = parent.clicks + 1\n" +
+            "  }\n" +
+            "}");
+        v.dispatchPointerDown(10, 10);
+        v.dispatchPointerUp(300, 300);
+        assertEquals(1, (int) propLong(root, "releases"));
+        assertEquals(0, (int) propLong(root, "clicks"));
+    }
+
+    @Test
+    void pointerMoveUpdatesMouseXYAndEmitsPositionChanged() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 400; height: 400\n" +
+            "  property int moves: 0\n" +
+            "  MouseArea { id: ma; x: 50; y: 60; width: 200; height: 200\n" +
+            "    onPositionChanged: parent.moves = parent.moves + 1\n" +
+            "  }\n" +
+            "}");
+        MouseArea ma = (MouseArea) root.children.get(0);
+        v.dispatchPointerDown(70, 80);
+        assertEquals(20f, ma.mouseX.peek().floatValue());
+        assertEquals(20f, ma.mouseY.peek().floatValue());
+        v.dispatchPointerMove(100, 120);
+        assertEquals(50f, ma.mouseX.peek().floatValue());
+        assertEquals(60f, ma.mouseY.peek().floatValue());
+        assertEquals(1, (int) propLong(root, "moves"));
+        v.dispatchPointerUp(100, 120);
+    }
+
+    @Test
+    void pointerMoveWithoutCaptureIgnored() {
+        QmlView v = newView();
+        v.load(
+            "Item { width: 200; height: 200\n" +
+            "  MouseArea { width: 200; height: 200 }\n" +
+            "}");
+        assertEquals(false, v.dispatchPointerMove(10, 10));
+        assertEquals(false, v.dispatchPointerUp(10, 10));
     }
 
     @Test
