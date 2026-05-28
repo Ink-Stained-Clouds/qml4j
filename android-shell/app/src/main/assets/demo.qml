@@ -363,6 +363,79 @@ Rectangle {
         }
     }
 
+    Rectangle {
+        x: 60
+        y: 1850
+        width: 600
+        height: 200
+        color: "#181820"
+        clip: true
+
+        Rectangle {
+            x: 40
+            y: 40
+            width: 120
+            height: 120
+            color: "#ff6060"
+            rotation: 30
+        }
+        Rectangle {
+            x: 220
+            y: 50
+            width: 100
+            height: 100
+            color: "#60c060"
+            scale: 1.3
+        }
+        Rectangle {
+            x: 400
+            y: 30
+            width: 200
+            height: 160
+            color: "#6080ff"
+            rotation: -15
+            scale: 0.8
+        }
+        Rectangle {
+            x: 540
+            y: 10
+            width: 200
+            height: 100
+            color: "#ffd060"
+        }
+    }
+
+    Rectangle {
+        x: 700
+        y: 1720
+        width: 200
+        height: 120
+        color: "#404040"
+
+        Rectangle {
+            x: 20
+            y: 20
+            width: 80
+            height: 80
+            color: "#ff4040"
+            z: 1
+        }
+        Rectangle {
+            x: 60
+            y: 40
+            width: 80
+            height: 60
+            color: "#40ff40"
+        }
+        Text {
+            x: 8
+            y: 96
+            text: "red on top via z"
+            color: "#ffffff"
+            fontSize: 16
+        }
+    }
+
     Item {
         id: blinker
         x: 60

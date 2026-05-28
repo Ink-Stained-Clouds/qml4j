@@ -16,6 +16,10 @@ public class Item extends QObject {
     public final Property<Number> height = new Property<>(0);
     public final Property<Boolean> visible = new Property<>(Boolean.TRUE);
     public final Property<Number> opacity = new Property<>(1.0);
+    public final Property<Number> rotation = new Property<>(0);
+    public final Property<Number> scale = new Property<>(1.0);
+    public final Property<Number> z = new Property<>(0);
+    public final Property<Boolean> clip = new Property<>(Boolean.FALSE);
     public final Property<Item> parent = new Property<>(null);
     public final List<Item> children = new ArrayList<>();
     public final Anchors anchors = new Anchors();

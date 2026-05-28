@@ -20,6 +20,10 @@ import io.github.humbleui.skija.Paint;
 import io.github.humbleui.skija.Typeface;
 import io.github.humbleui.types.Rect;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+
 public final class Renderer {
 
     private Paint paint;
@@ -77,17 +81,45 @@ public final class Renderer {
         float h = node.height.peek().floatValue();
         float alpha = inheritedAlpha * node.opacity.peek().floatValue();
         if (alpha <= 0f) return;
+        float rot = node.rotation.peek().floatValue();
+        float sc = node.scale.peek().floatValue();
+        boolean clip = Boolean.TRUE.equals(node.clip.peek());
 
         int savedCount = canvas.save();
         try {
             canvas.translate(x, y);
+            applyTransform(canvas, w, h, rot, sc);
+            if (clip) canvas.clipRect(Rect.makeXYWH(0, 0, w, h));
             paintNode(canvas, node, w, h, alpha);
-            for (Item child : node.children) {
+            for (Item child : zOrdered(node.children)) {
                 draw(canvas, child, alpha);
             }
         } finally {
             canvas.restoreToCount(savedCount);
         }
+    }
+
+    private static void applyTransform(Canvas canvas, float w, float h, float rot, float sc) {
+        if (rot == 0f && sc == 1f) return;
+        float cx = w / 2f;
+        float cy = h / 2f;
+        canvas.translate(cx, cy);
+        if (rot != 0f) canvas.rotate(rot);
+        if (sc != 1f) canvas.scale(sc, sc);
+        canvas.translate(-cx, -cy);
+    }
+
+    static List<Item> zOrdered(List<Item> children) {
+        int n = children.size();
+        if (n < 2) return children;
+        boolean anyZ = false;
+        for (int i = 0; i < n; i++) {
+            if (children.get(i).z.peek().floatValue() != 0f) { anyZ = true; break; }
+        }
+        if (!anyZ) return children;
+        List<Item> copy = new ArrayList<>(children);
+        copy.sort(Comparator.comparingDouble(c -> c.z.peek().doubleValue()));
+        return copy;
     }
 
     private void measureText(Text t) {

@@ -14,6 +14,8 @@ import io.qml4j.render.items.Text;
 import io.qml4j.render.items.Timer;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -1186,6 +1188,56 @@ class QmlViewTest {
             "}");
         assertEquals(false, v.dispatchPointerMove(10, 10));
         assertEquals(false, v.dispatchPointerUp(10, 10));
+    }
+
+    @Test
+    void itemTransformDefaults() {
+        QmlView v = newView();
+        Item root = v.load("Item { width: 100; height: 100 }");
+        assertEquals(0f, root.rotation.peek().floatValue());
+        assertEquals(1f, root.scale.peek().floatValue());
+        assertEquals(0f, root.z.peek().floatValue());
+        assertEquals(Boolean.FALSE, root.clip.peek());
+    }
+
+    @Test
+    void zReordersHitTest() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 200\n" +
+            "  property int hits: 0\n" +
+            "  MouseArea { id: bottom; x: 0; y: 0; width: 200; height: 200\n" +
+            "    onClicked: parent.hits = 1\n" +
+            "  }\n" +
+            "  MouseArea { id: top; x: 0; y: 0; width: 100; height: 100; z: 10\n" +
+            "    onClicked: parent.hits = 2\n" +
+            "  }\n" +
+            "}");
+        v.dispatchClick(50, 50);
+        assertHitsEquals(root, 2);
+        v.dispatchClick(150, 150);
+        assertHitsEquals(root, 1);
+    }
+
+    @Test
+    void zOrderedReturnsSameInstanceWhenAllZero() {
+        Item a = new Rectangle();
+        Item b = new Rectangle();
+        a.children.add(b);
+        assertSame(a.children, Renderer.zOrdered(a.children));
+    }
+
+    @Test
+    void zOrderedSortsAscendingWhenAnyNonZero() {
+        Item p = new Rectangle();
+        Item lo = new Rectangle();
+        Item hi = new Rectangle();
+        hi.z.set(5);
+        p.children.add(hi);
+        p.children.add(lo);
+        List<Item> ordered = Renderer.zOrdered(p.children);
+        assertSame(lo, ordered.get(0));
+        assertSame(hi, ordered.get(1));
     }
 
     @Test

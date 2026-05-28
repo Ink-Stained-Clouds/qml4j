@@ -24,6 +24,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static io.qml4j.render.Renderer.zOrdered;
+
 public final class QmlView {
 
     private final QmlEngine engine;
@@ -189,8 +191,9 @@ public final class QmlView {
         float lx = x - ix;
         float ly = y - iy;
         if (lx < 0 || ly < 0 || lx > w || ly > h) return null;
-        for (int i = item.children.size() - 1; i >= 0; i--) {
-            MouseArea hit = hitTestMouseArea(item.children.get(i), lx, ly);
+        List<Item> ordered = zOrdered(item.children);
+        for (int i = ordered.size() - 1; i >= 0; i--) {
+            MouseArea hit = hitTestMouseArea(ordered.get(i), lx, ly);
             if (hit != null) return hit;
         }
         return item instanceof MouseArea ? (MouseArea) item : null;
