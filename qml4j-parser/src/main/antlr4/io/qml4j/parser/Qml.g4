@@ -83,8 +83,33 @@ statement
     : statementBlock
     | varStatement
     | ifStatement
+    | whileStatement
+    | forStatement
+    | breakStatement
+    | continueStatement
     | returnStatement
     | expressionStatement
+    ;
+
+whileStatement
+    : 'while' '(' expression ')' statement
+    ;
+
+forStatement
+    : 'for' '(' forInit? ';' expression? ';' expression? ')' statement
+    ;
+
+forInit
+    : ('var' | 'let' | 'const') Identifier ('=' expression)?
+    | expression
+    ;
+
+breakStatement
+    : 'break' ';'?
+    ;
+
+continueStatement
+    : 'continue' ';'?
     ;
 
 returnStatement

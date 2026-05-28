@@ -909,4 +909,137 @@ class QmlCompilerTest {
             "}");
         assertThrows(IllegalArgumentException.class, () -> COMPILER.compile(doc, REGISTRY));
     }
+
+    @Test
+    void whileLoopCountsInHandler() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  signal go()\n" +
+            "  onGo: {\n" +
+            "    var i = 0;\n" +
+            "    while (i < 5) { i = i + 1; }\n" +
+            "    width = i;\n" +
+            "  }\n" +
+            "}");
+        Signal sig = (Signal) it.getClass().getField("go").get(it);
+        sig.emit();
+        assertEquals(5L, it.width.peek().longValue());
+    }
+
+    @Test
+    void forLoopSumsToProperty() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  function sum(n) {\n" +
+            "    var s = 0;\n" +
+            "    for (var i = 1; i <= n; i = i + 1) { s = s + i; }\n" +
+            "    return s;\n" +
+            "  }\n" +
+            "  width: sum(10)\n" +
+            "}");
+        assertEquals(55L, it.width.peek().longValue());
+    }
+
+    @Test
+    void breakExitsLoop() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  function firstOver(limit) {\n" +
+            "    var i = 0;\n" +
+            "    while (true) {\n" +
+            "      if (i >= limit) { break; }\n" +
+            "      i = i + 1;\n" +
+            "    }\n" +
+            "    return i;\n" +
+            "  }\n" +
+            "  width: firstOver(7)\n" +
+            "}");
+        assertEquals(7L, it.width.peek().longValue());
+    }
+
+    @Test
+    void continueSkipsIteration() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  function sumOdd(n) {\n" +
+            "    var s = 0;\n" +
+            "    for (var i = 0; i < n; i = i + 1) {\n" +
+            "      if (i % 2 == 0) { continue; }\n" +
+            "      s = s + i;\n" +
+            "    }\n" +
+            "    return s;\n" +
+            "  }\n" +
+            "  width: sumOdd(10)\n" +
+            "}");
+        assertEquals(25L, it.width.peek().longValue());
+    }
+
+    @Test
+    void nestedLoopsWithInnerBreak() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  function countPairs(n) {\n" +
+            "    var c = 0;\n" +
+            "    for (var i = 0; i < n; i = i + 1) {\n" +
+            "      for (var j = 0; j < n; j = j + 1) {\n" +
+            "        if (j >= i) { break; }\n" +
+            "        c = c + 1;\n" +
+            "      }\n" +
+            "    }\n" +
+            "    return c;\n" +
+            "  }\n" +
+            "  width: countPairs(5)\n" +
+            "}");
+        assertEquals(10L, it.width.peek().longValue());
+    }
+
+    @Test
+    void forLoopOmittedInitAndUpdate() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  function countUp(n) {\n" +
+            "    var i = 0;\n" +
+            "    for (; i < n; ) { i = i + 1; }\n" +
+            "    return i;\n" +
+            "  }\n" +
+            "  width: countUp(4)\n" +
+            "}");
+        assertEquals(4L, it.width.peek().longValue());
+    }
+
+    @Test
+    void forLoopOmittedConditionWithBreak() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  function firstHit(limit) {\n" +
+            "    var i = 0;\n" +
+            "    for (;;) {\n" +
+            "      if (i == limit) { break; }\n" +
+            "      i = i + 1;\n" +
+            "    }\n" +
+            "    return i;\n" +
+            "  }\n" +
+            "  width: firstHit(6)\n" +
+            "}");
+        assertEquals(6L, it.width.peek().longValue());
+    }
+
+    @Test
+    void breakOutsideLoopRejected() {
+        Ast.QmlDocument doc = Qml4j.parse(
+            "TestItem {\n" +
+            "  signal go()\n" +
+            "  onGo: { break; }\n" +
+            "}");
+        assertThrows(IllegalArgumentException.class, () -> COMPILER.compile(doc, REGISTRY));
+    }
+
+    @Test
+    void continueOutsideLoopRejected() {
+        Ast.QmlDocument doc = Qml4j.parse(
+            "TestItem {\n" +
+            "  function f() { continue; }\n" +
+            "}");
+        assertThrows(IllegalArgumentException.class, () -> COMPILER.compile(doc, REGISTRY));
+    }
 }

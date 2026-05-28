@@ -143,8 +143,41 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
         if (ctx.statementBlock() != null) return visitStatementBlock(ctx.statementBlock());
         if (ctx.varStatement() != null) return visitVarStatement(ctx.varStatement());
         if (ctx.ifStatement() != null) return visitIfStatement(ctx.ifStatement());
+        if (ctx.whileStatement() != null) return visitWhileStatement(ctx.whileStatement());
+        if (ctx.forStatement() != null) return visitForStatement(ctx.forStatement());
+        if (ctx.breakStatement() != null) return new Ast.BreakStmt();
+        if (ctx.continueStatement() != null) return new Ast.ContinueStmt();
         if (ctx.returnStatement() != null) return visitReturnStatement(ctx.returnStatement());
         return visitExpressionStatement(ctx.expressionStatement());
+    }
+
+    @Override
+    public Ast.WhileStmt visitWhileStatement(QmlParser.WhileStatementContext ctx) {
+        Ast.Expression cond = (Ast.Expression) visit(ctx.expression());
+        Ast.Statement body = visitStatement(ctx.statement());
+        return new Ast.WhileStmt(cond, body);
+    }
+
+    @Override
+    public Ast.ForStmt visitForStatement(QmlParser.ForStatementContext ctx) {
+        Ast.Statement init = ctx.forInit() != null ? visitForInit(ctx.forInit()) : null;
+        Ast.Expression cond = ctx.expression().size() > 0
+            ? (Ast.Expression) visit(ctx.expression(0)) : null;
+        Ast.Expression update = ctx.expression().size() > 1
+            ? (Ast.Expression) visit(ctx.expression(1)) : null;
+        Ast.Statement body = visitStatement(ctx.statement());
+        return new Ast.ForStmt(init, cond, update, body);
+    }
+
+    @Override
+    public Ast.Statement visitForInit(QmlParser.ForInitContext ctx) {
+        if (ctx.Identifier() != null) {
+            String name = ctx.Identifier().getText();
+            Ast.Expression init = ctx.expression() != null
+                ? (Ast.Expression) visit(ctx.expression()) : null;
+            return new Ast.VarDecl(name, init);
+        }
+        return new Ast.ExprStmt((Ast.Expression) visit(ctx.expression()));
     }
 
     @Override

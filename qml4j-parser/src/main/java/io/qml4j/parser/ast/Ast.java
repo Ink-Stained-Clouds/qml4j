@@ -200,6 +200,40 @@ public final class Ast {
         }
     }
 
+    public static final class WhileStmt extends Statement {
+        public final Expression cond;
+        public final Statement body;
+        public WhileStmt(Expression cond, Statement body) {
+            this.cond = cond;
+            this.body = body;
+        }
+        @Override public String toString() { return "while (" + cond + ") " + body; }
+    }
+
+    public static final class ForStmt extends Statement {
+        public final Statement init;
+        public final Expression cond;
+        public final Expression update;
+        public final Statement body;
+        public ForStmt(Statement init, Expression cond, Expression update, Statement body) {
+            this.init = init;
+            this.cond = cond;
+            this.update = update;
+            this.body = body;
+        }
+        @Override public String toString() {
+            return "for (" + init + "; " + cond + "; " + update + ") " + body;
+        }
+    }
+
+    public static final class BreakStmt extends Statement {
+        @Override public String toString() { return "break;"; }
+    }
+
+    public static final class ContinueStmt extends Statement {
+        @Override public String toString() { return "continue;"; }
+    }
+
     public static abstract class Expression {}
 
     public enum LiteralKind { INT, FLOAT, STRING, BOOL, NULL, UNDEFINED }

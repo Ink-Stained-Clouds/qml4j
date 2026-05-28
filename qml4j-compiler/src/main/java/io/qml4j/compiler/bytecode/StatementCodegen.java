@@ -5,12 +5,25 @@ import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
+
 final class StatementCodegen {
 
     enum ReturnKind { VOID, OBJECT }
 
+    private static final class LoopLabels {
+        final Label continueL;
+        final Label breakL;
+        LoopLabels(Label continueL, Label breakL) {
+            this.continueL = continueL;
+            this.breakL = breakL;
+        }
+    }
+
     private final ExpressionCodegen expr;
     private final ReturnKind returnKind;
+    private final Deque<LoopLabels> loopStack = new ArrayDeque<>();
     private int nextSlot;
 
     StatementCodegen(ExpressionCodegen expr, int firstSlot) {
@@ -32,6 +45,14 @@ final class StatementCodegen {
             emitVarDecl(mv, (Ast.VarDecl) s);
         } else if (s instanceof Ast.IfStmt) {
             emitIfStmt(mv, (Ast.IfStmt) s);
+        } else if (s instanceof Ast.WhileStmt) {
+            emitWhile(mv, (Ast.WhileStmt) s);
+        } else if (s instanceof Ast.ForStmt) {
+            emitFor(mv, (Ast.ForStmt) s);
+        } else if (s instanceof Ast.BreakStmt) {
+            emitBreak(mv);
+        } else if (s instanceof Ast.ContinueStmt) {
+            emitContinue(mv);
         } else if (s instanceof Ast.ReturnStmt) {
             emitReturn(mv, (Ast.ReturnStmt) s);
         } else {
@@ -76,6 +97,59 @@ final class StatementCodegen {
         int slot = nextSlot++;
         mv.visitVarInsn(Opcodes.ASTORE, slot);
         expr.localVars().put(v.name, slot);
+    }
+
+    private void emitWhile(MethodVisitor mv, Ast.WhileStmt w) {
+        Label condL = new Label();
+        Label endL = new Label();
+        mv.visitLabel(condL);
+        expr.emit(mv, w.cond);
+        mv.visitMethodInsn(Opcodes.INVOKESTATIC, ExpressionCodegen.HELPERS_INTERNAL,
+                           "truthy", "(Ljava/lang/Object;)Z", false);
+        mv.visitJumpInsn(Opcodes.IFEQ, endL);
+        loopStack.push(new LoopLabels(condL, endL));
+        emit(mv, w.body);
+        loopStack.pop();
+        mv.visitJumpInsn(Opcodes.GOTO, condL);
+        mv.visitLabel(endL);
+    }
+
+    private void emitFor(MethodVisitor mv, Ast.ForStmt f) {
+        if (f.init != null) emit(mv, f.init);
+        Label condL = new Label();
+        Label updateL = new Label();
+        Label endL = new Label();
+        mv.visitLabel(condL);
+        if (f.cond != null) {
+            expr.emit(mv, f.cond);
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, ExpressionCodegen.HELPERS_INTERNAL,
+                               "truthy", "(Ljava/lang/Object;)Z", false);
+            mv.visitJumpInsn(Opcodes.IFEQ, endL);
+        }
+        loopStack.push(new LoopLabels(updateL, endL));
+        emit(mv, f.body);
+        loopStack.pop();
+        mv.visitLabel(updateL);
+        if (f.update != null) {
+            expr.emit(mv, f.update);
+            mv.visitInsn(Opcodes.POP);
+        }
+        mv.visitJumpInsn(Opcodes.GOTO, condL);
+        mv.visitLabel(endL);
+    }
+
+    private void emitBreak(MethodVisitor mv) {
+        if (loopStack.isEmpty()) {
+            throw new IllegalArgumentException("'break' used outside of a loop");
+        }
+        mv.visitJumpInsn(Opcodes.GOTO, loopStack.peek().breakL);
+    }
+
+    private void emitContinue(MethodVisitor mv) {
+        if (loopStack.isEmpty()) {
+            throw new IllegalArgumentException("'continue' used outside of a loop");
+        }
+        mv.visitJumpInsn(Opcodes.GOTO, loopStack.peek().continueL);
     }
 
     private void emitIfStmt(MethodVisitor mv, Ast.IfStmt s) {
