@@ -1,6 +1,7 @@
 package io.qml4j.render;
 
 import io.qml4j.render.items.Animatable;
+import io.qml4j.render.items.Drag;
 import io.qml4j.render.items.Item;
 import io.qml4j.render.items.MouseArea;
 import io.qml4j.render.items.NumberAnimation;
@@ -135,8 +136,11 @@ public final class QmlView {
     }
 
     private MouseArea captured;
-    private float captureX;
-    private float captureY;
+    private float captureRootX;
+    private float captureRootY;
+    private Item dragTarget;
+    private float dragStartX;
+    private float dragStartY;
 
     public boolean dispatchClick(float x, float y) {
         return dispatchPointerDown(x, y) && dispatchPointerUp(x, y);
@@ -147,13 +151,14 @@ public final class QmlView {
         MouseArea hit = hitTestMouseArea(root, x, y);
         if (hit == null) return false;
         captured = hit;
+        captureRootX = x;
+        captureRootY = y;
         float[] local = localCoords(hit, x, y);
-        captureX = local[0];
-        captureY = local[1];
         hit.mouseX.set(local[0]);
         hit.mouseY.set(local[1]);
         hit.isPressed.set(Boolean.TRUE);
         hit.pressed.emit();
+        beginDragIfRequested(hit);
         return true;
     }
 
@@ -162,6 +167,7 @@ public final class QmlView {
         float[] local = localCoords(captured, x, y);
         captured.mouseX.set(local[0]);
         captured.mouseY.set(local[1]);
+        applyDrag(x, y);
         captured.positionChanged.emit();
         return true;
     }
@@ -173,6 +179,7 @@ public final class QmlView {
         target.mouseX.set(local[0]);
         target.mouseY.set(local[1]);
         target.isPressed.set(Boolean.FALSE);
+        endDrag(target);
         target.released.emit();
         boolean inside = local[0] >= 0 && local[1] >= 0
             && local[0] <= target.width.peek().floatValue()
@@ -180,6 +187,49 @@ public final class QmlView {
         if (inside) target.clicked.emit();
         captured = null;
         return true;
+    }
+
+    private void beginDragIfRequested(MouseArea hit) {
+        Item dt = hit.drag.target.peek();
+        if (dt == null) return;
+        dragTarget = dt;
+        dragStartX = dt.x.peek().floatValue();
+        dragStartY = dt.y.peek().floatValue();
+    }
+
+    private void applyDrag(float rootX, float rootY) {
+        if (dragTarget == null) return;
+        Drag drag = captured.drag;
+        String axis = drag.axis.peek();
+        boolean allowX = !"YAxis".equals(axis);
+        boolean allowY = !"XAxis".equals(axis);
+        float dx = rootX - captureRootX;
+        float dy = rootY - captureRootY;
+        if (allowX) {
+            float nx = clamp(dragStartX + dx,
+                             drag.minimumX.peek().floatValue(),
+                             drag.maximumX.peek().floatValue());
+            dragTarget.x.set(nx);
+        }
+        if (allowY) {
+            float ny = clamp(dragStartY + dy,
+                             drag.minimumY.peek().floatValue(),
+                             drag.maximumY.peek().floatValue());
+            dragTarget.y.set(ny);
+        }
+        drag.active.set(Boolean.TRUE);
+    }
+
+    private void endDrag(MouseArea hit) {
+        if (dragTarget == null) return;
+        hit.drag.active.set(Boolean.FALSE);
+        dragTarget = null;
+    }
+
+    private static float clamp(float v, float lo, float hi) {
+        if (v < lo) return lo;
+        if (v > hi) return hi;
+        return v;
     }
 
     private MouseArea hitTestMouseArea(Item item, float x, float y) {

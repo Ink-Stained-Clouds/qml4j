@@ -436,6 +436,48 @@ Rectangle {
         }
     }
 
+    Rectangle {
+        x: 60
+        y: 2080
+        width: 700
+        height: 220
+        color: "#1c1c28"
+
+        Rectangle {
+            id: puck
+            x: 20
+            y: 60
+            width: 100
+            height: 100
+            color: dragger.drag.active ? "#ffd060" : "#60a0ff"
+
+            MouseArea {
+                id: dragger
+                anchors.fill: parent
+                drag.target: puck
+                drag.minimumX: 0
+                drag.maximumX: 600
+                drag.minimumY: 0
+                drag.maximumY: 120
+            }
+
+            Text {
+                anchors.centerIn: parent
+                text: "drag me"
+                color: "#000000"
+                fontSize: 18
+            }
+        }
+
+        Text {
+            x: 140
+            y: 18
+            text: "drag puck (active=" + dragger.drag.active + ", x=" + puck.x + ")"
+            color: "#ffffff"
+            fontSize: 22
+        }
+    }
+
     Item {
         id: blinker
         x: 60

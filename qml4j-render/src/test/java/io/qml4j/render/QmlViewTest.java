@@ -1270,6 +1270,79 @@ class QmlViewTest {
     }
 
     @Test
+    void dragMovesTargetByPointerDelta() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 400; height: 400\n" +
+            "  Rectangle { id: handle; x: 50; y: 60; width: 80; height: 80; color: \"#ff0000\" }\n" +
+            "  MouseArea { width: 400; height: 400; drag.target: handle }\n" +
+            "}");
+        Item handle = root.children.get(0);
+        v.dispatchPointerDown(100, 100);
+        v.dispatchPointerMove(140, 130);
+        assertEquals(90f, handle.x.peek().floatValue());
+        assertEquals(90f, handle.y.peek().floatValue());
+        v.dispatchPointerUp(140, 130);
+        assertEquals(90f, handle.x.peek().floatValue());
+    }
+
+    @Test
+    void dragXAxisIgnoresVerticalMovement() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 400; height: 400\n" +
+            "  Rectangle { id: h; x: 10; y: 20; width: 50; height: 50 }\n" +
+            "  MouseArea { width: 400; height: 400\n" +
+            "    drag.target: h\n" +
+            "    drag.axis: \"XAxis\"\n" +
+            "  }\n" +
+            "}");
+        Item h = root.children.get(0);
+        v.dispatchPointerDown(100, 100);
+        v.dispatchPointerMove(150, 200);
+        assertEquals(60f, h.x.peek().floatValue());
+        assertEquals(20f, h.y.peek().floatValue());
+    }
+
+    @Test
+    void dragRespectsMinMaxBounds() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 400; height: 400\n" +
+            "  Rectangle { id: h; x: 100; y: 100; width: 50; height: 50 }\n" +
+            "  MouseArea { width: 400; height: 400\n" +
+            "    drag.target: h\n" +
+            "    drag.minimumX: 80\n" +
+            "    drag.maximumX: 120\n" +
+            "  }\n" +
+            "}");
+        Item h = root.children.get(0);
+        v.dispatchPointerDown(200, 200);
+        v.dispatchPointerMove(500, 200);
+        assertEquals(120f, h.x.peek().floatValue());
+        v.dispatchPointerMove(0, 200);
+        assertEquals(80f, h.x.peek().floatValue());
+    }
+
+    @Test
+    void dragActiveTogglesAroundPress() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 400; height: 400\n" +
+            "  Rectangle { id: h; x: 0; y: 0; width: 50; height: 50 }\n" +
+            "  MouseArea { id: ma; width: 400; height: 400; drag.target: h }\n" +
+            "}");
+        MouseArea ma = (MouseArea) root.children.get(1);
+        assertEquals(Boolean.FALSE, ma.drag.active.peek());
+        v.dispatchPointerDown(10, 10);
+        assertEquals(Boolean.FALSE, ma.drag.active.peek());
+        v.dispatchPointerMove(20, 30);
+        assertEquals(Boolean.TRUE, ma.drag.active.peek());
+        v.dispatchPointerUp(20, 30);
+        assertEquals(Boolean.FALSE, ma.drag.active.peek());
+    }
+
+    @Test
     void parseColorRgb() {
         assertEquals(0xFFFF0000, Renderer.parseColor("#ff0000"));
         assertEquals(0xFF00FF00, Renderer.parseColor("#00ff00"));

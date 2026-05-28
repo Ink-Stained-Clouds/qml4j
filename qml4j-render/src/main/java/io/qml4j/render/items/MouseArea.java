@@ -12,4 +12,6 @@ public class MouseArea extends Item {
     public final Property<Boolean> isPressed = new Property<>(Boolean.FALSE);
     public final Property<Number> mouseX = new Property<>(0);
     public final Property<Number> mouseY = new Property<>(0);
+
+    public final Drag drag = new Drag();
 }
