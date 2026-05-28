@@ -4,6 +4,7 @@ import io.qml4j.engine.QmlEngine;
 import io.qml4j.render.items.Column;
 import io.qml4j.render.items.Component;
 import io.qml4j.render.items.Connections;
+import io.qml4j.render.items.Flickable;
 import io.qml4j.render.items.Image;
 import io.qml4j.render.items.Item;
 import io.qml4j.render.items.Loader;
@@ -1340,6 +1341,106 @@ class QmlViewTest {
         assertEquals(Boolean.TRUE, ma.drag.active.peek());
         v.dispatchPointerUp(20, 30);
         assertEquals(Boolean.FALSE, ma.drag.active.peek());
+    }
+
+    @Test
+    void flickableScrollsContentOnDrag() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Flickable {\n" +
+            "  width: 200; height: 100\n" +
+            "  contentWidth: 800; contentHeight: 400\n" +
+            "}");
+        Flickable f = (Flickable) root;
+        v.dispatchPointerDown(50, 30);
+        v.dispatchPointerMove(20, 10);
+        assertEquals(30f, f.contentX.peek().floatValue());
+        assertEquals(20f, f.contentY.peek().floatValue());
+    }
+
+    @Test
+    void flickableClampsContentToBounds() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Flickable {\n" +
+            "  width: 200; height: 100\n" +
+            "  contentWidth: 300; contentHeight: 150\n" +
+            "}");
+        Flickable f = (Flickable) root;
+        v.dispatchPointerDown(100, 50);
+        v.dispatchPointerMove(-500, -500);
+        assertEquals(100f, f.contentX.peek().floatValue());
+        assertEquals(50f, f.contentY.peek().floatValue());
+        v.dispatchPointerUp(-500, -500);
+        v.dispatchPointerDown(100, 50);
+        v.dispatchPointerMove(500, 500);
+        assertEquals(0f, f.contentX.peek().floatValue());
+        assertEquals(0f, f.contentY.peek().floatValue());
+    }
+
+    @Test
+    void flickableRespectsHorizontalFlickDirection() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Flickable {\n" +
+            "  width: 200; height: 100\n" +
+            "  contentWidth: 800; contentHeight: 400\n" +
+            "  flickableDirection: \"HorizontalFlick\"\n" +
+            "}");
+        Flickable f = (Flickable) root;
+        v.dispatchPointerDown(100, 50);
+        v.dispatchPointerMove(50, 0);
+        assertEquals(50f, f.contentX.peek().floatValue());
+        assertEquals(0f, f.contentY.peek().floatValue());
+    }
+
+    @Test
+    void flickableHitTestSkippedWhenNonInteractive() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Flickable {\n" +
+            "  width: 200; height: 100\n" +
+            "  contentWidth: 800; contentHeight: 400\n" +
+            "  interactive: false\n" +
+            "}");
+        Flickable f = (Flickable) root;
+        v.dispatchPointerDown(100, 50);
+        v.dispatchPointerMove(0, 0);
+        assertEquals(0f, f.contentX.peek().floatValue());
+    }
+
+    @Test
+    void mouseAreaInsideFlickableReceivesScrolledLocalCoords() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Flickable {\n" +
+            "  width: 200; height: 100\n" +
+            "  contentWidth: 800; contentHeight: 100\n" +
+            "  contentX: 50\n" +
+            "  MouseArea { id: ma; x: 80; y: 10; width: 40; height: 30 }\n" +
+            "}");
+        Flickable f = (Flickable) root;
+        MouseArea ma = (MouseArea) f.children.get(0);
+        v.dispatchPointerDown(40, 20);
+        assertEquals(Boolean.TRUE, ma.isPressed.peek());
+        assertEquals(10f, ma.mouseX.peek().floatValue());
+        assertEquals(10f, ma.mouseY.peek().floatValue());
+    }
+
+    @Test
+    void mouseAreaWinsOverFlickableScroll() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Flickable {\n" +
+            "  width: 200; height: 100\n" +
+            "  contentWidth: 800; contentHeight: 400\n" +
+            "  MouseArea { id: ma; width: 200; height: 100 }\n" +
+            "}");
+        Flickable f = (Flickable) root;
+        v.dispatchPointerDown(50, 30);
+        v.dispatchPointerMove(10, 5);
+        assertEquals(0f, f.contentX.peek().floatValue());
+        assertEquals(0f, f.contentY.peek().floatValue());
     }
 
     @Test

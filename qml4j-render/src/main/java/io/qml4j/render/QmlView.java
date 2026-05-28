@@ -2,6 +2,7 @@ package io.qml4j.render;
 
 import io.qml4j.render.items.Animatable;
 import io.qml4j.render.items.Drag;
+import io.qml4j.render.items.Flickable;
 import io.qml4j.render.items.Item;
 import io.qml4j.render.items.MouseArea;
 import io.qml4j.render.items.NumberAnimation;
@@ -141,6 +142,9 @@ public final class QmlView {
     private Item dragTarget;
     private float dragStartX;
     private float dragStartY;
+    private Flickable scrolling;
+    private float scrollStartContentX;
+    private float scrollStartContentY;
 
     public boolean dispatchClick(float x, float y) {
         return dispatchPointerDown(x, y) && dispatchPointerUp(x, y);
@@ -149,44 +153,66 @@ public final class QmlView {
     public boolean dispatchPointerDown(float x, float y) {
         if (root == null) return false;
         MouseArea hit = hitTestMouseArea(root, x, y);
-        if (hit == null) return false;
-        captured = hit;
+        if (hit != null) {
+            captured = hit;
+            captureRootX = x;
+            captureRootY = y;
+            float[] local = localCoords(hit, x, y);
+            hit.mouseX.set(local[0]);
+            hit.mouseY.set(local[1]);
+            hit.isPressed.set(Boolean.TRUE);
+            hit.pressed.emit();
+            beginDragIfRequested(hit);
+            return true;
+        }
+        Flickable f = hitTestFlickable(root, x, y);
+        if (f == null) return false;
+        scrolling = f;
         captureRootX = x;
         captureRootY = y;
-        float[] local = localCoords(hit, x, y);
-        hit.mouseX.set(local[0]);
-        hit.mouseY.set(local[1]);
-        hit.isPressed.set(Boolean.TRUE);
-        hit.pressed.emit();
-        beginDragIfRequested(hit);
+        scrollStartContentX = f.contentX.peek().floatValue();
+        scrollStartContentY = f.contentY.peek().floatValue();
         return true;
     }
 
     public boolean dispatchPointerMove(float x, float y) {
-        if (captured == null) return false;
-        float[] local = localCoords(captured, x, y);
-        captured.mouseX.set(local[0]);
-        captured.mouseY.set(local[1]);
-        applyDrag(x, y);
-        captured.positionChanged.emit();
-        return true;
+        if (captured != null) {
+            float[] local = localCoords(captured, x, y);
+            captured.mouseX.set(local[0]);
+            captured.mouseY.set(local[1]);
+            applyDrag(x, y);
+            captured.positionChanged.emit();
+            return true;
+        }
+        if (scrolling != null) {
+            applyScroll(x, y);
+            return true;
+        }
+        return false;
     }
 
     public boolean dispatchPointerUp(float x, float y) {
-        if (captured == null) return false;
-        MouseArea target = captured;
-        float[] local = localCoords(target, x, y);
-        target.mouseX.set(local[0]);
-        target.mouseY.set(local[1]);
-        target.isPressed.set(Boolean.FALSE);
-        endDrag(target);
-        target.released.emit();
-        boolean inside = local[0] >= 0 && local[1] >= 0
-            && local[0] <= target.width.peek().floatValue()
-            && local[1] <= target.height.peek().floatValue();
-        if (inside) target.clicked.emit();
-        captured = null;
-        return true;
+        if (captured != null) {
+            MouseArea target = captured;
+            float[] local = localCoords(target, x, y);
+            target.mouseX.set(local[0]);
+            target.mouseY.set(local[1]);
+            target.isPressed.set(Boolean.FALSE);
+            endDrag(target);
+            target.released.emit();
+            boolean inside = local[0] >= 0 && local[1] >= 0
+                && local[0] <= target.width.peek().floatValue()
+                && local[1] <= target.height.peek().floatValue();
+            if (inside) target.clicked.emit();
+            captured = null;
+            return true;
+        }
+        if (scrolling != null) {
+            applyScroll(x, y);
+            scrolling = null;
+            return true;
+        }
+        return false;
     }
 
     private void beginDragIfRequested(MouseArea hit) {
@@ -226,6 +252,55 @@ public final class QmlView {
         dragTarget = null;
     }
 
+    private void applyScroll(float rootX, float rootY) {
+        Flickable f = scrolling;
+        String dir = f.flickableDirection.peek();
+        boolean allowX = !"VerticalFlick".equals(dir);
+        boolean allowY = !"HorizontalFlick".equals(dir);
+        float w = f.width.peek().floatValue();
+        float h = f.height.peek().floatValue();
+        float cw = f.contentWidth.peek().floatValue();
+        float ch = f.contentHeight.peek().floatValue();
+        float maxX = Math.max(0f, cw - w);
+        float maxY = Math.max(0f, ch - h);
+        if (allowX) {
+            float nx = clamp(scrollStartContentX - (rootX - captureRootX), 0f, maxX);
+            f.contentX.set(nx);
+        }
+        if (allowY) {
+            float ny = clamp(scrollStartContentY - (rootY - captureRootY), 0f, maxY);
+            f.contentY.set(ny);
+        }
+    }
+
+    private Flickable hitTestFlickable(Item item, float x, float y) {
+        if (!item.visible.peek()) return null;
+        float ix = item.x.peek().floatValue();
+        float iy = item.y.peek().floatValue();
+        float w = item.width.peek().floatValue();
+        float h = item.height.peek().floatValue();
+        float lx = x - ix;
+        float ly = y - iy;
+        if (lx < 0 || ly < 0 || lx > w || ly > h) return null;
+        float childLx = lx;
+        float childLy = ly;
+        if (item instanceof Flickable) {
+            Flickable f = (Flickable) item;
+            childLx += f.contentX.peek().floatValue();
+            childLy += f.contentY.peek().floatValue();
+        }
+        List<Item> ordered = zOrdered(item.children);
+        for (int i = ordered.size() - 1; i >= 0; i--) {
+            Flickable hit = hitTestFlickable(ordered.get(i), childLx, childLy);
+            if (hit != null) return hit;
+        }
+        if (item instanceof Flickable) {
+            Flickable f = (Flickable) item;
+            if (Boolean.TRUE.equals(f.interactive.peek())) return f;
+        }
+        return null;
+    }
+
     private static float clamp(float v, float lo, float hi) {
         if (v < lo) return lo;
         if (v > hi) return hi;
@@ -241,9 +316,16 @@ public final class QmlView {
         float lx = x - ix;
         float ly = y - iy;
         if (lx < 0 || ly < 0 || lx > w || ly > h) return null;
+        float childLx = lx;
+        float childLy = ly;
+        if (item instanceof Flickable) {
+            Flickable f = (Flickable) item;
+            childLx += f.contentX.peek().floatValue();
+            childLy += f.contentY.peek().floatValue();
+        }
         List<Item> ordered = zOrdered(item.children);
         for (int i = ordered.size() - 1; i >= 0; i--) {
-            MouseArea hit = hitTestMouseArea(ordered.get(i), lx, ly);
+            MouseArea hit = hitTestMouseArea(ordered.get(i), childLx, childLy);
             if (hit != null) return hit;
         }
         return item instanceof MouseArea ? (MouseArea) item : null;
@@ -255,7 +337,13 @@ public final class QmlView {
         while (cur != null) {
             ox += cur.x.peek().floatValue();
             oy += cur.y.peek().floatValue();
-            cur = cur.parent.peek();
+            Item p = cur.parent.peek();
+            if (p instanceof Flickable) {
+                Flickable f = (Flickable) p;
+                ox -= f.contentX.peek().floatValue();
+                oy -= f.contentY.peek().floatValue();
+            }
+            cur = p;
         }
         return new float[]{rootX - ox, rootY - oy};
     }

@@ -4,6 +4,12 @@ Rectangle {
     id: root
     color: "#202028"
 
+    Flickable {
+        id: scroll
+        anchors.fill: parent
+        contentWidth: parent.width
+        contentHeight: 2400
+
     property int taps: 0
     property alias badgeColor: badge.color
     property alias dotX: dot.x
@@ -525,5 +531,6 @@ Rectangle {
                 height: 30
             }
         }
+    }
     }
 }

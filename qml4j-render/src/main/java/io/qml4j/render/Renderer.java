@@ -4,6 +4,7 @@ import io.qml4j.engine.DelegateFactory;
 import io.qml4j.engine.QObject;
 import io.qml4j.render.items.Column;
 import io.qml4j.render.items.Component;
+import io.qml4j.render.items.Flickable;
 import io.qml4j.render.items.Image;
 import io.qml4j.render.items.Item;
 import io.qml4j.render.items.Loader;
@@ -91,6 +92,11 @@ public final class Renderer {
             applyTransform(canvas, w, h, rot, sc);
             if (clip) canvas.clipRect(Rect.makeXYWH(0, 0, w, h));
             paintNode(canvas, node, w, h, alpha);
+            if (node instanceof Flickable) {
+                Flickable f = (Flickable) node;
+                canvas.clipRect(Rect.makeXYWH(0, 0, w, h));
+                canvas.translate(-f.contentX.peek().floatValue(), -f.contentY.peek().floatValue());
+            }
             for (Item child : zOrdered(node.children)) {
                 draw(canvas, child, alpha);
             }
