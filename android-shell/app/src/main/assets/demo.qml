@@ -291,4 +291,53 @@ Rectangle {
             }
         }
     }
+
+    Item {
+        id: blinker
+        x: 60
+        y: 1620
+        width: 600
+        height: 36
+
+        property int ticks: 0
+
+        Timer {
+            interval: 600
+            repeat: true
+            running: true
+            onTriggered: blinker.ticks = blinker.ticks + 1
+        }
+
+        Row {
+            spacing: 6
+
+            Rectangle {
+                width: 28
+                height: 28
+                color: blinker.ticks % 4 === 0 ? "#ff5050" : "#3030a0"
+            }
+            Rectangle {
+                width: 28
+                height: 28
+                color: blinker.ticks % 4 === 1 ? "#ff5050" : "#3030a0"
+            }
+            Rectangle {
+                width: 28
+                height: 28
+                color: blinker.ticks % 4 === 2 ? "#ff5050" : "#3030a0"
+            }
+            Rectangle {
+                width: 28
+                height: 28
+                color: blinker.ticks % 4 === 3 ? "#ff5050" : "#3030a0"
+            }
+            Text {
+                text: "tick " + blinker.ticks
+                color: "#ffffff"
+                fontSize: 22
+                width: 200
+                height: 30
+            }
+        }
+    }
 }

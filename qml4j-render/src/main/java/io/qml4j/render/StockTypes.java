@@ -10,8 +10,10 @@ import io.qml4j.render.items.NumberAnimation;
 import io.qml4j.render.items.PropertyChanges;
 import io.qml4j.render.items.Rectangle;
 import io.qml4j.render.items.Repeater;
+import io.qml4j.render.items.Row;
 import io.qml4j.render.items.State;
 import io.qml4j.render.items.Text;
+import io.qml4j.render.items.Timer;
 import io.qml4j.render.items.Transition;
 
 import io.qml4j.compiler.TypeRegistry;
@@ -26,6 +28,8 @@ public final class StockTypes {
             .register("Rectangle", Rectangle.class)
             .register("Text", Text.class)
             .register("Column", Column.class)
+            .register("Row", Row.class)
+            .register("Timer", Timer.class)
             .register("MouseArea", MouseArea.class)
             .register("Image", Image.class)
             .register("Loader", Loader.class)

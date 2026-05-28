@@ -7,7 +7,9 @@ import io.qml4j.render.items.Item;
 import io.qml4j.render.items.Loader;
 import io.qml4j.render.items.MouseArea;
 import io.qml4j.render.items.Rectangle;
+import io.qml4j.render.items.Row;
 import io.qml4j.render.items.Text;
+import io.qml4j.render.items.Timer;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -769,6 +771,100 @@ class QmlViewTest {
         v.tickAnimations(t1);
         v.tickAnimations(t1 + 200_000_000L);
         assertEquals(200.0, r.width.peek().doubleValue(), 1e-6);
+    }
+
+    @Test
+    void rowLaysOutChildrenHorizontally() {
+        Item root = newView().load(
+            "Row {\n" +
+            "  spacing: 5\n" +
+            "  Rectangle { width: 20; height: 30 }\n" +
+            "  Rectangle { width: 15; height: 10 }\n" +
+            "  Rectangle { width: 7;  height: 40 }\n" +
+            "}");
+        Row row = (Row) root;
+        row.layout();
+        assertEquals(0.0, row.children.get(0).x.peek().doubleValue(), 1e-9);
+        assertEquals(25.0, row.children.get(1).x.peek().doubleValue(), 1e-9);
+        assertEquals(45.0, row.children.get(2).x.peek().doubleValue(), 1e-9);
+        assertEquals(52.0, row.width.peek().doubleValue(), 1e-9);
+        assertEquals(40L, row.height.peek().longValue());
+    }
+
+    @Test
+    void timerFiresOnceWithoutRepeat() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item {\n" +
+            "  property int hits: 0\n" +
+            "  Timer {\n" +
+            "    interval: 100\n" +
+            "    running: true\n" +
+            "    onTriggered: parent.hits = parent.hits + 1\n" +
+            "  }\n" +
+            "}");
+        Timer t = (Timer) root.children.get(0);
+        long t0 = 1_000_000_000L;
+        t.tick(t0);
+        t.tick(t0 + 50_000_000L);
+        assertHitsEquals(root, 0);
+        t.tick(t0 + 120_000_000L);
+        assertHitsEquals(root, 1);
+        t.tick(t0 + 250_000_000L);
+        assertHitsEquals(root, 1);
+        assertEquals(Boolean.FALSE, t.running.peek());
+    }
+
+    @Test
+    void timerRepeatsAtInterval() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item {\n" +
+            "  property int hits: 0\n" +
+            "  Timer {\n" +
+            "    interval: 100\n" +
+            "    repeat: true\n" +
+            "    running: true\n" +
+            "    onTriggered: parent.hits = parent.hits + 1\n" +
+            "  }\n" +
+            "}");
+        Timer t = (Timer) root.children.get(0);
+        long t0 = 1_000_000_000L;
+        t.tick(t0);
+        for (int i = 1; i <= 5; i++) {
+            t.tick(t0 + i * 100_000_000L);
+        }
+        assertHitsEquals(root, 5);
+        assertEquals(Boolean.TRUE, t.running.peek());
+    }
+
+    @Test
+    void timerTriggeredOnStartFiresImmediately() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item {\n" +
+            "  property int hits: 0\n" +
+            "  Timer {\n" +
+            "    interval: 100\n" +
+            "    triggeredOnStart: true\n" +
+            "    running: true\n" +
+            "    onTriggered: parent.hits = parent.hits + 1\n" +
+            "  }\n" +
+            "}");
+        Timer t = (Timer) root.children.get(0);
+        t.tick(1_000_000_000L);
+        assertHitsEquals(root, 1);
+        assertEquals(Boolean.FALSE, t.running.peek());
+    }
+
+    private static void assertHitsEquals(Item root, long expected) {
+        try {
+            io.qml4j.engine.binding.Property<?> hits =
+                (io.qml4j.engine.binding.Property<?>) root.getClass().getField("hits").get(root);
+            assertEquals(expected, ((Number) hits.peek()).longValue());
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     @Test

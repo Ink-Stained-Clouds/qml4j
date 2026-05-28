@@ -6,6 +6,7 @@ import io.qml4j.render.items.Item;
 import io.qml4j.render.items.Loader;
 import io.qml4j.render.items.MouseArea;
 import io.qml4j.render.items.Rectangle;
+import io.qml4j.render.items.Row;
 import io.qml4j.render.items.Text;
 
 import io.github.humbleui.skija.Canvas;
@@ -63,6 +64,9 @@ public final class Renderer {
         }
         if (node instanceof Column) {
             ((Column) node).layout();
+        }
+        if (node instanceof Row) {
+            ((Row) node).layout();
         }
         float x = node.x.peek().floatValue();
         float y = node.y.peek().floatValue();
