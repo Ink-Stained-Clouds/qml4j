@@ -1,6 +1,8 @@
 package io.qml4j.engine.binding;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -41,7 +43,46 @@ public final class Property<T> {
     public void bind(Binding b) {
         clearBinding();
         this.binding = b;
+        Deque<List<Property<?>>> st = deferStack.get();
+        if (st != null && !st.isEmpty()) {
+            st.peek().add(this);
+            return;
+        }
         reevaluate();
+    }
+
+    private static final ThreadLocal<Deque<List<Property<?>>>> deferStack = new ThreadLocal<>();
+
+    public static void pushDeferred() {
+        Deque<List<Property<?>>> st = deferStack.get();
+        if (st == null) {
+            st = new ArrayDeque<>();
+            deferStack.set(st);
+        }
+        st.push(new ArrayList<>());
+    }
+
+    public static void flushDeferred() {
+        Deque<List<Property<?>>> st = deferStack.get();
+        if (st == null || st.isEmpty()) return;
+        List<Property<?>> pending = st.pop();
+        evaluatePending(pending);
+    }
+
+    public static void drainDeferred() {
+        Deque<List<Property<?>>> st = deferStack.get();
+        if (st == null || st.isEmpty()) return;
+        List<Property<?>> pending = st.peek();
+        if (pending.isEmpty()) return;
+        List<Property<?>> snapshot = new ArrayList<>(pending);
+        pending.clear();
+        evaluatePending(snapshot);
+    }
+
+    private static void evaluatePending(List<Property<?>> pending) {
+        for (Property<?> p : pending) {
+            if (p.binding != null) p.reevaluate();
+        }
     }
 
     public void unbind() {

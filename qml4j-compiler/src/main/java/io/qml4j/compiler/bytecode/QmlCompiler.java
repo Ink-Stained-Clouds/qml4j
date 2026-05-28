@@ -144,6 +144,8 @@ public final class QmlCompiler {
         ctor.visitCode();
         ctor.visitVarInsn(Opcodes.ALOAD, 0);
         ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, rootInternal, "<init>", "()V", false);
+        ctor.visitMethodInsn(Opcodes.INVOKESTATIC, PROPERTY_INTERNAL,
+                             "pushDeferred", "()V", false);
         for (String sig : rootSignalNames) {
             ctor.visitVarInsn(Opcodes.ALOAD, 0);
             ctor.visitTypeInsn(Opcodes.NEW, SIGNAL_INTERNAL);
@@ -173,6 +175,8 @@ public final class QmlCompiler {
                           idTypes, rootDeclaredProps, ad);
         }
 
+        ctor.visitMethodInsn(Opcodes.INVOKESTATIC, PROPERTY_INTERNAL,
+                             "flushDeferred", "()V", false);
         ctor.visitInsn(Opcodes.RETURN);
         ctor.visitMaxs(0, 0);
         ctor.visitEnd();
@@ -209,6 +213,8 @@ public final class QmlCompiler {
                        idTypes, declaredProps, aliases, rootFunctions);
         }
         for (Ast.ObjectMember m : deferred) {
+            ctor.visitMethodInsn(Opcodes.INVOKESTATIC, PROPERTY_INTERNAL,
+                                 "drainDeferred", "()V", false);
             emitMember(ctor, outerType, outerLocal, m, registry,
                        localCounter, bindingCounter, handlerCounter, classes, componentBinaryName,
                        customSignalOwner, customSignals, customSignalParams,
@@ -657,6 +663,9 @@ public final class QmlCompiler {
         int delegateLocal = 3;
         int[] localCounter = {4};
 
+        mv.visitMethodInsn(Opcodes.INVOKESTATIC, PROPERTY_INTERNAL,
+                           "pushDeferred", "()V", false);
+
         mv.visitTypeInsn(Opcodes.NEW, delegateInternal);
         mv.visitInsn(Opcodes.DUP);
         mv.visitMethodInsn(Opcodes.INVOKESPECIAL, delegateInternal, "<init>", "()V", false);
@@ -693,6 +702,8 @@ public final class QmlCompiler {
                        delegateInternal, delSignals, delSignalParams, idTypes,
                        delDeclaredProps, Collections.<String, AliasRef>emptyMap(), rootFunctions);
 
+        mv.visitMethodInsn(Opcodes.INVOKESTATIC, PROPERTY_INTERNAL,
+                           "flushDeferred", "()V", false);
         mv.visitVarInsn(Opcodes.ALOAD, delegateLocal);
         mv.visitInsn(Opcodes.ARETURN);
         mv.visitMaxs(0, 0);

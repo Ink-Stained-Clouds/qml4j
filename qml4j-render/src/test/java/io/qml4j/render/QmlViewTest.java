@@ -1191,6 +1191,35 @@ class QmlViewTest {
     }
 
     @Test
+    void parentBindingTracksForwardReferencedChildId() throws Exception {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 200\n" +
+            "  property string label: child.tag\n" +
+            "  Item { id: child; property string tag: \"hello\" }\n" +
+            "}");
+        io.qml4j.engine.binding.Property<?> label =
+            (io.qml4j.engine.binding.Property<?>) root.getClass().getField("label").get(root);
+        assertEquals("hello", label.peek());
+    }
+
+    @Test
+    void colorBindingTracksSiblingMouseAreaIsPressed() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle { id: r; width: 100; height: 100\n" +
+            "  color: pad.isPressed ? \"#00ff00\" : \"#ff0000\"\n" +
+            "  MouseArea { id: pad; width: 100; height: 100 }\n" +
+            "}");
+        Rectangle r = (Rectangle) root;
+        assertEquals("#ff0000", r.color.peek());
+        v.dispatchPointerDown(50, 50);
+        assertEquals("#00ff00", r.color.peek());
+        v.dispatchPointerUp(50, 50);
+        assertEquals("#ff0000", r.color.peek());
+    }
+
+    @Test
     void itemTransformDefaults() {
         QmlView v = newView();
         Item root = v.load("Item { width: 100; height: 100 }");
