@@ -3,6 +3,7 @@ package io.qml4j.compiler.bytecode;
 import io.qml4j.compiler.CompiledUnit;
 import io.qml4j.compiler.TypeRegistry;
 import io.qml4j.compiler.bytecode.ExpressionCodegen.AliasRef;
+import io.qml4j.engine.DelegateHost;
 import io.qml4j.engine.PropertyChangeSink;
 import io.qml4j.engine.binding.Property;
 import io.qml4j.engine.QObject;
@@ -35,8 +36,14 @@ public final class QmlCompiler {
     private static final String LIST_INTERNAL = "java/util/List";
     private static final String LIST_DESC = "L" + LIST_INTERNAL + ";";
     private static final String SINK_INTERNAL = "io/qml4j/engine/PropertyChangeSink";
+    private static final String QOBJECT_INTERNAL = "io/qml4j/engine/QObject";
+    private static final String DELEGATE_FACTORY_INTERNAL = "io/qml4j/engine/DelegateFactory";
+    private static final String DELEGATE_HOST_INTERNAL = "io/qml4j/engine/DelegateHost";
 
     private final AtomicInteger componentCounter = new AtomicInteger();
+
+    private ClassWriter activeComponentCw;
+    private int factoryCounter;
 
     public CompiledUnit compile(Ast.QmlDocument doc, TypeRegistry registry) {
         Class<? extends QObject> rootType = registry.resolve(doc.root.typeName);
@@ -46,16 +53,32 @@ public final class QmlCompiler {
         String rootInternal = Type.getInternalName(rootType);
 
         Map<String, Class<? extends QObject>> idTypes = new LinkedHashMap<>();
-        collectIds(doc.root, registry, idTypes);
+        collectIds(doc.root, registry, idTypes, false);
 
         Map<String, byte[]> classes = new LinkedHashMap<>();
-        int[] bindingCounter = {0};
-        int[] handlerCounter = {0};
-        int[] localCounter = {1};
 
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
         cw.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
                  componentInternal, null, rootInternal, null);
+        this.activeComponentCw = cw;
+        this.factoryCounter = 0;
+        try {
+            return compileBody(doc, registry, rootType, componentBinaryName,
+                               componentInternal, rootInternal, idTypes, classes, cw);
+        } finally {
+            this.activeComponentCw = null;
+        }
+    }
+
+    private CompiledUnit compileBody(Ast.QmlDocument doc, TypeRegistry registry,
+                                     Class<? extends QObject> rootType,
+                                     String componentBinaryName, String componentInternal,
+                                     String rootInternal,
+                                     Map<String, Class<? extends QObject>> idTypes,
+                                     Map<String, byte[]> classes, ClassWriter cw) {
+        int[] bindingCounter = {0};
+        int[] handlerCounter = {0};
+        int[] localCounter = {1};
 
         for (Map.Entry<String, Class<? extends QObject>> e : idTypes.entrySet()) {
             cw.visitField(Opcodes.ACC_PUBLIC,
@@ -398,9 +421,36 @@ public final class QmlCompiler {
         String parentInternal = Type.getInternalName(childType);
         String componentInternal = componentBinaryName.replace('.', '/');
 
+        Ast.ObjectNode hostNode = child;
+        String delegateFactoryBinaryName = null;
+        if (DelegateHost.class.isAssignableFrom(childType)) {
+            Ast.ObjectNode delegateNode = null;
+            List<Ast.ObjectMember> hostMembers = new ArrayList<>();
+            for (Ast.ObjectMember m : child.members) {
+                if (m instanceof Ast.ChildObject) {
+                    if (delegateNode != null) {
+                        throw new IllegalArgumentException(
+                            child.typeName + " must declare exactly one delegate child object");
+                    }
+                    delegateNode = ((Ast.ChildObject) m).object;
+                } else {
+                    hostMembers.add(m);
+                }
+            }
+            if (delegateNode == null) {
+                throw new IllegalArgumentException(
+                    child.typeName + " requires a delegate child object");
+            }
+            hostNode = new Ast.ObjectNode(child.typeName, hostMembers);
+            delegateFactoryBinaryName = emitDelegateFactory(delegateNode, registry,
+                                                            bindingCounter, handlerCounter,
+                                                            classes, componentBinaryName,
+                                                            idTypes, rootFunctions);
+        }
+
         Set<String> childSignals = new LinkedHashSet<>();
         Map<String, List<String>> childSignalParams = new LinkedHashMap<>();
-        for (Ast.ObjectMember m : child.members) {
+        for (Ast.ObjectMember m : hostNode.members) {
             if (m instanceof Ast.SignalDeclaration) {
                 Ast.SignalDeclaration sd = (Ast.SignalDeclaration) m;
                 if (!childSignals.add(sd.name)) {
@@ -414,7 +464,7 @@ public final class QmlCompiler {
             }
         }
 
-        List<DeclaredProp> childDecls = collectPropertyDecls(child, childType);
+        List<DeclaredProp> childDecls = collectPropertyDecls(hostNode, childType);
 
         String childInternal;
         String childSignalOwner;
@@ -451,7 +501,7 @@ public final class QmlCompiler {
             emitInitDeclaredProperty(ctor, childLocal, childInternal, dp);
         }
 
-        String childId = idOf(child);
+        String childId = idOf(hostNode);
         if (childId != null) {
             ctor.visitVarInsn(Opcodes.ALOAD, 0);
             ctor.visitVarInsn(Opcodes.ALOAD, childLocal);
@@ -480,10 +530,23 @@ public final class QmlCompiler {
             ctor.visitInsn(Opcodes.POP);
         }
 
-        emitObjectBody(ctor, childType, childLocal, child, registry,
+        emitObjectBody(ctor, childType, childLocal, hostNode, registry,
                        localCounter, bindingCounter, handlerCounter, classes, componentBinaryName,
                        childSignalOwner, childSignals, childSignalParams, idTypes,
                        childDeclaredProps, Collections.<String, AliasRef>emptyMap(), rootFunctions);
+
+        if (delegateFactoryBinaryName != null) {
+            String factoryInternal = delegateFactoryBinaryName.replace('.', '/');
+            ctor.visitVarInsn(Opcodes.ALOAD, childLocal);
+            ctor.visitTypeInsn(Opcodes.NEW, factoryInternal);
+            ctor.visitInsn(Opcodes.DUP);
+            ctor.visitVarInsn(Opcodes.ALOAD, 0);
+            ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, factoryInternal, "<init>",
+                                 "(L" + componentInternal + ";)V", false);
+            ctor.visitMethodInsn(Opcodes.INVOKEINTERFACE, DELEGATE_HOST_INTERNAL,
+                                 "setDelegate",
+                                 "(L" + DELEGATE_FACTORY_INTERNAL + ";)V", true);
+        }
     }
 
     private byte[] emitChildSubclass(String subInternal, String parentInternal,
@@ -504,6 +567,167 @@ public final class QmlCompiler {
         ctor.visitInsn(Opcodes.RETURN);
         ctor.visitMaxs(0, 0);
         ctor.visitEnd();
+        cw.visitEnd();
+        return cw.toByteArray();
+    }
+
+    private String emitDelegateFactory(Ast.ObjectNode delegateNode, TypeRegistry registry,
+                                       int[] bindingCounter, int[] handlerCounter,
+                                       Map<String, byte[]> classes, String componentBinaryName,
+                                       Map<String, Class<? extends QObject>> idTypes,
+                                       Map<String, Integer> rootFunctions) {
+        int n = factoryCounter++;
+        Class<? extends QObject> delType = registry.resolve(delegateNode.typeName);
+        String delBaseInternal = Type.getInternalName(delType);
+        String componentInternal = componentBinaryName.replace('.', '/');
+
+        Set<String> delSignals = new LinkedHashSet<>();
+        Map<String, List<String>> delSignalParams = new LinkedHashMap<>();
+        for (Ast.ObjectMember m : delegateNode.members) {
+            if (m instanceof Ast.SignalDeclaration) {
+                Ast.SignalDeclaration sd = (Ast.SignalDeclaration) m;
+                if (!delSignals.add(sd.name)) {
+                    throw new IllegalArgumentException("duplicate signal: " + sd.name);
+                }
+                if (findSignalFieldOrNull(delType, sd.name) != null) {
+                    throw new IllegalArgumentException(
+                        "signal '" + sd.name + "' shadows existing field on " + delType.getName());
+                }
+                delSignalParams.put(sd.name, sd.paramNames);
+            }
+        }
+
+        List<DeclaredProp> userDecls = collectPropertyDecls(delegateNode, delType);
+        for (DeclaredProp dp : userDecls) {
+            if ("index".equals(dp.name) || "modelData".equals(dp.name)) {
+                throw new IllegalArgumentException(
+                    "delegate cannot redeclare reserved property: " + dp.name);
+            }
+        }
+        List<DeclaredProp> fullDecls = new ArrayList<>();
+        fullDecls.add(new DeclaredProp("index", "int", null));
+        fullDecls.add(new DeclaredProp("modelData", "var", null));
+        fullDecls.addAll(userDecls);
+
+        String delegateBinaryName = componentBinaryName + "$Delegate$" + n;
+        String delegateInternal = delegateBinaryName.replace('.', '/');
+        byte[] subBytes = emitChildSubclass(delegateInternal, delBaseInternal, delSignals, fullDecls);
+        classes.put(delegateBinaryName, subBytes);
+
+        Map<String, String> delDeclaredProps = new LinkedHashMap<>();
+        for (DeclaredProp dp : fullDecls) {
+            delDeclaredProps.put(dp.name, delegateInternal);
+        }
+
+        emitDelegateMethod(n, delegateNode, registry, bindingCounter, handlerCounter,
+                           classes, componentBinaryName, componentInternal,
+                           delType, delegateInternal, delSignals, delSignalParams,
+                           fullDecls, delDeclaredProps, idTypes, rootFunctions);
+
+        String factoryBinaryName = componentBinaryName + "$Factory$" + n;
+        byte[] factoryBytes = emitDelegateFactoryClass(factoryBinaryName, componentInternal, n);
+        classes.put(factoryBinaryName, factoryBytes);
+        return factoryBinaryName;
+    }
+
+    private void emitDelegateMethod(int n, Ast.ObjectNode delegateNode, TypeRegistry registry,
+                                    int[] bindingCounter, int[] handlerCounter,
+                                    Map<String, byte[]> classes, String componentBinaryName,
+                                    String componentInternal,
+                                    Class<? extends QObject> delType, String delegateInternal,
+                                    Set<String> delSignals,
+                                    Map<String, List<String>> delSignalParams,
+                                    List<DeclaredProp> fullDecls,
+                                    Map<String, String> delDeclaredProps,
+                                    Map<String, Class<? extends QObject>> idTypes,
+                                    Map<String, Integer> rootFunctions) {
+        MethodVisitor mv = activeComponentCw.visitMethod(Opcodes.ACC_PUBLIC,
+            "_delegate$" + n,
+            "(ILjava/lang/Object;)L" + QOBJECT_INTERNAL + ";", null, null);
+        mv.visitCode();
+
+        int delegateLocal = 3;
+        int[] localCounter = {4};
+
+        mv.visitTypeInsn(Opcodes.NEW, delegateInternal);
+        mv.visitInsn(Opcodes.DUP);
+        mv.visitMethodInsn(Opcodes.INVOKESPECIAL, delegateInternal, "<init>", "()V", false);
+        mv.visitVarInsn(Opcodes.ASTORE, delegateLocal);
+
+        for (String sig : delSignals) {
+            mv.visitVarInsn(Opcodes.ALOAD, delegateLocal);
+            mv.visitTypeInsn(Opcodes.NEW, SIGNAL_INTERNAL);
+            mv.visitInsn(Opcodes.DUP);
+            mv.visitMethodInsn(Opcodes.INVOKESPECIAL, SIGNAL_INTERNAL, "<init>", "()V", false);
+            mv.visitFieldInsn(Opcodes.PUTFIELD, delegateInternal, sig, SIGNAL_DESC);
+        }
+        for (DeclaredProp dp : fullDecls) {
+            emitInitDeclaredProperty(mv, delegateLocal, delegateInternal, dp);
+        }
+
+        mv.visitVarInsn(Opcodes.ALOAD, delegateLocal);
+        mv.visitFieldInsn(Opcodes.GETFIELD, delegateInternal, "index", PROPERTY_DESC);
+        mv.visitVarInsn(Opcodes.ILOAD, 1);
+        mv.visitInsn(Opcodes.I2L);
+        mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Long",
+                           "valueOf", "(J)Ljava/lang/Long;", false);
+        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
+                           "set", "(Ljava/lang/Object;)V", false);
+
+        mv.visitVarInsn(Opcodes.ALOAD, delegateLocal);
+        mv.visitFieldInsn(Opcodes.GETFIELD, delegateInternal, "modelData", PROPERTY_DESC);
+        mv.visitVarInsn(Opcodes.ALOAD, 2);
+        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
+                           "set", "(Ljava/lang/Object;)V", false);
+
+        emitObjectBody(mv, delType, delegateLocal, delegateNode, registry,
+                       localCounter, bindingCounter, handlerCounter, classes, componentBinaryName,
+                       delegateInternal, delSignals, delSignalParams, idTypes,
+                       delDeclaredProps, Collections.<String, AliasRef>emptyMap(), rootFunctions);
+
+        mv.visitVarInsn(Opcodes.ALOAD, delegateLocal);
+        mv.visitInsn(Opcodes.ARETURN);
+        mv.visitMaxs(0, 0);
+        mv.visitEnd();
+    }
+
+    private byte[] emitDelegateFactoryClass(String factoryBinaryName, String componentInternal,
+                                            int n) {
+        String factoryInternal = factoryBinaryName.replace('.', '/');
+        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
+        cw.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
+                 factoryInternal, null, "java/lang/Object",
+                 new String[]{DELEGATE_FACTORY_INTERNAL});
+        cw.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL,
+                      "root", "L" + componentInternal + ";", null, null).visitEnd();
+
+        MethodVisitor ctor = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>",
+                                            "(L" + componentInternal + ";)V", null, null);
+        ctor.visitCode();
+        ctor.visitVarInsn(Opcodes.ALOAD, 0);
+        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
+        ctor.visitVarInsn(Opcodes.ALOAD, 0);
+        ctor.visitVarInsn(Opcodes.ALOAD, 1);
+        ctor.visitFieldInsn(Opcodes.PUTFIELD, factoryInternal, "root",
+                            "L" + componentInternal + ";");
+        ctor.visitInsn(Opcodes.RETURN);
+        ctor.visitMaxs(0, 0);
+        ctor.visitEnd();
+
+        MethodVisitor create = cw.visitMethod(Opcodes.ACC_PUBLIC, "create",
+            "(ILjava/lang/Object;)L" + QOBJECT_INTERNAL + ";", null, null);
+        create.visitCode();
+        create.visitVarInsn(Opcodes.ALOAD, 0);
+        create.visitFieldInsn(Opcodes.GETFIELD, factoryInternal, "root",
+                              "L" + componentInternal + ";");
+        create.visitVarInsn(Opcodes.ILOAD, 1);
+        create.visitVarInsn(Opcodes.ALOAD, 2);
+        create.visitMethodInsn(Opcodes.INVOKEVIRTUAL, componentInternal, "_delegate$" + n,
+                               "(ILjava/lang/Object;)L" + QOBJECT_INTERNAL + ";", false);
+        create.visitInsn(Opcodes.ARETURN);
+        create.visitMaxs(0, 0);
+        create.visitEnd();
+
         cw.visitEnd();
         return cw.toByteArray();
     }
@@ -982,24 +1206,27 @@ public final class QmlCompiler {
     }
 
     private static void collectIds(Ast.ObjectNode obj, TypeRegistry registry,
-                                   Map<String, Class<? extends QObject>> out) {
+                                   Map<String, Class<? extends QObject>> out,
+                                   boolean insideDelegate) {
         String id = idOf(obj);
-        if (id != null) {
-            Class<? extends QObject> t = registry.resolve(obj.typeName);
-            if (out.put(id, t) != null) {
+        Class<? extends QObject> selfType = registry.resolve(obj.typeName);
+        if (id != null && !insideDelegate) {
+            if (out.put(id, selfType) != null) {
                 throw new IllegalArgumentException("duplicate id: " + id);
             }
         }
+        boolean childIsDelegate = DelegateHost.class.isAssignableFrom(selfType);
         for (Ast.ObjectMember m : obj.members) {
             if (m instanceof Ast.ChildObject) {
-                collectIds(((Ast.ChildObject) m).object, registry, out);
+                collectIds(((Ast.ChildObject) m).object, registry, out,
+                           insideDelegate || childIsDelegate);
             } else if (m instanceof Ast.PropertyBinding) {
                 Ast.Value v = ((Ast.PropertyBinding) m).value;
                 if (v instanceof Ast.ObjectValue) {
-                    collectIds(((Ast.ObjectValue) v).object, registry, out);
+                    collectIds(((Ast.ObjectValue) v).object, registry, out, insideDelegate);
                 } else if (v instanceof Ast.ObjectListValue) {
                     for (Ast.ObjectNode n : ((Ast.ObjectListValue) v).objects) {
-                        collectIds(n, registry, out);
+                        collectIds(n, registry, out, insideDelegate);
                     }
                 }
             }

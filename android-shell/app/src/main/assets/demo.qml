@@ -252,4 +252,43 @@ Rectangle {
             height: 36
         }
     }
+
+    Column {
+        x: 60
+        y: 1140
+        spacing: 8
+
+        Text {
+            text: "Repeater (int model):"
+            color: "#a0a0c0"
+            fontSize: 24
+            width: 480
+            height: 32
+        }
+        Repeater {
+            model: 6
+            Rectangle {
+                width: 40 + index * 40
+                height: 24
+                color: index % 2 === 0 ? "#80c0ff" : "#ffc080"
+            }
+        }
+        Text {
+            text: "Repeater (list model):"
+            color: "#a0a0c0"
+            fontSize: 24
+            width: 480
+            height: 32
+        }
+        Repeater {
+            model: ["alpha", "beta", "gamma", "delta"]
+            Text {
+                text: index + ". " + modelData
+                color: "#ffffff"
+                fontSize: 22
+                width: 480
+                height: 30
+            }
+        }
+    }
 }

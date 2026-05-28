@@ -1,6 +1,8 @@
 package io.qml4j.compiler;
 
 import io.qml4j.compiler.bytecode.QmlCompiler;
+import io.qml4j.engine.DelegateFactory;
+import io.qml4j.engine.DelegateHost;
 import io.qml4j.engine.Signal;
 import io.qml4j.engine.classloader.JvmClassLoaderBackend;
 import io.qml4j.engine.binding.Property;
@@ -10,6 +12,8 @@ import io.qml4j.parser.ast.Ast;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -30,8 +34,63 @@ class QmlCompilerTest {
         public final java.util.List<TestItem> children = new java.util.ArrayList<>();
     }
 
+    public static class TestRepeater extends TestItem implements DelegateHost {
+        public final Property<Object> model = new Property<>(0);
+        private DelegateFactory factory;
+        public final List<TestItem> instances = new ArrayList<>();
+
+        public TestRepeater() {
+            model.addListener(v -> rebuild());
+            parent.addListener(v -> rebuild());
+        }
+
+        @Override
+        public void setDelegate(DelegateFactory factory) {
+            this.factory = factory;
+            rebuild();
+        }
+
+        private void rebuild() {
+            if (factory == null) return;
+            TestItem visualParent = parent.peek();
+            if (visualParent == null) return;
+            Object m = model.peek();
+            int desired = sizeOf(m);
+            while (instances.size() > desired) {
+                TestItem last = instances.remove(instances.size() - 1);
+                visualParent.children.remove(last);
+            }
+            for (int i = instances.size(); i < desired; i++) {
+                Object data = dataAt(m, i);
+                QObject created = factory.create(i, data);
+                TestItem item = (TestItem) created;
+                item.parent.set(visualParent);
+                visualParent.children.add(item);
+                instances.add(item);
+            }
+        }
+
+        private static int sizeOf(Object m) {
+            if (m instanceof Number) {
+                int n = ((Number) m).intValue();
+                return n < 0 ? 0 : n;
+            }
+            if (m instanceof List) return ((List<?>) m).size();
+            return 0;
+        }
+
+        private static Object dataAt(Object m, int i) {
+            if (m instanceof List) {
+                List<?> list = (List<?>) m;
+                return i < list.size() ? list.get(i) : null;
+            }
+            return i;
+        }
+    }
+
     private static final TypeRegistry REGISTRY = new TypeRegistry()
-        .register("TestItem", TestItem.class);
+        .register("TestItem", TestItem.class)
+        .register("TestRepeater", TestRepeater.class);
 
     private static final QmlCompiler COMPILER = new QmlCompiler();
     private static final JvmClassLoaderBackend BACKEND = new JvmClassLoaderBackend();
@@ -1120,5 +1179,97 @@ class QmlCompilerTest {
             "}");
         assertEquals("m", it.name.peek());
         assertEquals(5L, it.width.peek().longValue());
+    }
+
+    @Test
+    void repeaterIntegerModelGrowsChildren() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  TestRepeater {\n" +
+            "    id: rep\n" +
+            "    model: 3\n" +
+            "    TestItem { width: index * 10 }\n" +
+            "  }\n" +
+            "}");
+        TestRepeater rep = (TestRepeater) it.getClass().getField("rep").get(it);
+        assertEquals(3, rep.instances.size());
+        assertEquals(0L, rep.instances.get(0).width.peek().longValue());
+        assertEquals(10L, rep.instances.get(1).width.peek().longValue());
+        assertEquals(20L, rep.instances.get(2).width.peek().longValue());
+        assertEquals(4, it.children.size());
+        assertTrue(it.children.get(0) instanceof TestRepeater);
+    }
+
+    @Test
+    void repeaterShrinksWhenModelDecreases() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  TestRepeater {\n" +
+            "    id: rep\n" +
+            "    model: 5\n" +
+            "    TestItem { width: index }\n" +
+            "  }\n" +
+            "}");
+        TestRepeater rep = (TestRepeater) it.getClass().getField("rep").get(it);
+        assertEquals(5, rep.instances.size());
+        rep.model.set(2);
+        assertEquals(2, rep.instances.size());
+        assertEquals(0L, rep.instances.get(0).width.peek().longValue());
+        assertEquals(1L, rep.instances.get(1).width.peek().longValue());
+    }
+
+    @Test
+    void repeaterListModelBindsModelData() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  TestRepeater {\n" +
+            "    id: rep\n" +
+            "    model: [\"alpha\", \"beta\", \"gamma\"]\n" +
+            "    TestItem { name: modelData }\n" +
+            "  }\n" +
+            "}");
+        TestRepeater rep = (TestRepeater) it.getClass().getField("rep").get(it);
+        assertEquals(3, rep.instances.size());
+        assertEquals("alpha", rep.instances.get(0).name.peek());
+        assertEquals("beta", rep.instances.get(1).name.peek());
+        assertEquals("gamma", rep.instances.get(2).name.peek());
+    }
+
+    @Test
+    void repeaterDelegateChildrenAreInstantiated() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  TestRepeater {\n" +
+            "    id: rep\n" +
+            "    model: 2\n" +
+            "    TestItem {\n" +
+            "      width: index + 100\n" +
+            "      TestItem { name: \"leaf\" }\n" +
+            "    }\n" +
+            "  }\n" +
+            "}");
+        TestRepeater rep = (TestRepeater) it.getClass().getField("rep").get(it);
+        assertEquals(2, rep.instances.size());
+        assertEquals(100L, rep.instances.get(0).width.peek().longValue());
+        assertEquals(101L, rep.instances.get(1).width.peek().longValue());
+        assertEquals(1, rep.instances.get(0).children.size());
+        assertEquals("leaf", rep.instances.get(0).children.get(0).name.peek());
+    }
+
+    @Test
+    void repeaterListIntegerModelDataIsCoerced() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  TestRepeater {\n" +
+            "    id: rep\n" +
+            "    model: [10, 20, 30]\n" +
+            "    TestItem { width: modelData }\n" +
+            "  }\n" +
+            "}");
+        TestRepeater rep = (TestRepeater) it.getClass().getField("rep").get(it);
+        assertEquals(3, rep.instances.size());
+        assertEquals(10L, rep.instances.get(0).width.peek().longValue());
+        assertEquals(20L, rep.instances.get(1).width.peek().longValue());
+        assertEquals(30L, rep.instances.get(2).width.peek().longValue());
     }
 }
