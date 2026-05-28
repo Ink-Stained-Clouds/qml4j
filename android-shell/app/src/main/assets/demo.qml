@@ -320,6 +320,28 @@ Rectangle {
         y: 1140
     }
 
+    property int relayHits: 0
+
+    Rectangle {
+        x: 60
+        y: 1720
+        width: 220
+        height: 70
+        color: "#404060"
+        MouseArea { id: relaySource; width: 220; height: 70 }
+        Text {
+            anchors.centerIn: parent
+            text: "relay: " + root.relayHits
+            color: "#ffffff"
+            fontSize: 24
+        }
+    }
+
+    Connections {
+        target: relaySource
+        onClicked: root.relayHits = root.relayHits + 1
+    }
+
     Item {
         id: blinker
         x: 60

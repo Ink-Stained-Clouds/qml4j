@@ -3,6 +3,7 @@ package io.qml4j.render;
 import io.qml4j.engine.QmlEngine;
 import io.qml4j.render.items.Column;
 import io.qml4j.render.items.Component;
+import io.qml4j.render.items.Connections;
 import io.qml4j.render.items.Image;
 import io.qml4j.render.items.Item;
 import io.qml4j.render.items.Loader;
@@ -1040,6 +1041,60 @@ class QmlViewTest {
         Item inner = outer.children.get(0);
         assertEquals("#0f0f0f", ((Rectangle) inner).color.peek());
         assertEquals(10L, inner.x.peek().longValue());
+    }
+
+    @Test
+    void connectionsFireOnTargetSignal() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 200\n" +
+            "  property int hits: 0\n" +
+            "  MouseArea { id: ma; width: 200; height: 200 }\n" +
+            "  Connections { target: ma; onClicked: parent.hits = parent.hits + 1 }\n" +
+            "}");
+        v.dispatchClick(10, 10);
+        v.dispatchClick(20, 20);
+        v.dispatchClick(30, 30);
+        assertHitsEquals(root, 3);
+    }
+
+    @Test
+    void connectionsRebindWhenTargetChanges() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 200\n" +
+            "  property int hits: 0\n" +
+            "  MouseArea { id: a; x: 0; y: 0; width: 50; height: 50 }\n" +
+            "  MouseArea { id: b; x: 60; y: 0; width: 50; height: 50 }\n" +
+            "  Connections { id: conn; target: a; onClicked: parent.hits = parent.hits + 1 }\n" +
+            "}");
+        v.dispatchClick(10, 10);
+        assertHitsEquals(root, 1);
+
+        Connections conn = (Connections) root.children.get(2);
+        MouseArea b = (MouseArea) root.children.get(1);
+        conn.target.set(b);
+
+        v.dispatchClick(10, 10);
+        assertHitsEquals(root, 1);
+        v.dispatchClick(70, 10);
+        assertHitsEquals(root, 2);
+    }
+
+    @Test
+    void connectionsIgnoreUnknownSignalSilently() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 200\n" +
+            "  property int hits: 0\n" +
+            "  MouseArea { id: ma; width: 200; height: 200 }\n" +
+            "  Connections { target: ma\n" +
+            "    onClicked: parent.hits = parent.hits + 1\n" +
+            "    onUnknownSignal: parent.hits = parent.hits + 100\n" +
+            "  }\n" +
+            "}");
+        v.dispatchClick(10, 10);
+        assertHitsEquals(root, 1);
     }
 
     @Test

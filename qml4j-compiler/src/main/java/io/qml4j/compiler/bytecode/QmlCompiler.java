@@ -5,6 +5,7 @@ import io.qml4j.compiler.TypeRegistry;
 import io.qml4j.compiler.bytecode.ExpressionCodegen.AliasRef;
 import io.qml4j.engine.DelegateHost;
 import io.qml4j.engine.PropertyChangeSink;
+import io.qml4j.engine.SignalRelay;
 import io.qml4j.engine.binding.Property;
 import io.qml4j.engine.QObject;
 import io.qml4j.parser.ast.Ast;
@@ -39,6 +40,7 @@ public final class QmlCompiler {
     private static final String QOBJECT_INTERNAL = "io/qml4j/engine/QObject";
     private static final String DELEGATE_FACTORY_INTERNAL = "io/qml4j/engine/DelegateFactory";
     private static final String DELEGATE_HOST_INTERNAL = "io/qml4j/engine/DelegateHost";
+    private static final String SIGNAL_RELAY_INTERNAL = "io/qml4j/engine/SignalRelay";
 
     private final AtomicInteger componentCounter = new AtomicInteger();
 
@@ -257,7 +259,9 @@ public final class QmlCompiler {
                 boolean isCustomHandler = signalName != null && customSignals.contains(signalName);
                 Field signalField = (signalName != null && !isCustomHandler)
                     ? findSignalFieldOrNull(outerType, signalName) : null;
-                boolean isHandler = isCustomHandler || signalField != null;
+                boolean isRelay = signalName != null && !isCustomHandler && signalField == null
+                    && SignalRelay.class.isAssignableFrom(outerType);
+                boolean isHandler = isCustomHandler || signalField != null || isRelay;
                 if (isStmtBlock && !isHandler) {
                     throw new UnsupportedOperationException(
                         "statement block only allowed as signal handler body: " + key);
@@ -270,6 +274,10 @@ public final class QmlCompiler {
                                                 customSignalOwner, signalName, handlerBody, idTypes,
                                                 customSignalParams.get(signalName), declaredProps, aliases,
                                                 rootFunctions);
+                    } else if (isRelay) {
+                        emitRelaySignalHandler(ctor, outerType, outerLocal, componentBinaryName,
+                                               handlerCounter, classes, signalName, handlerBody, idTypes,
+                                               declaredProps, aliases, rootFunctions);
                     } else {
                         emitSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
                                           handlerCounter, classes, signalField, handlerBody, idTypes,
@@ -1054,6 +1062,40 @@ public final class QmlCompiler {
                              "(L" + outerInternal + ";L" + componentInternal + ";)V", false);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, SIGNAL_INTERNAL,
                              "connect", "(" + SIGNAL_HANDLER_DESC + ")V", false);
+    }
+
+    private void emitRelaySignalHandler(MethodVisitor ctor, Class<? extends QObject> outerType,
+                                        int outerLocal, String componentBinaryName,
+                                        int[] handlerCounter, Map<String, byte[]> classes,
+                                        String signalName, Ast.Statement body,
+                                        Map<String, Class<? extends QObject>> idTypes,
+                                        Map<String, String> declaredProps,
+                                        Map<String, AliasRef> aliases,
+                                        Map<String, Integer> rootFunctions) {
+        String outerInternal = Type.getInternalName(outerType);
+        String componentInternal = componentBinaryName.replace('.', '/');
+
+        int n = handlerCounter[0]++;
+        String handlerBinaryName = componentBinaryName + "$Handler$" + n;
+        String handlerInternal = handlerBinaryName.replace('.', '/');
+
+        byte[] handlerBytes = emitHandlerClass(handlerInternal, outerInternal, outerType, body,
+                                               componentInternal, idTypes,
+                                               Collections.<String>emptyList(),
+                                               declaredProps, aliases, rootFunctions);
+        classes.put(handlerBinaryName, handlerBytes);
+
+        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+        ctor.visitLdcInsn(signalName);
+        ctor.visitTypeInsn(Opcodes.NEW, handlerInternal);
+        ctor.visitInsn(Opcodes.DUP);
+        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+        ctor.visitVarInsn(Opcodes.ALOAD, 0);
+        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, handlerInternal, "<init>",
+                             "(L" + outerInternal + ";L" + componentInternal + ";)V", false);
+        ctor.visitMethodInsn(Opcodes.INVOKEINTERFACE, SIGNAL_RELAY_INTERNAL,
+                             "connectSignal",
+                             "(Ljava/lang/String;" + SIGNAL_HANDLER_DESC + ")V", true);
     }
 
     private byte[] emitHandlerClass(String handlerInternal, String outerInternal,
