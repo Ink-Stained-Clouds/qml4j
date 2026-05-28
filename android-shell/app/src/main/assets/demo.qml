@@ -4,15 +4,10 @@ Rectangle {
     id: root
     color: "#202028"
 
-    Flickable {
-        id: scroll
-        anchors.fill: parent
-        contentWidth: parent.width
-        contentHeight: 2400
-
     property int taps: 0
     property alias badgeColor: badge.color
     property alias dotX: dot.x
+    property int relayHits: 0
 
     function fib(n) {
         if (n < 2) { return n; }
@@ -84,6 +79,12 @@ Rectangle {
         badgeColor = badgeColor === "#80ff80" ? "#ff8080" : "#80ff80";
         root.taps = root.taps + 1;
     }
+
+    Flickable {
+        id: scroll
+        anchors.fill: parent
+        contentWidth: parent.width
+        contentHeight: 2400
 
     Rectangle {
         id: box
@@ -325,8 +326,6 @@ Rectangle {
         x: 700
         y: 1140
     }
-
-    property int relayHits: 0
 
     Rectangle {
         x: 60
