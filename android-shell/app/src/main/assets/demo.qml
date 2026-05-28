@@ -45,6 +45,32 @@ Rectangle {
         return s;
     }
 
+    function arraySum() {
+        var xs = [3, 7, 11, 13, 17];
+        var s = 0;
+        for (var i = 0; i < xs.length; i = i + 1) { s = s + xs[i]; }
+        return s;
+    }
+
+    function configBox() { return { w: 240, h: 60, label: "config bag" }; }
+
+    function grid(rows, cols) {
+        var out = [];
+        for (var r = 0; r < rows; r = r + 1) {
+            var row = [];
+            for (var c = 0; c < cols; c = c + 1) { row[c] = r * cols + c; }
+            out[r] = row;
+        }
+        return out;
+    }
+
+    function diagSum(n) {
+        var g = grid(n, n);
+        var s = 0;
+        for (var i = 0; i < n; i = i + 1) { s = s + g[i][i]; }
+        return s;
+    }
+
     signal bumped()
     onBumped: {
         badgeColor = badgeColor === "#80ff80" ? "#ff8080" : "#80ff80";
@@ -203,6 +229,27 @@ Rectangle {
             fontSize: 32
             width: 520
             height: 44
+        }
+        Text {
+            text: "sum([3,7,11,13,17]) = " + arraySum()
+            color: "#80c0ff"
+            fontSize: 26
+            width: 520
+            height: 36
+        }
+        Text {
+            text: configBox().label + " w=" + configBox()["w"]
+            color: "#80c0ff"
+            fontSize: 26
+            width: 520
+            height: 36
+        }
+        Text {
+            text: "diag sum 5x5 = " + diagSum(5)
+            color: "#80c0ff"
+            fontSize: 26
+            width: 520
+            height: 36
         }
     }
 }
