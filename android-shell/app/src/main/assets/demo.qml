@@ -1,3 +1,5 @@
+import "."
+
 Rectangle {
     id: root
     color: "#202028"
@@ -311,6 +313,11 @@ Rectangle {
         x: 500
         y: 1140
         sourceComponent: chip
+    }
+
+    Badge {
+        x: 700
+        y: 1140
     }
 
     Item {

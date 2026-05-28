@@ -953,6 +953,96 @@ class QmlViewTest {
     }
 
     @Test
+    void importSiblingTypeFromCurrentDir() {
+        QmlView v = newView();
+        v.resources(name -> {
+            if ("Card.qml".equals(name)) {
+                return "Rectangle { width: 60; height: 30; color: \"#deadbe\" }"
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            }
+            return null;
+        });
+        Item root = v.load(
+            "import \".\"\n" +
+            "Item { width: 100; height: 100\n" +
+            "  Card { x: 5; y: 7 }\n" +
+            "}");
+        assertEquals(1, root.children.size());
+        Item card = root.children.get(0);
+        assertTrue(card instanceof Rectangle);
+        assertEquals(60L, card.width.peek().longValue());
+        assertEquals(5L, card.x.peek().longValue());
+        assertEquals("#deadbe", ((Rectangle) card).color.peek());
+    }
+
+    @Test
+    void importedTypeIsCachedAcrossUses() {
+        java.util.concurrent.atomic.AtomicInteger loads = new java.util.concurrent.atomic.AtomicInteger();
+        QmlView v = newView();
+        v.resources(name -> {
+            if ("Tile.qml".equals(name)) {
+                loads.incrementAndGet();
+                return "Rectangle { width: 20; height: 20; color: \"#123456\" }"
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            }
+            return null;
+        });
+        Item root = v.load(
+            "import \".\"\n" +
+            "Column { spacing: 2\n" +
+            "  Tile { }\n" +
+            "  Tile { }\n" +
+            "  Tile { }\n" +
+            "}");
+        assertEquals(3, root.children.size());
+        assertEquals(1, loads.get());
+    }
+
+    @Test
+    void importFromSubdirectoryPrefix() {
+        QmlView v = newView();
+        v.resources(name -> {
+            if ("ui/Pill.qml".equals(name)) {
+                return "Rectangle { width: 80; height: 24; color: \"#abcabc\" }"
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            }
+            return null;
+        });
+        Item root = v.load(
+            "import \"ui\"\n" +
+            "Item { width: 100; height: 100\n" +
+            "  Pill { }\n" +
+            "}");
+        Item pill = root.children.get(0);
+        assertEquals("#abcabc", ((Rectangle) pill).color.peek());
+    }
+
+    @Test
+    void importChainResolvesTransitively() {
+        QmlView v = newView();
+        v.resources(name -> {
+            if ("Outer.qml".equals(name)) {
+                return ("import \".\"\n" +
+                        "Item { width: 200; height: 200\n" +
+                        "  Inner { x: 10 }\n" +
+                        "}").getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            }
+            if ("Inner.qml".equals(name)) {
+                return "Rectangle { width: 12; height: 12; color: \"#0f0f0f\" }"
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            }
+            return null;
+        });
+        Item root = v.load(
+            "import \".\"\n" +
+            "Item { Outer { } }");
+        Item outer = root.children.get(0);
+        Item inner = outer.children.get(0);
+        assertEquals("#0f0f0f", ((Rectangle) inner).color.peek());
+        assertEquals(10L, inner.x.peek().longValue());
+    }
+
+    @Test
     void parseColorRgb() {
         assertEquals(0xFFFF0000, Renderer.parseColor("#ff0000"));
         assertEquals(0xFF00FF00, Renderer.parseColor("#00ff00"));

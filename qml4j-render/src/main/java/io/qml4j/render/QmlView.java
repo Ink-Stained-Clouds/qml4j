@@ -7,15 +7,22 @@ import io.qml4j.render.items.NumberAnimation;
 
 import io.github.humbleui.skija.Canvas;
 import io.qml4j.compiler.CompiledUnit;
-import io.qml4j.compiler.bytecode.QmlCompiler;
 import io.qml4j.compiler.TypeRegistry;
-import io.qml4j.engine.classloader.ClassLoaderBackend;
-import io.qml4j.engine.binding.DirtyQueue;
+import io.qml4j.compiler.bytecode.QmlCompiler;
+import io.qml4j.engine.QObject;
 import io.qml4j.engine.QmlEngine;
+import io.qml4j.engine.binding.DirtyQueue;
+import io.qml4j.engine.classloader.ClassLoaderBackend;
 import io.qml4j.parser.Qml4j;
 import io.qml4j.parser.ast.Ast;
 
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public final class QmlView {
 
@@ -24,6 +31,9 @@ public final class QmlView {
     private final QmlCompiler compiler = new QmlCompiler();
     private final Renderer renderer = new Renderer();
     private final DirtyQueue dirty = new DirtyQueue();
+    private final Map<String, Class<? extends QObject>> importedTypes = new HashMap<>();
+    private final Set<String> compilingNow = new HashSet<>();
+    private ResourceLoader resources;
     private Item root;
 
     public QmlView(QmlEngine engine, TypeRegistry types) {
@@ -37,6 +47,7 @@ public final class QmlView {
     }
 
     public QmlView resources(ResourceLoader loader) {
+        this.resources = loader;
         renderer.setResourceLoader(loader);
         return this;
     }
@@ -48,13 +59,7 @@ public final class QmlView {
 
     private Item instantiate(String qml) {
         Ast.QmlDocument doc = Qml4j.parse(qml);
-        CompiledUnit unit = compiler.compile(doc, types);
-        ClassLoaderBackend backend = engine.backend();
-        Map<String, Class<?>> defined = backend.defineClasses(unit.classes());
-        Class<?> rootClass = defined.get(unit.rootClassName());
-        if (rootClass == null) {
-            throw new IllegalStateException("compiled unit missing root class");
-        }
+        Class<? extends QObject> rootClass = compileAndDefine(doc);
         Object inst;
         try {
             inst = rootClass.getDeclaredConstructor().newInstance();
@@ -66,6 +71,61 @@ public final class QmlView {
                 "root QML type must extend Item, got " + inst.getClass().getName());
         }
         return (Item) inst;
+    }
+
+    private Class<? extends QObject> compileAndDefine(Ast.QmlDocument doc) {
+        List<String> prefixes = stringImportPrefixes(doc);
+        TypeRegistry docTypes = types.copy().withResolver(name -> resolveCompound(name, prefixes));
+        CompiledUnit unit = compiler.compile(doc, docTypes);
+        ClassLoaderBackend backend = engine.backend();
+        Map<String, Class<?>> defined = backend.defineClasses(unit.classes());
+        Class<?> rootClass = defined.get(unit.rootClassName());
+        if (rootClass == null) {
+            throw new IllegalStateException("compiled unit missing root class");
+        }
+        if (!QObject.class.isAssignableFrom(rootClass)) {
+            throw new IllegalStateException(
+                "compiled root class is not a QObject: " + rootClass.getName());
+        }
+        @SuppressWarnings("unchecked")
+        Class<? extends QObject> qc = (Class<? extends QObject>) rootClass;
+        return qc;
+    }
+
+    private Class<? extends QObject> resolveCompound(String name, List<String> prefixes) {
+        Class<? extends QObject> cached = importedTypes.get(name);
+        if (cached != null) return cached;
+        if (resources == null) return null;
+        for (String p : prefixes) {
+            String path = p.isEmpty() ? name + ".qml" : p + "/" + name + ".qml";
+            byte[] bytes = resources.load(path);
+            if (bytes == null) continue;
+            if (!compilingNow.add(name)) {
+                throw new IllegalStateException("cyclic import: " + name);
+            }
+            try {
+                Ast.QmlDocument subDoc = Qml4j.parse(new String(bytes, StandardCharsets.UTF_8));
+                Class<? extends QObject> rootClass = compileAndDefine(subDoc);
+                importedTypes.put(name, rootClass);
+                return rootClass;
+            } finally {
+                compilingNow.remove(name);
+            }
+        }
+        return null;
+    }
+
+    private static List<String> stringImportPrefixes(Ast.QmlDocument doc) {
+        List<String> out = new ArrayList<>();
+        for (Ast.ImportNode imp : doc.imports) {
+            if (!imp.isStringPath) continue;
+            String p = imp.moduleOrPath;
+            if (p == null) continue;
+            if (".".equals(p)) out.add("");
+            else if (p.startsWith("./")) out.add(p.substring(2));
+            else out.add(p);
+        }
+        return out;
     }
 
     public Item root() {
