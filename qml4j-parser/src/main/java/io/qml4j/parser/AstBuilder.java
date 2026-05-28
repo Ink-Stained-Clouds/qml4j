@@ -320,6 +320,9 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
             if (sc instanceof QmlParser.MemberAccessContext) {
                 QmlParser.MemberAccessContext m = (QmlParser.MemberAccessContext) sc;
                 cur = new Ast.MemberExpr(cur, m.Identifier().getText());
+            } else if (sc instanceof QmlParser.IndexAccessContext) {
+                QmlParser.IndexAccessContext ix = (QmlParser.IndexAccessContext) sc;
+                cur = new Ast.IndexExpr(cur, (Ast.Expression) visit(ix.expression()));
             } else {
                 QmlParser.CallContext c = (QmlParser.CallContext) sc;
                 List<Ast.Expression> args = new ArrayList<>();
@@ -335,8 +338,36 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     @Override
     public Ast.Expression visitPrimaryExpr(QmlParser.PrimaryExprContext ctx) {
         if (ctx.literal() != null) return (Ast.Expression) visit(ctx.literal());
+        if (ctx.arrayLiteral() != null) return visitArrayLiteral(ctx.arrayLiteral());
+        if (ctx.objectLiteral() != null) return visitObjectLiteral(ctx.objectLiteral());
         if (ctx.Identifier() != null) return new Ast.IdentifierExpr(ctx.Identifier().getText());
         return (Ast.Expression) visit(ctx.expression());
+    }
+
+    @Override
+    public Ast.Expression visitArrayLiteral(QmlParser.ArrayLiteralContext ctx) {
+        List<Ast.Expression> elems = new ArrayList<>();
+        for (QmlParser.ExpressionContext e : ctx.expression()) {
+            elems.add((Ast.Expression) visit(e));
+        }
+        return new Ast.ArrayLitExpr(elems);
+    }
+
+    @Override
+    public Ast.Expression visitObjectLiteral(QmlParser.ObjectLiteralContext ctx) {
+        List<String> keys = new ArrayList<>();
+        List<Ast.Expression> values = new ArrayList<>();
+        for (QmlParser.ObjectLiteralEntryContext entry : ctx.objectLiteralEntry()) {
+            String key;
+            if (entry.Identifier() != null) {
+                key = entry.Identifier().getText();
+            } else {
+                key = unquote(entry.StringLiteral().getText());
+            }
+            keys.add(key);
+            values.add((Ast.Expression) visit(entry.expression()));
+        }
+        return new Ast.ObjectLitExpr(keys, values);
     }
 
     @Override

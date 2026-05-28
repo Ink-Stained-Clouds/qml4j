@@ -155,9 +155,63 @@ final class ExpressionCodegen {
             emitAssignment(mv, (Ast.AssignmentExpr) e);
         } else if (e instanceof Ast.CallExpr) {
             emitCall(mv, (Ast.CallExpr) e);
+        } else if (e instanceof Ast.IndexExpr) {
+            emitIndex(mv, (Ast.IndexExpr) e);
+        } else if (e instanceof Ast.ArrayLitExpr) {
+            emitArrayLit(mv, (Ast.ArrayLitExpr) e);
+        } else if (e instanceof Ast.ObjectLitExpr) {
+            emitObjectLit(mv, (Ast.ObjectLitExpr) e);
         } else {
             throw new IllegalStateException("unknown expression: " + e.getClass().getName());
         }
+    }
+
+    private void emitIndex(MethodVisitor mv, Ast.IndexExpr ix) {
+        emit(mv, ix.target);
+        emit(mv, ix.index);
+        mv.visitMethodInsn(Opcodes.INVOKESTATIC, HELPERS_INTERNAL,
+                           "readIndex",
+                           "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
+                           false);
+    }
+
+    private void emitArrayLit(MethodVisitor mv, Ast.ArrayLitExpr a) {
+        pushInt(mv, a.elements.size());
+        mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");
+        for (int i = 0; i < a.elements.size(); i++) {
+            mv.visitInsn(Opcodes.DUP);
+            pushInt(mv, i);
+            emit(mv, a.elements.get(i));
+            mv.visitInsn(Opcodes.AASTORE);
+        }
+        mv.visitMethodInsn(Opcodes.INVOKESTATIC, HELPERS_INTERNAL,
+                           "makeArray",
+                           "([Ljava/lang/Object;)Ljava/lang/Object;",
+                           false);
+    }
+
+    private void emitObjectLit(MethodVisitor mv, Ast.ObjectLitExpr o) {
+        int n = o.keys.size();
+        pushInt(mv, n);
+        mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/String");
+        for (int i = 0; i < n; i++) {
+            mv.visitInsn(Opcodes.DUP);
+            pushInt(mv, i);
+            mv.visitLdcInsn(o.keys.get(i));
+            mv.visitInsn(Opcodes.AASTORE);
+        }
+        pushInt(mv, n);
+        mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");
+        for (int i = 0; i < n; i++) {
+            mv.visitInsn(Opcodes.DUP);
+            pushInt(mv, i);
+            emit(mv, o.values.get(i));
+            mv.visitInsn(Opcodes.AASTORE);
+        }
+        mv.visitMethodInsn(Opcodes.INVOKESTATIC, HELPERS_INTERNAL,
+                           "makeObject",
+                           "([Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/Object;",
+                           false);
     }
 
     private void emitLiteral(MethodVisitor mv, Ast.LiteralExpr lit) {
@@ -291,6 +345,17 @@ final class ExpressionCodegen {
     }
 
     private void emitAssignment(MethodVisitor mv, Ast.AssignmentExpr a) {
+        if (a.target instanceof Ast.IndexExpr) {
+            Ast.IndexExpr ix = (Ast.IndexExpr) a.target;
+            emit(mv, ix.target);
+            emit(mv, ix.index);
+            emit(mv, a.value);
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, HELPERS_INTERNAL,
+                               "writeIndex",
+                               "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
+                               false);
+            return;
+        }
         if (a.target instanceof Ast.MemberExpr) {
             Ast.MemberExpr m = (Ast.MemberExpr) a.target;
             emit(mv, m.target);

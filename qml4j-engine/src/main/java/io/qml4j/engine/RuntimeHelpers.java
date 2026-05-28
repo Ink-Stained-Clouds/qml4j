@@ -3,6 +3,10 @@ package io.qml4j.engine;
 import io.qml4j.engine.binding.Property;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 public final class RuntimeHelpers {
 
@@ -145,6 +149,14 @@ public final class RuntimeHelpers {
 
     public static Object readMember(Object target, String name) {
         if (target == null) return null;
+        if ("length".equals(name)) {
+            if (target instanceof String) return (long) ((String) target).length();
+            if (target instanceof List) return (long) ((List<?>) target).size();
+            if (target instanceof Map) return (long) ((Map<?, ?>) target).size();
+        }
+        if (target instanceof Map) {
+            return ((Map<?, ?>) target).get(name);
+        }
         Class<?> c = target.getClass();
         Field f;
         try {
@@ -163,6 +175,60 @@ public final class RuntimeHelpers {
             return ((Property<?>) val).get();
         }
         return val;
+    }
+
+    public static Object makeArray(Object[] elems) {
+        ArrayList<Object> out = new ArrayList<>(elems.length);
+        for (Object e : elems) out.add(e);
+        return out;
+    }
+
+    public static Object makeObject(String[] keys, Object[] values) {
+        LinkedHashMap<String, Object> out = new LinkedHashMap<>();
+        for (int i = 0; i < keys.length; i++) out.put(keys[i], values[i]);
+        return out;
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static Object readIndex(Object target, Object index) {
+        if (target == null) {
+            throw new NullPointerException("cannot index null");
+        }
+        if (target instanceof List) {
+            int i = (int) toNumber(index);
+            List list = (List) target;
+            if (i < 0 || i >= list.size()) return null;
+            return list.get(i);
+        }
+        if (target instanceof Map) {
+            return ((Map) target).get(String.valueOf(index));
+        }
+        if (target instanceof String) {
+            int i = (int) toNumber(index);
+            String s = (String) target;
+            if (i < 0 || i >= s.length()) return null;
+            return String.valueOf(s.charAt(i));
+        }
+        return readMember(target, String.valueOf(index));
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static Object writeIndex(Object target, Object index, Object value) {
+        if (target == null) {
+            throw new NullPointerException("cannot index null");
+        }
+        if (target instanceof List) {
+            int i = (int) toNumber(index);
+            List list = (List) target;
+            while (list.size() <= i) list.add(null);
+            list.set(i, value);
+            return value;
+        }
+        if (target instanceof Map) {
+            ((Map) target).put(String.valueOf(index), value);
+            return value;
+        }
+        return writeMember(target, String.valueOf(index), value);
     }
 
     public static Object callMethod(Object receiver, String name, Object[] args) {

@@ -220,12 +220,27 @@ postfixExpr
 postfixSuffix
     : '.' Identifier                                 # memberAccess
     | '(' (expression (',' expression)*)? ')'        # call
+    | '[' expression ']'                             # indexAccess
     ;
 
 primaryExpr
     : literal
+    | arrayLiteral
+    | objectLiteral
     | Identifier
     | '(' expression ')'
+    ;
+
+arrayLiteral
+    : '[' (expression (',' expression)*)? ','? ']'
+    ;
+
+objectLiteral
+    : '{' (objectLiteralEntry (',' objectLiteralEntry)*)? ','? '}'
+    ;
+
+objectLiteralEntry
+    : (Identifier | StringLiteral) ':' expression
     ;
 
 literal

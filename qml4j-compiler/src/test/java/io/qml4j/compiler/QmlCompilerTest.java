@@ -1042,4 +1042,83 @@ class QmlCompilerTest {
             "}");
         assertThrows(IllegalArgumentException.class, () -> COMPILER.compile(doc, REGISTRY));
     }
+
+    @Test
+    void arrayLiteralIndexRead() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  function pick(i) { var xs = [10, 20, 30]; return xs[i]; }\n" +
+            "  width: pick(0) + pick(1) + pick(2)\n" +
+            "}");
+        assertEquals(60L, it.width.peek().longValue());
+    }
+
+    @Test
+    void arrayLengthReads() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  width: [1, 2, 3, 4, 5].length\n" +
+            "}");
+        assertEquals(5L, it.width.peek().longValue());
+    }
+
+    @Test
+    void arrayIndexWriteAndSum() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  function build() {\n" +
+            "    var xs = [0, 0, 0];\n" +
+            "    var i = 0;\n" +
+            "    while (i < 3) { xs[i] = (i + 1) * 7; i = i + 1; }\n" +
+            "    var s = 0;\n" +
+            "    for (var k = 0; k < xs.length; k = k + 1) { s = s + xs[k]; }\n" +
+            "    return s;\n" +
+            "  }\n" +
+            "  width: build()\n" +
+            "}");
+        assertEquals(42L, it.width.peek().longValue());
+    }
+
+    @Test
+    void objectLiteralRead() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  function cfg() { return { w: 33, h: 44 }; }\n" +
+            "  width: cfg().w\n" +
+            "  height: cfg()[\"h\"]\n" +
+            "}");
+        assertEquals(33L, it.width.peek().longValue());
+        assertEquals(44L, it.height.peek().longValue());
+    }
+
+    @Test
+    void objectLiteralStringKey() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  function cfg() { return { \"a-1\": 7, b: 8 }; }\n" +
+            "  width: cfg()[\"a-1\"] + cfg().b\n" +
+            "}");
+        assertEquals(15L, it.width.peek().longValue());
+    }
+
+    @Test
+    void nestedArrayLiteral() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  function grid() { return [[1, 2], [3, 4]]; }\n" +
+            "  width: grid()[1][0] + grid()[1][1]\n" +
+            "}");
+        assertEquals(7L, it.width.peek().longValue());
+    }
+
+    @Test
+    void stringIndexAndLength() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  name: \"qml\"[1]\n" +
+            "  width: \"hello\".length\n" +
+            "}");
+        assertEquals("m", it.name.peek());
+        assertEquals(5L, it.width.peek().longValue());
+    }
 }

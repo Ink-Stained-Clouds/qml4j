@@ -267,6 +267,41 @@ public final class Ast {
         @Override public String toString() { return target + "." + property; }
     }
 
+    public static final class IndexExpr extends Expression {
+        public final Expression target;
+        public final Expression index;
+        public IndexExpr(Expression target, Expression index) {
+            this.target = target;
+            this.index = index;
+        }
+        @Override public String toString() { return target + "[" + index + "]"; }
+    }
+
+    public static final class ArrayLitExpr extends Expression {
+        public final List<Expression> elements;
+        public ArrayLitExpr(List<Expression> elements) {
+            this.elements = Collections.unmodifiableList(elements);
+        }
+        @Override public String toString() { return elements.toString(); }
+    }
+
+    public static final class ObjectLitExpr extends Expression {
+        public final List<String> keys;
+        public final List<Expression> values;
+        public ObjectLitExpr(List<String> keys, List<Expression> values) {
+            this.keys = Collections.unmodifiableList(keys);
+            this.values = Collections.unmodifiableList(values);
+        }
+        @Override public String toString() {
+            StringBuilder sb = new StringBuilder("{");
+            for (int i = 0; i < keys.size(); i++) {
+                if (i > 0) sb.append(", ");
+                sb.append(keys.get(i)).append(": ").append(values.get(i));
+            }
+            return sb.append("}").toString();
+        }
+    }
+
     public static final class CallExpr extends Expression {
         public final Expression callee;
         public final List<Expression> args;
