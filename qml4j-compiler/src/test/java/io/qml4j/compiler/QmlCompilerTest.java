@@ -363,9 +363,9 @@ class QmlCompilerTest {
     }
 
     @Test
-    void callExpressionRejected() {
+    void unknownBareCallRejected() {
         Ast.QmlDocument doc = Qml4j.parse("TestItem { width: foo(1) }");
-        assertThrows(UnsupportedOperationException.class,
+        assertThrows(IllegalArgumentException.class,
             () -> COMPILER.compile(doc, REGISTRY));
     }
 
@@ -778,5 +778,135 @@ class QmlCompilerTest {
         CompiledUnit u1 = COMPILER.compile(doc1, REGISTRY);
         CompiledUnit u2 = COMPILER.compile(doc2, REGISTRY);
         assertTrue(!u1.rootClassName().equals(u2.rootClassName()));
+    }
+
+    @Test
+    void functionCalledFromHandlerNoArgs() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  signal pinged()\n" +
+            "  function bump() { width = 42; }\n" +
+            "  onPinged: bump()\n" +
+            "}");
+        Signal sig = (Signal) it.getClass().getField("pinged").get(it);
+        sig.emit();
+        assertEquals(42L, it.width.peek().longValue());
+    }
+
+    @Test
+    void functionWithArgsCalledFromHandler() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  signal pinged()\n" +
+            "  function setBoth(a, b) { width = a; height = b; }\n" +
+            "  onPinged: setBoth(7, 9)\n" +
+            "}");
+        Signal sig = (Signal) it.getClass().getField("pinged").get(it);
+        sig.emit();
+        assertEquals(7L, it.width.peek().longValue());
+        assertEquals(9L, it.height.peek().longValue());
+    }
+
+    @Test
+    void functionReturnUsedInBinding() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  function answer() { return 99; }\n" +
+            "  width: answer()\n" +
+            "}");
+        assertEquals(99L, it.width.peek().longValue());
+    }
+
+    @Test
+    void functionRecursionFib() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  function fib(n) {\n" +
+            "    if (n < 2) { return n; }\n" +
+            "    return fib(n - 1) + fib(n - 2);\n" +
+            "  }\n" +
+            "  width: fib(10)\n" +
+            "}");
+        assertEquals(55L, it.width.peek().longValue());
+    }
+
+    @Test
+    void functionCallsAnotherFunction() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  function double(x) { return x * 2; }\n" +
+            "  function quad(x) { return double(double(x)); }\n" +
+            "  width: quad(3)\n" +
+            "}");
+        assertEquals(12L, it.width.peek().longValue());
+    }
+
+    @Test
+    void functionWithoutReturnYieldsNull() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  function noop() { width = 5; }\n" +
+            "  ref: noop()\n" +
+            "}");
+        assertEquals(5L, it.width.peek().longValue());
+        assertNull(it.ref.peek());
+    }
+
+    @Test
+    void functionCalledFromChildHandler() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  id: r\n" +
+            "  function bump() { r.width = 77; }\n" +
+            "  TestItem {\n" +
+            "    id: c\n" +
+            "    signal poked()\n" +
+            "    onPoked: bump()\n" +
+            "  }\n" +
+            "}");
+        Object child = it.children.get(0);
+        Signal poked = (Signal) child.getClass().getField("poked").get(child);
+        poked.emit();
+        assertEquals(77L, it.width.peek().longValue());
+    }
+
+    @Test
+    void functionArityMismatchRejected() {
+        Ast.QmlDocument doc = Qml4j.parse(
+            "TestItem {\n" +
+            "  function f(a, b) { return a; }\n" +
+            "  width: f(1)\n" +
+            "}");
+        assertThrows(IllegalArgumentException.class, () -> COMPILER.compile(doc, REGISTRY));
+    }
+
+    @Test
+    void duplicateFunctionRejected() {
+        Ast.QmlDocument doc = Qml4j.parse(
+            "TestItem {\n" +
+            "  function f() { return 1; }\n" +
+            "  function f() { return 2; }\n" +
+            "}");
+        assertThrows(IllegalArgumentException.class, () -> COMPILER.compile(doc, REGISTRY));
+    }
+
+    @Test
+    void childScopeFunctionRejected() {
+        Ast.QmlDocument doc = Qml4j.parse(
+            "TestItem {\n" +
+            "  TestItem {\n" +
+            "    function nope() { return 1; }\n" +
+            "  }\n" +
+            "}");
+        assertThrows(UnsupportedOperationException.class, () -> COMPILER.compile(doc, REGISTRY));
+    }
+
+    @Test
+    void functionShadowingFieldRejected() {
+        Ast.QmlDocument doc = Qml4j.parse(
+            "TestItem {\n" +
+            "  function width() { return 1; }\n" +
+            "}");
+        assertThrows(IllegalArgumentException.class, () -> COMPILER.compile(doc, REGISTRY));
     }
 }

@@ -7,12 +7,20 @@ import org.objectweb.asm.Opcodes;
 
 final class StatementCodegen {
 
+    enum ReturnKind { VOID, OBJECT }
+
     private final ExpressionCodegen expr;
+    private final ReturnKind returnKind;
     private int nextSlot;
 
     StatementCodegen(ExpressionCodegen expr, int firstSlot) {
+        this(expr, firstSlot, ReturnKind.VOID);
+    }
+
+    StatementCodegen(ExpressionCodegen expr, int firstSlot, ReturnKind returnKind) {
         this.expr = expr;
         this.nextSlot = firstSlot;
+        this.returnKind = returnKind;
     }
 
     void emit(MethodVisitor mv, Ast.Statement s) {
@@ -24,8 +32,27 @@ final class StatementCodegen {
             emitVarDecl(mv, (Ast.VarDecl) s);
         } else if (s instanceof Ast.IfStmt) {
             emitIfStmt(mv, (Ast.IfStmt) s);
+        } else if (s instanceof Ast.ReturnStmt) {
+            emitReturn(mv, (Ast.ReturnStmt) s);
         } else {
             throw new IllegalStateException("unknown statement: " + s.getClass().getName());
+        }
+    }
+
+    private void emitReturn(MethodVisitor mv, Ast.ReturnStmt r) {
+        if (returnKind == ReturnKind.VOID) {
+            if (r.value != null) {
+                expr.emit(mv, r.value);
+                mv.visitInsn(Opcodes.POP);
+            }
+            mv.visitInsn(Opcodes.RETURN);
+        } else {
+            if (r.value != null) {
+                expr.emit(mv, r.value);
+            } else {
+                mv.visitInsn(Opcodes.ACONST_NULL);
+            }
+            mv.visitInsn(Opcodes.ARETURN);
         }
     }
 

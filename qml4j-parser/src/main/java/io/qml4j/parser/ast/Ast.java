@@ -93,6 +93,20 @@ public final class Ast {
         @Override public String toString() { return object.toString(); }
     }
 
+    public static final class FunctionDeclaration extends ObjectMember {
+        public final String name;
+        public final List<String> paramNames;
+        public final Block body;
+        public FunctionDeclaration(String name, List<String> paramNames, Block body) {
+            this.name = name;
+            this.paramNames = Collections.unmodifiableList(paramNames);
+            this.body = body;
+        }
+        @Override public String toString() {
+            return "function " + name + paramNames + " " + body;
+        }
+    }
+
     public static final class BehaviorMember extends ObjectMember {
         public final String typeName;
         public final String propertyName;
@@ -160,6 +174,14 @@ public final class Ast {
         }
         @Override public String toString() {
             return "var " + name + (init != null ? " = " + init : "") + ";";
+        }
+    }
+
+    public static final class ReturnStmt extends Statement {
+        public final Expression value;
+        public ReturnStmt(Expression value) { this.value = value; }
+        @Override public String toString() {
+            return value == null ? "return;" : "return " + value + ";";
         }
     }
 

@@ -46,10 +46,25 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     public Ast.ObjectMember visitObjectMember(QmlParser.ObjectMemberContext ctx) {
         if (ctx.propertyDeclaration() != null) return (Ast.ObjectMember) visit(ctx.propertyDeclaration());
         if (ctx.signalDeclaration() != null) return (Ast.ObjectMember) visit(ctx.signalDeclaration());
+        if (ctx.functionDeclaration() != null) return (Ast.ObjectMember) visit(ctx.functionDeclaration());
         if (ctx.behaviorDeclaration() != null) return (Ast.ObjectMember) visit(ctx.behaviorDeclaration());
         if (ctx.propertyBinding() != null) return (Ast.ObjectMember) visit(ctx.propertyBinding());
         Ast.ObjectNode child = (Ast.ObjectNode) visit(ctx.objectDeclaration());
         return new Ast.ChildObject(child);
+    }
+
+    @Override
+    public Ast.FunctionDeclaration visitFunctionDeclaration(QmlParser.FunctionDeclarationContext ctx) {
+        String name = ctx.Identifier(0).getText();
+        List<String> params = new ArrayList<>();
+        for (int i = 1; i < ctx.Identifier().size(); i++) {
+            params.add(ctx.Identifier(i).getText());
+        }
+        List<Ast.Statement> stmts = new ArrayList<>();
+        for (QmlParser.StatementContext sc : ctx.statement()) {
+            stmts.add(visitStatement(sc));
+        }
+        return new Ast.FunctionDeclaration(name, params, new Ast.Block(stmts));
     }
 
     @Override
@@ -128,7 +143,16 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
         if (ctx.statementBlock() != null) return visitStatementBlock(ctx.statementBlock());
         if (ctx.varStatement() != null) return visitVarStatement(ctx.varStatement());
         if (ctx.ifStatement() != null) return visitIfStatement(ctx.ifStatement());
+        if (ctx.returnStatement() != null) return visitReturnStatement(ctx.returnStatement());
         return visitExpressionStatement(ctx.expressionStatement());
+    }
+
+    @Override
+    public Ast.ReturnStmt visitReturnStatement(QmlParser.ReturnStatementContext ctx) {
+        Ast.Expression v = ctx.expression() != null
+            ? (Ast.Expression) visit(ctx.expression())
+            : null;
+        return new Ast.ReturnStmt(v);
     }
 
     @Override

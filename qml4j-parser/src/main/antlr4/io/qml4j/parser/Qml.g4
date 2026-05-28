@@ -28,9 +28,14 @@ objectDeclaration
 objectMember
     : propertyDeclaration
     | signalDeclaration
+    | functionDeclaration
     | behaviorDeclaration
     | propertyBinding
     | objectDeclaration
+    ;
+
+functionDeclaration
+    : 'function' Identifier '(' (Identifier (',' Identifier)*)? ')' '{' statement* '}'
     ;
 
 behaviorDeclaration
@@ -78,7 +83,12 @@ statement
     : statementBlock
     | varStatement
     | ifStatement
+    | returnStatement
     | expressionStatement
+    ;
+
+returnStatement
+    : 'return' expression? ';'?
     ;
 
 varStatement
