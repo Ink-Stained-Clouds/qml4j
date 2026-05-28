@@ -17,7 +17,7 @@ import java.util.Map;
 
 public final class DexClassLoaderBackend implements ClassLoaderBackend {
 
-    private final ClassLoader parent;
+    private ClassLoader parent;
     private final int minApi;
 
     public DexClassLoaderBackend(ClassLoader parent) {
@@ -50,6 +50,7 @@ public final class DexClassLoaderBackend implements ClassLoaderBackend {
         } catch (ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
+        parent = loader;
         return out;
     }
 
