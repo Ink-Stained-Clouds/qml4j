@@ -3,10 +3,12 @@ Rectangle {
     color: "#202028"
 
     property int taps: 0
+    property alias badgeColor: badge.color
+    property alias dotX: dot.x
 
     signal bumped()
     onBumped: {
-        badge.color = badge.color === "#80ff80" ? "#ff8080" : "#80ff80";
+        badgeColor = badgeColor === "#80ff80" ? "#ff8080" : "#80ff80";
         root.taps = root.taps + 1;
     }
 
@@ -103,12 +105,12 @@ Rectangle {
         MouseArea {
             anchors.fill: parent
             onClicked: {
-                var atLeft = dot.x === 400;
+                var atLeft = root.dotX === 400;
                 if (atLeft) {
-                    dot.x = 800;
+                    root.dotX = 800;
                     dot.color = "#ff80ff";
                 } else {
-                    dot.x = 400;
+                    root.dotX = 400;
                     dot.color = "#ffcc00";
                 }
                 root.bumped.emit();

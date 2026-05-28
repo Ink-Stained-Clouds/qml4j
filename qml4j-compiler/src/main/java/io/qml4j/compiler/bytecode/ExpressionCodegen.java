@@ -20,6 +20,15 @@ final class ExpressionCodegen {
     private static final String BINARY_DESC = "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;";
     private static final String UNARY_DESC = "(Ljava/lang/Object;)Ljava/lang/Object;";
 
+    static final class AliasRef {
+        final String targetId;
+        final String targetProperty;
+        AliasRef(String targetId, String targetProperty) {
+            this.targetId = targetId;
+            this.targetProperty = targetProperty;
+        }
+    }
+
     private final String outerInternal;
     private final String bindingInternal;
     private final Class<?> outerType;
@@ -28,13 +37,15 @@ final class ExpressionCodegen {
     private final Map<String, Integer> signalParams;
     private final Map<String, Integer> localVars;
     private final Map<String, String> declaredProps;
+    private final Map<String, AliasRef> aliases;
 
     ExpressionCodegen(String outerInternal, String bindingInternal, Class<?> outerType) {
         this(outerInternal, bindingInternal, outerType, null,
              Collections.<String, Class<? extends QObject>>emptyMap(),
              Collections.<String, Integer>emptyMap(),
              new LinkedHashMap<String, Integer>(),
-             Collections.<String, String>emptyMap());
+             Collections.<String, String>emptyMap(),
+             Collections.<String, AliasRef>emptyMap());
     }
 
     ExpressionCodegen(String outerInternal, String bindingInternal, Class<?> outerType,
@@ -43,17 +54,19 @@ final class ExpressionCodegen {
         this(outerInternal, bindingInternal, outerType, componentInternal, idTypes,
              Collections.<String, Integer>emptyMap(),
              new LinkedHashMap<String, Integer>(),
-             Collections.<String, String>emptyMap());
+             Collections.<String, String>emptyMap(),
+             Collections.<String, AliasRef>emptyMap());
     }
 
     static ExpressionCodegen forBinding(String outerInternal, String bindingInternal, Class<?> outerType,
                                         String componentInternal,
                                         Map<String, Class<? extends QObject>> idTypes,
-                                        Map<String, String> declaredProps) {
+                                        Map<String, String> declaredProps,
+                                        Map<String, AliasRef> aliases) {
         return new ExpressionCodegen(outerInternal, bindingInternal, outerType, componentInternal, idTypes,
                                      Collections.<String, Integer>emptyMap(),
                                      new LinkedHashMap<String, Integer>(),
-                                     declaredProps);
+                                     declaredProps, aliases);
     }
 
     ExpressionCodegen(String outerInternal, String bindingInternal, Class<?> outerType,
@@ -62,7 +75,8 @@ final class ExpressionCodegen {
                       Map<String, Integer> signalParams) {
         this(outerInternal, bindingInternal, outerType, componentInternal, idTypes,
              signalParams, new LinkedHashMap<String, Integer>(),
-             Collections.<String, String>emptyMap());
+             Collections.<String, String>emptyMap(),
+             Collections.<String, AliasRef>emptyMap());
     }
 
     ExpressionCodegen(String outerInternal, String bindingInternal, Class<?> outerType,
@@ -71,7 +85,8 @@ final class ExpressionCodegen {
                       Map<String, Integer> signalParams,
                       Map<String, Integer> localVars) {
         this(outerInternal, bindingInternal, outerType, componentInternal, idTypes,
-             signalParams, localVars, Collections.<String, String>emptyMap());
+             signalParams, localVars, Collections.<String, String>emptyMap(),
+             Collections.<String, AliasRef>emptyMap());
     }
 
     ExpressionCodegen(String outerInternal, String bindingInternal, Class<?> outerType,
@@ -79,7 +94,8 @@ final class ExpressionCodegen {
                       Map<String, Class<? extends QObject>> idTypes,
                       Map<String, Integer> signalParams,
                       Map<String, Integer> localVars,
-                      Map<String, String> declaredProps) {
+                      Map<String, String> declaredProps,
+                      Map<String, AliasRef> aliases) {
         this.outerInternal = outerInternal;
         this.bindingInternal = bindingInternal;
         this.outerType = outerType;
@@ -88,6 +104,7 @@ final class ExpressionCodegen {
         this.signalParams = signalParams != null ? signalParams : Collections.<String, Integer>emptyMap();
         this.localVars = localVars != null ? localVars : new LinkedHashMap<String, Integer>();
         this.declaredProps = declaredProps != null ? declaredProps : Collections.<String, String>emptyMap();
+        this.aliases = aliases != null ? aliases : Collections.<String, AliasRef>emptyMap();
     }
 
     Map<String, Integer> localVars() { return localVars; }
@@ -154,6 +171,11 @@ final class ExpressionCodegen {
             mv.visitVarInsn(Opcodes.ALOAD, 1);
             pushInt(mv, paramSlot);
             mv.visitInsn(Opcodes.AALOAD);
+            return;
+        }
+        AliasRef alias = aliases.get(id.name);
+        if (alias != null) {
+            emit(mv, new Ast.MemberExpr(new Ast.IdentifierExpr(alias.targetId), alias.targetProperty));
             return;
         }
         String declaredOwner = declaredProps.get(id.name);
@@ -262,6 +284,12 @@ final class ExpressionCodegen {
                 emit(mv, a.value);
                 mv.visitInsn(Opcodes.DUP);
                 mv.visitVarInsn(Opcodes.ASTORE, localSlot);
+                return;
+            }
+            AliasRef alias = aliases.get(name);
+            if (alias != null) {
+                Ast.MemberExpr m = new Ast.MemberExpr(new Ast.IdentifierExpr(alias.targetId), alias.targetProperty);
+                emitAssignment(mv, new Ast.AssignmentExpr(m, a.value));
                 return;
             }
             String declaredOwner = declaredProps.get(name);

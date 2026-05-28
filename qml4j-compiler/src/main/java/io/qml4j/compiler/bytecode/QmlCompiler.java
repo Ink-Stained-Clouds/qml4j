@@ -2,6 +2,7 @@ package io.qml4j.compiler.bytecode;
 
 import io.qml4j.compiler.CompiledUnit;
 import io.qml4j.compiler.TypeRegistry;
+import io.qml4j.compiler.bytecode.ExpressionCodegen.AliasRef;
 import io.qml4j.engine.PropertyChangeSink;
 import io.qml4j.engine.binding.Property;
 import io.qml4j.engine.QObject;
@@ -82,9 +83,19 @@ public final class QmlCompiler {
 
         List<DeclaredProp> rootDecls = collectPropertyDecls(doc.root, rootType);
         Map<String, String> rootDeclaredProps = new LinkedHashMap<>();
+        Map<String, AliasRef> rootAliases = new LinkedHashMap<>();
+        List<DeclaredProp> rootRegularDecls = new ArrayList<>();
+        List<AliasDecl> rootAliasDecls = new ArrayList<>();
         for (DeclaredProp dp : rootDecls) {
             cw.visitField(Opcodes.ACC_PUBLIC, dp.name, PROPERTY_DESC, null, null).visitEnd();
-            rootDeclaredProps.put(dp.name, componentInternal);
+            if ("alias".equals(dp.typeName)) {
+                AliasDecl ad = parseAlias(dp);
+                rootAliasDecls.add(ad);
+                rootAliases.put(ad.name, new AliasRef(ad.targetId, ad.targetProperty));
+            } else {
+                rootRegularDecls.add(dp);
+                rootDeclaredProps.put(dp.name, componentInternal);
+            }
         }
 
         MethodVisitor ctor = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
@@ -98,7 +109,7 @@ public final class QmlCompiler {
             ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, SIGNAL_INTERNAL, "<init>", "()V", false);
             ctor.visitFieldInsn(Opcodes.PUTFIELD, componentInternal, sig, SIGNAL_DESC);
         }
-        for (DeclaredProp dp : rootDecls) {
+        for (DeclaredProp dp : rootRegularDecls) {
             emitInitDeclaredProperty(ctor, 0, componentInternal, dp);
         }
 
@@ -113,7 +124,12 @@ public final class QmlCompiler {
         emitObjectBody(ctor, rootType, 0, doc.root, registry,
                        localCounter, bindingCounter, handlerCounter, classes, componentBinaryName,
                        componentInternal, rootSignalNames, customSignalParams, idTypes,
-                       rootDeclaredProps);
+                       rootDeclaredProps, rootAliases);
+
+        for (AliasDecl ad : rootAliasDecls) {
+            emitAliasLink(ctor, componentInternal, rootId, rootType,
+                          idTypes, rootDeclaredProps, ad);
+        }
 
         ctor.visitInsn(Opcodes.RETURN);
         ctor.visitMaxs(0, 0);
@@ -131,7 +147,8 @@ public final class QmlCompiler {
                                 String customSignalOwner, Set<String> customSignals,
                                 Map<String, List<String>> customSignalParams,
                                 Map<String, Class<? extends QObject>> idTypes,
-                                Map<String, String> declaredProps) {
+                                Map<String, String> declaredProps,
+                                Map<String, AliasRef> aliases) {
         List<Ast.ObjectMember> deferred = new ArrayList<>();
         for (Ast.ObjectMember m : obj.members) {
             if (m instanceof Ast.SignalDeclaration) continue;
@@ -139,13 +156,13 @@ public final class QmlCompiler {
             emitMember(ctor, outerType, outerLocal, m, registry,
                        localCounter, bindingCounter, handlerCounter, classes, componentBinaryName,
                        customSignalOwner, customSignals, customSignalParams,
-                       idTypes, declaredProps);
+                       idTypes, declaredProps, aliases);
         }
         for (Ast.ObjectMember m : deferred) {
             emitMember(ctor, outerType, outerLocal, m, registry,
                        localCounter, bindingCounter, handlerCounter, classes, componentBinaryName,
                        customSignalOwner, customSignals, customSignalParams,
-                       idTypes, declaredProps);
+                       idTypes, declaredProps, aliases);
         }
     }
 
@@ -162,7 +179,8 @@ public final class QmlCompiler {
                             String customSignalOwner, Set<String> customSignals,
                             Map<String, List<String>> customSignalParams,
                             Map<String, Class<? extends QObject>> idTypes,
-                            Map<String, String> declaredProps) {
+                            Map<String, String> declaredProps,
+                            Map<String, AliasRef> aliases) {
         if (m instanceof Ast.PropertyBinding) {
             Ast.PropertyBinding b = (Ast.PropertyBinding) m;
             List<String> path = b.path;
@@ -201,11 +219,11 @@ public final class QmlCompiler {
                         emitCustomSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
                                                 handlerCounter, classes,
                                                 customSignalOwner, signalName, handlerBody, idTypes,
-                                                customSignalParams.get(signalName), declaredProps);
+                                                customSignalParams.get(signalName), declaredProps, aliases);
                     } else {
                         emitSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
                                           handlerCounter, classes, signalField, handlerBody, idTypes,
-                                          declaredProps);
+                                          declaredProps, aliases);
                     }
                     return;
                 }
@@ -213,7 +231,7 @@ public final class QmlCompiler {
                 if (PropertyChangeSink.class.isAssignableFrom(outerType) && !"target".equals(key)) {
                     emitChangeSinkAssignment(ctor, outerType, outerLocal, componentBinaryName,
                                              bindingCounter, classes, key, e, idTypes,
-                                             declaredProps);
+                                             declaredProps, aliases);
                     return;
                 }
                 if (e instanceof Ast.LiteralExpr) {
@@ -221,7 +239,7 @@ public final class QmlCompiler {
                 } else {
                     emitExpressionBinding(ctor, outerType, outerLocal, componentBinaryName,
                                           bindingCounter, classes, key, e, idTypes,
-                                          declaredProps);
+                                          declaredProps, aliases);
                 }
                 return;
             }
@@ -233,7 +251,7 @@ public final class QmlCompiler {
                 Ast.Expression e = ((Ast.ExpressionValue) b.value).expr;
                 emitGroupedBinding(ctor, outerType, outerLocal, componentBinaryName,
                                    bindingCounter, classes, path.get(0), path.get(1), e, idTypes,
-                                   declaredProps);
+                                   declaredProps, aliases);
                 return;
             }
             throw new UnsupportedOperationException("nested grouped property path not supported: " + path);
@@ -256,7 +274,7 @@ public final class QmlCompiler {
         if (m instanceof Ast.PropertyDeclaration) {
             emitPropertyDeclarationInitializer(ctor, outerType, outerLocal, componentBinaryName,
                                                bindingCounter, classes, (Ast.PropertyDeclaration) m,
-                                               idTypes, declaredProps);
+                                               idTypes, declaredProps, aliases);
             return;
         }
         throw new IllegalStateException("unknown member: " + m.getClass());
@@ -267,7 +285,9 @@ public final class QmlCompiler {
                                                     int[] bindingCounter, Map<String, byte[]> classes,
                                                     Ast.PropertyDeclaration pd,
                                                     Map<String, Class<? extends QObject>> idTypes,
-                                                    Map<String, String> declaredProps) {
+                                                    Map<String, String> declaredProps,
+                                                    Map<String, AliasRef> aliases) {
+        if ("alias".equals(pd.typeName)) return;
         if (pd.initializer == null) return;
         if (!(pd.initializer instanceof Ast.ExpressionValue)) {
             throw new UnsupportedOperationException(
@@ -288,7 +308,7 @@ public final class QmlCompiler {
         }
         emitDeclaredPropertyBinding(ctor, outerType, outerLocal, componentBinaryName,
                                     bindingCounter, classes, ownerInternal, pd.name, e,
-                                    idTypes, declaredProps);
+                                    idTypes, declaredProps, aliases);
     }
 
     private void emitDeclaredPropertyBinding(MethodVisitor ctor, Class<? extends QObject> outerType,
@@ -296,14 +316,15 @@ public final class QmlCompiler {
                                              int[] bindingCounter, Map<String, byte[]> classes,
                                              String ownerInternal, String name, Ast.Expression expr,
                                              Map<String, Class<? extends QObject>> idTypes,
-                                             Map<String, String> declaredProps) {
+                                             Map<String, String> declaredProps,
+                                             Map<String, AliasRef> aliases) {
         String outerInternal = Type.getInternalName(outerType);
         String componentInternal = componentBinaryName.replace('.', '/');
         int n = bindingCounter[0]++;
         String bindingBinaryName = componentBinaryName + "$Binding$" + n;
         String bindingInternal = bindingBinaryName.replace('.', '/');
         byte[] bindingBytes = emitBindingClass(bindingInternal, outerInternal, outerType, expr,
-                                               componentInternal, idTypes, declaredProps);
+                                               componentInternal, idTypes, declaredProps, aliases);
         classes.put(bindingBinaryName, bindingBytes);
 
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
@@ -425,7 +446,7 @@ public final class QmlCompiler {
         emitObjectBody(ctor, childType, childLocal, child, registry,
                        localCounter, bindingCounter, handlerCounter, classes, componentBinaryName,
                        childSignalOwner, childSignals, childSignalParams, idTypes,
-                       childDeclaredProps);
+                       childDeclaredProps, Collections.<String, AliasRef>emptyMap());
     }
 
     private byte[] emitChildSubclass(String subInternal, String parentInternal,
@@ -507,7 +528,8 @@ public final class QmlCompiler {
                                           int[] bindingCounter, Map<String, byte[]> classes,
                                           String name, Ast.Expression expr,
                                           Map<String, Class<? extends QObject>> idTypes,
-                                          Map<String, String> declaredProps) {
+                                          Map<String, String> declaredProps,
+                                          Map<String, AliasRef> aliases) {
         if (expr instanceof Ast.LiteralExpr) {
             ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
             ctor.visitLdcInsn(name);
@@ -522,7 +544,7 @@ public final class QmlCompiler {
         String bindingBinaryName = componentBinaryName + "$Binding$" + n;
         String bindingInternal = bindingBinaryName.replace('.', '/');
         byte[] bindingBytes = emitBindingClass(bindingInternal, outerInternal, outerType, expr,
-                                               componentInternal, idTypes, declaredProps);
+                                               componentInternal, idTypes, declaredProps, aliases);
         classes.put(bindingBinaryName, bindingBytes);
 
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
@@ -587,7 +609,8 @@ public final class QmlCompiler {
                                        int[] bindingCounter, Map<String, byte[]> classes,
                                        String propName, Ast.Expression expr,
                                        Map<String, Class<? extends QObject>> idTypes,
-                                       Map<String, String> declaredProps) {
+                                       Map<String, String> declaredProps,
+                                       Map<String, AliasRef> aliases) {
         Field f = findPropertyField(outerType, propName);
         String declOwner = Type.getInternalName(f.getDeclaringClass());
         String outerInternal = Type.getInternalName(outerType);
@@ -598,7 +621,7 @@ public final class QmlCompiler {
         String bindingInternal = bindingBinaryName.replace('.', '/');
 
         byte[] bindingBytes = emitBindingClass(bindingInternal, outerInternal, outerType, expr,
-                                               componentInternal, idTypes, declaredProps);
+                                               componentInternal, idTypes, declaredProps, aliases);
         classes.put(bindingBinaryName, bindingBytes);
 
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
@@ -618,7 +641,8 @@ public final class QmlCompiler {
                                     int[] bindingCounter, Map<String, byte[]> classes,
                                     String groupName, String propName, Ast.Expression expr,
                                     Map<String, Class<? extends QObject>> idTypes,
-                                    Map<String, String> declaredProps) {
+                                    Map<String, String> declaredProps,
+                                    Map<String, AliasRef> aliases) {
         Field groupField;
         try {
             groupField = outerType.getField(groupName);
@@ -654,7 +678,7 @@ public final class QmlCompiler {
         String bindingBinaryName = componentBinaryName + "$Binding$" + n;
         String bindingInternal = bindingBinaryName.replace('.', '/');
         byte[] bindingBytes = emitBindingClass(bindingInternal, outerInternal, outerType, expr,
-                                               componentInternal, idTypes, declaredProps);
+                                               componentInternal, idTypes, declaredProps, aliases);
         classes.put(bindingBinaryName, bindingBytes);
 
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
@@ -702,7 +726,8 @@ public final class QmlCompiler {
                                          Ast.Statement body,
                                          Map<String, Class<? extends QObject>> idTypes,
                                          List<String> signalParams,
-                                         Map<String, String> declaredProps) {
+                                         Map<String, String> declaredProps,
+                                         Map<String, AliasRef> aliases) {
         String outerInternal = Type.getInternalName(outerType);
         String componentInternal = componentBinaryName.replace('.', '/');
         int n = handlerCounter[0]++;
@@ -711,7 +736,7 @@ public final class QmlCompiler {
         byte[] handlerBytes = emitHandlerClass(handlerInternal, outerInternal, outerType, body,
                                                componentInternal, idTypes,
                                                signalParams != null ? signalParams : Collections.<String>emptyList(),
-                                               declaredProps);
+                                               declaredProps, aliases);
         classes.put(handlerBinaryName, handlerBytes);
 
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
@@ -731,7 +756,8 @@ public final class QmlCompiler {
                                    int[] handlerCounter, Map<String, byte[]> classes,
                                    Field signalField, Ast.Statement body,
                                    Map<String, Class<? extends QObject>> idTypes,
-                                   Map<String, String> declaredProps) {
+                                   Map<String, String> declaredProps,
+                                   Map<String, AliasRef> aliases) {
         String declOwner = Type.getInternalName(signalField.getDeclaringClass());
         String outerInternal = Type.getInternalName(outerType);
         String componentInternal = componentBinaryName.replace('.', '/');
@@ -743,7 +769,7 @@ public final class QmlCompiler {
         byte[] handlerBytes = emitHandlerClass(handlerInternal, outerInternal, outerType, body,
                                                componentInternal, idTypes,
                                                Collections.<String>emptyList(),
-                                               declaredProps);
+                                               declaredProps, aliases);
         classes.put(handlerBinaryName, handlerBytes);
 
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
@@ -763,7 +789,8 @@ public final class QmlCompiler {
                                     String componentInternal,
                                     Map<String, Class<? extends QObject>> idTypes,
                                     List<String> signalParams,
-                                    Map<String, String> declaredProps) {
+                                    Map<String, String> declaredProps,
+                                    Map<String, AliasRef> aliases) {
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
         cw.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
                  handlerInternal, null, "java/lang/Object",
@@ -798,7 +825,7 @@ public final class QmlCompiler {
         Map<String, Integer> localVars = new LinkedHashMap<>();
         ExpressionCodegen codegen = new ExpressionCodegen(outerInternal, handlerInternal, outerType,
                                                           componentInternal, idTypes,
-                                                          paramIdx, localVars, declaredProps);
+                                                          paramIdx, localVars, declaredProps, aliases);
         StatementCodegen stmts = new StatementCodegen(codegen, 2);
         stmts.emit(invoke, body);
         invoke.visitInsn(Opcodes.RETURN);
@@ -813,7 +840,8 @@ public final class QmlCompiler {
                                     Class<?> outerType, Ast.Expression expr,
                                     String componentInternal,
                                     Map<String, Class<? extends QObject>> idTypes,
-                                    Map<String, String> declaredProps) {
+                                    Map<String, String> declaredProps,
+                                    Map<String, AliasRef> aliases) {
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
         cw.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
                  bindingInternal, null, BINDING_INTERNAL, null);
@@ -843,7 +871,7 @@ public final class QmlCompiler {
                                             "()Ljava/lang/Object;", null, null);
         eval.visitCode();
         ExpressionCodegen codegen = ExpressionCodegen.forBinding(outerInternal, bindingInternal, outerType,
-                                                                 componentInternal, idTypes, declaredProps);
+                                                                 componentInternal, idTypes, declaredProps, aliases);
         codegen.emit(eval, expr);
         eval.visitInsn(Opcodes.ARETURN);
         eval.visitMaxs(0, 0);
@@ -905,6 +933,82 @@ public final class QmlCompiler {
             this.typeName = typeName;
             this.initializer = initializer;
         }
+    }
+
+    private static final class AliasDecl {
+        final String name;
+        final String targetId;
+        final String targetProperty;
+        AliasDecl(String name, String targetId, String targetProperty) {
+            this.name = name;
+            this.targetId = targetId;
+            this.targetProperty = targetProperty;
+        }
+    }
+
+    private static AliasDecl parseAlias(DeclaredProp dp) {
+        if (dp.initializer == null) {
+            throw new IllegalArgumentException(
+                "property alias '" + dp.name + "' requires initializer of form id.property");
+        }
+        if (!(dp.initializer instanceof Ast.ExpressionValue)) {
+            throw new IllegalArgumentException(
+                "property alias '" + dp.name + "' initializer must be expression id.property");
+        }
+        Ast.Expression e = ((Ast.ExpressionValue) dp.initializer).expr;
+        if (!(e instanceof Ast.MemberExpr)) {
+            throw new IllegalArgumentException(
+                "property alias '" + dp.name + "' must reference id.property, got "
+                + e.getClass().getSimpleName());
+        }
+        Ast.MemberExpr m = (Ast.MemberExpr) e;
+        if (!(m.target instanceof Ast.IdentifierExpr)) {
+            throw new IllegalArgumentException(
+                "property alias '" + dp.name + "' must reference id.property (target must be id)");
+        }
+        return new AliasDecl(dp.name, ((Ast.IdentifierExpr) m.target).name, m.property);
+    }
+
+    private static void emitAliasLink(MethodVisitor ctor, String componentInternal,
+                                      String rootId, Class<? extends QObject> rootType,
+                                      Map<String, Class<? extends QObject>> idTypes,
+                                      Map<String, String> rootDeclaredProps,
+                                      AliasDecl ad) {
+        Class<? extends QObject> targetType = idTypes.get(ad.targetId);
+        if (targetType == null) {
+            throw new IllegalArgumentException(
+                "property alias '" + ad.name + "' references unknown id: " + ad.targetId);
+        }
+        String targetFieldOwner = resolveAliasTargetFieldOwner(
+            ad, targetType, rootId, componentInternal, rootDeclaredProps);
+        ctor.visitVarInsn(Opcodes.ALOAD, 0);
+        if (targetFieldOwner.equals(componentInternal)) {
+            ctor.visitVarInsn(Opcodes.ALOAD, 0);
+        } else {
+            String targetInternal = Type.getInternalName(targetType);
+            ctor.visitVarInsn(Opcodes.ALOAD, 0);
+            ctor.visitFieldInsn(Opcodes.GETFIELD, componentInternal, ad.targetId,
+                                "L" + targetInternal + ";");
+        }
+        ctor.visitFieldInsn(Opcodes.GETFIELD, targetFieldOwner, ad.targetProperty, PROPERTY_DESC);
+        ctor.visitFieldInsn(Opcodes.PUTFIELD, componentInternal, ad.name, PROPERTY_DESC);
+    }
+
+    private static String resolveAliasTargetFieldOwner(AliasDecl ad,
+                                                       Class<? extends QObject> targetType,
+                                                       String rootId, String componentInternal,
+                                                       Map<String, String> rootDeclaredProps) {
+        Field f = findPropertyFieldOrNull(targetType, ad.targetProperty);
+        if (f != null) {
+            return Type.getInternalName(f.getDeclaringClass());
+        }
+        if (rootId != null && rootId.equals(ad.targetId)
+            && rootDeclaredProps.containsKey(ad.targetProperty)) {
+            return componentInternal;
+        }
+        throw new IllegalArgumentException(
+            "property alias '" + ad.name + "' target '" + ad.targetId + "." + ad.targetProperty
+            + "' resolves to no Property field (v0 allows builtin or root-declared targets only)");
     }
 
     private static List<DeclaredProp> collectPropertyDecls(Ast.ObjectNode obj, Class<?> ownerType) {

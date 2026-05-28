@@ -686,6 +686,92 @@ class QmlCompilerTest {
     }
 
     @Test
+    void aliasToBuiltinProperty() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  id: r\n" +
+            "  width: 42\n" +
+            "  property alias w: r.width\n" +
+            "}");
+        assertEquals(42L, ((Number) declaredProp(it, "w").peek()).longValue());
+        Property<?> alias = declaredProp(it, "w");
+        assertTrue(alias == it.width);
+    }
+
+    @Test
+    void aliasWriteMutatesTarget() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  id: r\n" +
+            "  width: 1\n" +
+            "  signal poke()\n" +
+            "  property alias w: r.width\n" +
+            "  onPoke: w = 99\n" +
+            "}");
+        Signal sig = (Signal) it.getClass().getField("poke").get(it);
+        sig.emit();
+        assertEquals(99L, it.width.peek().longValue());
+    }
+
+    @Test
+    void aliasReadInBindingTracksTarget() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  id: r\n" +
+            "  width: 3\n" +
+            "  property alias w: r.width\n" +
+            "  height: w * 4\n" +
+            "}");
+        assertEquals(12L, it.height.peek().longValue());
+        it.width.set(10);
+        assertEquals(40L, it.height.peek().longValue());
+    }
+
+    @Test
+    void aliasToRootDeclaredProperty() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  id: r\n" +
+            "  property int count: 7\n" +
+            "  property alias c: r.count\n" +
+            "}");
+        assertEquals(7L, ((Number) declaredProp(it, "c").peek()).longValue());
+        Property<?> alias = declaredProp(it, "c");
+        Property<?> target = declaredProp(it, "count");
+        assertTrue(alias == target);
+    }
+
+    @Test
+    void aliasFromChildIdToTargetProperty() throws Exception {
+        TestItem it = instantiate(
+            "TestItem {\n" +
+            "  property alias cw: c.width\n" +
+            "  TestItem { id: c; width: 11 }\n" +
+            "}");
+        assertEquals(11L, ((Number) declaredProp(it, "cw").peek()).longValue());
+        it.children.get(0).width.set(22);
+        assertEquals(22L, ((Number) declaredProp(it, "cw").peek()).longValue());
+    }
+
+    @Test
+    void aliasInitializerMustBeMemberExpr() {
+        assertThrows(IllegalArgumentException.class, () ->
+            instantiate("TestItem { id: r; property alias w: 42 }"));
+    }
+
+    @Test
+    void aliasMissingInitializerRejected() {
+        assertThrows(IllegalArgumentException.class, () ->
+            instantiate("TestItem { id: r; property alias w }"));
+    }
+
+    @Test
+    void aliasUnknownTargetIdRejected() {
+        assertThrows(IllegalArgumentException.class, () ->
+            instantiate("TestItem { id: r; property alias w: nope.width }"));
+    }
+
+    @Test
     void eachCompileProducesUniqueClassName() {
         Ast.QmlDocument doc1 = Qml4j.parse("TestItem {}");
         Ast.QmlDocument doc2 = Qml4j.parse("TestItem {}");
