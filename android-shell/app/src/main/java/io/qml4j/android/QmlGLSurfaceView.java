@@ -168,6 +168,10 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
     private static int mapKeyCode(int kc) {
         if (kc == KeyEvent.KEYCODE_DEL) return QmlView.KEY_BACKSPACE;
         if (kc == KeyEvent.KEYCODE_ENTER || kc == KeyEvent.KEYCODE_NUMPAD_ENTER) return QmlView.KEY_ENTER;
+        if (kc == KeyEvent.KEYCODE_DPAD_LEFT) return QmlView.KEY_LEFT;
+        if (kc == KeyEvent.KEYCODE_DPAD_RIGHT) return QmlView.KEY_RIGHT;
+        if (kc == KeyEvent.KEYCODE_MOVE_HOME) return QmlView.KEY_HOME;
+        if (kc == KeyEvent.KEYCODE_MOVE_END) return QmlView.KEY_END;
         return 0;
     }
 

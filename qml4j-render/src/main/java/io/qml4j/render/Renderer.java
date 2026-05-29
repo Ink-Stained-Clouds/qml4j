@@ -351,7 +351,7 @@ public final class Renderer {
                 paint().setColor(applyAlpha(parseColor(ti.color.peek()), alpha));
                 canvas.drawString(s, 0, size, font, paint);
             }
-            if (Boolean.TRUE.equals(ti.activeFocus.peek())) {
+            if (Boolean.TRUE.equals(ti.activeFocus.peek()) && caretBlinkOn()) {
                 int pos = Math.max(0, Math.min(ti.cursorPosition.peek().intValue(), s.length()));
                 float cx = font.measureTextWidth(s.substring(0, pos));
                 Paint p = paint();
@@ -360,6 +360,33 @@ public final class Renderer {
                 float cw = Math.max(1f, size / 16f);
                 canvas.drawRect(Rect.makeXYWH(cx, 0, cw, size), p);
             }
+        }
+    }
+
+    private static boolean caretBlinkOn() {
+        return (System.currentTimeMillis() / CARET_BLINK_MS) % 2 == 0;
+    }
+
+    private static final long CARET_BLINK_MS = 500;
+
+    public int caretIndexFor(TextInput ti, float localX) {
+        String s = ti.text.peek();
+        if (s == null || s.isEmpty() || localX <= 0) return 0;
+        float size = ti.fontSize.peek().floatValue();
+        try (Font font = font(size)) {
+            float prev = 0f;
+            int n = s.length();
+            for (int i = 1; i <= n; i++) {
+                float w = font.measureTextWidth(s.substring(0, i));
+                if (w >= localX) {
+                    float mid = (prev + w) / 2f;
+                    return localX < mid ? i - 1 : i;
+                }
+                prev = w;
+            }
+            return n;
+        } catch (Throwable ignored) {
+            return s.length();
         }
     }
 

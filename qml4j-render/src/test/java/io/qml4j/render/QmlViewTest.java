@@ -1627,6 +1627,78 @@ class QmlViewTest {
     }
 
     @Test
+    void arrowKeysMoveCaret() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true; text: \"abcd\" }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        ti.cursorPosition.set(2);
+        v.dispatchKey(QmlView.KEY_LEFT, null, true);
+        assertEquals(1, ti.cursorPosition.peek().intValue());
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true);
+        assertEquals(3, ti.cursorPosition.peek().intValue());
+    }
+
+    @Test
+    void arrowKeysClampAtEdges() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true; text: \"xy\" }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        ti.cursorPosition.set(0);
+        v.dispatchKey(QmlView.KEY_LEFT, null, true);
+        assertEquals(0, ti.cursorPosition.peek().intValue());
+        ti.cursorPosition.set(2);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true);
+        assertEquals(2, ti.cursorPosition.peek().intValue());
+    }
+
+    @Test
+    void homeEndKeysJumpToEdges() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true; text: \"hello\" }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        ti.cursorPosition.set(2);
+        v.dispatchKey(QmlView.KEY_HOME, null, true);
+        assertEquals(0, ti.cursorPosition.peek().intValue());
+        v.dispatchKey(QmlView.KEY_END, null, true);
+        assertEquals(5, ti.cursorPosition.peek().intValue());
+    }
+
+    @Test
+    void tapAtLeftEdgePlacesCaretAtZero() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 400; height: 100\n" +
+            "  TextInput { x: 0; y: 0; width: 400; height: 40; text: \"hello\" }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        ti.cursorPosition.set(3);
+        v.dispatchPointerDown(0, 10);
+        assertEquals(0, ti.cursorPosition.peek().intValue());
+    }
+
+    @Test
+    void tapPastEndPlacesCaretAtTextLength() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 800; height: 100\n" +
+            "  TextInput { x: 0; y: 0; width: 800; height: 40; text: \"hi\" }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        v.dispatchPointerDown(700, 10);
+        assertEquals(2, ti.cursorPosition.peek().intValue());
+    }
+
+    @Test
     void tapOutsideClearsFocus() {
         QmlView v = newView();
         Item root = v.load(

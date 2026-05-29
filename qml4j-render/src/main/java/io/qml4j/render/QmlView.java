@@ -205,6 +205,21 @@ public final class QmlView {
         if (keyCode == KEY_BACKSPACE) {
             return applyBackspace(ti);
         }
+        if (keyCode == KEY_LEFT) {
+            return moveCaret(ti, -1);
+        }
+        if (keyCode == KEY_RIGHT) {
+            return moveCaret(ti, +1);
+        }
+        if (keyCode == KEY_HOME) {
+            ti.cursorPosition.set(0);
+            return true;
+        }
+        if (keyCode == KEY_END) {
+            String cur = ti.text.peek();
+            ti.cursorPosition.set(cur == null ? 0 : cur.length());
+            return true;
+        }
         if (text != null && !text.isEmpty()) {
             return applyInsert(ti, text);
         }
@@ -213,6 +228,20 @@ public final class QmlView {
 
     public static final int KEY_BACKSPACE = -1;
     public static final int KEY_ENTER = -2;
+    public static final int KEY_LEFT = -3;
+    public static final int KEY_RIGHT = -4;
+    public static final int KEY_HOME = -5;
+    public static final int KEY_END = -6;
+
+    private static boolean moveCaret(TextInput ti, int delta) {
+        String cur = ti.text.peek();
+        int len = cur == null ? 0 : cur.length();
+        int pos = clampPos(ti.cursorPosition.peek().intValue(), len);
+        int next = clampPos(pos + delta, len);
+        if (next == pos) return false;
+        ti.cursorPosition.set(next);
+        return true;
+    }
 
     private static boolean applyBackspace(TextInput ti) {
         String cur = ti.text.peek();
@@ -256,6 +285,8 @@ public final class QmlView {
         TextInput ti = hitTestTextInput(root, x, y);
         if (ti != null) {
             setFocus(ti);
+            float[] local = localCoords(ti, x, y);
+            ti.cursorPosition.set(renderer.caretIndexFor(ti, local[0]));
             return true;
         }
         if (focused != null) clearFocus();
