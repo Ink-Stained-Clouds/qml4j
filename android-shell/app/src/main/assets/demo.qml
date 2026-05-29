@@ -84,7 +84,7 @@ Rectangle {
         id: scroll
         anchors.fill: parent
         contentWidth: parent.width
-        contentHeight: 3120
+        contentHeight: 3580
 
     Rectangle {
         x: 60
@@ -683,6 +683,76 @@ Rectangle {
                 text: "clear"
                 color: "#ffffff"
                 fontSize: 22
+            }
+        }
+    }
+
+    Rectangle {
+        x: 60
+        y: 3140
+        width: 880
+        height: 420
+        color: "#1c1c28"
+
+        Text {
+            x: 16
+            y: 12
+            text: "ListView (drag to scroll, viewport-clipped):"
+            color: "#ffffff"
+            fontSize: 24
+            width: 800
+            height: 32
+        }
+
+        ListView {
+            x: 16
+            y: 56
+            width: 420
+            height: 340
+            spacing: 6
+            model: 24
+            Rectangle {
+                width: 420
+                height: 48
+                color: index % 2 === 0 ? "#406080" : "#2a4060"
+                Text {
+                    x: 16
+                    y: 10
+                    text: "row " + index
+                    color: "#ffffff"
+                    fontSize: 22
+                    width: 380
+                    height: 30
+                }
+            }
+        }
+
+        ListView {
+            x: 460
+            y: 56
+            width: 400
+            height: 340
+            spacing: 8
+            model: ListModel {
+                ListElement { label: "apples";  tint: "#ff7080" }
+                ListElement { label: "bananas"; tint: "#ffd060" }
+                ListElement { label: "cherries"; tint: "#ff5050" }
+                ListElement { label: "dates";    tint: "#a07050" }
+                ListElement { label: "elderberries"; tint: "#7050a0" }
+                ListElement { label: "figs";     tint: "#80a050" }
+                ListElement { label: "grapes";   tint: "#70a0d0" }
+                ListElement { label: "honeydew"; tint: "#a0d070" }
+                ListElement { label: "kiwi";     tint: "#80d080" }
+                ListElement { label: "lemons";   tint: "#ffe040" }
+                ListElement { label: "mangoes";  tint: "#ffb060" }
+                ListElement { label: "nectarines"; tint: "#ff9080" }
+            }
+            Text {
+                text: index + ". " + modelData.label
+                color: modelData.tint
+                fontSize: 24
+                width: 400
+                height: 36
             }
         }
     }

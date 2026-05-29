@@ -11,6 +11,7 @@ import io.qml4j.render.items.Image;
 import io.qml4j.render.items.Item;
 import io.qml4j.render.items.ListElement;
 import io.qml4j.render.items.ListModel;
+import io.qml4j.render.items.ListView;
 import io.qml4j.render.items.Loader;
 import io.qml4j.render.items.Repeater;
 import io.qml4j.render.items.MouseArea;
@@ -2132,6 +2133,90 @@ class QmlViewTest {
         ListModel lm = (ListModel) reflectField(root, "lm");
         assertEquals(101L, ((Number) lm.rows.get(0).get("v")).longValue());
         assertEquals(102L, ((Number) lm.rows.get(1).get("v")).longValue());
+    }
+
+    @Test
+    void listViewVerticalStacksDelegates() {
+        Item root = newView().load(
+            "Item {\n" +
+            "  ListView {\n" +
+            "    id: lv\n" +
+            "    width: 200; height: 400\n" +
+            "    spacing: 4\n" +
+            "    model: 3\n" +
+            "    Rectangle { width: 200; height: 30; color: \"#ff0000\" }\n" +
+            "  }\n" +
+            "}");
+        ListView lv = (ListView) reflectField(root, "lv");
+        assertEquals(3, lv.instances().size());
+        assertEquals(0f, lv.instances().get(0).y.peek().floatValue());
+        assertEquals(34f, lv.instances().get(1).y.peek().floatValue());
+        assertEquals(68f, lv.instances().get(2).y.peek().floatValue());
+        assertEquals(98f, lv.contentHeight.peek().floatValue());
+    }
+
+    @Test
+    void listViewHorizontalStacksDelegates() {
+        Item root = newView().load(
+            "Item {\n" +
+            "  ListView {\n" +
+            "    id: lv\n" +
+            "    width: 600; height: 80\n" +
+            "    orientation: \"Horizontal\"\n" +
+            "    spacing: 10\n" +
+            "    model: 2\n" +
+            "    Rectangle { width: 50; height: 80; color: \"#00ff00\" }\n" +
+            "  }\n" +
+            "}");
+        ListView lv = (ListView) reflectField(root, "lv");
+        assertEquals(0f, lv.instances().get(0).x.peek().floatValue());
+        assertEquals(60f, lv.instances().get(1).x.peek().floatValue());
+        assertEquals(110f, lv.contentWidth.peek().floatValue());
+    }
+
+    @Test
+    void listViewListModelMutationRelayouts() {
+        Item root = newView().load(
+            "Item {\n" +
+            "  ListView {\n" +
+            "    id: lv\n" +
+            "    width: 200; height: 400\n" +
+            "    spacing: 0\n" +
+            "    model: ListModel {\n" +
+            "      ListElement { v: 1 }\n" +
+            "      ListElement { v: 2 }\n" +
+            "    }\n" +
+            "    Rectangle { width: 200; height: 20; color: \"#0000ff\" }\n" +
+            "  }\n" +
+            "}");
+        ListView lv = (ListView) reflectField(root, "lv");
+        ListModel m = (ListModel) lv.model.peek();
+        assertEquals(2, lv.instances().size());
+        ListElement el = new ListElement();
+        el.put("v", 3);
+        m.append(el);
+        assertEquals(3, lv.instances().size());
+        assertEquals(40f, lv.instances().get(2).y.peek().floatValue());
+        assertEquals(60f, lv.contentHeight.peek().floatValue());
+    }
+
+    @Test
+    void listViewSpacingChangeRelayouts() {
+        Item root = newView().load(
+            "Item {\n" +
+            "  ListView {\n" +
+            "    id: lv\n" +
+            "    width: 200; height: 400\n" +
+            "    spacing: 0\n" +
+            "    model: 3\n" +
+            "    Rectangle { width: 200; height: 20; color: \"#ff00ff\" }\n" +
+            "  }\n" +
+            "}");
+        ListView lv = (ListView) reflectField(root, "lv");
+        assertEquals(20f, lv.instances().get(1).y.peek().floatValue());
+        lv.spacing.set(5);
+        assertEquals(25f, lv.instances().get(1).y.peek().floatValue());
+        assertEquals(50f, lv.instances().get(2).y.peek().floatValue());
     }
 
     @SuppressWarnings("unchecked")
