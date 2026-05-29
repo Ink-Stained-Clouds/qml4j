@@ -258,6 +258,7 @@ public final class QmlView {
             setFocus(ti);
             return true;
         }
+        if (focused != null) clearFocus();
         MouseArea hit = hitTestMouseArea(root, x, y);
         if (hit != null) {
             captured = hit;

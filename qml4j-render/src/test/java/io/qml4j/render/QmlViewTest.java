@@ -1627,6 +1627,21 @@ class QmlViewTest {
     }
 
     @Test
+    void tapOutsideClearsFocus() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 400; height: 200\n" +
+            "  TextInput { x: 10; y: 20; width: 80; height: 30 }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        v.dispatchPointerDown(40, 30);
+        assertSame(ti, v.focused());
+        v.dispatchPointerDown(300, 150);
+        assertNull(v.focused());
+        assertFalse(ti.activeFocus.peek());
+    }
+
+    @Test
     void maximumLengthClampsInsert() {
         QmlView v = newView();
         Item root = v.load(
