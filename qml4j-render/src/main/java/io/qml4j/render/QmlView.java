@@ -162,6 +162,44 @@ public final class QmlView {
     private Item focused;
     private FocusListener focusListener;
     private TextInput textCapturing;
+    private Clipboard clipboard;
+
+    public void setClipboard(Clipboard cb) {
+        this.clipboard = cb;
+    }
+
+    public boolean copy() {
+        if (!(focused instanceof TextInput)) return false;
+        return copyFromSelection((TextInput) focused, false);
+    }
+
+    public boolean cut() {
+        if (!(focused instanceof TextInput)) return false;
+        TextInput ti = (TextInput) focused;
+        if (Boolean.TRUE.equals(ti.readOnly.peek())) return false;
+        return copyFromSelection(ti, true);
+    }
+
+    public boolean paste() {
+        if (!(focused instanceof TextInput)) return false;
+        TextInput ti = (TextInput) focused;
+        if (Boolean.TRUE.equals(ti.readOnly.peek())) return false;
+        if (clipboard == null) return false;
+        String text = clipboard.getText();
+        if (text == null || text.isEmpty()) return false;
+        return applyInsert(ti, text);
+    }
+
+    private boolean copyFromSelection(TextInput ti, boolean alsoDelete) {
+        String cur = ti.text.peek();
+        if (cur == null) cur = "";
+        int s = ti.selectionStart.peek().intValue();
+        int e = ti.selectionEnd.peek().intValue();
+        if (e <= s) return false;
+        if (clipboard != null) clipboard.setText(cur.substring(s, e));
+        if (alsoDelete) deleteSelection(ti, cur);
+        return true;
+    }
 
     public interface FocusListener {
         void onFocusChanged(Item newFocus, Item oldFocus);

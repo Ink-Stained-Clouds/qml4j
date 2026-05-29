@@ -50,6 +50,7 @@ public final class DesktopMain {
 
         QmlEngine engine = new QmlEngine();
         QmlView view = QmlView.withStockTypes(engine);
+        view.setClipboard(new AwtClipboard());
         view.load(qml);
         if (view.root() != null) {
             view.root().width.set(fw[0]);

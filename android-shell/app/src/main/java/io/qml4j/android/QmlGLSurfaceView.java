@@ -122,6 +122,7 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
     boolean dispatchKeyEvent(KeyEvent event, boolean down) {
         if (view == null) return false;
         if (!(view.focused() instanceof TextInput)) return false;
+        if (down && handleClipboardShortcut(event)) return true;
         final int mapped = mapKeyCode(event.getKeyCode());
         final String text;
         if (mapped == 0) {
@@ -136,6 +137,22 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
         queueEvent(new Runnable() {
             @Override public void run() {
                 if (view != null) view.dispatchKey(mapped, text, isDown, shift);
+            }
+        });
+        return true;
+    }
+
+    private boolean handleClipboardShortcut(KeyEvent event) {
+        if (!event.isCtrlPressed()) return false;
+        int kc = event.getKeyCode();
+        if (kc != KeyEvent.KEYCODE_C && kc != KeyEvent.KEYCODE_X && kc != KeyEvent.KEYCODE_V) return false;
+        final int action = kc;
+        queueEvent(new Runnable() {
+            @Override public void run() {
+                if (view == null) return;
+                if (action == KeyEvent.KEYCODE_C) view.copy();
+                else if (action == KeyEvent.KEYCODE_X) view.cut();
+                else view.paste();
             }
         });
         return true;
@@ -228,6 +245,7 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
             surface.resize(width, height);
             if (view == null) {
                 view = QmlView.withStockTypes(engine).resources(resources);
+                view.setClipboard(new AndroidClipboard(getContext()));
                 view.setFocusListener((nf, of) -> {
                     if (of instanceof TextInput && !(nf instanceof TextInput)) {
                         hideImeOnUiThread();

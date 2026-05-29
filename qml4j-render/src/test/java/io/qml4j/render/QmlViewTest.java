@@ -1897,6 +1897,112 @@ class QmlViewTest {
         assertEquals(0, a.selectionEnd.peek().intValue());
     }
 
+    @Test
+    void copyWritesSelectionToClipboard() {
+        QmlView v = newView();
+        FakeClipboard cb = new FakeClipboard();
+        v.setClipboard(cb);
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true; text: \"hello\"; cursorPosition: 1 }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        assertTrue(v.copy());
+        assertEquals("ell", cb.text);
+        assertEquals("hello", ti.text.peek());
+    }
+
+    @Test
+    void cutRemovesSelectionAndWritesClipboard() {
+        QmlView v = newView();
+        FakeClipboard cb = new FakeClipboard();
+        v.setClipboard(cb);
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true; text: \"hello\"; cursorPosition: 1 }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        assertTrue(v.cut());
+        assertEquals("ell", cb.text);
+        assertEquals("ho", ti.text.peek());
+        assertEquals(1, ti.cursorPosition.peek().intValue());
+    }
+
+    @Test
+    void pasteInsertsClipboardAtCaret() {
+        QmlView v = newView();
+        FakeClipboard cb = new FakeClipboard();
+        cb.text = "X";
+        v.setClipboard(cb);
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true; text: \"hi\"; cursorPosition: 1 }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        assertTrue(v.paste());
+        assertEquals("hXi", ti.text.peek());
+        assertEquals(2, ti.cursorPosition.peek().intValue());
+    }
+
+    @Test
+    void pasteReplacesSelection() {
+        QmlView v = newView();
+        FakeClipboard cb = new FakeClipboard();
+        cb.text = "ZZ";
+        v.setClipboard(cb);
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true; text: \"hello\"; cursorPosition: 1 }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        assertTrue(v.paste());
+        assertEquals("hZZo", ti.text.peek());
+    }
+
+    @Test
+    void copyNoSelectionReturnsFalse() {
+        QmlView v = newView();
+        FakeClipboard cb = new FakeClipboard();
+        v.setClipboard(cb);
+        v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true; text: \"hello\" }\n" +
+            "}");
+        assertFalse(v.copy());
+        assertNull(cb.text);
+    }
+
+    @Test
+    void cutReadOnlyReturnsFalse() {
+        QmlView v = newView();
+        FakeClipboard cb = new FakeClipboard();
+        v.setClipboard(cb);
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true; text: \"hi\"; readOnly: true }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        assertFalse(v.cut());
+        assertEquals("hi", ti.text.peek());
+    }
+
+    private static final class FakeClipboard implements Clipboard {
+        String text;
+        @Override public String getText() { return text; }
+        @Override public void setText(String t) { this.text = t; }
+    }
+
     private static void propSet(Item root, String name, Object value) {
         try {
             @SuppressWarnings("unchecked")
