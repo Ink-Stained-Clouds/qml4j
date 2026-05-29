@@ -1740,6 +1740,163 @@ class QmlViewTest {
         assertNull(capture[1]);
     }
 
+    @Test
+    void shiftRightExtendsSelection() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true; text: \"hello\"; cursorPosition: 1 }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        assertEquals(3, ti.cursorPosition.peek().intValue());
+        assertEquals(1, ti.selectionStart.peek().intValue());
+        assertEquals(3, ti.selectionEnd.peek().intValue());
+    }
+
+    @Test
+    void shiftLeftThenRightShrinksSelection() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true; text: \"hello\"; cursorPosition: 1 }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        v.dispatchKey(QmlView.KEY_LEFT, null, true, true);
+        assertEquals(1, ti.selectionStart.peek().intValue());
+        assertEquals(2, ti.selectionEnd.peek().intValue());
+    }
+
+    @Test
+    void plainArrowClearsSelection() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true; text: \"hello\"; cursorPosition: 1 }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, false);
+        assertEquals(0, ti.selectionStart.peek().intValue());
+        assertEquals(0, ti.selectionEnd.peek().intValue());
+        assertEquals(4, ti.cursorPosition.peek().intValue());
+    }
+
+    @Test
+    void shiftHomeSelectsToStart() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true; text: \"hello\"; cursorPosition: 3 }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        v.dispatchKey(QmlView.KEY_HOME, null, true, true);
+        assertEquals(0, ti.selectionStart.peek().intValue());
+        assertEquals(3, ti.selectionEnd.peek().intValue());
+        assertEquals(0, ti.cursorPosition.peek().intValue());
+    }
+
+    @Test
+    void shiftEndSelectsToEnd() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true; text: \"hello\"; cursorPosition: 2 }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        v.dispatchKey(QmlView.KEY_END, null, true, true);
+        assertEquals(2, ti.selectionStart.peek().intValue());
+        assertEquals(5, ti.selectionEnd.peek().intValue());
+        assertEquals(5, ti.cursorPosition.peek().intValue());
+    }
+
+    @Test
+    void backspaceDeletesSelection() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true; text: \"hello\"; cursorPosition: 1 }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        v.dispatchKey(QmlView.KEY_BACKSPACE, null, true);
+        assertEquals("ho", ti.text.peek());
+        assertEquals(1, ti.cursorPosition.peek().intValue());
+        assertEquals(0, ti.selectionStart.peek().intValue());
+        assertEquals(0, ti.selectionEnd.peek().intValue());
+    }
+
+    @Test
+    void typingReplacesSelection() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true; text: \"hello\"; cursorPosition: 1 }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        v.dispatchKey(0, "X", true);
+        assertEquals("hXo", ti.text.peek());
+        assertEquals(2, ti.cursorPosition.peek().intValue());
+        assertEquals(0, ti.selectionEnd.peek().intValue());
+    }
+
+    @Test
+    void clickAfterSelectionResetsAnchor() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 800; height: 100\n" +
+            "  TextInput { x: 0; y: 0; width: 800; height: 40; text: \"hello\"; cursorPosition: 1 }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        v.dispatchPointerDown(700, 10);
+        assertEquals(0, ti.selectionStart.peek().intValue());
+        assertEquals(0, ti.selectionEnd.peek().intValue());
+    }
+
+    @Test
+    void dragExtendsSelection() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 800; height: 100\n" +
+            "  TextInput { x: 0; y: 0; width: 800; height: 40; text: \"hello\"; fontSize: 16 }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        v.dispatchPointerDown(0, 10);
+        v.dispatchPointerMove(700, 10);
+        v.dispatchPointerUp(700, 10);
+        assertEquals(0, ti.selectionStart.peek().intValue());
+        assertEquals(5, ti.selectionEnd.peek().intValue());
+        assertEquals(5, ti.cursorPosition.peek().intValue());
+    }
+
+    @Test
+    void focusChangeClearsSelection() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true; text: \"hello\"; cursorPosition: 1 }\n" +
+            "  TextInput { y: 40 }\n" +
+            "}");
+        TextInput a = (TextInput) root.children.get(0);
+        TextInput b = (TextInput) root.children.get(1);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true, true);
+        v.setFocus(b);
+        assertEquals(0, a.selectionStart.peek().intValue());
+        assertEquals(0, a.selectionEnd.peek().intValue());
+    }
+
     private static void propSet(Item root, String name, Object value) {
         try {
             @SuppressWarnings("unchecked")

@@ -9,9 +9,14 @@ public class TextInput extends Item {
     public final Property<String> cursorColor = new Property<>("#000000");
     public final Property<Number> fontSize = new Property<>(16);
     public final Property<Number> cursorPosition = new Property<>(0);
+    public final Property<Number> selectionStart = new Property<>(0);
+    public final Property<Number> selectionEnd = new Property<>(0);
+    public final Property<String> selectionColor = new Property<>("#308cff");
     public final Property<Number> maximumLength = new Property<>(Integer.MAX_VALUE);
     public final Property<Boolean> readOnly = new Property<>(Boolean.FALSE);
 
     public final Signal textChanged = new Signal();
     public final Signal accepted = new Signal();
+
+    public int selectionAnchor = -1;
 }

@@ -132,9 +132,10 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
             text = null;
         }
         final boolean isDown = down;
+        final boolean shift = event.isShiftPressed();
         queueEvent(new Runnable() {
             @Override public void run() {
-                if (view != null) view.dispatchKey(mapped, text, isDown);
+                if (view != null) view.dispatchKey(mapped, text, isDown, shift);
             }
         });
         return true;

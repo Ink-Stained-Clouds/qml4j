@@ -387,6 +387,7 @@ public final class Renderer {
         if (s == null) s = "";
         float size = ti.fontSize.peek().floatValue();
         try (Font font = fontFor(size, s)) {
+            paintSelectionRect(canvas, ti, s, font, size, alpha);
             if (!s.isEmpty()) {
                 paint().setColor(applyAlpha(parseColor(ti.color.peek()), alpha));
                 canvas.drawString(s, 0, size, font, paint);
@@ -401,6 +402,19 @@ public final class Renderer {
                 canvas.drawRect(Rect.makeXYWH(cx, 0, cw, size), p);
             }
         }
+    }
+
+    private void paintSelectionRect(Canvas canvas, TextInput ti, String s, Font font, float size, float alpha) {
+        int len = s.length();
+        int selS = Math.max(0, Math.min(ti.selectionStart.peek().intValue(), len));
+        int selE = Math.max(selS, Math.min(ti.selectionEnd.peek().intValue(), len));
+        if (selE <= selS) return;
+        float x0 = font.measureTextWidth(s.substring(0, selS));
+        float x1 = font.measureTextWidth(s.substring(0, selE));
+        Paint p = paint();
+        p.setMode(PaintMode.FILL);
+        p.setColor(applyAlpha(parseColor(ti.selectionColor.peek()), alpha));
+        canvas.drawRect(Rect.makeXYWH(x0, 0, x1 - x0, size), p);
     }
 
     private static boolean caretBlinkOn() {

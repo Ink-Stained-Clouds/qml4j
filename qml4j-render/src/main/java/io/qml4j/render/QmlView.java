@@ -161,6 +161,7 @@ public final class QmlView {
     private float scrollStartContentY;
     private Item focused;
     private FocusListener focusListener;
+    private TextInput textCapturing;
 
     public interface FocusListener {
         void onFocusChanged(Item newFocus, Item oldFocus);
@@ -180,6 +181,7 @@ public final class QmlView {
         if (old != null) {
             old.activeFocus.set(Boolean.FALSE);
             old.focus.set(Boolean.FALSE);
+            if (old instanceof TextInput) clearSelection((TextInput) old);
         }
         focused = it;
         if (it != null) {
@@ -194,6 +196,10 @@ public final class QmlView {
     }
 
     public boolean dispatchKey(int keyCode, String text, boolean down) {
+        return dispatchKey(keyCode, text, down, false);
+    }
+
+    public boolean dispatchKey(int keyCode, String text, boolean down, boolean shift) {
         if (!(focused instanceof TextInput)) return false;
         TextInput ti = (TextInput) focused;
         if (Boolean.TRUE.equals(ti.readOnly.peek())) return false;
@@ -206,19 +212,17 @@ public final class QmlView {
             return applyBackspace(ti);
         }
         if (keyCode == KEY_LEFT) {
-            return moveCaret(ti, -1);
+            return moveCaret(ti, -1, shift);
         }
         if (keyCode == KEY_RIGHT) {
-            return moveCaret(ti, +1);
+            return moveCaret(ti, +1, shift);
         }
         if (keyCode == KEY_HOME) {
-            ti.cursorPosition.set(0);
-            return true;
+            return setCaret(ti, 0, shift);
         }
         if (keyCode == KEY_END) {
             String cur = ti.text.peek();
-            ti.cursorPosition.set(cur == null ? 0 : cur.length());
-            return true;
+            return setCaret(ti, cur == null ? 0 : cur.length(), shift);
         }
         if (text != null && !text.isEmpty()) {
             return applyInsert(ti, text);
@@ -233,19 +237,35 @@ public final class QmlView {
     public static final int KEY_HOME = -5;
     public static final int KEY_END = -6;
 
-    private static boolean moveCaret(TextInput ti, int delta) {
+    private static boolean moveCaret(TextInput ti, int delta, boolean shift) {
         String cur = ti.text.peek();
         int len = cur == null ? 0 : cur.length();
         int pos = clampPos(ti.cursorPosition.peek().intValue(), len);
         int next = clampPos(pos + delta, len);
         if (next == pos) return false;
-        ti.cursorPosition.set(next);
+        return setCaret(ti, next, shift);
+    }
+
+    private static boolean setCaret(TextInput ti, int pos, boolean shift) {
+        String cur = ti.text.peek();
+        int len = cur == null ? 0 : cur.length();
+        int target = clampPos(pos, len);
+        if (shift) {
+            if (ti.selectionAnchor < 0) {
+                ti.selectionAnchor = clampPos(ti.cursorPosition.peek().intValue(), len);
+            }
+            setSelection(ti, Math.min(ti.selectionAnchor, target), Math.max(ti.selectionAnchor, target));
+        } else {
+            clearSelection(ti);
+        }
+        ti.cursorPosition.set(target);
         return true;
     }
 
     private static boolean applyBackspace(TextInput ti) {
         String cur = ti.text.peek();
         if (cur == null) cur = "";
+        if (deleteSelection(ti, cur)) return true;
         int pos = clampPos(ti.cursorPosition.peek().intValue(), cur.length());
         if (pos == 0) return false;
         String next = cur.substring(0, pos - 1) + cur.substring(pos);
@@ -258,16 +278,44 @@ public final class QmlView {
     private static boolean applyInsert(TextInput ti, String text) {
         String cur = ti.text.peek();
         if (cur == null) cur = "";
+        int selS = ti.selectionStart.peek().intValue();
+        int selE = ti.selectionEnd.peek().intValue();
+        boolean hasSel = selE > selS;
+        int caretBase = hasSel ? selS : clampPos(ti.cursorPosition.peek().intValue(), cur.length());
+        int reservedLen = hasSel ? cur.length() - (selE - selS) : cur.length();
         int max = ti.maximumLength.peek().intValue();
-        int room = Math.max(0, max - cur.length());
-        if (room == 0) return false;
+        int room = Math.max(0, max - reservedLen);
+        if (room == 0 && !hasSel) return false;
         String add = text.length() > room ? text.substring(0, room) : text;
-        int pos = clampPos(ti.cursorPosition.peek().intValue(), cur.length());
-        String next = cur.substring(0, pos) + add + cur.substring(pos);
-        ti.text.set(next);
-        ti.cursorPosition.set(pos + add.length());
+        String head = cur.substring(0, hasSel ? selS : caretBase);
+        String tail = cur.substring(hasSel ? selE : caretBase);
+        ti.text.set(head + add + tail);
+        ti.cursorPosition.set(caretBase + add.length());
+        clearSelection(ti);
         ti.textChanged.emit();
         return true;
+    }
+
+    private static boolean deleteSelection(TextInput ti, String cur) {
+        int s = ti.selectionStart.peek().intValue();
+        int e = ti.selectionEnd.peek().intValue();
+        if (e <= s) return false;
+        ti.text.set(cur.substring(0, s) + cur.substring(e));
+        ti.cursorPosition.set(s);
+        clearSelection(ti);
+        ti.textChanged.emit();
+        return true;
+    }
+
+    private static void setSelection(TextInput ti, int start, int end) {
+        ti.selectionStart.set(start);
+        ti.selectionEnd.set(end);
+    }
+
+    private static void clearSelection(TextInput ti) {
+        ti.selectionAnchor = -1;
+        ti.selectionStart.set(0);
+        ti.selectionEnd.set(0);
     }
 
     private static int clampPos(int p, int len) {
@@ -286,7 +334,11 @@ public final class QmlView {
         if (ti != null) {
             setFocus(ti);
             float[] local = localCoords(ti, x, y);
-            ti.cursorPosition.set(renderer.caretIndexFor(ti, local[0]));
+            int idx = renderer.caretIndexFor(ti, local[0]);
+            clearSelection(ti);
+            ti.selectionAnchor = idx;
+            ti.cursorPosition.set(idx);
+            textCapturing = ti;
             return true;
         }
         if (focused != null) clearFocus();
@@ -314,6 +366,10 @@ public final class QmlView {
     }
 
     public boolean dispatchPointerMove(float x, float y) {
+        if (textCapturing != null) {
+            extendTextSelection(x, y);
+            return true;
+        }
         if (captured != null) {
             float[] local = localCoords(captured, x, y);
             captured.mouseX.set(local[0]);
@@ -330,6 +386,11 @@ public final class QmlView {
     }
 
     public boolean dispatchPointerUp(float x, float y) {
+        if (textCapturing != null) {
+            extendTextSelection(x, y);
+            textCapturing = null;
+            return true;
+        }
         if (captured != null) {
             MouseArea target = captured;
             float[] local = localCoords(target, x, y);
@@ -351,6 +412,17 @@ public final class QmlView {
             return true;
         }
         return false;
+    }
+
+    private void extendTextSelection(float x, float y) {
+        TextInput ti = textCapturing;
+        float[] local = localCoords(ti, x, y);
+        int idx = renderer.caretIndexFor(ti, local[0]);
+        if (ti.selectionAnchor < 0) ti.selectionAnchor = idx;
+        int s = Math.min(ti.selectionAnchor, idx);
+        int e = Math.max(ti.selectionAnchor, idx);
+        setSelection(ti, s, e);
+        ti.cursorPosition.set(idx);
     }
 
     private void beginDragIfRequested(MouseArea hit) {
