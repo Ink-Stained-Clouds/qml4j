@@ -84,7 +84,7 @@ Rectangle {
         id: scroll
         anchors.fill: parent
         contentWidth: parent.width
-        contentHeight: 3580
+        contentHeight: 4000
 
     Rectangle {
         x: 60
@@ -768,6 +768,46 @@ Rectangle {
                     fontSize: 24
                     width: 380
                     height: 30
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        x: 60
+        y: 3580
+        width: 880
+        height: 380
+        color: "#1c1c28"
+
+        Text {
+            x: 16
+            y: 12
+            text: "GridView (cellWidth x cellHeight, drag to scroll):"
+            color: "#ffffff"
+            fontSize: 24
+            width: 800
+            height: 32
+        }
+
+        GridView {
+            x: 16
+            y: 56
+            width: 848
+            height: 300
+            cellWidth: 106
+            cellHeight: 90
+            model: 32
+            Rectangle {
+                width: 100
+                height: 84
+                radius: 10
+                color: index % 3 === 0 ? "#5070a0" : (index % 3 === 1 ? "#a05070" : "#70a050")
+                Text {
+                    anchors.centerIn: parent
+                    text: "#" + index
+                    color: "#ffffff"
+                    fontSize: 24
                 }
             }
         }

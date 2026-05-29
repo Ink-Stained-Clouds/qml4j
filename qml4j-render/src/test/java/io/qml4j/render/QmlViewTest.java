@@ -12,6 +12,7 @@ import io.qml4j.render.items.Item;
 import io.qml4j.render.items.ListElement;
 import io.qml4j.render.items.ListModel;
 import io.qml4j.render.items.ListView;
+import io.qml4j.render.items.GridView;
 import io.qml4j.render.items.Loader;
 import io.qml4j.render.items.Repeater;
 import io.qml4j.render.items.MouseArea;
@@ -2267,6 +2268,104 @@ class QmlViewTest {
         io.qml4j.render.items.Text t1 = (io.qml4j.render.items.Text) lv.instances().get(1).children.get(0);
         assertEquals("0:alice", t0.text.peek());
         assertEquals("1:bob", t1.text.peek());
+    }
+
+    @Test
+    void gridViewLeftToRightLaysOutCells() {
+        Item root = newView().load(
+            "Item {\n" +
+            "  GridView {\n" +
+            "    id: gv\n" +
+            "    width: 300; height: 300\n" +
+            "    cellWidth: 100; cellHeight: 80\n" +
+            "    model: 7\n" +
+            "    Rectangle { width: 100; height: 80; color: \"#ff00ff\" }\n" +
+            "  }\n" +
+            "}");
+        GridView gv = (GridView) reflectField(root, "gv");
+        assertEquals(7, gv.instances().size());
+        assertEquals(0f, gv.instances().get(0).x.peek().floatValue());
+        assertEquals(0f, gv.instances().get(0).y.peek().floatValue());
+        assertEquals(100f, gv.instances().get(1).x.peek().floatValue());
+        assertEquals(0f, gv.instances().get(1).y.peek().floatValue());
+        assertEquals(0f, gv.instances().get(3).x.peek().floatValue());
+        assertEquals(80f, gv.instances().get(3).y.peek().floatValue());
+        assertEquals(0f, gv.instances().get(6).x.peek().floatValue());
+        assertEquals(160f, gv.instances().get(6).y.peek().floatValue());
+        assertEquals(300f, gv.contentWidth.peek().floatValue());
+        assertEquals(240f, gv.contentHeight.peek().floatValue());
+    }
+
+    @Test
+    void gridViewTopToBottomLaysOutCells() {
+        Item root = newView().load(
+            "Item {\n" +
+            "  GridView {\n" +
+            "    id: gv\n" +
+            "    width: 300; height: 200\n" +
+            "    cellWidth: 100; cellHeight: 100\n" +
+            "    flow: \"FlowTopToBottom\"\n" +
+            "    model: 5\n" +
+            "    Rectangle { width: 100; height: 100; color: \"#00ff00\" }\n" +
+            "  }\n" +
+            "}");
+        GridView gv = (GridView) reflectField(root, "gv");
+        assertEquals(5, gv.instances().size());
+        assertEquals(0f, gv.instances().get(0).x.peek().floatValue());
+        assertEquals(0f, gv.instances().get(1).x.peek().floatValue());
+        assertEquals(100f, gv.instances().get(1).y.peek().floatValue());
+        assertEquals(100f, gv.instances().get(2).x.peek().floatValue());
+        assertEquals(0f, gv.instances().get(2).y.peek().floatValue());
+    }
+
+    @Test
+    void gridViewListModelMutationRelayouts() {
+        Item root = newView().load(
+            "Item {\n" +
+            "  ListModel { id: m;\n" +
+            "    ListElement { tag: \"a\" }\n" +
+            "    ListElement { tag: \"b\" }\n" +
+            "  }\n" +
+            "  GridView {\n" +
+            "    id: gv\n" +
+            "    width: 200; height: 200\n" +
+            "    cellWidth: 100; cellHeight: 50\n" +
+            "    model: m\n" +
+            "    Rectangle { width: 100; height: 50;\n" +
+            "      Text { text: modelData.tag }\n" +
+            "    }\n" +
+            "  }\n" +
+            "}");
+        GridView gv = (GridView) reflectField(root, "gv");
+        assertEquals(2, gv.instances().size());
+        io.qml4j.render.items.ListModel m =
+            (io.qml4j.render.items.ListModel) reflectField(root, "m");
+        java.util.LinkedHashMap<String, Object> el = new java.util.LinkedHashMap<>();
+        el.put("tag", "c");
+        m.append(el);
+        assertEquals(3, gv.instances().size());
+        assertEquals(0f, gv.instances().get(2).x.peek().floatValue());
+        assertEquals(50f, gv.instances().get(2).y.peek().floatValue());
+    }
+
+    @Test
+    void gridViewDelegateChildSeesContext() {
+        Item root = newView().load(
+            "Item {\n" +
+            "  GridView {\n" +
+            "    id: gv\n" +
+            "    width: 200; height: 200\n" +
+            "    cellWidth: 100; cellHeight: 50\n" +
+            "    model: 3\n" +
+            "    Rectangle {\n" +
+            "      width: 100; height: 50\n" +
+            "      Text { text: \"cell \" + index }\n" +
+            "    }\n" +
+            "  }\n" +
+            "}");
+        GridView gv = (GridView) reflectField(root, "gv");
+        io.qml4j.render.items.Text t1 = (io.qml4j.render.items.Text) gv.instances().get(1).children.get(0);
+        assertEquals("cell 1", t1.text.peek());
     }
 
     @SuppressWarnings("unchecked")

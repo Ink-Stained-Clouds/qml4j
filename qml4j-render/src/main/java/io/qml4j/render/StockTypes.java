@@ -7,6 +7,7 @@ import io.qml4j.render.items.Connections;
 import io.qml4j.render.items.Flickable;
 import io.qml4j.render.items.Gradient;
 import io.qml4j.render.items.GradientStop;
+import io.qml4j.render.items.GridView;
 import io.qml4j.render.items.Image;
 import io.qml4j.render.items.Item;
 import io.qml4j.render.items.ListElement;
@@ -51,6 +52,7 @@ public final class StockTypes {
             .register("ListModel", ListModel.class)
             .register("ListElement", ListElement.class)
             .register("ListView", ListView.class)
+            .register("GridView", GridView.class)
             .register("Component", Component.class)
             .register("Connections", Connections.class)
             .register("Flickable", Flickable.class)
