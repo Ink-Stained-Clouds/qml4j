@@ -135,12 +135,27 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
     }
 
     void commitTextFromIme(final CharSequence text) {
-        if (text == null) return;
-        final String s = text.toString();
-        if (s.isEmpty()) return;
+        final String s = text == null ? "" : text.toString();
         queueEvent(new Runnable() {
             @Override public void run() {
-                if (view != null) view.dispatchKey(0, s, true);
+                if (view != null) view.commitComposingText(s);
+            }
+        });
+    }
+
+    void setComposingFromIme(final CharSequence text) {
+        final String s = text == null ? "" : text.toString();
+        queueEvent(new Runnable() {
+            @Override public void run() {
+                if (view != null) view.setComposingText(s);
+            }
+        });
+    }
+
+    void finishComposingFromIme() {
+        queueEvent(new Runnable() {
+            @Override public void run() {
+                if (view != null) view.finishComposing();
             }
         });
     }

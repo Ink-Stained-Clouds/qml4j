@@ -351,6 +351,7 @@ public final class Renderer {
                 paint().setColor(applyAlpha(parseColor(ti.color.peek()), alpha));
                 canvas.drawString(s, 0, size, font, paint);
             }
+            paintComposingUnderline(canvas, ti, s, font, size, alpha);
             if (Boolean.TRUE.equals(ti.activeFocus.peek()) && caretBlinkOn()) {
                 int pos = Math.max(0, Math.min(ti.cursorPosition.peek().intValue(), s.length()));
                 float cx = font.measureTextWidth(s.substring(0, pos));
@@ -361,6 +362,21 @@ public final class Renderer {
                 canvas.drawRect(Rect.makeXYWH(cx, 0, cw, size), p);
             }
         }
+    }
+
+    private void paintComposingUnderline(Canvas canvas, TextInput ti, String s, Font font, float size, float alpha) {
+        int cs = ti.composingStart.peek().intValue();
+        int ce = ti.composingEnd.peek().intValue();
+        if (cs < 0 || ce <= cs || cs >= s.length()) return;
+        int ceClamped = Math.min(ce, s.length());
+        float x1 = font.measureTextWidth(s.substring(0, cs));
+        float x2 = font.measureTextWidth(s.substring(0, ceClamped));
+        Paint p = paint();
+        p.setMode(PaintMode.FILL);
+        p.setColor(applyAlpha(parseColor(ti.color.peek()), alpha));
+        float lineY = size + Math.max(1f, size / 16f);
+        float lineH = Math.max(1f, size / 12f);
+        canvas.drawRect(Rect.makeXYWH(x1, lineY, x2 - x1, lineH), p);
     }
 
     private static boolean caretBlinkOn() {

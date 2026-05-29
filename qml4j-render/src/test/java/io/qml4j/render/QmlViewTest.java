@@ -1699,6 +1699,87 @@ class QmlViewTest {
     }
 
     @Test
+    void composingTextReplacesPreviousComposition() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        v.setComposingText("ni");
+        assertEquals("ni", ti.text.peek());
+        assertEquals(0, ti.composingStart.peek().intValue());
+        assertEquals(2, ti.composingEnd.peek().intValue());
+        assertEquals(2, ti.cursorPosition.peek().intValue());
+        v.setComposingText("nihao");
+        assertEquals("nihao", ti.text.peek());
+        assertEquals(0, ti.composingStart.peek().intValue());
+        assertEquals(5, ti.composingEnd.peek().intValue());
+    }
+
+    @Test
+    void commitComposingClearsRange() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        v.setComposingText("ni");
+        v.commitComposingText("你好");
+        assertEquals("你好", ti.text.peek());
+        assertEquals(-1, ti.composingStart.peek().intValue());
+        assertEquals(-1, ti.composingEnd.peek().intValue());
+        assertEquals(2, ti.cursorPosition.peek().intValue());
+    }
+
+    @Test
+    void finishComposingKeepsTextClearsRange() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        v.setComposingText("abc");
+        v.finishComposing();
+        assertEquals("abc", ti.text.peek());
+        assertEquals(-1, ti.composingStart.peek().intValue());
+    }
+
+    @Test
+    void composingPreservesSurroundingText() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true; text: \"hello \"; cursorPosition: 6 }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        v.setComposingText("ni");
+        assertEquals("hello ni", ti.text.peek());
+        assertEquals(6, ti.composingStart.peek().intValue());
+        assertEquals(8, ti.composingEnd.peek().intValue());
+        v.commitComposingText("世界");
+        assertEquals("hello 世界", ti.text.peek());
+    }
+
+    @Test
+    void focusChangeClearsComposing() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true }\n" +
+            "  TextInput { y: 40 }\n" +
+            "}");
+        TextInput a = (TextInput) root.children.get(0);
+        TextInput b = (TextInput) root.children.get(1);
+        v.setComposingText("ni");
+        v.setFocus(b);
+        assertEquals(-1, a.composingStart.peek().intValue());
+        assertEquals("ni", a.text.peek());
+    }
+
+    @Test
     void tapOutsideClearsFocus() {
         QmlView v = newView();
         Item root = v.load(

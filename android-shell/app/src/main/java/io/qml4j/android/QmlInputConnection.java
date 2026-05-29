@@ -20,7 +20,13 @@ final class QmlInputConnection extends BaseInputConnection {
 
     @Override
     public boolean setComposingText(CharSequence text, int newCursorPosition) {
-        view.commitTextFromIme(text);
+        view.setComposingFromIme(text);
+        return true;
+    }
+
+    @Override
+    public boolean finishComposingText() {
+        view.finishComposingFromIme();
         return true;
     }
 

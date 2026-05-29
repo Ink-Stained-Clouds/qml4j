@@ -11,6 +11,8 @@ public class TextInput extends Item {
     public final Property<Number> cursorPosition = new Property<>(0);
     public final Property<Number> maximumLength = new Property<>(Integer.MAX_VALUE);
     public final Property<Boolean> readOnly = new Property<>(Boolean.FALSE);
+    public final Property<Number> composingStart = new Property<>(-1);
+    public final Property<Number> composingEnd = new Property<>(-1);
 
     public final Signal textChanged = new Signal();
     public final Signal accepted = new Signal();
