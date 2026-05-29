@@ -18,6 +18,7 @@ import io.qml4j.render.items.TextInput;
 
 import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.skija.Font;
+import io.github.humbleui.skija.FontMetrics;
 import io.github.humbleui.skija.FontMgr;
 import io.github.humbleui.skija.FontStyle;
 import io.github.humbleui.skija.Paint;
@@ -387,10 +388,18 @@ public final class Renderer {
         if (s == null) s = "";
         float size = ti.fontSize.peek().floatValue();
         try (Font font = fontFor(size, s)) {
-            paintSelectionRect(canvas, ti, s, font, size, alpha);
+            float baseline = size;
+            float glyphTop = baseline;
+            float glyphHeight = size;
+            try {
+                FontMetrics m = font.getMetrics();
+                glyphTop = baseline + m.getAscent();
+                glyphHeight = m.getDescent() - m.getAscent();
+            } catch (Throwable ignored) {}
+            paintSelectionRect(canvas, ti, s, font, glyphTop, glyphHeight, alpha);
             if (!s.isEmpty()) {
                 paint().setColor(applyAlpha(parseColor(ti.color.peek()), alpha));
-                canvas.drawString(s, 0, size, font, paint);
+                canvas.drawString(s, 0, baseline, font, paint);
             }
             if (Boolean.TRUE.equals(ti.activeFocus.peek()) && caretBlinkOn()) {
                 int pos = Math.max(0, Math.min(ti.cursorPosition.peek().intValue(), s.length()));
@@ -399,12 +408,13 @@ public final class Renderer {
                 p.setMode(PaintMode.FILL);
                 p.setColor(applyAlpha(parseColor(ti.cursorColor.peek()), alpha));
                 float cw = Math.max(1f, size / 16f);
-                canvas.drawRect(Rect.makeXYWH(cx, 0, cw, size), p);
+                canvas.drawRect(Rect.makeXYWH(cx, glyphTop, cw, glyphHeight), p);
             }
         }
     }
 
-    private void paintSelectionRect(Canvas canvas, TextInput ti, String s, Font font, float size, float alpha) {
+    private void paintSelectionRect(Canvas canvas, TextInput ti, String s, Font font,
+                                    float glyphTop, float glyphHeight, float alpha) {
         int len = s.length();
         int selS = Math.max(0, Math.min(ti.selectionStart.peek().intValue(), len));
         int selE = Math.max(selS, Math.min(ti.selectionEnd.peek().intValue(), len));
@@ -414,7 +424,7 @@ public final class Renderer {
         Paint p = paint();
         p.setMode(PaintMode.FILL);
         p.setColor(applyAlpha(parseColor(ti.selectionColor.peek()), alpha));
-        canvas.drawRect(Rect.makeXYWH(x0, 0, x1 - x0, size), p);
+        canvas.drawRect(Rect.makeXYWH(x0, glyphTop, x1 - x0, glyphHeight), p);
     }
 
     private static boolean caretBlinkOn() {
