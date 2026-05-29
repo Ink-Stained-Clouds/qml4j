@@ -43,6 +43,21 @@ public final class QmlCompiler {
     private static final String DELEGATE_HOST_INTERNAL = "io/qml4j/engine/DelegateHost";
     private static final String SIGNAL_RELAY_INTERNAL = "io/qml4j/engine/SignalRelay";
 
+    private static final ThreadLocal<int[]> DELEGATE_SCOPE_DEPTH =
+        ThreadLocal.withInitial(() -> new int[]{0});
+
+    public static boolean inDelegateScope() {
+        return DELEGATE_SCOPE_DEPTH.get()[0] > 0;
+    }
+
+    private static void enterDelegateScope() {
+        DELEGATE_SCOPE_DEPTH.get()[0]++;
+    }
+
+    private static void exitDelegateScope() {
+        DELEGATE_SCOPE_DEPTH.get()[0]--;
+    }
+
     private final AtomicInteger componentCounter = new AtomicInteger();
 
     private ClassWriter activeComponentCw;
@@ -584,9 +599,15 @@ public final class QmlCompiler {
 
     private byte[] emitChildSubclass(String subInternal, String parentInternal,
                                      Set<String> signalNames, List<DeclaredProp> propDecls) {
+        return emitChildSubclass(subInternal, parentInternal, signalNames, propDecls, null);
+    }
+
+    private byte[] emitChildSubclass(String subInternal, String parentInternal,
+                                     Set<String> signalNames, List<DeclaredProp> propDecls,
+                                     String[] extraInterfaces) {
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
         cw.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
-                 subInternal, null, parentInternal, null);
+                 subInternal, null, parentInternal, extraInterfaces);
         for (String sig : signalNames) {
             cw.visitField(Opcodes.ACC_PUBLIC, sig, SIGNAL_DESC, null, null).visitEnd();
         }
@@ -644,7 +665,8 @@ public final class QmlCompiler {
 
         String delegateBinaryName = componentBinaryName + "$Delegate$" + n;
         String delegateInternal = delegateBinaryName.replace('.', '/');
-        byte[] subBytes = emitChildSubclass(delegateInternal, delBaseInternal, delSignals, fullDecls);
+        byte[] subBytes = emitChildSubclass(delegateInternal, delBaseInternal, delSignals,
+                                            fullDecls, new String[]{"io/qml4j/engine/DelegateRoot"});
         classes.put(delegateBinaryName, subBytes);
 
         Map<String, String> delDeclaredProps = new LinkedHashMap<>();
@@ -716,10 +738,15 @@ public final class QmlCompiler {
         mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
                            "set", "(Ljava/lang/Object;)V", false);
 
-        emitObjectBody(mv, delType, delegateLocal, delegateNode, registry,
-                       localCounter, bindingCounter, handlerCounter, classes, componentBinaryName,
-                       delegateInternal, delSignals, delSignalParams, idTypes,
-                       delDeclaredProps, Collections.<String, AliasRef>emptyMap(), rootFunctions);
+        enterDelegateScope();
+        try {
+            emitObjectBody(mv, delType, delegateLocal, delegateNode, registry,
+                           localCounter, bindingCounter, handlerCounter, classes, componentBinaryName,
+                           delegateInternal, delSignals, delSignalParams, idTypes,
+                           delDeclaredProps, Collections.<String, AliasRef>emptyMap(), rootFunctions);
+        } finally {
+            exitDelegateScope();
+        }
 
         mv.visitMethodInsn(Opcodes.INVOKESTATIC, PROPERTY_INTERNAL,
                            "flushDeferred", "()V", false);

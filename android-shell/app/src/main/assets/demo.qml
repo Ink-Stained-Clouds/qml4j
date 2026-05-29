@@ -613,12 +613,20 @@ Rectangle {
 
             Repeater {
                 model: people
-                Text {
-                    text: index + ". " + modelData.name
-                    color: modelData.tint
-                    fontSize: 24
+                Rectangle {
                     width: 360
-                    height: 32
+                    height: 36
+                    color: index % 2 === 0 ? "#222230" : "#2a2a3a"
+                    radius: 6
+                    Text {
+                        x: 10
+                        y: 4
+                        text: index + ". " + modelData.name
+                        color: modelData.tint
+                        fontSize: 24
+                        width: 340
+                        height: 30
+                    }
                 }
             }
         }
@@ -713,16 +721,16 @@ Rectangle {
             model: 24
             Rectangle {
                 width: 420
-                height: 48
-                color: index % 2 === 0 ? "#406080" : "#2a4060"
+                height: 42
+                color: index % 2 === 0 ? "#2a3a52" : "#3a2a3a"
                 Text {
-                    x: 16
-                    y: 10
+                    x: 12
+                    y: 6
                     text: "row " + index
-                    color: "#ffffff"
-                    fontSize: 22
-                    width: 380
-                    height: 30
+                    color: index % 2 === 0 ? "#80c0ff" : "#ffb080"
+                    fontSize: 24
+                    width: 400
+                    height: 32
                 }
             }
         }
@@ -747,12 +755,20 @@ Rectangle {
                 ListElement { label: "mangoes";  tint: "#ffb060" }
                 ListElement { label: "nectarines"; tint: "#ff9080" }
             }
-            Text {
-                text: index + ". " + modelData.label
-                color: modelData.tint
-                fontSize: 24
+            Rectangle {
                 width: 400
                 height: 36
+                color: "#222230"
+                radius: 6
+                Text {
+                    x: 10
+                    y: 4
+                    text: index + ". " + modelData.label
+                    color: modelData.tint
+                    fontSize: 24
+                    width: 380
+                    height: 30
+                }
             }
         }
     }

@@ -231,6 +231,35 @@ public final class RuntimeHelpers {
         return writeMember(target, String.valueOf(index), value);
     }
 
+    public static Object delegateContext(Object start, String name) {
+        Object cur = start;
+        while (cur != null) {
+            if (cur instanceof DelegateRoot) {
+                return readMember(cur, name);
+            }
+            cur = parentOf(cur);
+        }
+        throw new IllegalStateException(
+            "delegate context '" + name + "' not found in parent chain");
+    }
+
+    private static Object parentOf(Object node) {
+        Field f;
+        try {
+            f = node.getClass().getField("parent");
+        } catch (NoSuchFieldException e) {
+            return null;
+        }
+        Object v;
+        try {
+            v = f.get(node);
+        } catch (IllegalAccessException e) {
+            return null;
+        }
+        if (v instanceof Property) return ((Property<?>) v).peek();
+        return v;
+    }
+
     public static Object callMethod(Object receiver, String name, Object[] args) {
         if (receiver == null) {
             throw new NullPointerException("cannot call '" + name + "' on null receiver");

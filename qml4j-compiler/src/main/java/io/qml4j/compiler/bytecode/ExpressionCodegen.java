@@ -275,6 +275,16 @@ final class ExpressionCodegen {
                               "L" + Type.getInternalName(idType) + ";");
             return;
         }
+        if (QmlCompiler.inDelegateScope()
+            && ("index".equals(id.name) || "modelData".equals(id.name))) {
+            loadOuter(mv);
+            mv.visitLdcInsn(id.name);
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, HELPERS_INTERNAL,
+                               "delegateContext",
+                               "(Ljava/lang/Object;Ljava/lang/String;)Ljava/lang/Object;",
+                               false);
+            return;
+        }
         Field f = findPropertyField(outerType, id.name);
         String declOwner = Type.getInternalName(f.getDeclaringClass());
         loadOuter(mv);

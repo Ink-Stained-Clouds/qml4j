@@ -2219,6 +2219,56 @@ class QmlViewTest {
         assertEquals(50f, lv.instances().get(2).y.peek().floatValue());
     }
 
+    @Test
+    void listViewDelegateNestedChildSeesIndex() {
+        Item root = newView().load(
+            "Item {\n" +
+            "  ListView {\n" +
+            "    id: lv\n" +
+            "    width: 200; height: 400\n" +
+            "    model: 3\n" +
+            "    Rectangle {\n" +
+            "      width: 200; height: 40\n" +
+            "      Text { text: \"row \" + index }\n" +
+            "    }\n" +
+            "  }\n" +
+            "}");
+        ListView lv = (ListView) reflectField(root, "lv");
+        assertEquals(3, lv.instances().size());
+        Item rect0 = lv.instances().get(0);
+        Item rect2 = lv.instances().get(2);
+        io.qml4j.render.items.Text t0 = (io.qml4j.render.items.Text) rect0.children.get(0);
+        io.qml4j.render.items.Text t2 = (io.qml4j.render.items.Text) rect2.children.get(0);
+        assertEquals("row 0", t0.text.peek());
+        assertEquals("row 2", t2.text.peek());
+    }
+
+    @Test
+    void listViewDelegateNestedChildSeesModelData() {
+        Item root = newView().load(
+            "Item {\n" +
+            "  ListModel { id: m;\n" +
+            "    ListElement { name: \"alice\" }\n" +
+            "    ListElement { name: \"bob\" }\n" +
+            "  }\n" +
+            "  ListView {\n" +
+            "    id: lv\n" +
+            "    width: 200; height: 400\n" +
+            "    model: m\n" +
+            "    Rectangle {\n" +
+            "      width: 200; height: 40\n" +
+            "      Text { text: index + \":\" + modelData.name }\n" +
+            "    }\n" +
+            "  }\n" +
+            "}");
+        ListView lv = (ListView) reflectField(root, "lv");
+        assertEquals(2, lv.instances().size());
+        io.qml4j.render.items.Text t0 = (io.qml4j.render.items.Text) lv.instances().get(0).children.get(0);
+        io.qml4j.render.items.Text t1 = (io.qml4j.render.items.Text) lv.instances().get(1).children.get(0);
+        assertEquals("0:alice", t0.text.peek());
+        assertEquals("1:bob", t1.text.peek());
+    }
+
     @SuppressWarnings("unchecked")
     private static Object reflectField(Object root, String name) {
         try {
