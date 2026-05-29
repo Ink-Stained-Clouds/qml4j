@@ -9,7 +9,10 @@ import io.qml4j.render.items.Gradient;
 import io.qml4j.render.items.GradientStop;
 import io.qml4j.render.items.Image;
 import io.qml4j.render.items.Item;
+import io.qml4j.render.items.ListElement;
+import io.qml4j.render.items.ListModel;
 import io.qml4j.render.items.Loader;
+import io.qml4j.render.items.Repeater;
 import io.qml4j.render.items.MouseArea;
 import io.qml4j.render.items.Rectangle;
 import io.qml4j.render.items.Row;
@@ -2010,6 +2013,131 @@ class QmlViewTest {
                 (io.qml4j.engine.binding.Property<Object>)
                     root.getClass().getField(name).get(root);
             p.set(value);
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    @Test
+    void listModelDeclarativeBuildsRows() {
+        Item root = newView().load(
+            "Item {\n" +
+            "  ListModel {\n" +
+            "    id: lm\n" +
+            "    ListElement { name: \"alice\"; age: 30 }\n" +
+            "    ListElement { name: \"bob\"; age: 25 }\n" +
+            "  }\n" +
+            "}");
+        ListModel lm = (ListModel) reflectField(root, "lm");
+        assertEquals(2, lm.rows.size());
+        ListElement r0 = lm.rows.get(0);
+        assertEquals("alice", r0.get("name"));
+        assertEquals(30L, ((Number) r0.get("age")).longValue());
+    }
+
+    @Test
+    void repeaterListModelDelegatesAccessRoles() {
+        Item root = newView().load(
+            "Column {\n" +
+            "  Repeater {\n" +
+            "    id: rep\n" +
+            "    model: ListModel {\n" +
+            "      ListElement { label: \"a\" }\n" +
+            "      ListElement { label: \"b\" }\n" +
+            "      ListElement { label: \"c\" }\n" +
+            "    }\n" +
+            "    Text { text: modelData.label }\n" +
+            "  }\n" +
+            "}");
+        Repeater rep = (Repeater) reflectField(root, "rep");
+        assertEquals(3, rep.instances().size());
+        assertEquals("a", ((io.qml4j.render.items.Text) rep.instances().get(0)).text.peek());
+        assertEquals("b", ((io.qml4j.render.items.Text) rep.instances().get(1)).text.peek());
+        assertEquals("c", ((io.qml4j.render.items.Text) rep.instances().get(2)).text.peek());
+    }
+
+    @Test
+    void listModelAppendTriggersRepeaterRebuild() {
+        Item root = newView().load(
+            "Column {\n" +
+            "  Repeater {\n" +
+            "    id: rep\n" +
+            "    model: ListModel { id: lm; ListElement { label: \"x\" } }\n" +
+            "    Text { text: modelData.label }\n" +
+            "  }\n" +
+            "}");
+        Repeater rep = (Repeater) reflectField(root, "rep");
+        ListModel lm = (ListModel) rep.model.peek();
+        assertEquals(1, rep.instances().size());
+        ListElement el = new ListElement();
+        el.put("label", "y");
+        lm.append(el);
+        assertEquals(2, rep.instances().size());
+        assertEquals("y", ((io.qml4j.render.items.Text) rep.instances().get(1)).text.peek());
+    }
+
+    @Test
+    void listModelRemoveShrinksRepeater() {
+        Item root = newView().load(
+            "Column {\n" +
+            "  Repeater {\n" +
+            "    id: rep\n" +
+            "    model: ListModel {\n" +
+            "      ListElement { v: 1 }\n" +
+            "      ListElement { v: 2 }\n" +
+            "      ListElement { v: 3 }\n" +
+            "    }\n" +
+            "    Text { text: modelData.v }\n" +
+            "  }\n" +
+            "}");
+        Repeater rep = (Repeater) reflectField(root, "rep");
+        ListModel lm = (ListModel) rep.model.peek();
+        assertEquals(3, rep.instances().size());
+        lm.remove(1);
+        assertEquals(2, rep.instances().size());
+        assertEquals(2L, lm.count.peek().longValue());
+    }
+
+    @Test
+    void listModelClearEmptiesRepeater() {
+        Item root = newView().load(
+            "Column {\n" +
+            "  Repeater {\n" +
+            "    id: rep\n" +
+            "    model: ListModel {\n" +
+            "      ListElement { v: 1 }\n" +
+            "      ListElement { v: 2 }\n" +
+            "    }\n" +
+            "    Text { text: modelData.v }\n" +
+            "  }\n" +
+            "}");
+        Repeater rep = (Repeater) reflectField(root, "rep");
+        ListModel lm = (ListModel) rep.model.peek();
+        lm.clear();
+        assertEquals(0, rep.instances().size());
+    }
+
+    @Test
+    void listModelBindingExpressionResolvesViaId() {
+        Item root = newView().load(
+            "Item {\n" +
+            "  id: hub\n" +
+            "  property int base: 100\n" +
+            "  ListModel {\n" +
+            "    id: lm\n" +
+            "    ListElement { v: hub.base + 1 }\n" +
+            "    ListElement { v: hub.base + 2 }\n" +
+            "  }\n" +
+            "}");
+        ListModel lm = (ListModel) reflectField(root, "lm");
+        assertEquals(101L, ((Number) lm.rows.get(0).get("v")).longValue());
+        assertEquals(102L, ((Number) lm.rows.get(1).get("v")).longValue());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object reflectField(Object root, String name) {
+        try {
+            return root.getClass().getField(name).get(root);
         } catch (ReflectiveOperationException ex) {
             throw new RuntimeException(ex);
         }

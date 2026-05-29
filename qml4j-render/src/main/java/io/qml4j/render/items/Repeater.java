@@ -3,6 +3,7 @@ package io.qml4j.render.items;
 import io.qml4j.engine.DelegateFactory;
 import io.qml4j.engine.DelegateHost;
 import io.qml4j.engine.QObject;
+import io.qml4j.engine.SignalHandler;
 import io.qml4j.engine.binding.Property;
 
 import java.util.ArrayList;
@@ -12,9 +13,14 @@ public class Repeater extends Item implements DelegateHost {
     public final Property<Object> model = new Property<>(0);
     private DelegateFactory factory;
     private final List<Item> instances = new ArrayList<>();
+    private ListModel boundModel;
+    private SignalHandler modelListener;
 
     public Repeater() {
-        model.addListener(v -> rebuild());
+        model.addListener(v -> {
+            attachModelSignals(v);
+            rebuild();
+        });
         parent.addListener(v -> rebuild());
     }
 
@@ -28,17 +34,34 @@ public class Repeater extends Item implements DelegateHost {
         return instances;
     }
 
+    private void attachModelSignals(Object m) {
+        if (boundModel != null && modelListener != null) {
+            boundModel.rowsInserted.disconnect(modelListener);
+            boundModel.rowsRemoved.disconnect(modelListener);
+            boundModel.rowsChanged.disconnect(modelListener);
+        }
+        boundModel = null;
+        modelListener = null;
+        if (m instanceof ListModel) {
+            boundModel = (ListModel) m;
+            modelListener = args -> rebuild();
+            boundModel.rowsInserted.connect(modelListener);
+            boundModel.rowsRemoved.connect(modelListener);
+            boundModel.rowsChanged.connect(modelListener);
+        }
+    }
+
     private void rebuild() {
         if (factory == null) return;
         Item visualParent = parent.peek();
         if (visualParent == null) return;
         Object m = model.peek();
+        // ListModel rows can mutate per-index (set/swap), so tear down
+        // and recreate from scratch. v0 cost is acceptable for small models.
+        for (Item it : instances) visualParent.children.remove(it);
+        instances.clear();
         int desired = sizeOf(m);
-        while (instances.size() > desired) {
-            Item last = instances.remove(instances.size() - 1);
-            visualParent.children.remove(last);
-        }
-        for (int i = instances.size(); i < desired; i++) {
+        for (int i = 0; i < desired; i++) {
             Object data = dataAt(m, i);
             QObject created = factory.create(i, data);
             if (!(created instanceof Item)) {
@@ -53,6 +76,7 @@ public class Repeater extends Item implements DelegateHost {
     }
 
     private static int sizeOf(Object m) {
+        if (m instanceof ListModel) return ((ListModel) m).rows.size();
         if (m instanceof Number) {
             int n = ((Number) m).intValue();
             return n < 0 ? 0 : n;
@@ -62,6 +86,10 @@ public class Repeater extends Item implements DelegateHost {
     }
 
     private static Object dataAt(Object m, int i) {
+        if (m instanceof ListModel) {
+            List<ListElement> rows = ((ListModel) m).rows;
+            return i < rows.size() ? rows.get(i) : null;
+        }
         if (m instanceof List) {
             List<?> list = (List<?>) m;
             return i < list.size() ? list.get(i) : null;

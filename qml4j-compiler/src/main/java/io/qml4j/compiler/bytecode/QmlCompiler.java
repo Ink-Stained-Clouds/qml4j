@@ -553,7 +553,7 @@ public final class QmlCompiler {
         }
 
         Field listField = findListFieldOrNull(outerType, listFieldName);
-        if (listField != null) {
+        if (listField != null && listAcceptsElement(listField, childType)) {
             String declOwner = Type.getInternalName(listField.getDeclaringClass());
             ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
             ctor.visitFieldInsn(Opcodes.GETFIELD, declOwner, listFieldName, LIST_DESC);
@@ -918,6 +918,24 @@ public final class QmlCompiler {
         } catch (NoSuchFieldException e) {
             return null;
         }
+    }
+
+    private static boolean listAcceptsElement(Field listField, Class<?> childType) {
+        java.lang.reflect.Type gt = listField.getGenericType();
+        if (!(gt instanceof java.lang.reflect.ParameterizedType)) return true;
+        java.lang.reflect.Type[] args = ((java.lang.reflect.ParameterizedType) gt).getActualTypeArguments();
+        if (args.length == 0) return true;
+        java.lang.reflect.Type arg = args[0];
+        Class<?> elemClass;
+        if (arg instanceof Class) {
+            elemClass = (Class<?>) arg;
+        } else if (arg instanceof java.lang.reflect.ParameterizedType) {
+            java.lang.reflect.Type raw = ((java.lang.reflect.ParameterizedType) arg).getRawType();
+            elemClass = (raw instanceof Class) ? (Class<?>) raw : Object.class;
+        } else {
+            return true;
+        }
+        return elemClass.isAssignableFrom(childType);
     }
 
     private void emitLiteralAssignment(MethodVisitor ctor, Class<? extends QObject> outerType,
