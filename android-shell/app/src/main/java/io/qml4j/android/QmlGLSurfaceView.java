@@ -62,7 +62,9 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
                 requestFocus();
                 queueEvent(new Runnable() {
                     @Override public void run() {
-                        if (view != null) view.dispatchPointerDown(x, y);
+                        if (view == null) return;
+                        view.dispatchPointerDown(x, y);
+                        if (view.focused() instanceof TextInput) showImeOnUiThread();
                     }
                 });
                 return true;
@@ -168,24 +170,35 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
         return 0;
     }
 
-    private void onFocusChangedFromQml(final boolean wantsIme) {
-        Context ctx = getContext();
-        Activity activity = (ctx instanceof Activity) ? (Activity) ctx : null;
-        if (activity == null) return;
-        activity.runOnUiThread(new Runnable() {
+    private void hideImeOnUiThread() {
+        runOnUi(new Runnable() {
             @Override public void run() {
-                InputMethodManager imm =
-                    (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+                InputMethodManager imm = imm();
                 if (imm == null) return;
-                if (wantsIme) {
-                    requestFocus();
-                    imm.restartInput(QmlGLSurfaceView.this);
-                    imm.showSoftInput(QmlGLSurfaceView.this, InputMethodManager.SHOW_IMPLICIT);
-                } else {
-                    imm.hideSoftInputFromWindow(getWindowToken(), 0);
-                }
+                imm.hideSoftInputFromWindow(getWindowToken(), 0);
             }
         });
+    }
+
+    private void showImeOnUiThread() {
+        runOnUi(new Runnable() {
+            @Override public void run() {
+                InputMethodManager imm = imm();
+                if (imm == null) return;
+                requestFocus();
+                imm.restartInput(QmlGLSurfaceView.this);
+                imm.showSoftInput(QmlGLSurfaceView.this, InputMethodManager.SHOW_IMPLICIT);
+            }
+        });
+    }
+
+    private InputMethodManager imm() {
+        return (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+    }
+
+    private void runOnUi(Runnable r) {
+        Context ctx = getContext();
+        if (ctx instanceof Activity) ((Activity) ctx).runOnUiThread(r);
     }
 
     private final class GlRenderer implements GLSurfaceView.Renderer {
@@ -199,13 +212,13 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
             surface.resize(width, height);
             if (view == null) {
                 view = QmlView.withStockTypes(engine).resources(resources);
-                view.setFocusListener((nf, of) ->
-                    onFocusChangedFromQml(nf instanceof TextInput));
+                view.setFocusListener((nf, of) -> {
+                    if (of instanceof TextInput && !(nf instanceof TextInput)) {
+                        hideImeOnUiThread();
+                    }
+                });
                 view.load(qmlSource);
                 renderer.setResourceLoader(resources);
-                if (view.focused() instanceof TextInput) {
-                    onFocusChangedFromQml(true);
-                }
             }
             if (view.root() != null) {
                 view.root().width.set(width);
