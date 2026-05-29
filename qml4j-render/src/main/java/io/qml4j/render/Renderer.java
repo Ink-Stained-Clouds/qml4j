@@ -18,7 +18,6 @@ import io.qml4j.render.items.TextInput;
 
 import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.skija.Font;
-import io.github.humbleui.skija.FontMetrics;
 import io.github.humbleui.skija.FontMgr;
 import io.github.humbleui.skija.FontStyle;
 import io.github.humbleui.skija.Paint;
@@ -389,13 +388,8 @@ public final class Renderer {
         float size = ti.fontSize.peek().floatValue();
         try (Font font = fontFor(size, s)) {
             float baseline = size;
-            float glyphTop = baseline;
-            float glyphHeight = size;
-            try {
-                FontMetrics m = font.getMetrics();
-                glyphTop = baseline + m.getAscent();
-                glyphHeight = m.getDescent() - m.getAscent();
-            } catch (Throwable ignored) {}
+            float glyphTop = baseline + size * GLYPH_ASCENT_RATIO;
+            float glyphHeight = size * (GLYPH_DESCENT_RATIO - GLYPH_ASCENT_RATIO);
             paintSelectionRect(canvas, ti, s, font, glyphTop, glyphHeight, alpha);
             if (!s.isEmpty()) {
                 paint().setColor(applyAlpha(parseColor(ti.color.peek()), alpha));
@@ -432,6 +426,9 @@ public final class Renderer {
     }
 
     private static final long CARET_BLINK_MS = 500;
+
+    private static final float GLYPH_ASCENT_RATIO = -0.78f;
+    private static final float GLYPH_DESCENT_RATIO = 0.22f;
 
     public int caretIndexFor(TextInput ti, float localX) {
         String s = ti.text.peek();
