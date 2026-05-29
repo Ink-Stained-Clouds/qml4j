@@ -98,7 +98,13 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
     public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
         outAttrs.inputType = EditorInfo.TYPE_CLASS_TEXT;
         outAttrs.imeOptions = EditorInfo.IME_ACTION_DONE | EditorInfo.IME_FLAG_NO_EXTRACT_UI;
-        return new QmlInputConnection(this, false);
+        if (view != null && view.focused() instanceof TextInput) {
+            TextInput ti = (TextInput) view.focused();
+            int pos = ti.cursorPosition.peek().intValue();
+            outAttrs.initialSelStart = pos;
+            outAttrs.initialSelEnd = pos;
+        }
+        return new QmlInputConnection(this, true);
     }
 
     @Override
@@ -150,6 +156,10 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
                 if (view != null) view.setComposingText(s);
             }
         });
+    }
+
+    QmlView qmlView() {
+        return view;
     }
 
     void finishComposingFromIme() {

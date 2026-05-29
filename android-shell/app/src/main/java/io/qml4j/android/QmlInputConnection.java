@@ -3,6 +3,8 @@ package io.qml4j.android;
 import android.view.KeyEvent;
 import android.view.inputmethod.BaseInputConnection;
 
+import io.qml4j.render.items.TextInput;
+
 final class QmlInputConnection extends BaseInputConnection {
 
     private final QmlGLSurfaceView view;
@@ -10,6 +12,48 @@ final class QmlInputConnection extends BaseInputConnection {
     QmlInputConnection(QmlGLSurfaceView view, boolean fullEditor) {
         super(view, fullEditor);
         this.view = view;
+    }
+
+    private TextInput focusedTextInput() {
+        if (view.qmlView() == null) return null;
+        Object f = view.qmlView().focused();
+        return f instanceof TextInput ? (TextInput) f : null;
+    }
+
+    @Override
+    public CharSequence getTextBeforeCursor(int n, int flags) {
+        TextInput ti = focusedTextInput();
+        if (ti == null) return "";
+        String s = ti.text.peek(); if (s == null) s = "";
+        int pos = clamp(ti.cursorPosition.peek().intValue(), s.length());
+        int start = Math.max(0, pos - n);
+        return s.substring(start, pos);
+    }
+
+    @Override
+    public CharSequence getTextAfterCursor(int n, int flags) {
+        TextInput ti = focusedTextInput();
+        if (ti == null) return "";
+        String s = ti.text.peek(); if (s == null) s = "";
+        int pos = clamp(ti.cursorPosition.peek().intValue(), s.length());
+        int end = Math.min(s.length(), pos + n);
+        return s.substring(pos, end);
+    }
+
+    @Override
+    public CharSequence getSelectedText(int flags) {
+        return null;
+    }
+
+    @Override
+    public int getCursorCapsMode(int reqModes) {
+        return 0;
+    }
+
+    private static int clamp(int p, int len) {
+        if (p < 0) return 0;
+        if (p > len) return len;
+        return p;
     }
 
     @Override

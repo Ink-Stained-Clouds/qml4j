@@ -55,13 +55,53 @@ public final class Renderer {
         if (defaultTypeface != null) return defaultTypeface;
         FontMgr mgr = FontMgr.getDefault();
         if (mgr != null) {
-            String[] candidates = {null, "sans-serif", "Roboto", "Droid Sans", "Arial"};
-            for (String name : candidates) {
+            for (String name : LATIN_CANDIDATES) {
                 Typeface t = mgr.matchFamilyStyle(name, FontStyle.NORMAL);
                 if (t != null) { defaultTypeface = t; return t; }
             }
         }
         return null;
+    }
+
+    private Typeface cjkTypeface() {
+        if (cjkTypeface != null) return cjkTypeface;
+        if (cjkLookupFailed) return null;
+        FontMgr mgr = FontMgr.getDefault();
+        if (mgr == null) { cjkLookupFailed = true; return null; }
+        for (String name : CJK_CANDIDATES) {
+            Typeface t = mgr.matchFamilyStyle(name, FontStyle.NORMAL);
+            if (t != null) { cjkTypeface = t; return t; }
+        }
+        try {
+            Typeface t = mgr.matchFamilyStyleCharacter(
+                null, FontStyle.NORMAL, new String[]{"zh-CN", "zh-Hans"}, 0x4E2D);
+            if (t != null) { cjkTypeface = t; return t; }
+        } catch (Throwable ignored) {}
+        cjkLookupFailed = true;
+        return null;
+    }
+
+    private Typeface cjkTypeface;
+    private boolean cjkLookupFailed;
+
+    private static final String[] LATIN_CANDIDATES = {
+        null, "sans-serif", "Roboto", "Droid Sans", "Arial"
+    };
+
+    private static final String[] CJK_CANDIDATES = {
+        "Noto Sans CJK SC", "NotoSansCJK", "Noto Sans CJK",
+        "Source Han Sans SC", "Source Han Sans",
+        "PingFang SC", "Heiti SC", "Droid Sans Fallback",
+        "Microsoft YaHei", "WenQuanYi Micro Hei"
+    };
+
+    private static boolean needsCjk(String s) {
+        if (s == null) return false;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c >= 0x3000) return true;
+        }
+        return false;
     }
 
     public void render(Canvas canvas, Item root) {
@@ -142,7 +182,7 @@ public final class Renderer {
         boolean canMeasureH = !t.height.isBound() && ownsHeight(t);
         if (!canMeasureW && !canMeasureH) return;
         if (s.equals(t.lastMeasuredText) && size == t.lastMeasuredSize) return;
-        try (Font font = font(size)) {
+        try (Font font = fontFor(size, s)) {
             if (canMeasureW) {
                 float w = font.measureTextWidth(s);
                 t.width.set(w);
@@ -282,8 +322,8 @@ public final class Renderer {
             int color = applyAlpha(parseColor(t.color.peek()), alpha);
             paint().setColor(color);
             float size = t.fontSize.peek().floatValue();
-            try (Font font = font(size)) {
-                String s = t.text.peek();
+            String s = t.text.peek();
+            try (Font font = fontFor(size, s)) {
                 if (s != null && !s.isEmpty()) {
                     canvas.drawString(s, 0, size, font, paint);
                 }
@@ -346,7 +386,7 @@ public final class Renderer {
         String s = ti.text.peek();
         if (s == null) s = "";
         float size = ti.fontSize.peek().floatValue();
-        try (Font font = font(size)) {
+        try (Font font = fontFor(size, s)) {
             if (!s.isEmpty()) {
                 paint().setColor(applyAlpha(parseColor(ti.color.peek()), alpha));
                 canvas.drawString(s, 0, size, font, paint);
@@ -389,7 +429,7 @@ public final class Renderer {
         String s = ti.text.peek();
         if (s == null || s.isEmpty() || localX <= 0) return 0;
         float size = ti.fontSize.peek().floatValue();
-        try (Font font = font(size)) {
+        try (Font font = fontFor(size, s)) {
             float prev = 0f;
             int n = s.length();
             for (int i = 1; i <= n; i++) {
@@ -544,7 +584,12 @@ public final class Renderer {
     }
 
     private Font font(float size) {
-        Typeface tf = defaultTypeface();
+        return fontFor(size, null);
+    }
+
+    private Font fontFor(float size, String text) {
+        Typeface tf = needsCjk(text) ? cjkTypeface() : null;
+        if (tf == null) tf = defaultTypeface();
         if (tf != null) return new Font(tf, size);
         return new Font().setSize(size);
     }
@@ -557,6 +602,10 @@ public final class Renderer {
         if (defaultTypeface != null) {
             defaultTypeface.close();
             defaultTypeface = null;
+        }
+        if (cjkTypeface != null) {
+            cjkTypeface.close();
+            cjkTypeface = null;
         }
     }
 
