@@ -180,11 +180,6 @@ public final class QmlView {
         if (old != null) {
             old.activeFocus.set(Boolean.FALSE);
             old.focus.set(Boolean.FALSE);
-            if (old instanceof TextInput) {
-                TextInput prev = (TextInput) old;
-                prev.composingStart.set(-1);
-                prev.composingEnd.set(-1);
-            }
         }
         focused = it;
         if (it != null) {
@@ -279,63 +274,6 @@ public final class QmlView {
         if (p < 0) return 0;
         if (p > len) return len;
         return p;
-    }
-
-    public boolean setComposingText(String text) {
-        if (!(focused instanceof TextInput)) return false;
-        TextInput ti = (TextInput) focused;
-        if (Boolean.TRUE.equals(ti.readOnly.peek())) return false;
-        return replaceComposing(ti, text == null ? "" : text, false);
-    }
-
-    public boolean commitComposingText(String text) {
-        if (!(focused instanceof TextInput)) return false;
-        TextInput ti = (TextInput) focused;
-        if (Boolean.TRUE.equals(ti.readOnly.peek())) return false;
-        return replaceComposing(ti, text == null ? "" : text, true);
-    }
-
-    public boolean finishComposing() {
-        if (!(focused instanceof TextInput)) return false;
-        TextInput ti = (TextInput) focused;
-        ti.composingStart.set(-1);
-        ti.composingEnd.set(-1);
-        return true;
-    }
-
-    private static boolean replaceComposing(TextInput ti, String text, boolean commit) {
-        String cur = ti.text.peek();
-        if (cur == null) cur = "";
-        int len = cur.length();
-        int start = ti.composingStart.peek().intValue();
-        int end = ti.composingEnd.peek().intValue();
-        int region0, region1;
-        if (start >= 0 && end >= start && start <= len) {
-            region0 = start;
-            region1 = Math.min(end, len);
-        } else {
-            int pos = clampPos(ti.cursorPosition.peek().intValue(), len);
-            region0 = pos;
-            region1 = pos;
-        }
-        int max = ti.maximumLength.peek().intValue();
-        int room = Math.max(0, max - (len - (region1 - region0)));
-        String add = text.length() > room ? text.substring(0, room) : text;
-        String next = cur.substring(0, region0) + add + cur.substring(region1);
-        ti.text.set(next);
-        if (commit) {
-            ti.composingStart.set(-1);
-            ti.composingEnd.set(-1);
-        } else if (add.isEmpty()) {
-            ti.composingStart.set(-1);
-            ti.composingEnd.set(-1);
-        } else {
-            ti.composingStart.set(region0);
-            ti.composingEnd.set(region0 + add.length());
-        }
-        ti.cursorPosition.set(region0 + add.length());
-        ti.textChanged.emit();
-        return true;
     }
 
     public boolean dispatchClick(float x, float y) {

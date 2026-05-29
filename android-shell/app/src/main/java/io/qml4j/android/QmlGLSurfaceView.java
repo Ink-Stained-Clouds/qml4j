@@ -141,33 +141,18 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
     }
 
     void commitTextFromIme(final CharSequence text) {
-        final String s = text == null ? "" : text.toString();
+        if (text == null) return;
+        final String s = text.toString();
+        if (s.isEmpty()) return;
         queueEvent(new Runnable() {
             @Override public void run() {
-                if (view != null) view.commitComposingText(s);
-            }
-        });
-    }
-
-    void setComposingFromIme(final CharSequence text) {
-        final String s = text == null ? "" : text.toString();
-        queueEvent(new Runnable() {
-            @Override public void run() {
-                if (view != null) view.setComposingText(s);
+                if (view != null) view.dispatchKey(0, s, true);
             }
         });
     }
 
     QmlView qmlView() {
         return view;
-    }
-
-    void finishComposingFromIme() {
-        queueEvent(new Runnable() {
-            @Override public void run() {
-                if (view != null) view.finishComposing();
-            }
-        });
     }
 
     void deleteFromIme(final int beforeLength) {
