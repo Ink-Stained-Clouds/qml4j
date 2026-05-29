@@ -84,7 +84,7 @@ Rectangle {
         id: scroll
         anchors.fill: parent
         contentWidth: parent.width
-        contentHeight: 2680
+        contentHeight: 3120
 
     Rectangle {
         x: 60
@@ -576,6 +576,114 @@ Rectangle {
             text: "pill: gradient + border"
             color: "#ffffff"
             fontSize: 30
+        }
+    }
+
+    Rectangle {
+        id: listSection
+        x: 60
+        y: 2680
+        width: 880
+        height: 380
+        color: "#1c1c28"
+
+        property int addCounter: 0
+
+        ListModel {
+            id: people
+            ListElement { name: "alice"; tint: "#ff7080" }
+            ListElement { name: "bob";   tint: "#70c0ff" }
+            ListElement { name: "carol"; tint: "#80d080" }
+        }
+
+        Text {
+            x: 16
+            y: 12
+            text: "ListModel — count=" + people.count
+            color: "#ffffff"
+            fontSize: 26
+            width: 600
+            height: 32
+        }
+
+        Column {
+            x: 16
+            y: 56
+            spacing: 6
+
+            Repeater {
+                model: people
+                Text {
+                    text: index + ". " + modelData.name
+                    color: modelData.tint
+                    fontSize: 24
+                    width: 360
+                    height: 32
+                }
+            }
+        }
+
+        Rectangle {
+            x: 460
+            y: 60
+            width: 180
+            height: 56
+            radius: 10
+            color: "#5070ff"
+            MouseArea {
+                anchors.fill: parent
+                onClicked: {
+                    listSection.addCounter = listSection.addCounter + 1;
+                    var el = { name: "new" + listSection.addCounter, tint: "#ffd060" };
+                    people.append(el);
+                }
+            }
+            Text {
+                anchors.centerIn: parent
+                text: "append"
+                color: "#ffffff"
+                fontSize: 22
+            }
+        }
+
+        Rectangle {
+            x: 460
+            y: 128
+            width: 180
+            height: 56
+            radius: 10
+            color: "#a05050"
+            MouseArea {
+                anchors.fill: parent
+                onClicked: {
+                    if (people.count > 0) { people.remove(people.count - 1); }
+                }
+            }
+            Text {
+                anchors.centerIn: parent
+                text: "remove last"
+                color: "#ffffff"
+                fontSize: 22
+            }
+        }
+
+        Rectangle {
+            x: 460
+            y: 196
+            width: 180
+            height: 56
+            radius: 10
+            color: "#606080"
+            MouseArea {
+                anchors.fill: parent
+                onClicked: people.clear()
+            }
+            Text {
+                anchors.centerIn: parent
+                text: "clear"
+                color: "#ffffff"
+                fontSize: 22
+            }
         }
     }
 

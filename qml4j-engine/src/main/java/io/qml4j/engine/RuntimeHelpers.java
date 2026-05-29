@@ -246,13 +246,18 @@ public final class RuntimeHelpers {
             if (m.isVarArgs() && pc - 1 <= n) varargs = m;
         }
         try {
-            if (exact != null) return exact.invoke(receiver, args);
+            if (exact != null) {
+                Object[] coerced = coerceArgs(args, exact.getParameterTypes());
+                return exact.invoke(receiver, coerced);
+            }
             if (varargs != null) {
                 int fixed = varargs.getParameterCount() - 1;
+                Class<?>[] paramTypes = varargs.getParameterTypes();
                 Object[] reshaped = new Object[fixed + 1];
-                System.arraycopy(args, 0, reshaped, 0, fixed);
+                for (int i = 0; i < fixed; i++) reshaped[i] = coerce(args[i], paramTypes[i]);
+                Class<?> varElem = paramTypes[fixed].getComponentType();
                 Object[] rest = new Object[n - fixed];
-                System.arraycopy(args, fixed, rest, 0, n - fixed);
+                for (int i = 0; i < rest.length; i++) rest[i] = coerce(args[fixed + i], varElem);
                 reshaped[fixed] = rest;
                 return varargs.invoke(receiver, reshaped);
             }
@@ -266,5 +271,30 @@ public final class RuntimeHelpers {
         }
         throw new IllegalArgumentException(
             "no method '" + name + "' with " + n + " args on " + cls.getName());
+    }
+
+    private static Object[] coerceArgs(Object[] args, Class<?>[] paramTypes) {
+        Object[] out = new Object[args.length];
+        for (int i = 0; i < args.length; i++) out[i] = coerce(args[i], paramTypes[i]);
+        return out;
+    }
+
+    private static Object coerce(Object value, Class<?> target) {
+        if (value == null) return null;
+        if (target == null || target.isInstance(value)) return value;
+        if (value instanceof Number) {
+            Number num = (Number) value;
+            if (target == int.class || target == Integer.class) return num.intValue();
+            if (target == long.class || target == Long.class) return num.longValue();
+            if (target == double.class || target == Double.class) return num.doubleValue();
+            if (target == float.class || target == Float.class) return num.floatValue();
+            if (target == short.class || target == Short.class) return num.shortValue();
+            if (target == byte.class || target == Byte.class) return num.byteValue();
+        }
+        if ((target == boolean.class || target == Boolean.class) && value instanceof Boolean) {
+            return value;
+        }
+        if (target == String.class) return value.toString();
+        return value;
     }
 }
