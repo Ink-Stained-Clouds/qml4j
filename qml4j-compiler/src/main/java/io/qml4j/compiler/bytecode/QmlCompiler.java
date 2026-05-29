@@ -5,6 +5,7 @@ import io.qml4j.compiler.TypeRegistry;
 import io.qml4j.compiler.bytecode.ExpressionCodegen.AliasRef;
 import io.qml4j.engine.DelegateHost;
 import io.qml4j.engine.PropertyChangeSink;
+import io.qml4j.engine.QmlDefaultList;
 import io.qml4j.engine.SignalRelay;
 import io.qml4j.engine.binding.Property;
 import io.qml4j.engine.QObject;
@@ -254,6 +255,18 @@ public final class QmlCompiler {
                                          customSignalParams, path.get(0), rootFunctions);
                 return;
             }
+            if (b.value instanceof Ast.ObjectValue) {
+                if (path.size() != 1) {
+                    throw new UnsupportedOperationException(
+                        "object assignment to nested path not supported: " + path);
+                }
+                emitObjectValueAssignment(ctor, outerType, outerLocal,
+                                          ((Ast.ObjectValue) b.value).object, registry,
+                                          localCounter, bindingCounter, handlerCounter,
+                                          classes, componentBinaryName, idTypes,
+                                          customSignalParams, path.get(0), rootFunctions);
+                return;
+            }
             boolean isExprVal = b.value instanceof Ast.ExpressionValue;
             boolean isStmtBlock = b.value instanceof Ast.StatementBlockValue;
             if (!isExprVal && !isStmtBlock) {
@@ -420,7 +433,13 @@ public final class QmlCompiler {
                                  Map<String, Integer> rootFunctions) {
         emitChildObjectInto(ctor, outerType, outerLocal, child, registry,
                             localCounter, bindingCounter, handlerCounter, classes,
-                            componentBinaryName, idTypes, outerSignalParams, "children", rootFunctions);
+                            componentBinaryName, idTypes, outerSignalParams,
+                            defaultListFieldFor(outerType), rootFunctions);
+    }
+
+    private static String defaultListFieldFor(Class<?> type) {
+        QmlDefaultList ann = type.getAnnotation(QmlDefaultList.class);
+        return ann != null ? ann.value() : "children";
     }
 
     private void emitChildObjectInto(MethodVisitor ctor, Class<? extends QObject> outerType,
@@ -782,6 +801,29 @@ public final class QmlCompiler {
                 "type '" + type.getName() + "' used as Behavior must have "
                 + "attach(Object, String) method");
         }
+    }
+
+    private void emitObjectValueAssignment(MethodVisitor ctor, Class<? extends QObject> outerType,
+                                           int outerLocal, Ast.ObjectNode node,
+                                           TypeRegistry registry,
+                                           int[] localCounter, int[] bindingCounter, int[] handlerCounter,
+                                           Map<String, byte[]> classes, String componentBinaryName,
+                                           Map<String, Class<? extends QObject>> idTypes,
+                                           Map<String, List<String>> customSignalParams,
+                                           String propName,
+                                           Map<String, Integer> rootFunctions) {
+        Field propField = findPropertyField(outerType, propName);
+        String propOwner = Type.getInternalName(propField.getDeclaringClass());
+        int childLocal = localCounter[0];
+        emitChildObjectInto(ctor, outerType, outerLocal, node, registry,
+                            localCounter, bindingCounter, handlerCounter, classes,
+                            componentBinaryName, idTypes, customSignalParams, "",
+                            rootFunctions);
+        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+        ctor.visitFieldInsn(Opcodes.GETFIELD, propOwner, propName, PROPERTY_DESC);
+        ctor.visitVarInsn(Opcodes.ALOAD, childLocal);
+        ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
+                             "set", "(Ljava/lang/Object;)V", false);
     }
 
     private void emitObjectListAssignment(MethodVisitor ctor, Class<? extends QObject> outerType,

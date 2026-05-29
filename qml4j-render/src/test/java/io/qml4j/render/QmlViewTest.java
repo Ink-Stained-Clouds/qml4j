@@ -5,6 +5,8 @@ import io.qml4j.render.items.Column;
 import io.qml4j.render.items.Component;
 import io.qml4j.render.items.Connections;
 import io.qml4j.render.items.Flickable;
+import io.qml4j.render.items.Gradient;
+import io.qml4j.render.items.GradientStop;
 import io.qml4j.render.items.Image;
 import io.qml4j.render.items.Item;
 import io.qml4j.render.items.Loader;
@@ -1441,6 +1443,97 @@ class QmlViewTest {
         v.dispatchPointerMove(10, 5);
         assertEquals(0f, f.contentX.peek().floatValue());
         assertEquals(0f, f.contentY.peek().floatValue());
+    }
+
+    @Test
+    void rectangleDefaultRadiusAndBorderZero() {
+        Item root = newView().load("Rectangle { width: 100; height: 50; color: \"#ff0000\" }");
+        Rectangle r = (Rectangle) root;
+        assertEquals(0f, r.radius.peek().floatValue());
+        assertEquals(0f, r.border.width.peek().floatValue());
+        assertEquals("#000000", r.border.color.peek());
+    }
+
+    @Test
+    void rectangleRadiusAndBorderAssign() {
+        Item root = newView().load(
+            "Rectangle {\n" +
+            "  width: 100; height: 50; color: \"#202028\"\n" +
+            "  radius: 12\n" +
+            "  border.width: 3\n" +
+            "  border.color: \"#80c0ff\"\n" +
+            "}");
+        Rectangle r = (Rectangle) root;
+        assertEquals(12f, r.radius.peek().floatValue());
+        assertEquals(3f, r.border.width.peek().floatValue());
+        assertEquals("#80c0ff", r.border.color.peek());
+    }
+
+    @Test
+    void rectangleGradientFromObjectValue() {
+        Item root = newView().load(
+            "Rectangle {\n" +
+            "  width: 100; height: 80\n" +
+            "  gradient: Gradient {\n" +
+            "    GradientStop { position: 0; color: \"#ff0000\" }\n" +
+            "    GradientStop { position: 1; color: \"#0000ff\" }\n" +
+            "  }\n" +
+            "}");
+        Rectangle r = (Rectangle) root;
+        Gradient g = r.gradient.peek();
+        assertNotNull(g);
+        assertEquals(2, g.stops.size());
+        GradientStop s0 = g.stops.get(0);
+        GradientStop s1 = g.stops.get(1);
+        assertEquals(0f, s0.position.peek().floatValue());
+        assertEquals("#ff0000", s0.color.peek());
+        assertEquals(1f, s1.position.peek().floatValue());
+        assertEquals("#0000ff", s1.color.peek());
+    }
+
+    @Test
+    void gradientStopColorBindingTracksRootId() {
+        Item root = newView().load(
+            "Rectangle {\n" +
+            "  id: card\n" +
+            "  property string topColor: \"#ff0000\"\n" +
+            "  width: 100; height: 80\n" +
+            "  gradient: Gradient {\n" +
+            "    GradientStop { position: 0; color: card.topColor }\n" +
+            "    GradientStop { position: 1; color: \"#000000\" }\n" +
+            "  }\n" +
+            "}");
+        Rectangle r = (Rectangle) root;
+        GradientStop s0 = r.gradient.peek().stops.get(0);
+        assertEquals("#ff0000", s0.color.peek());
+    }
+
+    @Test
+    void rectangleRadiusBindingReactsToPropertyChange() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle {\n" +
+            "  property int r: 4\n" +
+            "  width: 50; height: 50\n" +
+            "  radius: r\n" +
+            "}");
+        Rectangle rect = (Rectangle) root;
+        assertEquals(4f, rect.radius.peek().floatValue());
+        propSet(root, "r", 20);
+        v.dirtyQueue().flush();
+        assertEquals(20f, rect.radius.peek().floatValue());
+    }
+
+    private static void propSet(Item root, String name, Object value) {
+        try {
+            @SuppressWarnings("unchecked")
+            io.qml4j.engine.binding.Property<Object> p =
+                (io.qml4j.engine.binding.Property<Object>)
+                    root.getClass().getField(name).get(root);
+            p.set(value);
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     @Test

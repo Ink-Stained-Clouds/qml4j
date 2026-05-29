@@ -5,6 +5,8 @@ import io.qml4j.engine.QObject;
 import io.qml4j.render.items.Column;
 import io.qml4j.render.items.Component;
 import io.qml4j.render.items.Flickable;
+import io.qml4j.render.items.Gradient;
+import io.qml4j.render.items.GradientStop;
 import io.qml4j.render.items.Image;
 import io.qml4j.render.items.Item;
 import io.qml4j.render.items.Loader;
@@ -18,7 +20,10 @@ import io.github.humbleui.skija.Font;
 import io.github.humbleui.skija.FontMgr;
 import io.github.humbleui.skija.FontStyle;
 import io.github.humbleui.skija.Paint;
+import io.github.humbleui.skija.PaintMode;
+import io.github.humbleui.skija.Shader;
 import io.github.humbleui.skija.Typeface;
+import io.github.humbleui.types.RRect;
 import io.github.humbleui.types.Rect;
 
 import java.util.ArrayList;
@@ -266,10 +271,7 @@ public final class Renderer {
 
     private void paintNode(Canvas canvas, Item node, float w, float h, float alpha) {
         if (node instanceof Rectangle) {
-            Rectangle r = (Rectangle) node;
-            int color = applyAlpha(parseColor(r.color.peek()), alpha);
-            paint().setColor(color);
-            canvas.drawRect(Rect.makeXYWH(0, 0, w, h), paint);
+            paintRectangle(canvas, (Rectangle) node, w, h, alpha);
         } else if (node instanceof Image) {
             paintImage(canvas, (Image) node, w, h, alpha);
         } else if (node instanceof Text) {
@@ -284,6 +286,57 @@ public final class Renderer {
                 }
             }
         }
+    }
+
+    private void paintRectangle(Canvas canvas, Rectangle r, float w, float h, float alpha) {
+        float radius = Math.max(0f, r.radius.peek().floatValue());
+        float borderWidth = Math.max(0f, r.border.width.peek().floatValue());
+        Gradient g = r.gradient.peek();
+        Shader shader = (g != null) ? buildLinearGradient(g, w, h) : null;
+        Paint p = paint();
+        p.setMode(PaintMode.FILL);
+        p.setShader(shader);
+        if (shader == null) {
+            p.setColor(applyAlpha(parseColor(r.color.peek()), alpha));
+        } else {
+            p.setColor(applyAlpha(0xFFFFFFFF, alpha));
+        }
+        if (radius > 0f) {
+            canvas.drawRRect(RRect.makeXYWH(0, 0, w, h, radius), p);
+        } else {
+            canvas.drawRect(Rect.makeXYWH(0, 0, w, h), p);
+        }
+        p.setShader(null);
+        if (shader != null) shader.close();
+        if (borderWidth > 0f) {
+            p.setMode(PaintMode.STROKE);
+            p.setStrokeWidth(borderWidth);
+            p.setColor(applyAlpha(parseColor(r.border.color.peek()), alpha));
+            float inset = borderWidth / 2f;
+            float bw = Math.max(0f, w - borderWidth);
+            float bh = Math.max(0f, h - borderWidth);
+            if (radius > 0f) {
+                float br = Math.max(0f, radius - inset);
+                canvas.drawRRect(RRect.makeXYWH(inset, inset, bw, bh, br), p);
+            } else {
+                canvas.drawRect(Rect.makeXYWH(inset, inset, bw, bh), p);
+            }
+            p.setMode(PaintMode.FILL);
+        }
+    }
+
+    private static Shader buildLinearGradient(Gradient g, float w, float h) {
+        List<GradientStop> stops = g.stops;
+        int n = stops.size();
+        if (n == 0) return null;
+        int[] colors = new int[n];
+        float[] positions = new float[n];
+        for (int i = 0; i < n; i++) {
+            GradientStop s = stops.get(i);
+            colors[i] = parseColor(s.color.peek());
+            positions[i] = s.position.peek().floatValue();
+        }
+        return Shader.makeLinearGradient(0, 0, 0, h, colors, positions);
     }
 
     private void paintImage(Canvas canvas, Image node, float w, float h, float alpha) {

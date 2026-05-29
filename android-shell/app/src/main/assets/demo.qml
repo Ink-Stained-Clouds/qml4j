@@ -84,7 +84,7 @@ Rectangle {
         id: scroll
         anchors.fill: parent
         contentWidth: parent.width
-        contentHeight: 2400
+        contentHeight: 2700
 
     Rectangle {
         id: box
@@ -325,6 +325,69 @@ Rectangle {
     Badge {
         x: 700
         y: 1140
+    }
+
+    Rectangle {
+        x: 60
+        y: 1240
+        width: 360
+        height: 160
+        radius: 24
+        color: "#ffffff"
+        border.width: 3
+        border.color: "#80c0ff"
+
+        Text {
+            x: 24
+            y: 56
+            text: "rounded + border"
+            color: "#202028"
+            fontSize: 28
+        }
+    }
+
+    Rectangle {
+        x: 460
+        y: 1240
+        width: 360
+        height: 160
+        radius: 24
+
+        gradient: Gradient {
+            GradientStop { position: 0; color: "#ff5050" }
+            GradientStop { position: 1; color: "#5050ff" }
+        }
+
+        Text {
+            x: 24
+            y: 56
+            text: "vertical gradient"
+            color: "#ffffff"
+            fontSize: 28
+        }
+    }
+
+    Rectangle {
+        x: 60
+        y: 1420
+        width: 760
+        height: 120
+        radius: 60
+        border.width: 6
+        border.color: "#ffd060"
+
+        gradient: Gradient {
+            GradientStop { position: 0; color: "#202028" }
+            GradientStop { position: 0.5; color: "#404060" }
+            GradientStop { position: 1; color: "#202028" }
+        }
+
+        Text {
+            anchors.centerIn: parent
+            text: "pill: gradient + border"
+            color: "#ffffff"
+            fontSize: 30
+        }
     }
 
     Rectangle {

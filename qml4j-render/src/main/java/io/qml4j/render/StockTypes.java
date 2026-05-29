@@ -5,6 +5,8 @@ import io.qml4j.render.items.Column;
 import io.qml4j.render.items.Component;
 import io.qml4j.render.items.Connections;
 import io.qml4j.render.items.Flickable;
+import io.qml4j.render.items.Gradient;
+import io.qml4j.render.items.GradientStop;
 import io.qml4j.render.items.Image;
 import io.qml4j.render.items.Item;
 import io.qml4j.render.items.Loader;
@@ -44,6 +46,8 @@ public final class StockTypes {
             .register("Repeater", Repeater.class)
             .register("Component", Component.class)
             .register("Connections", Connections.class)
-            .register("Flickable", Flickable.class);
+            .register("Flickable", Flickable.class)
+            .register("Gradient", Gradient.class)
+            .register("GradientStop", GradientStop.class);
     }
 }
