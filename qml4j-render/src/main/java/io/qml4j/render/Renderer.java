@@ -14,6 +14,7 @@ import io.qml4j.render.items.MouseArea;
 import io.qml4j.render.items.Rectangle;
 import io.qml4j.render.items.Row;
 import io.qml4j.render.items.Text;
+import io.qml4j.render.items.TextInput;
 
 import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.skija.Font;
@@ -274,6 +275,8 @@ public final class Renderer {
             paintRectangle(canvas, (Rectangle) node, w, h, alpha);
         } else if (node instanceof Image) {
             paintImage(canvas, (Image) node, w, h, alpha);
+        } else if (node instanceof TextInput) {
+            paintTextInput(canvas, (TextInput) node, w, h, alpha);
         } else if (node instanceof Text) {
             Text t = (Text) node;
             int color = applyAlpha(parseColor(t.color.peek()), alpha);
@@ -337,6 +340,27 @@ public final class Renderer {
             positions[i] = s.position.peek().floatValue();
         }
         return Shader.makeLinearGradient(0, 0, 0, h, colors, positions);
+    }
+
+    private void paintTextInput(Canvas canvas, TextInput ti, float w, float h, float alpha) {
+        String s = ti.text.peek();
+        if (s == null) s = "";
+        float size = ti.fontSize.peek().floatValue();
+        try (Font font = font(size)) {
+            if (!s.isEmpty()) {
+                paint().setColor(applyAlpha(parseColor(ti.color.peek()), alpha));
+                canvas.drawString(s, 0, size, font, paint);
+            }
+            if (Boolean.TRUE.equals(ti.activeFocus.peek())) {
+                int pos = Math.max(0, Math.min(ti.cursorPosition.peek().intValue(), s.length()));
+                float cx = font.measureTextWidth(s.substring(0, pos));
+                Paint p = paint();
+                p.setMode(PaintMode.FILL);
+                p.setColor(applyAlpha(parseColor(ti.cursorColor.peek()), alpha));
+                float cw = Math.max(1f, size / 16f);
+                canvas.drawRect(Rect.makeXYWH(cx, 0, cw, size), p);
+            }
+        }
     }
 
     private void paintImage(Canvas canvas, Image node, float w, float h, float alpha) {

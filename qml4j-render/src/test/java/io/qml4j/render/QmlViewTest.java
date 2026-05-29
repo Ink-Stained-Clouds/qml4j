@@ -14,13 +14,16 @@ import io.qml4j.render.items.MouseArea;
 import io.qml4j.render.items.Rectangle;
 import io.qml4j.render.items.Row;
 import io.qml4j.render.items.Text;
+import io.qml4j.render.items.TextInput;
 import io.qml4j.render.items.Timer;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -1522,6 +1525,132 @@ class QmlViewTest {
         propSet(root, "r", 20);
         v.dirtyQueue().flush();
         assertEquals(20f, rect.radius.peek().floatValue());
+    }
+
+    @Test
+    void initialFocusActivatesNode() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item {\n" +
+            "  width: 200; height: 100\n" +
+            "  TextInput { focus: true }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        assertSame(ti, v.focused());
+        assertTrue(ti.activeFocus.peek());
+    }
+
+    @Test
+    void setFocusTransfersActiveFocus() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item {\n" +
+            "  width: 200; height: 100\n" +
+            "  TextInput { width: 80; height: 30 }\n" +
+            "  TextInput { width: 80; height: 30; y: 40 }\n" +
+            "}");
+        TextInput a = (TextInput) root.children.get(0);
+        TextInput b = (TextInput) root.children.get(1);
+        v.setFocus(a);
+        assertTrue(a.activeFocus.peek());
+        v.setFocus(b);
+        assertSame(b, v.focused());
+        assertTrue(b.activeFocus.peek());
+        assertFalse(a.activeFocus.peek());
+    }
+
+    @Test
+    void dispatchKeyInsertsText() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        v.dispatchKey(0, "h", true);
+        v.dispatchKey(0, "i", true);
+        assertEquals("hi", ti.text.peek());
+        assertEquals(2, ti.cursorPosition.peek().intValue());
+    }
+
+    @Test
+    void dispatchKeyBackspaceDeletes() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true; text: \"abc\" }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        ti.cursorPosition.set(3);
+        v.dispatchKey(QmlView.KEY_BACKSPACE, null, true);
+        assertEquals("ab", ti.text.peek());
+        assertEquals(2, ti.cursorPosition.peek().intValue());
+    }
+
+    @Test
+    void dispatchKeyEnterEmitsAccepted() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        int[] hits = {0};
+        ti.accepted.connect(() -> hits[0]++);
+        v.dispatchKey(QmlView.KEY_ENTER, null, true);
+        assertEquals(1, hits[0]);
+    }
+
+    @Test
+    void readOnlyTextInputIgnoresKeys() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true; readOnly: true; text: \"x\" }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        v.dispatchKey(0, "y", true);
+        v.dispatchKey(QmlView.KEY_BACKSPACE, null, true);
+        assertEquals("x", ti.text.peek());
+    }
+
+    @Test
+    void tapFocusesTextInput() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { x: 10; y: 20; width: 80; height: 30 }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        v.dispatchPointerDown(40, 30);
+        assertSame(ti, v.focused());
+    }
+
+    @Test
+    void maximumLengthClampsInsert() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true; maximumLength: 3 }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        v.dispatchKey(0, "abcde", true);
+        assertEquals("abc", ti.text.peek());
+    }
+
+    @Test
+    void focusListenerFires() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput {}\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        Item[] capture = new Item[2];
+        v.setFocusListener((nf, of) -> { capture[0] = nf; capture[1] = of; });
+        v.setFocus(ti);
+        assertSame(ti, capture[0]);
+        assertNull(capture[1]);
     }
 
     private static void propSet(Item root, String name, Object value) {

@@ -6,6 +6,7 @@ import io.qml4j.render.items.Flickable;
 import io.qml4j.render.items.Item;
 import io.qml4j.render.items.MouseArea;
 import io.qml4j.render.items.NumberAnimation;
+import io.qml4j.render.items.TextInput;
 
 import io.github.humbleui.skija.Canvas;
 import io.qml4j.compiler.CompiledUnit;
@@ -58,7 +59,20 @@ public final class QmlView {
 
     public Item load(String qml) {
         root = instantiate(qml);
+        initialFocusScan(root);
         return root;
+    }
+
+    private void initialFocusScan(Item node) {
+        if (node == null) return;
+        if (Boolean.TRUE.equals(node.focus.peek())) {
+            setFocus(node);
+            return;
+        }
+        for (Item c : node.children) {
+            initialFocusScan(c);
+            if (focused != null) return;
+        }
     }
 
     private Item instantiate(String qml) {
@@ -145,6 +159,93 @@ public final class QmlView {
     private Flickable scrolling;
     private float scrollStartContentX;
     private float scrollStartContentY;
+    private Item focused;
+    private FocusListener focusListener;
+
+    public interface FocusListener {
+        void onFocusChanged(Item newFocus, Item oldFocus);
+    }
+
+    public void setFocusListener(FocusListener l) {
+        this.focusListener = l;
+    }
+
+    public Item focused() {
+        return focused;
+    }
+
+    public void setFocus(Item it) {
+        if (focused == it) return;
+        Item old = focused;
+        if (old != null) {
+            old.activeFocus.set(Boolean.FALSE);
+            old.focus.set(Boolean.FALSE);
+        }
+        focused = it;
+        if (it != null) {
+            it.focus.set(Boolean.TRUE);
+            it.activeFocus.set(Boolean.TRUE);
+        }
+        if (focusListener != null) focusListener.onFocusChanged(it, old);
+    }
+
+    public void clearFocus() {
+        setFocus(null);
+    }
+
+    public boolean dispatchKey(int keyCode, String text, boolean down) {
+        if (!(focused instanceof TextInput)) return false;
+        TextInput ti = (TextInput) focused;
+        if (Boolean.TRUE.equals(ti.readOnly.peek())) return false;
+        if (!down) return true;
+        if (keyCode == KEY_ENTER) {
+            ti.accepted.emit();
+            return true;
+        }
+        if (keyCode == KEY_BACKSPACE) {
+            return applyBackspace(ti);
+        }
+        if (text != null && !text.isEmpty()) {
+            return applyInsert(ti, text);
+        }
+        return false;
+    }
+
+    public static final int KEY_BACKSPACE = -1;
+    public static final int KEY_ENTER = -2;
+
+    private static boolean applyBackspace(TextInput ti) {
+        String cur = ti.text.peek();
+        if (cur == null) cur = "";
+        int pos = clampPos(ti.cursorPosition.peek().intValue(), cur.length());
+        if (pos == 0) return false;
+        String next = cur.substring(0, pos - 1) + cur.substring(pos);
+        ti.text.set(next);
+        ti.cursorPosition.set(pos - 1);
+        ti.textChanged.emit();
+        return true;
+    }
+
+    private static boolean applyInsert(TextInput ti, String text) {
+        String cur = ti.text.peek();
+        if (cur == null) cur = "";
+        int max = ti.maximumLength.peek().intValue();
+        int room = Math.max(0, max - cur.length());
+        if (room == 0) return false;
+        String add = text.length() > room ? text.substring(0, room) : text;
+        int pos = clampPos(ti.cursorPosition.peek().intValue(), cur.length());
+        String next = cur.substring(0, pos) + add + cur.substring(pos);
+        ti.text.set(next);
+        ti.cursorPosition.set(pos + add.length());
+        ti.textChanged.emit();
+        return true;
+    }
+
+    private static int clampPos(int p, int len) {
+        if (p < 0) return 0;
+        if (p > len) return len;
+        return p;
+    }
 
     public boolean dispatchClick(float x, float y) {
         return dispatchPointerDown(x, y) && dispatchPointerUp(x, y);
@@ -152,6 +253,11 @@ public final class QmlView {
 
     public boolean dispatchPointerDown(float x, float y) {
         if (root == null) return false;
+        TextInput ti = hitTestTextInput(root, x, y);
+        if (ti != null) {
+            setFocus(ti);
+            return true;
+        }
         MouseArea hit = hitTestMouseArea(root, x, y);
         if (hit != null) {
             captured = hit;
@@ -305,6 +411,30 @@ public final class QmlView {
         if (v < lo) return lo;
         if (v > hi) return hi;
         return v;
+    }
+
+    private TextInput hitTestTextInput(Item item, float x, float y) {
+        if (!item.visible.peek()) return null;
+        float ix = item.x.peek().floatValue();
+        float iy = item.y.peek().floatValue();
+        float w = item.width.peek().floatValue();
+        float h = item.height.peek().floatValue();
+        float lx = x - ix;
+        float ly = y - iy;
+        if (lx < 0 || ly < 0 || lx > w || ly > h) return null;
+        float childLx = lx;
+        float childLy = ly;
+        if (item instanceof Flickable) {
+            Flickable f = (Flickable) item;
+            childLx += f.contentX.peek().floatValue();
+            childLy += f.contentY.peek().floatValue();
+        }
+        List<Item> ordered = zOrdered(item.children);
+        for (int i = ordered.size() - 1; i >= 0; i--) {
+            TextInput hit = hitTestTextInput(ordered.get(i), childLx, childLy);
+            if (hit != null) return hit;
+        }
+        return item instanceof TextInput ? (TextInput) item : null;
     }
 
     private MouseArea hitTestMouseArea(Item item, float x, float y) {

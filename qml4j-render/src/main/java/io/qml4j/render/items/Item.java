@@ -37,6 +37,9 @@ public class Item extends QObject {
     public final List<State> states = new ArrayList<>();
     public final List<Transition> transitions = new ArrayList<>();
 
+    public final Property<Boolean> focus = new Property<>(Boolean.FALSE);
+    public final Property<Boolean> activeFocus = new Property<>(Boolean.FALSE);
+
     private final StateController stateController = new StateController(this);
 
     public Item() {

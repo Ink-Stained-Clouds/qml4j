@@ -1,8 +1,14 @@
 package io.qml4j.android;
 
+import android.app.Activity;
 import android.content.Context;
 import android.opengl.GLSurfaceView;
+import android.view.KeyEvent;
 import android.view.MotionEvent;
+import android.view.inputmethod.BaseInputConnection;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputConnection;
+import android.view.inputmethod.InputMethodManager;
 
 import io.github.humbleui.skija.BackendRenderTarget;
 import io.github.humbleui.skija.Canvas;
@@ -18,6 +24,7 @@ import io.qml4j.engine.binding.DirtyQueue;
 import io.qml4j.render.QmlView;
 import io.qml4j.render.ResourceLoader;
 import io.qml4j.render.SurfaceBackend;
+import io.qml4j.render.items.TextInput;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
@@ -41,6 +48,8 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
         setEGLConfigChooser(8, 8, 8, 8, 0, 8);
         setRenderer(new GlRenderer());
         setRenderMode(RENDERMODE_CONTINUOUSLY);
+        setFocusable(true);
+        setFocusableInTouchMode(true);
     }
 
     @Override
@@ -50,6 +59,7 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
         final float y = ev.getY();
         switch (action) {
             case MotionEvent.ACTION_DOWN:
+                requestFocus();
                 queueEvent(new Runnable() {
                     @Override public void run() {
                         if (view != null) view.dispatchPointerDown(x, y);
@@ -76,6 +86,108 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
         }
     }
 
+    @Override
+    public boolean onCheckIsTextEditor() {
+        return view != null && view.focused() instanceof TextInput;
+    }
+
+    @Override
+    public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
+        outAttrs.inputType = EditorInfo.TYPE_CLASS_TEXT;
+        outAttrs.imeOptions = EditorInfo.IME_ACTION_DONE | EditorInfo.IME_FLAG_NO_EXTRACT_UI;
+        return new QmlInputConnection(this, false);
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (dispatchKeyEvent(event, true)) return true;
+        return super.onKeyDown(keyCode, event);
+    }
+
+    @Override
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        if (dispatchKeyEvent(event, false)) return true;
+        return super.onKeyUp(keyCode, event);
+    }
+
+    boolean dispatchKeyEvent(KeyEvent event, boolean down) {
+        if (view == null) return false;
+        if (!(view.focused() instanceof TextInput)) return false;
+        final int mapped = mapKeyCode(event.getKeyCode());
+        final String text;
+        if (mapped == 0) {
+            int unicode = event.getUnicodeChar();
+            if (unicode == 0) return false;
+            text = new String(Character.toChars(unicode));
+        } else {
+            text = null;
+        }
+        final boolean isDown = down;
+        queueEvent(new Runnable() {
+            @Override public void run() {
+                if (view != null) view.dispatchKey(mapped, text, isDown);
+            }
+        });
+        return true;
+    }
+
+    void commitTextFromIme(final CharSequence text) {
+        if (text == null) return;
+        final String s = text.toString();
+        if (s.isEmpty()) return;
+        queueEvent(new Runnable() {
+            @Override public void run() {
+                if (view != null) view.dispatchKey(0, s, true);
+            }
+        });
+    }
+
+    void deleteFromIme(final int beforeLength) {
+        if (beforeLength <= 0) return;
+        queueEvent(new Runnable() {
+            @Override public void run() {
+                if (view == null) return;
+                for (int i = 0; i < beforeLength; i++) {
+                    view.dispatchKey(QmlView.KEY_BACKSPACE, null, true);
+                }
+            }
+        });
+    }
+
+    void performImeEnter() {
+        queueEvent(new Runnable() {
+            @Override public void run() {
+                if (view != null) view.dispatchKey(QmlView.KEY_ENTER, null, true);
+            }
+        });
+    }
+
+    private static int mapKeyCode(int kc) {
+        if (kc == KeyEvent.KEYCODE_DEL) return QmlView.KEY_BACKSPACE;
+        if (kc == KeyEvent.KEYCODE_ENTER || kc == KeyEvent.KEYCODE_NUMPAD_ENTER) return QmlView.KEY_ENTER;
+        return 0;
+    }
+
+    private void onFocusChangedFromQml(final boolean wantsIme) {
+        Context ctx = getContext();
+        Activity activity = (ctx instanceof Activity) ? (Activity) ctx : null;
+        if (activity == null) return;
+        activity.runOnUiThread(new Runnable() {
+            @Override public void run() {
+                InputMethodManager imm =
+                    (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+                if (imm == null) return;
+                if (wantsIme) {
+                    requestFocus();
+                    imm.restartInput(QmlGLSurfaceView.this);
+                    imm.showSoftInput(QmlGLSurfaceView.this, InputMethodManager.SHOW_IMPLICIT);
+                } else {
+                    imm.hideSoftInputFromWindow(getWindowToken(), 0);
+                }
+            }
+        });
+    }
+
     private final class GlRenderer implements GLSurfaceView.Renderer {
         @Override
         public void onSurfaceCreated(GL10 gl, EGLConfig config) {
@@ -87,8 +199,13 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
             surface.resize(width, height);
             if (view == null) {
                 view = QmlView.withStockTypes(engine).resources(resources);
+                view.setFocusListener((nf, of) ->
+                    onFocusChangedFromQml(nf instanceof TextInput));
                 view.load(qmlSource);
                 renderer.setResourceLoader(resources);
+                if (view.focused() instanceof TextInput) {
+                    onFocusChangedFromQml(true);
+                }
             }
             if (view.root() != null) {
                 view.root().width.set(width);

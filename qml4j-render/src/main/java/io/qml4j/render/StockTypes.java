@@ -18,6 +18,7 @@ import io.qml4j.render.items.Repeater;
 import io.qml4j.render.items.Row;
 import io.qml4j.render.items.State;
 import io.qml4j.render.items.Text;
+import io.qml4j.render.items.TextInput;
 import io.qml4j.render.items.Timer;
 import io.qml4j.render.items.Transition;
 
@@ -48,6 +49,7 @@ public final class StockTypes {
             .register("Connections", Connections.class)
             .register("Flickable", Flickable.class)
             .register("Gradient", Gradient.class)
-            .register("GradientStop", GradientStop.class);
+            .register("GradientStop", GradientStop.class)
+            .register("TextInput", TextInput.class);
     }
 }

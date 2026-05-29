@@ -84,7 +84,7 @@ Rectangle {
         id: scroll
         anchors.fill: parent
         contentWidth: parent.width
-        contentHeight: 2680
+        contentHeight: 2820
 
     Rectangle {
         id: box
@@ -543,6 +543,40 @@ Rectangle {
             text: "pill: gradient + border"
             color: "#ffffff"
             fontSize: 30
+        }
+    }
+
+    Rectangle {
+        x: 60
+        y: 2680
+        width: 760
+        height: 120
+        radius: 12
+        color: "#ffffff"
+        border.width: 2
+        border.color: input.activeFocus ? "#5070ff" : "#808090"
+
+        Text {
+            x: 16
+            y: 12
+            text: "type here:"
+            color: "#404040"
+            fontSize: 18
+            width: 200
+            height: 24
+        }
+
+        TextInput {
+            id: input
+            x: 16
+            y: 48
+            width: 720
+            height: 48
+            text: "hello qml4j"
+            color: "#202028"
+            cursorColor: "#5070ff"
+            fontSize: 32
+            focus: true
         }
     }
 
