@@ -63,8 +63,9 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
                 queueEvent(new Runnable() {
                     @Override public void run() {
                         if (view == null) return;
+                        boolean hitTextInput = view.pickTextInput(x, y) != null;
                         view.dispatchPointerDown(x, y);
-                        if (view.focused() instanceof TextInput) showImeOnUiThread();
+                        if (hitTextInput) showImeOnUiThread();
                     }
                 });
                 return true;

@@ -413,6 +413,10 @@ public final class QmlView {
         return v;
     }
 
+    public TextInput pickTextInput(float x, float y) {
+        return root == null ? null : hitTestTextInput(root, x, y);
+    }
+
     private TextInput hitTestTextInput(Item item, float x, float y) {
         if (!item.visible.peek()) return null;
         float ix = item.x.peek().floatValue();
