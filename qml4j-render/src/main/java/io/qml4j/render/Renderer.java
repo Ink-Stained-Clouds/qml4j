@@ -14,7 +14,9 @@ import io.qml4j.render.items.MouseArea;
 import io.qml4j.render.items.Rectangle;
 import io.qml4j.render.items.Row;
 import io.qml4j.render.items.Text;
+import io.qml4j.render.items.TextEdit;
 import io.qml4j.render.items.TextInput;
+import io.qml4j.render.items.TextWrap;
 
 import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.skija.Font;
@@ -317,6 +319,8 @@ public final class Renderer {
             paintImage(canvas, (Image) node, w, h, alpha);
         } else if (node instanceof TextInput) {
             paintTextInput(canvas, (TextInput) node, w, h, alpha);
+        } else if (node instanceof TextEdit) {
+            paintTextEdit(canvas, (TextEdit) node, w, h, alpha);
         } else if (node instanceof Text) {
             Text t = (Text) node;
             int color = applyAlpha(parseColor(t.color.peek()), alpha);
@@ -429,6 +433,119 @@ public final class Renderer {
 
     private static final float GLYPH_ASCENT_RATIO = -0.78f;
     private static final float GLYPH_DESCENT_RATIO = 0.22f;
+
+    private void paintTextEdit(Canvas canvas, TextEdit te, float w, float h, float alpha) {
+        String s = te.text.peek();
+        if (s == null) s = "";
+        float size = te.fontSize.peek().floatValue();
+        try (Font font = fontFor(size, s)) {
+            TextWrap.Result wrapped = wrapFor(te, s, w, size, font);
+            te.lineCount.set(wrapped.lines.size());
+            float lineH = size * (GLYPH_DESCENT_RATIO - GLYPH_ASCENT_RATIO) + size * 0.2f;
+            float total = lineH * wrapped.lines.size();
+            float yOffset = topOffset(te.verticalAlignment.peek(), h, total);
+            paintSelectionMultiline(canvas, te, wrapped, font, yOffset, lineH, size, alpha);
+            paint().setColor(applyAlpha(parseColor(te.color.peek()), alpha));
+            for (int i = 0; i < wrapped.lines.size(); i++) {
+                String line = wrapped.lines.get(i);
+                if (!line.isEmpty()) {
+                    float baseline = yOffset + i * lineH + size;
+                    canvas.drawString(line, 0, baseline, font, paint);
+                }
+            }
+            if (Boolean.TRUE.equals(te.activeFocus.peek()) && caretBlinkOn()) {
+                drawCaretMultiline(canvas, te, wrapped, font, yOffset, lineH, size, alpha);
+            }
+        }
+    }
+
+    private TextWrap.Result wrapFor(TextEdit te, String s, float width, float size, Font font) {
+        String mode = te.wrapMode.peek();
+        if (te.cachedLines != null && s.equals(te.cachedText)
+            && (mode == null ? te.cachedWrap == null : mode.equals(te.cachedWrap))
+            && te.cachedWidth == width && te.cachedFontSize == size) {
+            return new TextWrap.Result(te.cachedLines, te.cachedStarts);
+        }
+        TextWrap.Result r = TextWrap.wrap(s, mode, width,
+            seg -> font.measureTextWidth(seg));
+        te.cachedLines = r.lines;
+        te.cachedStarts = r.starts;
+        te.cachedText = s;
+        te.cachedWrap = mode;
+        te.cachedWidth = width;
+        te.cachedFontSize = size;
+        return r;
+    }
+
+    private float topOffset(String align, float h, float total) {
+        if ("AlignVCenter".equals(align)) return Math.max(0, (h - total) / 2f);
+        if ("AlignBottom".equals(align)) return Math.max(0, h - total);
+        return 0;
+    }
+
+    private void paintSelectionMultiline(Canvas canvas, TextEdit te, TextWrap.Result wrapped,
+                                         Font font, float yOffset, float lineH, float size, float alpha) {
+        int len = te.cachedText == null ? 0 : te.cachedText.length();
+        int selS = Math.max(0, Math.min(te.selectionStart.peek().intValue(), len));
+        int selE = Math.max(selS, Math.min(te.selectionEnd.peek().intValue(), len));
+        if (selE <= selS) return;
+        Paint p = paint();
+        p.setMode(PaintMode.FILL);
+        p.setColor(applyAlpha(parseColor(te.selectionColor.peek()), alpha));
+        float glyphTop = size + size * GLYPH_ASCENT_RATIO;
+        float glyphHeight = size * (GLYPH_DESCENT_RATIO - GLYPH_ASCENT_RATIO);
+        for (int i = 0; i < wrapped.lines.size(); i++) {
+            int ls = wrapped.starts[i];
+            String line = wrapped.lines.get(i);
+            int le = ls + line.length();
+            if (selE <= ls || selS >= le) continue;
+            int a = Math.max(selS, ls) - ls;
+            int b = Math.min(selE, le) - ls;
+            float x0 = a == 0 ? 0 : font.measureTextWidth(line.substring(0, a));
+            float x1 = font.measureTextWidth(line.substring(0, b));
+            float y = yOffset + i * lineH + glyphTop;
+            canvas.drawRect(Rect.makeXYWH(x0, y, x1 - x0, glyphHeight), p);
+        }
+    }
+
+    private void drawCaretMultiline(Canvas canvas, TextEdit te, TextWrap.Result wrapped,
+                                    Font font, float yOffset, float lineH, float size, float alpha) {
+        int len = te.cachedText == null ? 0 : te.cachedText.length();
+        int pos = Math.max(0, Math.min(te.cursorPosition.peek().intValue(), len));
+        int lineIdx = TextWrap.lineForCaret(wrapped, pos);
+        String line = wrapped.lines.get(lineIdx);
+        int col = Math.max(0, Math.min(pos - wrapped.starts[lineIdx], line.length()));
+        float cx = col == 0 ? 0 : font.measureTextWidth(line.substring(0, col));
+        float glyphTop = size + size * GLYPH_ASCENT_RATIO;
+        float glyphHeight = size * (GLYPH_DESCENT_RATIO - GLYPH_ASCENT_RATIO);
+        Paint p = paint();
+        p.setMode(PaintMode.FILL);
+        p.setColor(applyAlpha(parseColor(te.cursorColor.peek()), alpha));
+        float cw = Math.max(1f, size / 16f);
+        canvas.drawRect(Rect.makeXYWH(cx, yOffset + lineIdx * lineH + glyphTop, cw, glyphHeight), p);
+    }
+
+    public int caretIndexForTextEdit(TextEdit te, float localX, float localY) {
+        String s = te.text.peek();
+        if (s == null) s = "";
+        float size = te.fontSize.peek().floatValue();
+        try (Font font = fontFor(size, s)) {
+            float w = te.width.peek().floatValue();
+            float h = te.height.peek().floatValue();
+            TextWrap.Result wrapped = wrapFor(te, s, w, size, font);
+            float lineH = size * (GLYPH_DESCENT_RATIO - GLYPH_ASCENT_RATIO) + size * 0.2f;
+            float total = lineH * wrapped.lines.size();
+            float yOffset = topOffset(te.verticalAlignment.peek(), h, total);
+            int lineIdx = (int) Math.floor((localY - yOffset) / lineH);
+            if (lineIdx < 0) lineIdx = 0;
+            if (lineIdx >= wrapped.lines.size()) lineIdx = wrapped.lines.size() - 1;
+            String line = wrapped.lines.get(lineIdx);
+            int col = TextWrap.caretInLine(line, localX, seg -> font.measureTextWidth(seg));
+            return wrapped.starts[lineIdx] + col;
+        } catch (Throwable ignored) {
+            return s.length();
+        }
+    }
 
     public int caretIndexFor(TextInput ti, float localX) {
         String s = ti.text.peek();

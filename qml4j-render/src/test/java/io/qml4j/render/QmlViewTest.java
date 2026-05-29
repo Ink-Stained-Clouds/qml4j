@@ -13,6 +13,7 @@ import io.qml4j.render.items.ListElement;
 import io.qml4j.render.items.ListModel;
 import io.qml4j.render.items.ListView;
 import io.qml4j.render.items.GridView;
+import io.qml4j.render.items.TextEdit;
 import io.qml4j.render.items.Loader;
 import io.qml4j.render.items.Repeater;
 import io.qml4j.render.items.MouseArea;
@@ -2366,6 +2367,24 @@ class QmlViewTest {
         GridView gv = (GridView) reflectField(root, "gv");
         io.qml4j.render.items.Text t1 = (io.qml4j.render.items.Text) gv.instances().get(1).children.get(0);
         assertEquals("cell 1", t1.text.peek());
+    }
+
+    @Test
+    void textEditExposesNewProperties() {
+        Item root = newView().load(
+            "Item {\n" +
+            "  TextEdit {\n" +
+            "    id: te\n" +
+            "    width: 200; height: 100\n" +
+            "    text: \"hello\\nworld\"\n" +
+            "    wrapMode: \"WordWrap\"\n" +
+            "    verticalAlignment: \"AlignVCenter\"\n" +
+            "  }\n" +
+            "}");
+        TextEdit te = (TextEdit) reflectField(root, "te");
+        assertEquals("hello\nworld", te.text.peek());
+        assertEquals("WordWrap", te.wrapMode.peek());
+        assertEquals("AlignVCenter", te.verticalAlignment.peek());
     }
 
     @SuppressWarnings("unchecked")
