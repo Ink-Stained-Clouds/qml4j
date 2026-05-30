@@ -131,7 +131,7 @@ Rectangle {
         anchors.top: editorPanel.bottom
         anchors.bottom: parent.bottom
         contentWidth: parent.width
-        contentHeight: 7750
+        contentHeight: 8200
 
     Rectangle {
         x: 60
