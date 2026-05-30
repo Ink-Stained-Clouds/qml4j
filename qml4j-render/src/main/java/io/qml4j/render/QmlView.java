@@ -70,6 +70,7 @@ public final class QmlView {
 
     public Item load(String qml) {
         root = instantiate(qml);
+        root.installFocusHook(this::setFocus);
         initialFocusScan(root);
         return root;
     }

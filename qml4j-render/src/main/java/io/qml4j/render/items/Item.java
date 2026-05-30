@@ -8,6 +8,7 @@ import io.qml4j.engine.binding.Property;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 public class Item extends QObject {
     public final Property<Number> x = new Property<>(0);
@@ -43,6 +44,7 @@ public class Item extends QObject {
 
     private final StateController stateController = new StateController(this);
     private Keys keys;
+    private Consumer<Item> focusHook;
 
     public Item() {
         state.addListener(stateController::apply);
@@ -55,5 +57,15 @@ public class Item extends QObject {
 
     public Keys keysOrNull() {
         return keys;
+    }
+
+    public void installFocusHook(Consumer<Item> hook) {
+        focusHook = hook;
+    }
+
+    public void forceActiveFocus() {
+        Item r = this;
+        while (r.parent.peek() != null) r = r.parent.peek();
+        if (r.focusHook != null) r.focusHook.accept(this);
     }
 }

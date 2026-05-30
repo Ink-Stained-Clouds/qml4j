@@ -9,6 +9,8 @@ import java.lang.reflect.Field;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class KeysTest {
@@ -160,6 +162,31 @@ class KeysTest {
         boolean handled = v.dispatchKey(65, "a", true);
         assertTrue(handled);
         assertEquals(1L, readProp(root.children.get(0), "hits"));
+    }
+
+    @Test
+    void forceActiveFocusRegrabsAfterUnfocus() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item {\n" +
+            "  width: 400; height: 400\n" +
+            "  Rectangle {\n" +
+            "    focus: true\n" +
+            "    width: 50; height: 50\n" +
+            "    property int hits: 0\n" +
+            "    Keys.onPressed: { hits = hits + 1; event.accepted = true }\n" +
+            "  }\n" +
+            "  TextInput { x: 100; y: 100; width: 80; height: 30 }\n" +
+            "}");
+        Item keysItem = root.children.get(0);
+        v.setFocus(root.children.get(1));
+        v.dispatchPointerDown(300, 300);
+        v.dispatchPointerUp(300, 300);
+        assertNull(v.focused());
+        keysItem.forceActiveFocus();
+        assertSame(keysItem, v.focused());
+        assertTrue(v.dispatchKey(65, "a", true));
+        assertEquals(1L, readProp(keysItem, "hits"));
     }
 
     private static Object readProp(Object o, String name) {
