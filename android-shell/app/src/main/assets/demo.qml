@@ -983,5 +983,7 @@ Rectangle {
     FocusScopeShowcase { }
 
     ShapeShowcase { }
+
+    LayerEffectShowcase { }
     }
 }
