@@ -39,10 +39,21 @@ public class Item extends QObject {
 
     public final Property<Boolean> focus = new Property<>(Boolean.FALSE);
     public final Property<Boolean> activeFocus = new Property<>(Boolean.FALSE);
+    public final Property<Boolean> activeFocusOnTab = new Property<>(Boolean.FALSE);
 
     private final StateController stateController = new StateController(this);
+    private Keys keys;
 
     public Item() {
         state.addListener(stateController::apply);
+    }
+
+    public Keys keys() {
+        if (keys == null) keys = new Keys();
+        return keys;
+    }
+
+    public Keys keysOrNull() {
+        return keys;
     }
 }

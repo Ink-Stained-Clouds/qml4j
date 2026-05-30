@@ -16,6 +16,7 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -396,6 +397,18 @@ public final class QmlCompiler {
                                           bindingCounter, classes, key, e, idTypes,
                                           declaredProps, aliases, rootFunctions);
                 }
+                return;
+            }
+            if (path.size() == 2 && "Keys".equals(path.get(0))) {
+                String signalName = signalNameFromHandler(path.get(1));
+                if (signalName == null) {
+                    throw new UnsupportedOperationException(
+                        "Keys attached property supports only on<Signal> handlers: " + path);
+                }
+                Ast.Statement handlerBody = toStatement(b.value);
+                emitKeysHandler(ctor, outerType, outerLocal, componentBinaryName,
+                                handlerCounter, bindingCounter, classes, signalName, handlerBody,
+                                idTypes, declaredProps, aliases, rootFunctions);
                 return;
             }
             if (path.size() == 2) {
@@ -1133,6 +1146,55 @@ public final class QmlCompiler {
                              "(L" + outerInternal + ";L" + componentInternal + ";)V", false);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
                              "bind", "(L" + BINDING_INTERNAL + ";)V", false);
+    }
+
+    private void emitKeysHandler(MethodVisitor ctor, Class<? extends QObject> outerType,
+                                 int outerLocal, String componentBinaryName,
+                                 int[] handlerCounter, int[] bindingCounter, Map<String, byte[]> classes,
+                                 String signalName, Ast.Statement body,
+                                 Map<String, Class<? extends QObject>> idTypes,
+                                 Map<String, String> declaredProps,
+                                 Map<String, AliasRef> aliases,
+                                 Map<String, Integer> rootFunctions) {
+        Method keysMethod;
+        try {
+            keysMethod = outerType.getMethod("keys");
+        } catch (NoSuchMethodException ex) {
+            throw new IllegalArgumentException(
+                "type " + outerType.getName() + " does not support Keys attached handlers");
+        }
+        Class<?> keysType = keysMethod.getReturnType();
+        Field signalField = findSignalFieldOrNull(keysType, signalName);
+        if (signalField == null) {
+            throw new IllegalArgumentException("Keys has no signal '" + signalName + "'");
+        }
+        String outerInternal = Type.getInternalName(outerType);
+        String componentInternal = componentBinaryName.replace('.', '/');
+        String keysOwnerInternal = Type.getInternalName(keysMethod.getDeclaringClass());
+        String keysTypeInternal = Type.getInternalName(keysType);
+
+        int n = handlerCounter[0]++;
+        String handlerBinaryName = componentBinaryName + "$Handler$" + n;
+        String handlerInternal = handlerBinaryName.replace('.', '/');
+        byte[] handlerBytes = emitHandlerClass(handlerInternal, outerInternal, outerType, body,
+                                               componentInternal, componentBinaryName, idTypes,
+                                               Collections.singletonList("event"),
+                                               declaredProps, aliases, rootFunctions,
+                                               bindingCounter, classes);
+        classes.put(handlerBinaryName, handlerBytes);
+
+        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+        ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, keysOwnerInternal, "keys",
+                             "()L" + keysTypeInternal + ";", false);
+        ctor.visitFieldInsn(Opcodes.GETFIELD, keysTypeInternal, signalName, SIGNAL_DESC);
+        ctor.visitTypeInsn(Opcodes.NEW, handlerInternal);
+        ctor.visitInsn(Opcodes.DUP);
+        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+        ctor.visitVarInsn(Opcodes.ALOAD, 0);
+        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, handlerInternal, "<init>",
+                             "(L" + outerInternal + ";L" + componentInternal + ";)V", false);
+        ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, SIGNAL_INTERNAL,
+                             "connect", "(" + SIGNAL_HANDLER_DESC + ")V", false);
     }
 
     private static String signalNameFromHandler(String key) {

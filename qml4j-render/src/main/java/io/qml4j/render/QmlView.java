@@ -5,6 +5,8 @@ import io.qml4j.render.items.Drag;
 import io.qml4j.render.items.Flickable;
 import io.qml4j.render.items.GroupAnimation;
 import io.qml4j.render.items.Item;
+import io.qml4j.render.items.KeyEvent;
+import io.qml4j.render.items.Keys;
 import io.qml4j.render.items.MouseArea;
 import io.qml4j.render.items.PropertyAnimation;
 import io.qml4j.render.items.TextEditable;
@@ -16,6 +18,7 @@ import io.qml4j.compiler.TypeRegistry;
 import io.qml4j.compiler.bytecode.QmlCompiler;
 import io.qml4j.engine.QObject;
 import io.qml4j.engine.QmlEngine;
+import io.qml4j.engine.Signal;
 import io.qml4j.engine.binding.DirtyQueue;
 import io.qml4j.engine.classloader.ClassLoaderBackend;
 import io.qml4j.parser.Qml4j;
@@ -317,6 +320,9 @@ public final class QmlView {
     }
 
     public boolean dispatchKey(int keyCode, String text, boolean down, boolean shift) {
+        if (focused != null && deliverToKeys(focused, keyCode, text, down, shift)) {
+            return true;
+        }
         if (!(focused instanceof TextEditable)) return false;
         TextEditable ti = (TextEditable) focused;
         if (ti.readOnly()) return false;
@@ -361,6 +367,41 @@ public final class QmlView {
     public static final int KEY_END = -6;
     public static final int KEY_UP = -7;
     public static final int KEY_DOWN = -8;
+    public static final int KEY_ESCAPE = -9;
+    public static final int KEY_TAB = -10;
+    public static final int KEY_BACKTAB = -11;
+
+    private boolean deliverToKeys(Item start, int keyCode, String text, boolean down, boolean shift) {
+        int modifiers = shift ? KeyEvent.SHIFT : 0;
+        KeyEvent event = new KeyEvent(keyCode, text, modifiers);
+        for (Item it = start; it != null; it = it.parent.peek()) {
+            Keys keys = it.keysOrNull();
+            if (keys == null) continue;
+            (down ? keys.pressed : keys.released).emit(event);
+            if (down) {
+                Signal specific = specificKeysSignal(keys, keyCode, text);
+                if (specific != null) specific.emit(event);
+            }
+            if (event.accepted) return true;
+        }
+        return false;
+    }
+
+    private static Signal specificKeysSignal(Keys keys, int keyCode, String text) {
+        switch (keyCode) {
+            case KEY_ENTER: return keys.returnPressed;
+            case KEY_ESCAPE: return keys.escapePressed;
+            case KEY_TAB: return keys.tabPressed;
+            case KEY_BACKTAB: return keys.backtabPressed;
+            case KEY_BACKSPACE: return keys.backPressed;
+            case KEY_UP: return keys.upPressed;
+            case KEY_DOWN: return keys.downPressed;
+            case KEY_LEFT: return keys.leftPressed;
+            case KEY_RIGHT: return keys.rightPressed;
+            default:
+                return " ".equals(text) ? keys.spacePressed : null;
+        }
+    }
 
     private static boolean moveCaret(TextEditable ti, int delta, boolean shift) {
         String cur = ti.text();
