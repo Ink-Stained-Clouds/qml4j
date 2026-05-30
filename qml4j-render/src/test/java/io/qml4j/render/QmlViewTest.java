@@ -28,6 +28,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -853,6 +854,29 @@ class QmlViewTest {
         v.tickAnimations(t1);
         v.tickAnimations(t1 + 200_000_000L);
         assertEquals(200.0, r.width.peek().doubleValue(), 1e-6);
+    }
+
+    @Test
+    void behaviorOnColorLerpsViaColorAnimation() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle {\n" +
+            "  color: \"#ff0000\"\n" +
+            "  Behavior on color { ColorAnimation { duration: 100 } }\n" +
+            "}");
+        Rectangle r = (Rectangle) root;
+        r.color.set("#0000ff");
+        assertEquals("#ffff0000", r.color.peek(),
+            "Behavior rewinds color to start before first tick");
+        long t0 = 1_000_000_000L;
+        v.tickAnimations(t0);
+        v.tickAnimations(t0 + 50_000_000L);
+        String mid = (String) r.color.peek();
+        assertNotEquals("#ffff0000", mid, "must have moved off the start");
+        assertNotEquals("#ff0000ff", mid, "must not have snapped to the end");
+        assertTrue(mid.startsWith("#ff"), "alpha preserved");
+        v.tickAnimations(t0 + 200_000_000L);
+        assertEquals("#ff0000ff", r.color.peek());
     }
 
     @Test

@@ -8,14 +8,14 @@ import java.util.Objects;
 public class Behavior extends Item implements Animatable, Property.WriteInterceptor<Object> {
 
     private Property<Object> bound;
-    private boolean wantsLong;
+    private PropertyAnimation template;
     private long durationMs = 250L;
     private String easing = "linear";
 
     private boolean running;
     private long startNanos = -1L;
-    private double from;
-    private double to;
+    private Object preparedFrom;
+    private Object preparedTo;
     private Object lastDisplayed;
     private boolean writing;
 
@@ -30,7 +30,6 @@ public class Behavior extends Item implements Animatable, Property.WriteIntercep
         Property<Object> raw = (Property) p;
         bound = raw;
         lastDisplayed = raw.peek();
-        wantsLong = lastDisplayed instanceof Long || lastDisplayed instanceof Integer;
         readTemplate();
         raw.setInterceptor(this);
     }
@@ -38,10 +37,10 @@ public class Behavior extends Item implements Animatable, Property.WriteIntercep
     private void readTemplate() {
         for (Item c : children) {
             if (!(c instanceof PropertyAnimation)) continue;
-            PropertyAnimation na = (PropertyAnimation) c;
-            Number d = na.duration.peek();
+            template = (PropertyAnimation) c;
+            Number d = template.duration.peek();
             if (d != null) durationMs = d.longValue();
-            String e = na.easing.peek();
+            String e = template.easing.peek();
             if (e != null) easing = e;
             return;
         }
@@ -53,18 +52,23 @@ public class Behavior extends Item implements Animatable, Property.WriteIntercep
             property.setBypassInterceptor(newValue);
             return;
         }
-        if (!(newValue instanceof Number) || !(lastDisplayed instanceof Number)) {
+        if (!canTween(lastDisplayed, newValue)) {
             writeBack(newValue);
             return;
         }
-        double target = ((Number) newValue).doubleValue();
-        double current = ((Number) lastDisplayed).doubleValue();
-        if (!running && target == current) return;
-        from = current;
-        to = target;
+        Object pFrom = template.coerceFrom(lastDisplayed);
+        Object pTo = template.coerceTo(newValue);
+        template.preparedFrom = pFrom;
+        template.preparedTo = pTo;
+        template.onPrepared();
+        pFrom = template.preparedFrom;
+        pTo = template.preparedTo;
+        if (!running && Objects.equals(pFrom, pTo)) return;
+        preparedFrom = pFrom;
+        preparedTo = pTo;
         running = true;
         startNanos = -1L;
-        writeBack(coerce(current));
+        writeBack(template.interpolate(pFrom, pTo, 0.0));
     }
 
     @Override
@@ -74,16 +78,20 @@ public class Behavior extends Item implements Animatable, Property.WriteIntercep
         double frac = durationMs <= 0
             ? 1.0
             : Math.min(1.0, (nowNanos - startNanos) / 1_000_000.0 / durationMs);
-        double v = from + (to - from) * Easings.apply(easing, frac);
-        writeBack(coerce(v));
+        double eased = Easings.apply(easing, frac);
+        Object out = template != null
+            ? template.interpolate(preparedFrom, preparedTo, eased)
+            : preparedTo;
+        writeBack(out);
         if (frac >= 1.0) {
             running = false;
             startNanos = -1L;
         }
     }
 
-    private Object coerce(double v) {
-        return wantsLong ? (Object) Long.valueOf(Math.round(v)) : (Object) Double.valueOf(v);
+    private boolean canTween(Object before, Object after) {
+        if (template == null) return false;
+        return template.acceptsTransition(before, after);
     }
 
     private void writeBack(Object out) {
