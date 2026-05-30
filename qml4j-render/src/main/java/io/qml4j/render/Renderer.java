@@ -846,10 +846,13 @@ public final class Renderer {
     }
 
     private void paintShape(Canvas canvas, Shape shape, float w, float h, float alpha) {
-        for (ShapePath sp : shape.elements) {
-            try (Path path = buildPath(sp)) {
-                fillPath(canvas, path, sp, alpha);
-                strokePath(canvas, path, sp, alpha);
+        try (Paint p = new Paint()) {
+            p.setAntiAlias(true);
+            for (ShapePath sp : shape.elements) {
+                try (Path path = buildPath(sp)) {
+                    fillPath(canvas, path, sp, alpha, p);
+                    strokePath(canvas, path, sp, alpha, p);
+                }
             }
         }
     }
@@ -893,21 +896,19 @@ public final class Renderer {
         }
     }
 
-    private void fillPath(Canvas canvas, Path path, ShapePath sp, float alpha) {
+    private void fillPath(Canvas canvas, Path path, ShapePath sp, float alpha, Paint p) {
         int argb = shapeArgb(sp.fillColor.peek(), alpha);
         if (argb == 0) return;
-        Paint p = paint();
         p.setColor(argb);
         p.setMode(PaintMode.FILL);
         canvas.drawPath(path, p);
     }
 
-    private void strokePath(Canvas canvas, Path path, ShapePath sp, float alpha) {
+    private void strokePath(Canvas canvas, Path path, ShapePath sp, float alpha, Paint p) {
         float sw = sp.strokeWidth.peek().floatValue();
         if (sw <= 0f) return;
         int argb = shapeArgb(sp.strokeColor.peek(), alpha);
         if (argb == 0) return;
-        Paint p = paint();
         p.setColor(argb);
         p.setMode(PaintMode.STROKE);
         p.setStrokeWidth(sw);
