@@ -131,7 +131,7 @@ Rectangle {
         anchors.top: editorPanel.bottom
         anchors.bottom: parent.bottom
         contentWidth: parent.width
-        contentHeight: 7300
+        contentHeight: 7750
 
     Rectangle {
         x: 60
@@ -979,5 +979,7 @@ Rectangle {
     M45Showcase { }
 
     KeysShowcase { }
+
+    FocusScopeShowcase { }
     }
 }

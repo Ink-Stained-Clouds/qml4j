@@ -84,6 +84,8 @@ public final class MainActivity extends Activity {
         addKeyButton(bar, ">", QmlView.KEY_RIGHT, null);
         addKeyButton(bar, "Up", QmlView.KEY_UP, null);
         addKeyButton(bar, "Dn", QmlView.KEY_DOWN, null);
+        addKeyButton(bar, "Tab", QmlView.KEY_TAB, null);
+        addKeyButton(bar, "BTab", QmlView.KEY_BACKTAB, null);
         return bar;
     }
 

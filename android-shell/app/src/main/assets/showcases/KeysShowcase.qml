@@ -4,20 +4,21 @@ Rectangle {
     y: 6880
     width: 880
     height: 320
-    color: "#161b22"
+    color: keysShowcase.activeFocus ? "#1d2733" : "#161b22"
     focus: true
+    activeFocusOnTab: true
 
     property int lastKey: 0
     property string lastText: ""
     property int returns: 0
     property int arrows: 0
-    property string log: "type on a hardware keyboard — handlers update live"
+    property string log: "tap the key bar below — Tab leaves to the focus demo"
 
     Keys.onPressed: {
         keysShowcase.lastKey = event.key;
         keysShowcase.lastText = event.text;
         keysShowcase.log = "key=" + event.key + " text='" + event.text + "'";
-        event.accepted = true;
+        if (event.text !== "") event.accepted = true;
     }
 
     Keys.onReturnPressed: {
