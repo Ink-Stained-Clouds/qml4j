@@ -19,7 +19,7 @@ Rectangle {
         y: 60
         ShapePath {
             fillColor: "#ff8800"
-            strokeColor: "#ffce99"
+            strokeColor: "#a83e00"
             strokeWidth: 3
             startX: 0; startY: 120
             PathLine { x: 70; y: 0 }
@@ -48,7 +48,7 @@ Rectangle {
         y: 60
         ShapePath {
             fillColor: "#5a7cff"
-            strokeColor: "#aecbff"
+            strokeColor: "#2840a0"
             strokeWidth: 2
             startX: 0; startY: 120
             PathCubic {
@@ -65,7 +65,7 @@ Rectangle {
         y: 60
         ShapePath {
             fillColor: "#d0507a"
-            strokeColor: "#ffd0e0"
+            strokeColor: "#802040"
             strokeWidth: 2
             startX: 70; startY: 70
             PathLine { x: 70; y: 0 }
