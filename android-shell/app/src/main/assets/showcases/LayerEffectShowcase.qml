@@ -92,8 +92,8 @@ Rectangle {
             fontSize: 30
             layer.enabled: true
             layer.effect: Glow {
-                radius: 16
-                color: "#ffb000"
+                radius: 36
+                color: "#ffcc00"
             }
         }
     }
