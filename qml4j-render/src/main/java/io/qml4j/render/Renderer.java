@@ -14,6 +14,7 @@ import io.qml4j.render.items.Loader;
 import io.qml4j.render.items.ColorOverlay;
 import io.qml4j.render.items.DropShadow;
 import io.qml4j.render.items.Glow;
+import io.qml4j.render.items.ApplicationWindow;
 import io.qml4j.render.items.MouseArea;
 import io.qml4j.render.items.PathArc;
 import io.qml4j.render.items.PathCubic;
@@ -29,6 +30,7 @@ import io.qml4j.render.items.Text;
 import io.qml4j.render.items.TextEdit;
 import io.qml4j.render.items.TextInput;
 import io.qml4j.render.items.TextWrap;
+import io.qml4j.render.items.Window;
 
 import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.skija.Font;
@@ -352,7 +354,9 @@ public final class Renderer {
     }
 
     private void paintNode(Canvas canvas, Item node, float w, float h, float alpha) {
-        if (node instanceof Rectangle) {
+        if (node instanceof Window) {
+            paintWindow(canvas, (Window) node, w, h, alpha);
+        } else if (node instanceof Rectangle) {
             paintRectangle(canvas, (Rectangle) node, w, h, alpha);
         } else if (node instanceof Shape) {
             paintShape(canvas, (Shape) node, w, h, alpha);
@@ -377,6 +381,16 @@ public final class Renderer {
                 }
             }
         }
+    }
+
+    private void paintWindow(Canvas canvas, Window win, float w, float h, float alpha) {
+        String c = win.color.peek();
+        if (c == null || "transparent".equals(c)) return;
+        Paint p = paint();
+        p.setMode(PaintMode.FILL);
+        p.setShader(null);
+        p.setColor(applyAlpha(parseColor(c), alpha));
+        canvas.drawRect(Rect.makeXYWH(0, 0, w, h), p);
     }
 
     private void paintRectangle(Canvas canvas, Rectangle r, float w, float h, float alpha) {

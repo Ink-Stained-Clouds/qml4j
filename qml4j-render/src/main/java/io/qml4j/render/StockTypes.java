@@ -45,6 +45,8 @@ import io.qml4j.render.items.TextEdit;
 import io.qml4j.render.items.TextInput;
 import io.qml4j.render.items.Timer;
 import io.qml4j.render.items.Transition;
+import io.qml4j.render.items.Window;
+import io.qml4j.render.items.ApplicationWindow;
 
 import io.qml4j.compiler.TypeRegistry;
 
@@ -98,6 +100,8 @@ public final class StockTypes {
             .register("Gradient", Gradient.class)
             .register("GradientStop", GradientStop.class)
             .register("TextInput", TextInput.class)
-            .register("TextEdit", TextEdit.class);
+            .register("TextEdit", TextEdit.class)
+            .register("Window", Window.class)
+            .register("ApplicationWindow", ApplicationWindow.class);
     }
 }
