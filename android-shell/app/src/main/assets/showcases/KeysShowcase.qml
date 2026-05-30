@@ -70,4 +70,23 @@ Rectangle {
         color: "#cccccc"
         fontSize: 16
     }
+
+    Rectangle {
+        x: 16
+        y: 210
+        width: 280
+        height: 56
+        radius: 8
+        color: keysShowcase.activeFocus ? "#33ddaa" : "#3a4656"
+        Text {
+            anchors.centerIn: parent
+            text: keysShowcase.activeFocus ? "focused — keys go here" : "tap to focus this panel"
+            color: "#101820"
+            fontSize: 15
+        }
+        MouseArea {
+            anchors.fill: parent
+            onClicked: keysShowcase.forceActiveFocus()
+        }
+    }
 }

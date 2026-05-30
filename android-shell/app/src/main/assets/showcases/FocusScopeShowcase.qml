@@ -17,7 +17,7 @@ Rectangle {
     Text {
         x: 16
         y: 56
-        text: "Tab / Backtab cycle focus in declaration order; focused box highlights"
+        text: "tap a box to focus, then Tab / Backtab cycle in declaration order"
         color: "#aab4c0"
         fontSize: 14
     }
@@ -31,6 +31,7 @@ Rectangle {
         activeFocusOnTab: true
         color: activeFocus ? "#ff8800" : "#2a3340"
         Text { anchors.centerIn: parent; text: "one"; color: "#ffffff"; fontSize: 16 }
+        MouseArea { anchors.fill: parent; onClicked: parent.forceActiveFocus() }
     }
 
     Rectangle {
@@ -42,6 +43,7 @@ Rectangle {
         activeFocusOnTab: true
         color: activeFocus ? "#ff8800" : "#2a3340"
         Text { anchors.centerIn: parent; text: "two"; color: "#ffffff"; fontSize: 16 }
+        MouseArea { anchors.fill: parent; onClicked: parent.forceActiveFocus() }
     }
 
     Rectangle {
@@ -53,6 +55,7 @@ Rectangle {
         activeFocusOnTab: true
         color: activeFocus ? "#ff8800" : "#2a3340"
         Text { anchors.centerIn: parent; text: "three"; color: "#ffffff"; fontSize: 16 }
+        MouseArea { anchors.fill: parent; onClicked: parent.forceActiveFocus() }
     }
 
     Text {
@@ -86,6 +89,7 @@ Rectangle {
                 activeFocusOnTab: true
                 color: activeFocus ? "#33ddaa" : "#23303a"
                 Text { anchors.centerIn: parent; text: "scoped A"; color: "#ffffff"; fontSize: 16 }
+                MouseArea { anchors.fill: parent; onClicked: parent.forceActiveFocus() }
             }
 
             Rectangle {
@@ -97,6 +101,7 @@ Rectangle {
                 activeFocusOnTab: true
                 color: activeFocus ? "#33ddaa" : "#23303a"
                 Text { anchors.centerIn: parent; text: "scoped B"; color: "#ffffff"; fontSize: 16 }
+                MouseArea { anchors.fill: parent; onClicked: parent.forceActiveFocus() }
             }
         }
     }
