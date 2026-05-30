@@ -330,7 +330,7 @@ public final class QmlCompiler {
                                          (Ast.ObjectListValue) b.value, registry,
                                          localCounter, bindingCounter, handlerCounter,
                                          classes, componentBinaryName, idTypes,
-                                         customSignalParams, path.get(0), rootFunctions);
+                                         customSignalParams, path.get(0), declaredProps, rootFunctions);
                 return;
             }
             if (b.value instanceof Ast.ObjectValue) {
@@ -342,7 +342,7 @@ public final class QmlCompiler {
                                           ((Ast.ObjectValue) b.value).object, registry,
                                           localCounter, bindingCounter, handlerCounter,
                                           classes, componentBinaryName, idTypes,
-                                          customSignalParams, path.get(0), rootFunctions);
+                                          customSignalParams, path.get(0), declaredProps, rootFunctions);
                 return;
             }
             boolean isExprVal = b.value instanceof Ast.ExpressionValue;
@@ -414,13 +414,13 @@ public final class QmlCompiler {
         if (m instanceof Ast.ChildObject) {
             emitChildObject(ctor, outerType, outerLocal, ((Ast.ChildObject) m).object, registry,
                             localCounter, bindingCounter, handlerCounter, classes, componentBinaryName,
-                            idTypes, customSignalParams, rootFunctions);
+                            idTypes, customSignalParams, declaredProps, rootFunctions);
             return;
         }
         if (m instanceof Ast.BehaviorMember) {
             emitBehaviorMember(ctor, outerType, outerLocal, (Ast.BehaviorMember) m, registry,
                                localCounter, bindingCounter, handlerCounter, classes,
-                               componentBinaryName, idTypes, customSignalParams, rootFunctions);
+                               componentBinaryName, idTypes, customSignalParams, declaredProps, rootFunctions);
             return;
         }
         if (m instanceof Ast.SignalDeclaration) {
@@ -503,11 +503,12 @@ public final class QmlCompiler {
                                  Map<String, byte[]> classes, String componentBinaryName,
                                  Map<String, Class<? extends QObject>> idTypes,
                                  Map<String, List<String>> outerSignalParams,
+                                 Map<String, String> declaredProps,
                                  Map<String, Integer> rootFunctions) {
         emitChildObjectInto(ctor, outerType, outerLocal, child, registry,
                             localCounter, bindingCounter, handlerCounter, classes,
                             componentBinaryName, idTypes, outerSignalParams,
-                            defaultListFieldFor(outerType), rootFunctions);
+                            defaultListFieldFor(outerType), declaredProps, rootFunctions);
     }
 
     private static String defaultListFieldFor(Class<?> type) {
@@ -522,6 +523,7 @@ public final class QmlCompiler {
                                      Map<String, Class<? extends QObject>> idTypes,
                                      Map<String, List<String>> outerSignalParams,
                                      String listFieldName,
+                                     Map<String, String> declaredProps,
                                      Map<String, Integer> rootFunctions) {
         if (registry.isSingleton(child.typeName)) {
             throw new IllegalArgumentException(
@@ -579,6 +581,11 @@ public final class QmlCompiler {
         String childInternal;
         String childSignalOwner;
         Map<String, String> childDeclaredProps = new LinkedHashMap<>();
+        for (Map.Entry<String, String> e : declaredProps.entrySet()) {
+            if (componentInternal.equals(e.getValue())) {
+                childDeclaredProps.put(e.getKey(), e.getValue());
+            }
+        }
         if (childSignals.isEmpty() && childDecls.isEmpty()) {
             childInternal = parentInternal;
             childSignalOwner = null;
@@ -870,6 +877,7 @@ public final class QmlCompiler {
                                     Map<String, byte[]> classes, String componentBinaryName,
                                     Map<String, Class<? extends QObject>> idTypes,
                                     Map<String, List<String>> outerSignalParams,
+                                    Map<String, String> declaredProps,
                                     Map<String, Integer> rootFunctions) {
         Class<? extends QObject> behaviorType = registry.resolve(bm.typeName);
         verifyAttachable(behaviorType);
@@ -877,7 +885,7 @@ public final class QmlCompiler {
         int behaviorLocal = localCounter[0];
         emitChildObjectInto(ctor, outerType, outerLocal, synth, registry,
                             localCounter, bindingCounter, handlerCounter, classes,
-                            componentBinaryName, idTypes, outerSignalParams, "children", rootFunctions);
+                            componentBinaryName, idTypes, outerSignalParams, "children", declaredProps, rootFunctions);
 
         String behaviorInternal = Type.getInternalName(behaviorType);
         ctor.visitVarInsn(Opcodes.ALOAD, behaviorLocal);
@@ -905,6 +913,7 @@ public final class QmlCompiler {
                                            Map<String, Class<? extends QObject>> idTypes,
                                            Map<String, List<String>> customSignalParams,
                                            String propName,
+                                           Map<String, String> declaredProps,
                                            Map<String, Integer> rootFunctions) {
         Field propField = findPropertyField(outerType, propName);
         String propOwner = Type.getInternalName(propField.getDeclaringClass());
@@ -912,7 +921,7 @@ public final class QmlCompiler {
         emitChildObjectInto(ctor, outerType, outerLocal, node, registry,
                             localCounter, bindingCounter, handlerCounter, classes,
                             componentBinaryName, idTypes, customSignalParams, "",
-                            rootFunctions);
+                            declaredProps, rootFunctions);
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitFieldInsn(Opcodes.GETFIELD, propOwner, propName, PROPERTY_DESC);
         ctor.visitVarInsn(Opcodes.ALOAD, childLocal);
@@ -928,6 +937,7 @@ public final class QmlCompiler {
                                           Map<String, Class<? extends QObject>> idTypes,
                                           Map<String, List<String>> customSignalParams,
                                           String listFieldName,
+                                          Map<String, String> declaredProps,
                                           Map<String, Integer> rootFunctions) {
         Field listField = findListFieldOrNull(outerType, listFieldName);
         if (listField == null) {
@@ -938,7 +948,7 @@ public final class QmlCompiler {
             emitChildObjectInto(ctor, outerType, outerLocal, node, registry,
                                 localCounter, bindingCounter, handlerCounter, classes,
                                 componentBinaryName, idTypes, customSignalParams, listFieldName,
-                                rootFunctions);
+                                declaredProps, rootFunctions);
         }
     }
 
