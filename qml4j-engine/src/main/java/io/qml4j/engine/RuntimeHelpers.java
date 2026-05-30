@@ -276,6 +276,10 @@ public final class RuntimeHelpers {
             if (pc == n && !m.isVarArgs()) { exact = m; break; }
             if (m.isVarArgs() && pc - 1 <= n) varargs = m;
         }
+        if (exact == null && varargs == null && receiver instanceof QObject) {
+            Callable c = ((QObject) receiver).__getFunction(name);
+            if (c != null) return c.call(args);
+        }
         try {
             if (exact != null) {
                 Object[] coerced = coerceArgs(args, exact.getParameterTypes());

@@ -222,7 +222,14 @@ public final class QmlCompiler {
         List<Ast.ObjectMember> deferred = new ArrayList<>();
         for (Ast.ObjectMember m : obj.members) {
             if (m instanceof Ast.SignalDeclaration) continue;
-            if (m instanceof Ast.FunctionDeclaration && outerLocal == 0) continue;
+            if (m instanceof Ast.FunctionDeclaration) {
+                if (outerLocal == 0) continue;
+                emitChildScopeFunction(ctor, outerType, outerLocal,
+                                       (Ast.FunctionDeclaration) m, componentBinaryName,
+                                       idTypes, declaredProps, aliases, rootFunctions,
+                                       bindingCounter, classes);
+                continue;
+            }
             if (isStateAssignment(m)) { deferred.add(m); continue; }
             emitMember(ctor, outerType, outerLocal, m, registry,
                        localCounter, bindingCounter, handlerCounter, classes, componentBinaryName,
@@ -371,9 +378,8 @@ public final class QmlCompiler {
             return;
         }
         if (m instanceof Ast.FunctionDeclaration) {
-            throw new UnsupportedOperationException(
-                "function declarations are only allowed at root scope (got '"
-                + ((Ast.FunctionDeclaration) m).name + "' inside child object)");
+            throw new IllegalStateException(
+                "function declaration should have been handled by emitObjectBody");
         }
         throw new IllegalStateException("unknown member: " + m.getClass());
     }
@@ -1307,6 +1313,35 @@ public final class QmlCompiler {
         cw.visitEnd();
         classes.put(bindingBinaryName, cw.toByteArray());
         return bindingInternal;
+    }
+
+    private void emitChildScopeFunction(MethodVisitor ctor, Class<? extends QObject> outerType,
+                                        int outerLocal, Ast.FunctionDeclaration fd,
+                                        String componentBinaryName,
+                                        Map<String, Class<? extends QObject>> idTypes,
+                                        Map<String, String> declaredProps,
+                                        Map<String, AliasRef> aliases,
+                                        Map<String, Integer> rootFunctions,
+                                        int[] bindingCounter,
+                                        Map<String, byte[]> classes) {
+        Ast.ArrowFunctionExpr arrowEquiv =
+            new Ast.ArrowFunctionExpr(fd.paramNames, null, fd.body);
+        String outerInternal = Type.getInternalName(outerType);
+        String componentInternal = componentBinaryName.replace('.', '/');
+        String funcInternal = emitArrowClass(outerInternal, outerType, arrowEquiv,
+                                             componentBinaryName, idTypes, declaredProps,
+                                             aliases, rootFunctions, bindingCounter, classes);
+        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+        ctor.visitLdcInsn(fd.name);
+        ctor.visitTypeInsn(Opcodes.NEW, funcInternal);
+        ctor.visitInsn(Opcodes.DUP);
+        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+        ctor.visitVarInsn(Opcodes.ALOAD, 0);
+        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, funcInternal, "<init>",
+                             "(L" + outerInternal + ";L" + componentInternal + ";)V", false);
+        ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, QOBJECT_INTERNAL,
+                             "__putFunction",
+                             "(Ljava/lang/String;Lio/qml4j/engine/Callable;)V", false);
     }
 
     private String emitArrowClass(String outerInternal, Class<?> outerType,

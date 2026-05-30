@@ -949,16 +949,6 @@ class QmlCompilerTest {
         assertThrows(IllegalArgumentException.class, () -> COMPILER.compile(doc, REGISTRY));
     }
 
-    @Test
-    void childScopeFunctionRejected() {
-        Ast.QmlDocument doc = Qml4j.parse(
-            "TestItem {\n" +
-            "  TestItem {\n" +
-            "    function nope() { return 1; }\n" +
-            "  }\n" +
-            "}");
-        assertThrows(UnsupportedOperationException.class, () -> COMPILER.compile(doc, REGISTRY));
-    }
 
     @Test
     void functionShadowingFieldRejected() {
