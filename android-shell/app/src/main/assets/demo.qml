@@ -939,9 +939,9 @@ Rectangle {
         Text {
             x: 16
             y: 12
-            text: "M40 typed animations (Color / Rotation / Opacity, driven by State + Transition)"
+            text: "M40/M41 typed animations + Behavior-binding interop"
             color: "#ffffff"
-            fontSize: 22
+            fontSize: 20
             width: 850
             height: 28
         }
@@ -956,11 +956,19 @@ Rectangle {
 
             Text {
                 x: 12; y: 12
-                text: "ColorAnimation\n(state-driven)"
+                text: "ColorAnimation"
                 color: "#ffffff"
-                fontSize: 18
+                fontSize: 16
                 width: 200
-                height: 50
+                height: 22
+            }
+            Text {
+                x: 12; y: 36
+                text: "(state-driven)"
+                color: "#ffffff"
+                fontSize: 14
+                width: 200
+                height: 20
             }
         }
 
@@ -979,9 +987,9 @@ Rectangle {
         Text {
             x: 290
             y: 200
-            text: "Behavior on rotation (binding-driven)"
+            text: "Behavior on rotation"
             color: "#a0c0ff"
-            fontSize: 16
+            fontSize: 14
             width: 240
             height: 24
         }
@@ -999,11 +1007,19 @@ Rectangle {
 
             Text {
                 x: 12; y: 12
-                text: "Behavior on opacity\n(binding-driven)"
+                text: "Behavior on opacity"
                 color: "#000000"
-                fontSize: 18
+                fontSize: 16
                 width: 220
-                height: 50
+                height: 22
+            }
+            Text {
+                x: 12; y: 36
+                text: "(binding-driven)"
+                color: "#000000"
+                fontSize: 14
+                width: 220
+                height: 20
             }
         }
 
@@ -1028,7 +1044,7 @@ Rectangle {
             Text {
                 x: 16
                 y: 116
-                text: "Combined State transition: NumberAnimation + ColorAnimation + RotationAnimation"
+                text: "Transition: Number + Color + Rotation"
                 color: "#a0c0ff"
                 fontSize: 14
                 width: 736
