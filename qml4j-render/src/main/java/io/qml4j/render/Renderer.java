@@ -404,7 +404,7 @@ public final class Renderer {
                 float cx = font.measureTextWidth(s.substring(0, pos));
                 Paint p = paint();
                 p.setMode(PaintMode.FILL);
-                p.setColor(applyAlpha(parseColor(ti.cursorColor.peek()), alpha));
+                p.setColor(applyAlpha(parseColor(ti.color.peek()), alpha));
                 float cw = Math.max(1f, size / 16f);
                 canvas.drawRect(Rect.makeXYWH(cx, glyphTop, cw, glyphHeight), p);
             }
@@ -520,7 +520,7 @@ public final class Renderer {
         float glyphHeight = size * (GLYPH_DESCENT_RATIO - GLYPH_ASCENT_RATIO);
         Paint p = paint();
         p.setMode(PaintMode.FILL);
-        p.setColor(applyAlpha(parseColor(te.cursorColor.peek()), alpha));
+        p.setColor(applyAlpha(parseColor(te.color.peek()), alpha));
         float cw = Math.max(1f, size / 16f);
         canvas.drawRect(Rect.makeXYWH(cx, yOffset + lineIdx * lineH + glyphTop, cw, glyphHeight), p);
     }

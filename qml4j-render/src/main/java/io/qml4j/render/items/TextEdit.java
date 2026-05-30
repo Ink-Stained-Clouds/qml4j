@@ -9,7 +9,6 @@ import java.util.List;
 public class TextEdit extends Item implements TextEditable {
     public final Property<String> text = new Property<>("");
     public final Property<String> color = new Property<>("#000000");
-    public final Property<String> cursorColor = new Property<>("#000000");
     public final Property<Number> fontSize = new Property<>(16);
     public final Property<Number> cursorPosition = new Property<>(0);
     public final Property<Number> selectionStart = new Property<>(0);
