@@ -3,8 +3,9 @@ package io.qml4j.render.items;
 import io.qml4j.engine.binding.Property;
 
 import java.lang.reflect.Field;
+import java.util.Objects;
 
-public class Behavior extends Item implements Animatable {
+public class Behavior extends Item implements Animatable, Property.WriteInterceptor<Object> {
 
     private Property<Object> bound;
     private boolean wantsLong;
@@ -31,7 +32,7 @@ public class Behavior extends Item implements Animatable {
         lastDisplayed = raw.peek();
         wantsLong = lastDisplayed instanceof Long || lastDisplayed instanceof Integer;
         readTemplate();
-        raw.addListener(this::onChanged);
+        raw.setInterceptor(this);
     }
 
     private void readTemplate() {
@@ -46,20 +47,24 @@ public class Behavior extends Item implements Animatable {
         }
     }
 
-    private void onChanged(Object newVal) {
-        if (writing || bound == null) return;
-        if (!(newVal instanceof Number) || !(lastDisplayed instanceof Number)) {
-            lastDisplayed = newVal;
+    @Override
+    public void write(Property<Object> property, Object newValue) {
+        if (writing) {
+            property.setBypassInterceptor(newValue);
             return;
         }
-        double target = ((Number) newVal).doubleValue();
+        if (!(newValue instanceof Number) || !(lastDisplayed instanceof Number)) {
+            writeBack(newValue);
+            return;
+        }
+        double target = ((Number) newValue).doubleValue();
         double current = ((Number) lastDisplayed).doubleValue();
         if (!running && target == current) return;
         from = current;
         to = target;
         running = true;
         startNanos = -1L;
-        writeBack(current);
+        writeBack(coerce(current));
     }
 
     @Override
@@ -70,18 +75,22 @@ public class Behavior extends Item implements Animatable {
             ? 1.0
             : Math.min(1.0, (nowNanos - startNanos) / 1_000_000.0 / durationMs);
         double v = from + (to - from) * Easings.apply(easing, frac);
-        writeBack(v);
+        writeBack(coerce(v));
         if (frac >= 1.0) {
             running = false;
             startNanos = -1L;
         }
     }
 
-    private void writeBack(double v) {
-        Number out = wantsLong ? (Number) Long.valueOf(Math.round(v)) : (Number) Double.valueOf(v);
+    private Object coerce(double v) {
+        return wantsLong ? (Object) Long.valueOf(Math.round(v)) : (Object) Double.valueOf(v);
+    }
+
+    private void writeBack(Object out) {
+        if (Objects.equals(lastDisplayed, out)) return;
         writing = true;
         try {
-            bound.set(out);
+            bound.setBypassInterceptor(out);
         } finally {
             writing = false;
         }

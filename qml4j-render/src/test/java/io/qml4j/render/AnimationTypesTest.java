@@ -61,6 +61,13 @@ class AnimationTypesTest {
     }
 
     @Test
+    void colorAnimationRejectsNumericPair() {
+        ColorAnimation a = new ColorAnimation();
+        assertFalse(a.acceptsTransition(16, 672));
+        assertFalse(a.acceptsTransition(0.5, 1.0));
+    }
+
+    @Test
     void rotationAnimationShortestPicksNegativePath() {
         QmlView v = newView();
         Item root = v.load(

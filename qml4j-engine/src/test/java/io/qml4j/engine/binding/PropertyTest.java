@@ -164,4 +164,55 @@ class PropertyTest {
         a.set(2);
         assertEquals(2, hits.get());
     }
+
+    @Test
+    void writeInterceptorReceivesUserSetAndBindingPreserved() {
+        Property<Integer> src = new Property<>(0);
+        Property<Integer> p = new Property<>(0);
+        p.bind(new Binding() { @Override public Object evaluate() { return src.get() * 10; } });
+        assertEquals(0, p.peek());
+
+        List<Integer> seen = new ArrayList<>();
+        p.setInterceptor((prop, val) -> {
+            seen.add(val);
+            prop.setBypassInterceptor(val);
+        });
+
+        src.set(3);
+        assertEquals(30, p.peek());
+        assertEquals(List.of(30), seen);
+        assertTrue(p.isBound(), "binding must survive an intercepted re-eval");
+
+        src.set(4);
+        assertEquals(40, p.peek());
+        assertEquals(List.of(30, 40), seen);
+        assertTrue(p.isBound());
+    }
+
+    @Test
+    void writeInterceptorOnUserSetClearsBinding() {
+        Property<Integer> src = new Property<>(0);
+        Property<Integer> p = new Property<>(0);
+        p.bind(new Binding() { @Override public Object evaluate() { return src.get(); } });
+        p.setInterceptor((prop, val) -> prop.setBypassInterceptor(val));
+
+        p.set(99);
+        assertFalse(p.isBound(), "user set() must still clear binding even with interceptor");
+        assertEquals(99, p.peek());
+        src.set(5);
+        assertEquals(99, p.peek());
+    }
+
+    @Test
+    void setBypassInterceptorDoesNotInvokeInterceptor() {
+        Property<Integer> p = new Property<>(0);
+        AtomicInteger hits = new AtomicInteger();
+        p.setInterceptor((prop, val) -> {
+            hits.incrementAndGet();
+            prop.setBypassInterceptor(val);
+        });
+        p.setBypassInterceptor(7);
+        assertEquals(7, p.peek());
+        assertEquals(0, hits.get());
+    }
 }

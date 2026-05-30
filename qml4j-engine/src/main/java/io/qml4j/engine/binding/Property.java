@@ -11,9 +11,14 @@ import java.util.function.Consumer;
 
 public final class Property<T> {
 
+    public interface WriteInterceptor<T> {
+        void write(Property<T> property, T newValue);
+    }
+
     private T value;
     private Binding binding;
     private boolean evaluating;
+    private WriteInterceptor<T> interceptor;
     private final List<Consumer<T>> valueListeners = new ArrayList<>();
     private final List<Runnable> invalidationListeners = new ArrayList<>();
     private final List<Runnable> bindingUnsubscribes = new ArrayList<>();
@@ -37,7 +42,23 @@ public final class Property<T> {
 
     public void set(T newValue) {
         clearBinding();
+        if (interceptor != null) {
+            interceptor.write(this, newValue);
+        } else {
+            setInternal(newValue);
+        }
+    }
+
+    public void setBypassInterceptor(T newValue) {
         setInternal(newValue);
+    }
+
+    public void setInterceptor(WriteInterceptor<T> i) {
+        this.interceptor = i;
+    }
+
+    public WriteInterceptor<T> interceptor() {
+        return interceptor;
     }
 
     public void bind(Binding b) {
@@ -154,7 +175,11 @@ public final class Property<T> {
                 final Property<?> capturedDep = dep;
                 bindingUnsubscribes.add(() -> capturedDep.removeInvalidationListener(invalidate));
             }
-            setInternal((T) result);
+            if (interceptor != null) {
+                interceptor.write(this, (T) result);
+            } else {
+                setInternal((T) result);
+            }
         } finally {
             evaluating = false;
         }

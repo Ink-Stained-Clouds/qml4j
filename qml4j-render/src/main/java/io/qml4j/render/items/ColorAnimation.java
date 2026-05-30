@@ -4,11 +4,7 @@ public class ColorAnimation extends PropertyAnimation {
 
     @Override
     public boolean acceptsTransition(Object before, Object after) {
-        return isColorish(before) && isColorish(after);
-    }
-
-    private static boolean isColorish(Object v) {
-        return v instanceof String || v instanceof Number;
+        return before instanceof String && after instanceof String;
     }
 
     @Override

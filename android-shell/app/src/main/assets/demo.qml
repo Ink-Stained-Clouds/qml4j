@@ -956,7 +956,7 @@ Rectangle {
 
             Text {
                 x: 12; y: 12
-                text: "ColorAnimation\nHSV lerp"
+                text: "ColorAnimation\n(state-driven)"
                 color: "#ffffff"
                 fontSize: 18
                 width: 200
@@ -971,16 +971,18 @@ Rectangle {
             width: 80
             height: 80
             color: "#ffd000"
-            rotation: 0
+            rotation: animShowcase.flipped ? 180 : 0
+
+            Behavior on rotation { NumberAnimation { duration: 900 } }
         }
 
         Text {
             x: 290
             y: 200
-            text: "RotationAnimation (Shortest)"
+            text: "Behavior on rotation (binding-driven)"
             color: "#a0c0ff"
             fontSize: 16
-            width: 220
+            width: 240
             height: 24
         }
 
@@ -991,15 +993,17 @@ Rectangle {
             width: 240
             height: 160
             color: "#80ff80"
-            opacity: 0.15
+            opacity: animShowcase.flipped ? 1.0 : 0.15
+
+            Behavior on opacity { NumberAnimation { duration: 900 } }
 
             Text {
                 x: 12; y: 12
-                text: "OpacityAnimation"
+                text: "Behavior on opacity\n(binding-driven)"
                 color: "#000000"
                 fontSize: 18
                 width: 220
-                height: 28
+                height: 50
             }
         }
 
@@ -1036,8 +1040,6 @@ Rectangle {
             State {
                 name: "right"
                 PropertyChanges { target: animColor; color: "#00c8ff" }
-                PropertyChanges { target: animRotate; rotation: 180 }
-                PropertyChanges { target: animOpacity; opacity: 1.0 }
                 PropertyChanges { target: stateBall; x: 672; color: "#80ffff"; rotation: 180 }
             }
         ]

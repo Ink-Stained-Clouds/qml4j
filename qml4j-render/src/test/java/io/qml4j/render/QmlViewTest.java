@@ -781,6 +781,59 @@ class QmlViewTest {
     }
 
     @Test
+    void behaviorAnimatesBindingDrivenChangesWithoutClearingBinding() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle {\n" +
+            "  id: r\n" +
+            "  property int driver: 0\n" +
+            "  width: r.driver * 100; height: 10\n" +
+            "  Behavior on width { NumberAnimation { duration: 100 } }\n" +
+            "}");
+        Rectangle r = (Rectangle) root;
+        assertEquals(0L, r.width.peek().longValue());
+        assertTrue(r.width.isBound(), "literal binding must remain bound after Behavior install");
+
+        java.lang.reflect.Field driverField = null;
+        try {
+            driverField = r.getClass().getField("driver");
+        } catch (NoSuchFieldException e) {
+            org.junit.jupiter.api.Assertions.fail("driver field missing: " + e);
+        }
+        io.qml4j.engine.binding.Property<Object> driver;
+        try {
+            @SuppressWarnings("unchecked")
+            io.qml4j.engine.binding.Property<Object> tmp =
+                (io.qml4j.engine.binding.Property<Object>) driverField.get(r);
+            driver = tmp;
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+
+        driver.set(3);
+        v.dirtyQueue().flush();
+        assertEquals(0L, r.width.peek().longValue(),
+            "Behavior must rewind so the first frame still shows the pre-change value");
+        assertTrue(r.width.isBound(),
+            "binding must survive Behavior tween — this is the M41 fix");
+
+        long t0 = 1_000_000_000L;
+        v.tickAnimations(t0);
+        v.tickAnimations(t0 + 50_000_000L);
+        assertEquals(150L, r.width.peek().longValue(), 1L);
+        v.tickAnimations(t0 + 200_000_000L);
+        assertEquals(300L, r.width.peek().longValue());
+
+        driver.set(7);
+        v.dirtyQueue().flush();
+        long t1 = 2_000_000_000L;
+        v.tickAnimations(t1);
+        v.tickAnimations(t1 + 200_000_000L);
+        assertEquals(700L, r.width.peek().longValue());
+        assertTrue(r.width.isBound());
+    }
+
+    @Test
     void behaviorRedirectsMidFlight() {
         QmlView v = newView();
         Item root = v.load(
