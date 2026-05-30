@@ -19,7 +19,9 @@ import io.qml4j.render.items.ColorAnimation;
 import io.qml4j.render.items.NumberAnimation;
 import io.qml4j.render.items.OpacityAnimation;
 import io.qml4j.render.items.ParallelAnimation;
+import io.qml4j.render.items.PauseAnimation;
 import io.qml4j.render.items.PropertyAnimation;
+import io.qml4j.render.items.ScriptAction;
 import io.qml4j.render.items.SequentialAnimation;
 import io.qml4j.render.items.PropertyChanges;
 import io.qml4j.render.items.RotationAnimation;
@@ -56,6 +58,8 @@ public final class StockTypes {
             .register("RotationAnimation", RotationAnimation.class)
             .register("OpacityAnimation", OpacityAnimation.class)
             .register("ParallelAnimation", ParallelAnimation.class)
+            .register("PauseAnimation", PauseAnimation.class)
+            .register("ScriptAction", ScriptAction.class)
             .register("SequentialAnimation", SequentialAnimation.class)
             .register("State", State.class)
             .register("PropertyChanges", PropertyChanges.class)

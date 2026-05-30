@@ -3,14 +3,13 @@ package io.qml4j.render.items;
 import io.qml4j.engine.RuntimeHelpers;
 import io.qml4j.engine.binding.Property;
 
-public class PropertyAnimation extends Item implements Animatable {
+public class PropertyAnimation extends AbstractAnimation {
     public final Property<Object> target = new Property<>(null);
     public final Property<String> property = new Property<>(null);
     public final Property<String> properties = new Property<>(null);
     public final Property<Object> from = new Property<>(null);
     public final Property<Object> to = new Property<>(null);
     public final Property<Number> duration = new Property<>(250);
-    public final Property<Boolean> running = new Property<>(Boolean.FALSE);
     public final Property<String> easing = new Property<>("linear");
 
     public boolean ephemeral;
@@ -19,10 +18,6 @@ public class PropertyAnimation extends Item implements Animatable {
     private boolean prepared;
     protected Object preparedFrom;
     protected Object preparedTo;
-
-    public PropertyAnimation() {
-        visible.set(Boolean.FALSE);
-    }
 
     @Override
     public void tick(long nowNanos) {

@@ -1,15 +1,8 @@
 package io.qml4j.render.items;
 
-import io.qml4j.engine.binding.Property;
-
-public abstract class GroupAnimation extends Item implements Animatable {
-    public final Property<Boolean> running = new Property<>(Boolean.FALSE);
+public abstract class GroupAnimation extends AbstractAnimation {
 
     private boolean wasRunning;
-
-    public GroupAnimation() {
-        visible.set(Boolean.FALSE);
-    }
 
     @Override
     public final void tick(long nowNanos) {
@@ -30,14 +23,12 @@ public abstract class GroupAnimation extends Item implements Animatable {
     protected abstract boolean isFinished();
 
     protected static boolean isChildRunning(Item c) {
-        if (c instanceof PropertyAnimation) return Boolean.TRUE.equals(((PropertyAnimation) c).running.peek());
-        if (c instanceof GroupAnimation) return Boolean.TRUE.equals(((GroupAnimation) c).running.peek());
-        return false;
+        return c instanceof AbstractAnimation
+            && Boolean.TRUE.equals(((AbstractAnimation) c).running.peek());
     }
 
     protected static void startChild(Item c) {
-        if (c instanceof PropertyAnimation) ((PropertyAnimation) c).running.set(Boolean.TRUE);
-        else if (c instanceof GroupAnimation) ((GroupAnimation) c).running.set(Boolean.TRUE);
+        if (c instanceof AbstractAnimation) ((AbstractAnimation) c).running.set(Boolean.TRUE);
     }
 
     protected static void tickChild(Item c, long nowNanos) {
@@ -46,8 +37,7 @@ public abstract class GroupAnimation extends Item implements Animatable {
 
     private void stopAllChildren() {
         for (Item c : children) {
-            if (c instanceof PropertyAnimation) ((PropertyAnimation) c).running.set(Boolean.FALSE);
-            else if (c instanceof GroupAnimation) ((GroupAnimation) c).running.set(Boolean.FALSE);
+            if (c instanceof AbstractAnimation) ((AbstractAnimation) c).running.set(Boolean.FALSE);
         }
     }
 }

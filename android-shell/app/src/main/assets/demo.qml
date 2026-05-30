@@ -1106,11 +1106,21 @@ Rectangle {
         height: 480
         color: "#1c1c28"
 
+        property int cycles: 0
+
         Text {
             x: 16
             y: 12
-            text: "M41 composite animations\n(Sequential of Parallels = button pulse;  Sequential toast slide-hold-slide)"
+            text: "M41/M42 composite + PauseAnimation + ScriptAction"
             color: "#ffffff"
+            fontSize: 16
+        }
+
+        Text {
+            x: 520
+            y: 12
+            text: "cycles: " + compositeShowcase.cycles
+            color: "#a0c0ff"
             fontSize: 16
         }
 
@@ -1165,15 +1175,16 @@ Rectangle {
             SequentialAnimation {
                 id: toast
                 OpacityAnimation { target: toastBox; from: 0; to: 1; duration: 320; easing: "easeOutQuad" }
-                OpacityAnimation { target: toastBox; from: 1; to: 1; duration: 800 }
+                PauseAnimation { duration: 800 }
                 OpacityAnimation { target: toastBox; from: 1; to: 0; duration: 320; easing: "easeOutQuad" }
+                ScriptAction { onTrigger: compositeShowcase.cycles = compositeShowcase.cycles + 1 }
             }
         }
 
         Text {
             x: 360
             y: 320
-            text: "Sequential opacity slide-hold-slide"
+            text: "Opacity in → PauseAnimation 800ms → out → ScriptAction"
             color: "#a0c0ff"
             fontSize: 14
         }

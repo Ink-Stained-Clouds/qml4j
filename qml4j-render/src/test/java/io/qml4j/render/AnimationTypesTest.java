@@ -7,10 +7,14 @@ import io.qml4j.render.items.Item;
 import io.qml4j.render.items.NumberAnimation;
 import io.qml4j.render.items.OpacityAnimation;
 import io.qml4j.render.items.ParallelAnimation;
+import io.qml4j.render.items.PauseAnimation;
 import io.qml4j.render.items.PropertyAnimation;
 import io.qml4j.render.items.Rectangle;
 import io.qml4j.render.items.RotationAnimation;
+import io.qml4j.render.items.ScriptAction;
 import io.qml4j.render.items.SequentialAnimation;
+
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -283,6 +287,76 @@ class AnimationTypesTest {
         assertEquals(200.0, ((Number) r.x.peek()).doubleValue(), 1e-6);
         assertEquals(50.0, ((Number) r.y.peek()).doubleValue(), 1e-6);
         assertEquals(Boolean.FALSE, par.running.peek());
+    }
+
+    @Test
+    void pauseAnimationStandaloneWaitsThenFinishes() {
+        PauseAnimation p = new PauseAnimation();
+        p.duration.set(100);
+        p.running.set(Boolean.TRUE);
+        long t0 = 0L;
+        p.tick(t0);
+        p.tick(t0 + 50_000_000L);
+        assertEquals(Boolean.TRUE, p.running.peek());
+        p.tick(t0 + 110_000_000L);
+        assertEquals(Boolean.FALSE, p.running.peek());
+    }
+
+    @Test
+    void sequentialAnimationHonorsPauseAnimation() {
+        Rectangle r = new Rectangle();
+        SequentialAnimation seq = new SequentialAnimation();
+        seq.children.add(numAnim(r, "x", 0, 100, 100));
+        PauseAnimation pause = new PauseAnimation();
+        pause.duration.set(150);
+        seq.children.add(pause);
+        seq.children.add(numAnim(r, "x", 100, 200, 100));
+        seq.running.set(Boolean.TRUE);
+        long t0 = 0L;
+        seq.tick(t0);
+        seq.tick(t0 + 100_000_000L); // first done
+        assertEquals(100.0, ((Number) r.x.peek()).doubleValue(), 1e-6);
+        seq.tick(t0 + 200_000_000L); // mid-pause
+        assertEquals(100.0, ((Number) r.x.peek()).doubleValue(), 1e-6);
+        seq.tick(t0 + 260_000_000L); // pause done, second begins
+        seq.tick(t0 + 360_000_000L); // second done
+        assertEquals(200.0, ((Number) r.x.peek()).doubleValue(), 1e-6);
+        assertEquals(Boolean.FALSE, seq.running.peek());
+    }
+
+    @Test
+    void scriptActionFiresTriggerOnceWhenStarted() {
+        ScriptAction sa = new ScriptAction();
+        AtomicInteger hits = new AtomicInteger();
+        sa.trigger.connect((Runnable) hits::incrementAndGet);
+        sa.running.set(Boolean.TRUE);
+        sa.tick(0L);
+        assertEquals(1, hits.get());
+        assertEquals(Boolean.FALSE, sa.running.peek());
+        sa.tick(1_000_000L);
+        assertEquals(1, hits.get());
+    }
+
+    @Test
+    void sequentialAnimationFiresScriptActionAtItsTurn() {
+        Rectangle r = new Rectangle();
+        SequentialAnimation seq = new SequentialAnimation();
+        seq.children.add(numAnim(r, "x", 0, 100, 100));
+        ScriptAction sa = new ScriptAction();
+        AtomicInteger hits = new AtomicInteger();
+        sa.trigger.connect((Runnable) hits::incrementAndGet);
+        seq.children.add(sa);
+        seq.children.add(numAnim(r, "y", 0, 50, 100));
+        seq.running.set(Boolean.TRUE);
+        long t0 = 0L;
+        seq.tick(t0);
+        seq.tick(t0 + 50_000_000L);
+        assertEquals(0, hits.get(), "script action must wait its turn");
+        seq.tick(t0 + 120_000_000L);
+        assertEquals(1, hits.get());
+        seq.tick(t0 + 250_000_000L);
+        assertEquals(50.0, ((Number) r.y.peek()).doubleValue(), 1e-6);
+        assertEquals(Boolean.FALSE, seq.running.peek());
     }
 
     @Test
