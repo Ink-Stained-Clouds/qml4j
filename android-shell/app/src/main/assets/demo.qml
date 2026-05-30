@@ -130,7 +130,7 @@ Rectangle {
         anchors.top: editorPanel.bottom
         anchors.bottom: parent.bottom
         contentWidth: parent.width
-        contentHeight: 4720
+        contentHeight: 5260
 
     Rectangle {
         x: 60
@@ -1095,6 +1095,94 @@ Rectangle {
                 width: 200
                 height: 30
             }
+        }
+    }
+
+    Rectangle {
+        id: compositeShowcase
+        x: 60
+        y: 4720
+        width: 880
+        height: 480
+        color: "#1c1c28"
+
+        Text {
+            x: 16
+            y: 12
+            text: "M41 composite animations\n(Sequential of Parallels = button pulse;  Sequential toast slide-hold-slide)"
+            color: "#ffffff"
+            fontSize: 16
+        }
+
+        Rectangle {
+            id: pulseBox
+            x: 80
+            y: 110
+            width: 120
+            height: 120
+            color: "#ff8040"
+
+            SequentialAnimation {
+                id: pulse
+                ParallelAnimation {
+                    NumberAnimation { target: pulseBox; property: "width";  from: 120; to: 180; duration: 250; easing: "easeOutQuad" }
+                    NumberAnimation { target: pulseBox; property: "height"; from: 120; to: 180; duration: 250; easing: "easeOutQuad" }
+                    ColorAnimation  { target: pulseBox; property: "color";  from: "#ff8040"; to: "#ffe080"; duration: 250 }
+                }
+                ParallelAnimation {
+                    NumberAnimation { target: pulseBox; property: "width";  from: 180; to: 120; duration: 350; easing: "easeOutQuad" }
+                    NumberAnimation { target: pulseBox; property: "height"; from: 180; to: 120; duration: 350; easing: "easeOutQuad" }
+                    ColorAnimation  { target: pulseBox; property: "color";  from: "#ffe080"; to: "#ff8040"; duration: 350 }
+                }
+            }
+        }
+
+        Text {
+            x: 80
+            y: 320
+            text: "Sequential { Parallel { ... } Parallel { ... } }"
+            color: "#a0c0ff"
+            fontSize: 14
+        }
+
+        Rectangle {
+            id: toastBox
+            x: 360
+            y: 110
+            width: 280
+            height: 60
+            color: "#5070ff"
+            opacity: 0
+
+            Text {
+                x: 18
+                y: 18
+                text: "Toast: saved"
+                color: "#ffffff"
+                fontSize: 18
+            }
+
+            SequentialAnimation {
+                id: toast
+                OpacityAnimation { target: toastBox; from: 0; to: 1; duration: 320; easing: "easeOutQuad" }
+                OpacityAnimation { target: toastBox; from: 1; to: 1; duration: 800 }
+                OpacityAnimation { target: toastBox; from: 1; to: 0; duration: 320; easing: "easeOutQuad" }
+            }
+        }
+
+        Text {
+            x: 360
+            y: 320
+            text: "Sequential opacity slide-hold-slide"
+            color: "#a0c0ff"
+            fontSize: 14
+        }
+
+        Timer {
+            interval: 2000
+            repeat: true
+            running: true
+            onTriggered: { pulse.running = true; toast.running = true; }
         }
     }
     }

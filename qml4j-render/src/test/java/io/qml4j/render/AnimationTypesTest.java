@@ -4,10 +4,13 @@ import io.qml4j.engine.QmlEngine;
 import io.qml4j.render.items.ColorAnimation;
 import io.qml4j.render.items.ColorMath;
 import io.qml4j.render.items.Item;
+import io.qml4j.render.items.NumberAnimation;
 import io.qml4j.render.items.OpacityAnimation;
+import io.qml4j.render.items.ParallelAnimation;
 import io.qml4j.render.items.PropertyAnimation;
 import io.qml4j.render.items.Rectangle;
 import io.qml4j.render.items.RotationAnimation;
+import io.qml4j.render.items.SequentialAnimation;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -19,6 +22,16 @@ class AnimationTypesTest {
 
     private static QmlView newView() {
         return QmlView.withStockTypes(new QmlEngine());
+    }
+
+    private static NumberAnimation numAnim(Object target, String prop, double from, double to, int durationMs) {
+        NumberAnimation a = new NumberAnimation();
+        a.target.set(target);
+        a.property.set(prop);
+        a.from.set(from);
+        a.to.set(to);
+        a.duration.set(durationMs);
+        return a;
     }
 
     @Test
@@ -201,6 +214,75 @@ class AnimationTypesTest {
         int mid = ColorMath.lerpHsv(0x00000000, 0xFFFFFFFF, 0.5);
         int alpha = (mid >>> 24) & 0xFF;
         assertEquals(128, alpha, 1);
+    }
+
+    @Test
+    void parallelAnimationRunsChildrenSimultaneously() {
+        Rectangle r = new Rectangle();
+        ParallelAnimation par = new ParallelAnimation();
+        NumberAnimation a = numAnim(r, "x", 0, 100, 100);
+        NumberAnimation b = numAnim(r, "y", 0, 200, 100);
+        par.children.add(a); par.children.add(b);
+        par.running.set(Boolean.TRUE);
+        long t0 = 0L;
+        par.tick(t0);
+        par.tick(t0 + 50_000_000L);
+        assertEquals(50.0, ((Number) r.x.peek()).doubleValue(), 1e-6);
+        assertEquals(100.0, ((Number) r.y.peek()).doubleValue(), 1e-6);
+        par.tick(t0 + 200_000_000L);
+        assertEquals(100.0, ((Number) r.x.peek()).doubleValue(), 1e-6);
+        assertEquals(200.0, ((Number) r.y.peek()).doubleValue(), 1e-6);
+        assertEquals(Boolean.FALSE, par.running.peek());
+    }
+
+    @Test
+    void sequentialAnimationRunsChildrenInOrder() {
+        Rectangle r = new Rectangle();
+        SequentialAnimation seq = new SequentialAnimation();
+        NumberAnimation first = numAnim(r, "x", 0, 100, 100);
+        NumberAnimation second = numAnim(r, "y", 0, 200, 100);
+        seq.children.add(first); seq.children.add(second);
+
+        seq.running.set(Boolean.TRUE);
+        long t0 = 0L;
+        seq.tick(t0);
+        seq.tick(t0 + 50_000_000L);
+        assertEquals(50.0, ((Number) r.x.peek()).doubleValue(), 1e-6);
+        assertEquals(0.0, ((Number) r.y.peek()).doubleValue(), 1e-6);
+        assertTrue(Boolean.TRUE.equals(first.running.peek()));
+        assertFalse(Boolean.TRUE.equals(second.running.peek()));
+
+        seq.tick(t0 + 100_000_000L);
+        assertEquals(100.0, ((Number) r.x.peek()).doubleValue(), 1e-6);
+        assertFalse(Boolean.TRUE.equals(first.running.peek()));
+        assertTrue(Boolean.TRUE.equals(second.running.peek()));
+
+        seq.tick(t0 + 150_000_000L);
+        assertEquals(100.0, ((Number) r.y.peek()).doubleValue(), 1e-6);
+        seq.tick(t0 + 250_000_000L);
+        assertEquals(200.0, ((Number) r.y.peek()).doubleValue(), 1e-6);
+        assertEquals(Boolean.FALSE, seq.running.peek());
+    }
+
+    @Test
+    void nestedSequentialInParallel() {
+        Rectangle r = new Rectangle();
+        ParallelAnimation par = new ParallelAnimation();
+        SequentialAnimation seq = new SequentialAnimation();
+        seq.children.add(numAnim(r, "y", 0, 100, 100));
+        seq.children.add(numAnim(r, "y", 100, 50, 100));
+        par.children.add(numAnim(r, "x", 0, 200, 200));
+        par.children.add(seq);
+        par.running.set(Boolean.TRUE);
+        long t0 = 0L;
+        par.tick(t0);
+        par.tick(t0 + 100_000_000L);
+        assertEquals(100.0, ((Number) r.x.peek()).doubleValue(), 1e-6);
+        assertEquals(100.0, ((Number) r.y.peek()).doubleValue(), 1e-6);
+        par.tick(t0 + 200_000_000L);
+        assertEquals(200.0, ((Number) r.x.peek()).doubleValue(), 1e-6);
+        assertEquals(50.0, ((Number) r.y.peek()).doubleValue(), 1e-6);
+        assertEquals(Boolean.FALSE, par.running.peek());
     }
 
     @Test

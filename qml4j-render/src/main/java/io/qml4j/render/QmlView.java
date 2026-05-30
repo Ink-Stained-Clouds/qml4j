@@ -3,6 +3,7 @@ package io.qml4j.render;
 import io.qml4j.render.items.Animatable;
 import io.qml4j.render.items.Drag;
 import io.qml4j.render.items.Flickable;
+import io.qml4j.render.items.GroupAnimation;
 import io.qml4j.render.items.Item;
 import io.qml4j.render.items.MouseArea;
 import io.qml4j.render.items.PropertyAnimation;
@@ -670,6 +671,7 @@ public final class QmlView {
         if (node instanceof Animatable) {
             ((Animatable) node).tick(now);
         }
+        if (node instanceof GroupAnimation) return;
         for (int i = node.children.size() - 1; i >= 0; i--) {
             Item c = node.children.get(i);
             tickAnimations(c, now);

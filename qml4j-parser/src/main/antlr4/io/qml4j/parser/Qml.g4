@@ -137,6 +137,7 @@ idLike
     | 'var'
     | 'let'
     | 'const'
+    | 'property'
     ;
 
 // JS expression subset
