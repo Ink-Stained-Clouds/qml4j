@@ -344,6 +344,44 @@ public final class Ast {
         @Override public String toString() { return "(" + target + " = " + value + ")"; }
     }
 
+    public static final class SpreadExpr extends Expression {
+        public final Expression target;
+        public SpreadExpr(Expression target) { this.target = target; }
+        @Override public String toString() { return "..." + target; }
+    }
+
+    public static final class TemplateLiteralExpr extends Expression {
+        public final List<String> rawParts;
+        public final List<Expression> exprs;
+        public TemplateLiteralExpr(List<String> rawParts, List<Expression> exprs) {
+            this.rawParts = Collections.unmodifiableList(rawParts);
+            this.exprs = Collections.unmodifiableList(exprs);
+        }
+        @Override public String toString() {
+            StringBuilder sb = new StringBuilder("`");
+            for (int i = 0; i < rawParts.size(); i++) {
+                sb.append(rawParts.get(i));
+                if (i < exprs.size()) sb.append("${").append(exprs.get(i)).append("}");
+            }
+            return sb.append("`").toString();
+        }
+    }
+
+    public static final class ArrowFunctionExpr extends Expression {
+        public final List<String> paramNames;
+        public final Expression bodyExpr;
+        public final Block bodyBlock;
+        public ArrowFunctionExpr(List<String> paramNames, Expression bodyExpr, Block bodyBlock) {
+            this.paramNames = Collections.unmodifiableList(paramNames);
+            this.bodyExpr = bodyExpr;
+            this.bodyBlock = bodyBlock;
+        }
+        @Override public String toString() {
+            return "(" + String.join(",", paramNames) + ") => "
+                + (bodyExpr != null ? bodyExpr.toString() : bodyBlock.toString());
+        }
+    }
+
     public static final class CondExpr extends Expression {
         public final Expression cond;
         public final Expression thenBranch;

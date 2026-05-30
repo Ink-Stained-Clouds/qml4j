@@ -1,6 +1,8 @@
 package io.qml4j.parser;
 
 import io.qml4j.parser.ast.Ast;
+import org.antlr.v4.runtime.CharStreams;
+import org.antlr.v4.runtime.CommonTokenStream;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -221,10 +223,31 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
 
     @Override
     public Ast.Expression visitAssignmentExpr(QmlParser.AssignmentExprContext ctx) {
+        if (ctx.arrowFunction() != null) {
+            return visitArrowFunction(ctx.arrowFunction());
+        }
         Ast.Expression left = (Ast.Expression) visit(ctx.condExpr());
         if (ctx.assignmentExpr() == null) return left;
         Ast.Expression right = (Ast.Expression) visit(ctx.assignmentExpr());
         return new Ast.AssignmentExpr(left, right);
+    }
+
+    @Override
+    public Ast.ArrowFunctionExpr visitArrowFunction(QmlParser.ArrowFunctionContext ctx) {
+        List<String> params = new ArrayList<>();
+        for (org.antlr.v4.runtime.tree.TerminalNode id : ctx.Identifier()) {
+            params.add(id.getText());
+        }
+        QmlParser.ArrowBodyContext body = ctx.arrowBody();
+        if (body.assignmentExpr() != null) {
+            Ast.Expression expr = (Ast.Expression) visit(body.assignmentExpr());
+            return new Ast.ArrowFunctionExpr(params, expr, null);
+        }
+        List<Ast.Statement> stmts = new ArrayList<>();
+        for (QmlParser.StatementContext sc : body.statement()) {
+            stmts.add(visitStatement(sc));
+        }
+        return new Ast.ArrowFunctionExpr(params, null, new Ast.Block(stmts));
     }
 
     @Override
@@ -326,8 +349,8 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
             } else {
                 QmlParser.CallContext c = (QmlParser.CallContext) sc;
                 List<Ast.Expression> args = new ArrayList<>();
-                for (QmlParser.ExpressionContext e : c.expression()) {
-                    args.add((Ast.Expression) visit(e));
+                for (QmlParser.SpreadOrExprContext se : c.spreadOrExpr()) {
+                    args.add(visitSpreadOrExpr(se));
                 }
                 cur = new Ast.CallExpr(cur, args);
             }
@@ -340,6 +363,7 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
         if (ctx.literal() != null) return (Ast.Expression) visit(ctx.literal());
         if (ctx.arrayLiteral() != null) return visitArrayLiteral(ctx.arrayLiteral());
         if (ctx.objectLiteral() != null) return visitObjectLiteral(ctx.objectLiteral());
+        if (ctx.TemplateLiteral() != null) return parseTemplateLiteral(ctx.TemplateLiteral().getText());
         if (ctx.Identifier() != null) return new Ast.IdentifierExpr(ctx.Identifier().getText());
         return (Ast.Expression) visit(ctx.expression());
     }
@@ -347,10 +371,17 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     @Override
     public Ast.Expression visitArrayLiteral(QmlParser.ArrayLiteralContext ctx) {
         List<Ast.Expression> elems = new ArrayList<>();
-        for (QmlParser.ExpressionContext e : ctx.expression()) {
-            elems.add((Ast.Expression) visit(e));
+        for (QmlParser.SpreadOrExprContext se : ctx.spreadOrExpr()) {
+            elems.add(visitSpreadOrExpr(se));
         }
         return new Ast.ArrayLitExpr(elems);
+    }
+
+    @Override
+    public Ast.Expression visitSpreadOrExpr(QmlParser.SpreadOrExprContext ctx) {
+        Ast.Expression inner = (Ast.Expression) visit(ctx.expression());
+        boolean isSpread = ctx.getChildCount() > 1; // '...' expression
+        return isSpread ? new Ast.SpreadExpr(inner) : inner;
     }
 
     @Override
@@ -397,6 +428,64 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
             left = new Ast.BinaryExpr(op, left, (Ast.Expression) visit(operands.get(i)));
         }
         return left;
+    }
+
+    private Ast.TemplateLiteralExpr parseTemplateLiteral(String raw) {
+        String body = raw.substring(1, raw.length() - 1);
+        List<String> parts = new ArrayList<>();
+        List<Ast.Expression> exprs = new ArrayList<>();
+        StringBuilder cur = new StringBuilder();
+        int i = 0;
+        while (i < body.length()) {
+            char c = body.charAt(i);
+            if (c == '\\' && i + 1 < body.length()) {
+                char n = body.charAt(i + 1);
+                switch (n) {
+                    case 'n': cur.append('\n'); break;
+                    case 't': cur.append('\t'); break;
+                    case 'r': cur.append('\r'); break;
+                    case '\\': cur.append('\\'); break;
+                    case '`': cur.append('`'); break;
+                    case '$': cur.append('$'); break;
+                    case '\'': cur.append('\''); break;
+                    case '"': cur.append('"'); break;
+                    default: cur.append(n);
+                }
+                i += 2;
+            } else if (c == '$' && i + 1 < body.length() && body.charAt(i + 1) == '{') {
+                int depth = 1;
+                int start = i + 2;
+                int end = start;
+                while (end < body.length()) {
+                    char cc = body.charAt(end);
+                    if (cc == '{') depth++;
+                    else if (cc == '}') {
+                        depth--;
+                        if (depth == 0) break;
+                    }
+                    end++;
+                }
+                if (depth != 0) {
+                    throw new IllegalArgumentException("unterminated ${...} in template literal: " + raw);
+                }
+                parts.add(cur.toString());
+                cur.setLength(0);
+                String exprText = body.substring(start, end);
+                exprs.add(parseExpressionStandalone(exprText));
+                i = end + 1;
+            } else {
+                cur.append(c);
+                i++;
+            }
+        }
+        parts.add(cur.toString());
+        return new Ast.TemplateLiteralExpr(parts, exprs);
+    }
+
+    private Ast.Expression parseExpressionStandalone(String text) {
+        QmlLexer lexer = new QmlLexer(CharStreams.fromString(text));
+        QmlParser parser = new QmlParser(new CommonTokenStream(lexer));
+        return (Ast.Expression) visit(parser.expression());
     }
 
     private static String unquote(String raw) {

@@ -146,7 +146,18 @@ expression
     ;
 
 assignmentExpr
-    : condExpr ('=' assignmentExpr)?
+    : arrowFunction
+    | condExpr ('=' assignmentExpr)?
+    ;
+
+arrowFunction
+    : Identifier '=>' arrowBody
+    | '(' (Identifier (',' Identifier)*)? ')' '=>' arrowBody
+    ;
+
+arrowBody
+    : '{' statement* '}'
+    | assignmentExpr
     ;
 
 condExpr
@@ -220,20 +231,26 @@ postfixExpr
 
 postfixSuffix
     : '.' Identifier                                 # memberAccess
-    | '(' (expression (',' expression)*)? ')'        # call
+    | '(' (spreadOrExpr (',' spreadOrExpr)*)? ')'    # call
     | '[' expression ']'                             # indexAccess
+    ;
+
+spreadOrExpr
+    : '...' expression
+    | expression
     ;
 
 primaryExpr
     : literal
     | arrayLiteral
     | objectLiteral
+    | TemplateLiteral
     | Identifier
     | '(' expression ')'
     ;
 
 arrayLiteral
-    : '[' (expression (',' expression)*)? ','? ']'
+    : '[' (spreadOrExpr (',' spreadOrExpr)*)? ','? ']'
     ;
 
 objectLiteral
@@ -274,6 +291,10 @@ fragment Digits
 StringLiteral
     : '"' ( ~["\\] | EscapeSeq )* '"'
     | '\'' ( ~['\\] | EscapeSeq )* '\''
+    ;
+
+TemplateLiteral
+    : '`' ( ~[`\\] | EscapeSeq )* '`'
     ;
 
 fragment EscapeSeq

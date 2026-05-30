@@ -1235,6 +1235,9 @@ public final class QmlCompiler {
         codegen.setBindingEmitter(childExpr -> emitBindingClass(
             outerInternal, outerQ, childExpr, componentBinaryName,
             idTypes, declaredProps, aliases, rootFunctions, bindingCounter, classes));
+        codegen.setArrowEmitter(childArrow -> emitArrowClass(
+            outerInternal, outerType, childArrow, componentBinaryName,
+            idTypes, declaredProps, aliases, rootFunctions, bindingCounter, classes));
         StatementCodegen stmts = new StatementCodegen(codegen, 2);
         stmts.emit(invoke, body);
         invoke.visitInsn(Opcodes.RETURN);
@@ -1293,6 +1296,9 @@ public final class QmlCompiler {
         codegen.setBindingEmitter(childExpr -> emitBindingClass(
             outerInternal, outerType, childExpr, componentBinaryName,
             idTypes, declaredProps, aliases, rootFunctions, bindingCounter, classes));
+        codegen.setArrowEmitter(childArrow -> emitArrowClass(
+            outerInternal, outerType, childArrow, componentBinaryName,
+            idTypes, declaredProps, aliases, rootFunctions, bindingCounter, classes));
         codegen.emit(eval, expr);
         eval.visitInsn(Opcodes.ARETURN);
         eval.visitMaxs(0, 0);
@@ -1301,6 +1307,97 @@ public final class QmlCompiler {
         cw.visitEnd();
         classes.put(bindingBinaryName, cw.toByteArray());
         return bindingInternal;
+    }
+
+    private String emitArrowClass(String outerInternal, Class<?> outerType,
+                                  Ast.ArrowFunctionExpr fn,
+                                  String componentBinaryName,
+                                  Map<String, Class<? extends QObject>> idTypes,
+                                  Map<String, String> declaredProps,
+                                  Map<String, AliasRef> aliases,
+                                  Map<String, Integer> rootFunctions,
+                                  int[] bindingCounter,
+                                  Map<String, byte[]> classes) {
+        String componentInternal = componentBinaryName.replace('.', '/');
+        int n = bindingCounter[0]++;
+        String arrowBinary = componentBinaryName + "$Arrow$" + n;
+        String arrowInternal = arrowBinary.replace('.', '/');
+
+        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
+        cw.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
+                 arrowInternal, null, "java/lang/Object",
+                 new String[]{"io/qml4j/engine/Callable"});
+
+        cw.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL,
+                      "outer", "L" + outerInternal + ";", null, null).visitEnd();
+        cw.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL,
+                      "root", "L" + componentInternal + ";", null, null).visitEnd();
+
+        MethodVisitor ctor = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>",
+                                            "(L" + outerInternal + ";L" + componentInternal + ";)V",
+                                            null, null);
+        ctor.visitCode();
+        ctor.visitVarInsn(Opcodes.ALOAD, 0);
+        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
+        ctor.visitVarInsn(Opcodes.ALOAD, 0);
+        ctor.visitVarInsn(Opcodes.ALOAD, 1);
+        ctor.visitFieldInsn(Opcodes.PUTFIELD, arrowInternal, "outer", "L" + outerInternal + ";");
+        ctor.visitVarInsn(Opcodes.ALOAD, 0);
+        ctor.visitVarInsn(Opcodes.ALOAD, 2);
+        ctor.visitFieldInsn(Opcodes.PUTFIELD, arrowInternal, "root", "L" + componentInternal + ";");
+        ctor.visitInsn(Opcodes.RETURN);
+        ctor.visitMaxs(0, 0);
+        ctor.visitEnd();
+
+        MethodVisitor call = cw.visitMethod(Opcodes.ACC_PUBLIC, "call",
+                                            "([Ljava/lang/Object;)Ljava/lang/Object;", null, null);
+        call.visitCode();
+
+        int firstParamSlot = 2;
+        Map<String, Integer> directParams = new LinkedHashMap<>();
+        for (int i = 0; i < fn.paramNames.size(); i++) {
+            int slot = firstParamSlot + i;
+            call.visitVarInsn(Opcodes.ALOAD, 1);
+            pushSmallInt(call, i);
+            call.visitInsn(Opcodes.AALOAD);
+            call.visitVarInsn(Opcodes.ASTORE, slot);
+            directParams.put(fn.paramNames.get(i), slot);
+        }
+
+        ExpressionCodegen codegen = ExpressionCodegen.forArrow(outerInternal, arrowInternal, outerType,
+                                                               componentInternal, idTypes, directParams,
+                                                               declaredProps, aliases, rootFunctions);
+        @SuppressWarnings("unchecked")
+        Class<? extends QObject> outerQ = (Class<? extends QObject>) outerType;
+        codegen.setBindingEmitter(childExpr -> emitBindingClass(
+            outerInternal, outerQ, childExpr, componentBinaryName,
+            idTypes, declaredProps, aliases, rootFunctions, bindingCounter, classes));
+        codegen.setArrowEmitter(childArrow -> emitArrowClass(
+            outerInternal, outerType, childArrow, componentBinaryName,
+            idTypes, declaredProps, aliases, rootFunctions, bindingCounter, classes));
+
+        if (fn.bodyExpr != null) {
+            codegen.emit(call, fn.bodyExpr);
+            call.visitInsn(Opcodes.ARETURN);
+        } else {
+            StatementCodegen stmts = new StatementCodegen(codegen,
+                firstParamSlot + fn.paramNames.size(), StatementCodegen.ReturnKind.OBJECT);
+            stmts.emit(call, fn.bodyBlock);
+            call.visitInsn(Opcodes.ACONST_NULL);
+            call.visitInsn(Opcodes.ARETURN);
+        }
+        call.visitMaxs(0, 0);
+        call.visitEnd();
+
+        cw.visitEnd();
+        classes.put(arrowBinary, cw.toByteArray());
+        return arrowInternal;
+    }
+
+    private static void pushSmallInt(MethodVisitor mv, int v) {
+        if (v >= 0 && v <= 5) mv.visitInsn(Opcodes.ICONST_0 + v);
+        else if (v <= Byte.MAX_VALUE) mv.visitIntInsn(Opcodes.BIPUSH, v);
+        else mv.visitIntInsn(Opcodes.SIPUSH, v);
     }
 
     private void emitRootFunctionMethod(ClassWriter cw, String componentInternal,
@@ -1329,6 +1426,9 @@ public final class QmlCompiler {
                                                                   rootAliases, rootFunctions);
         codegen.setBindingEmitter(childExpr -> emitBindingClass(
             componentInternal, rootType, childExpr, componentBinaryName,
+            idTypes, rootDeclaredProps, rootAliases, rootFunctions, bindingCounter, classes));
+        codegen.setArrowEmitter(childArrow -> emitArrowClass(
+            componentInternal, rootType, childArrow, componentBinaryName,
             idTypes, rootDeclaredProps, rootAliases, rootFunctions, bindingCounter, classes));
         StatementCodegen stmts = new StatementCodegen(codegen, fd.paramNames.size() + 1,
                                                       StatementCodegen.ReturnKind.OBJECT);

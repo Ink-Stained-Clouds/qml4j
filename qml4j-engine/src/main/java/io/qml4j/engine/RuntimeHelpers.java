@@ -304,6 +304,57 @@ public final class RuntimeHelpers {
             "no method '" + name + "' with " + n + " args on " + cls.getName());
     }
 
+    public static String stringify(Object v) {
+        if (v == null) return "null";
+        if (v instanceof String) return (String) v;
+        if (v instanceof Double) {
+            double d = (Double) v;
+            if (d == Math.floor(d) && !Double.isInfinite(d)) {
+                long lv = (long) d;
+                if ((double) lv == d) return Long.toString(lv);
+            }
+            return Double.toString(d);
+        }
+        return String.valueOf(v);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static void spreadInto(ArrayList<Object> out, Object value) {
+        if (value == null) return;
+        if (value instanceof List) {
+            out.addAll((List) value);
+            return;
+        }
+        if (value instanceof Object[]) {
+            for (Object e : (Object[]) value) out.add(e);
+            return;
+        }
+        if (value instanceof Iterable) {
+            for (Object e : (Iterable) value) out.add(e);
+            return;
+        }
+        if (value instanceof String) {
+            String s = (String) value;
+            for (int i = 0; i < s.length(); i++) out.add(String.valueOf(s.charAt(i)));
+            return;
+        }
+        throw new IllegalArgumentException("cannot spread non-iterable: " + value.getClass().getName());
+    }
+
+    public static Object[] listToArray(ArrayList<Object> list) {
+        return list.toArray(new Object[0]);
+    }
+
+    public static Object callValue(Object callee, Object[] args) {
+        if (callee == null) throw new NullPointerException("cannot call null");
+        if (callee instanceof Callable) return ((Callable) callee).call(args);
+        if (callee instanceof Runnable && args.length == 0) {
+            ((Runnable) callee).run();
+            return null;
+        }
+        throw new IllegalArgumentException("not callable: " + callee.getClass().getName());
+    }
+
     public static Object qtRgba(Object r, Object g, Object b, Object a) {
         int ri = clampByte((int) Math.round(toNumber(r) * 255.0));
         int gi = clampByte((int) Math.round(toNumber(g) * 255.0));

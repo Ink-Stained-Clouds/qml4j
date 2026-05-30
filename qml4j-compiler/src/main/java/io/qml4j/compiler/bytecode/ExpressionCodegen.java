@@ -33,6 +33,10 @@ final class ExpressionCodegen {
         String emit(Ast.Expression expr);
     }
 
+    interface ArrowEmitter {
+        String emit(Ast.ArrowFunctionExpr fn);
+    }
+
     private final String outerInternal;
     private final String bindingInternal;
     private final Class<?> outerType;
@@ -45,6 +49,7 @@ final class ExpressionCodegen {
     private final Map<String, Integer> rootFunctions;
     private final boolean selfReceiver;
     private BindingEmitter bindingEmitter;
+    private ArrowEmitter arrowEmitter;
 
     ExpressionCodegen(String outerInternal, String bindingInternal, Class<?> outerType) {
         this(outerInternal, bindingInternal, outerType, null,
@@ -81,6 +86,19 @@ final class ExpressionCodegen {
                                      declaredProps, aliases, rootFunctions, false);
     }
 
+    static ExpressionCodegen forArrow(String outerInternal, String arrowInternal, Class<?> outerType,
+                                      String componentInternal,
+                                      Map<String, Class<? extends QObject>> idTypes,
+                                      Map<String, Integer> directParams,
+                                      Map<String, String> declaredProps,
+                                      Map<String, AliasRef> aliases,
+                                      Map<String, Integer> rootFunctions) {
+        return new ExpressionCodegen(outerInternal, arrowInternal, outerType, componentInternal, idTypes,
+                                     Collections.<String, Integer>emptyMap(),
+                                     new LinkedHashMap<>(directParams),
+                                     declaredProps, aliases, rootFunctions, false);
+    }
+
     static ExpressionCodegen forFunction(String componentInternal, Class<?> componentType,
                                          Map<String, Class<? extends QObject>> idTypes,
                                          Map<String, Integer> directParams,
@@ -108,6 +126,12 @@ final class ExpressionCodegen {
     void setBindingEmitter(BindingEmitter emitter) {
         this.bindingEmitter = emitter;
     }
+
+    void setArrowEmitter(ArrowEmitter emitter) {
+        this.arrowEmitter = emitter;
+    }
+
+    ArrowEmitter arrowEmitter() { return arrowEmitter; }
 
     private ExpressionCodegen(String outerInternal, String bindingInternal, Class<?> outerType,
                               String componentInternal,
@@ -170,6 +194,12 @@ final class ExpressionCodegen {
             emitArrayLit(mv, (Ast.ArrayLitExpr) e);
         } else if (e instanceof Ast.ObjectLitExpr) {
             emitObjectLit(mv, (Ast.ObjectLitExpr) e);
+        } else if (e instanceof Ast.TemplateLiteralExpr) {
+            emitTemplateLiteral(mv, (Ast.TemplateLiteralExpr) e);
+        } else if (e instanceof Ast.ArrowFunctionExpr) {
+            emitArrowFunction(mv, (Ast.ArrowFunctionExpr) e);
+        } else if (e instanceof Ast.SpreadExpr) {
+            throw new IllegalStateException("spread expression outside of call/array context");
         } else {
             throw new IllegalStateException("unknown expression: " + e.getClass().getName());
         }
@@ -185,18 +215,88 @@ final class ExpressionCodegen {
     }
 
     private void emitArrayLit(MethodVisitor mv, Ast.ArrayLitExpr a) {
-        pushInt(mv, a.elements.size());
-        mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");
-        for (int i = 0; i < a.elements.size(); i++) {
-            mv.visitInsn(Opcodes.DUP);
-            pushInt(mv, i);
-            emit(mv, a.elements.get(i));
-            mv.visitInsn(Opcodes.AASTORE);
-        }
+        emitArgsArray(mv, a.elements);
         mv.visitMethodInsn(Opcodes.INVOKESTATIC, HELPERS_INTERNAL,
                            "makeArray",
                            "([Ljava/lang/Object;)Ljava/lang/Object;",
                            false);
+    }
+
+    private boolean hasSpread(java.util.List<Ast.Expression> args) {
+        for (Ast.Expression a : args) if (a instanceof Ast.SpreadExpr) return true;
+        return false;
+    }
+
+    private void emitArgsArray(MethodVisitor mv, java.util.List<Ast.Expression> args) {
+        if (!hasSpread(args)) {
+            pushInt(mv, args.size());
+            mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");
+            for (int i = 0; i < args.size(); i++) {
+                mv.visitInsn(Opcodes.DUP);
+                pushInt(mv, i);
+                emit(mv, args.get(i));
+                mv.visitInsn(Opcodes.AASTORE);
+            }
+            return;
+        }
+        mv.visitTypeInsn(Opcodes.NEW, "java/util/ArrayList");
+        mv.visitInsn(Opcodes.DUP);
+        mv.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/util/ArrayList", "<init>", "()V", false);
+        for (Ast.Expression a : args) {
+            if (a instanceof Ast.SpreadExpr) {
+                mv.visitInsn(Opcodes.DUP);
+                emit(mv, ((Ast.SpreadExpr) a).target);
+                mv.visitMethodInsn(Opcodes.INVOKESTATIC, HELPERS_INTERNAL,
+                                   "spreadInto",
+                                   "(Ljava/util/ArrayList;Ljava/lang/Object;)V", false);
+            } else {
+                mv.visitInsn(Opcodes.DUP);
+                emit(mv, a);
+                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/util/ArrayList",
+                                   "add", "(Ljava/lang/Object;)Z", false);
+                mv.visitInsn(Opcodes.POP);
+            }
+        }
+        mv.visitMethodInsn(Opcodes.INVOKESTATIC, HELPERS_INTERNAL,
+                           "listToArray",
+                           "(Ljava/util/ArrayList;)[Ljava/lang/Object;", false);
+    }
+
+    private void emitTemplateLiteral(MethodVisitor mv, Ast.TemplateLiteralExpr t) {
+        mv.visitTypeInsn(Opcodes.NEW, "java/lang/StringBuilder");
+        mv.visitInsn(Opcodes.DUP);
+        mv.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/StringBuilder",
+                           "<init>", "()V", false);
+        for (int i = 0; i < t.rawParts.size(); i++) {
+            String part = t.rawParts.get(i);
+            if (!part.isEmpty()) {
+                mv.visitLdcInsn(part);
+                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/StringBuilder",
+                                   "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
+            }
+            if (i < t.exprs.size()) {
+                emit(mv, t.exprs.get(i));
+                mv.visitMethodInsn(Opcodes.INVOKESTATIC, HELPERS_INTERNAL,
+                                   "stringify", "(Ljava/lang/Object;)Ljava/lang/String;", false);
+                mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/StringBuilder",
+                                   "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;", false);
+            }
+        }
+        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/StringBuilder",
+                           "toString", "()Ljava/lang/String;", false);
+    }
+
+    private void emitArrowFunction(MethodVisitor mv, Ast.ArrowFunctionExpr a) {
+        if (arrowEmitter == null) {
+            throw new IllegalStateException("arrow function requires ArrowEmitter in this codegen scope");
+        }
+        String childInternal = arrowEmitter.emit(a);
+        mv.visitTypeInsn(Opcodes.NEW, childInternal);
+        mv.visitInsn(Opcodes.DUP);
+        loadOuter(mv);
+        loadRoot(mv);
+        mv.visitMethodInsn(Opcodes.INVOKESPECIAL, childInternal, "<init>",
+                           "(L" + outerInternal + ";L" + componentInternal + ";)V", false);
     }
 
     private void emitObjectLit(MethodVisitor mv, Ast.ObjectLitExpr o) {
@@ -435,14 +535,7 @@ final class ExpressionCodegen {
         if (tryEmitQtCall(mv, m, c.args)) return;
         emit(mv, m.target);
         mv.visitLdcInsn(m.property);
-        pushInt(mv, c.args.size());
-        mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");
-        for (int i = 0; i < c.args.size(); i++) {
-            mv.visitInsn(Opcodes.DUP);
-            pushInt(mv, i);
-            emit(mv, c.args.get(i));
-            mv.visitInsn(Opcodes.AASTORE);
-        }
+        emitArgsArray(mv, c.args);
         mv.visitMethodInsn(Opcodes.INVOKESTATIC, HELPERS_INTERNAL,
                            "callMethod",
                            "(Ljava/lang/Object;Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/Object;",
@@ -535,15 +628,28 @@ final class ExpressionCodegen {
     }
 
     private void emitBareNameCall(MethodVisitor mv, Ast.IdentifierExpr callee, java.util.List<Ast.Expression> args) {
+        Integer slot = localVars.get(callee.name);
+        if (slot != null) {
+            mv.visitVarInsn(Opcodes.ALOAD, slot);
+            emitArgsArray(mv, args);
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, HELPERS_INTERNAL,
+                               "callValue",
+                               "(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;", false);
+            return;
+        }
         Integer paramCount = rootFunctions.get(callee.name);
         if (paramCount == null) {
             throw new IllegalArgumentException(
                 "unknown function '" + callee.name + "' (only root-scope function declarations are callable)");
         }
-        if (paramCount != args.size()) {
+        if (paramCount != args.size() && !hasSpread(args)) {
             throw new IllegalArgumentException(
                 "function '" + callee.name + "' expects " + paramCount
                 + " args, got " + args.size());
+        }
+        if (hasSpread(args)) {
+            throw new UnsupportedOperationException(
+                "spread arguments not yet supported for root-scope function calls");
         }
         loadRoot(mv);
         StringBuilder desc = new StringBuilder("(");
