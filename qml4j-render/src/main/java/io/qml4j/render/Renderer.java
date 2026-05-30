@@ -882,7 +882,7 @@ public final class Renderer {
                 parseColor(d.color.peek())));
         } else if (effect instanceof Glow) {
             Glow g = (Glow) effect;
-            p.setImageFilter(ImageFilter.makeDropShadowOnly(
+            p.setImageFilter(ImageFilter.makeDropShadow(
                 0f, 0f, sigma(g.radius.peek().floatValue()), sigma(g.radius.peek().floatValue()),
                 parseColor(g.color.peek())));
         } else if (effect instanceof ColorOverlay) {
