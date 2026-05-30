@@ -3,6 +3,7 @@ package io.qml4j.render;
 import io.qml4j.render.items.Animatable;
 import io.qml4j.render.items.Drag;
 import io.qml4j.render.items.Flickable;
+import io.qml4j.render.items.FocusScope;
 import io.qml4j.render.items.GroupAnimation;
 import io.qml4j.render.items.Item;
 import io.qml4j.render.items.KeyEvent;
@@ -295,7 +296,38 @@ public final class QmlView {
         return focused;
     }
 
+    private boolean moveFocusByTab(boolean backward) {
+        Item scope = enclosingScope(focused);
+        List<Item> stops = new ArrayList<>();
+        collectTabStops(scope, stops);
+        if (stops.isEmpty()) return false;
+        int idx = stops.indexOf(focused);
+        int next;
+        if (idx < 0) {
+            next = backward ? stops.size() - 1 : 0;
+        } else {
+            next = backward ? (idx - 1 + stops.size()) % stops.size()
+                            : (idx + 1) % stops.size();
+        }
+        setFocus(stops.get(next));
+        return true;
+    }
+
+    private Item enclosingScope(Item it) {
+        for (Item n = it; n != null; n = n.parent.peek()) {
+            if (n instanceof FocusScope) return n;
+        }
+        return root;
+    }
+
+    private void collectTabStops(Item node, List<Item> out) {
+        if (node == null || !Boolean.TRUE.equals(node.visible.peek())) return;
+        if (Boolean.TRUE.equals(node.activeFocusOnTab.peek())) out.add(node);
+        for (Item c : node.children) collectTabStops(c, out);
+    }
+
     public void setFocus(Item it) {
+        it = it == null ? null : focusTarget(it);
         if (focused == it) return;
         Item old = focused;
         if (old != null) {
@@ -315,6 +347,33 @@ public final class QmlView {
         setFocus(null);
     }
 
+    private Item focusTarget(Item it) {
+        while (it instanceof FocusScope) {
+            Item inner = scopeFocusChild(it);
+            if (inner == null || inner == it) break;
+            it = inner;
+        }
+        return it;
+    }
+
+    private Item scopeFocusChild(Item scope) {
+        for (Item c : scope.children) {
+            Item found = firstFocusInside(c);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private Item firstFocusInside(Item node) {
+        if (node == null || !Boolean.TRUE.equals(node.visible.peek())) return null;
+        if (Boolean.TRUE.equals(node.focus.peek())) return node;
+        for (Item c : node.children) {
+            Item found = firstFocusInside(c);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
     public boolean dispatchKey(int keyCode, String text, boolean down) {
         return dispatchKey(keyCode, text, down, false);
     }
@@ -322,6 +381,9 @@ public final class QmlView {
     public boolean dispatchKey(int keyCode, String text, boolean down, boolean shift) {
         if (focused != null && deliverToKeys(focused, keyCode, text, down, shift)) {
             return true;
+        }
+        if (down && (keyCode == KEY_TAB || keyCode == KEY_BACKTAB)) {
+            if (moveFocusByTab(keyCode == KEY_BACKTAB)) return true;
         }
         if (!(focused instanceof TextEditable)) return false;
         TextEditable ti = (TextEditable) focused;
