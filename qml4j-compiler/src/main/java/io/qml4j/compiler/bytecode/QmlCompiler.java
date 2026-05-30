@@ -199,7 +199,8 @@ public final class QmlCompiler {
 
         for (Ast.FunctionDeclaration fd : rootFunctionDecls) {
             emitRootFunctionMethod(cw, componentInternal, rootType, fd,
-                                   idTypes, rootDeclaredProps, rootAliases, rootFunctions);
+                                   idTypes, rootDeclaredProps, rootAliases, rootFunctions,
+                                   componentBinaryName, bindingCounter, classes);
         }
 
         cw.visitEnd();
@@ -304,17 +305,17 @@ public final class QmlCompiler {
                     Ast.Statement handlerBody = toStatement(b.value);
                     if (isCustomHandler) {
                         emitCustomSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
-                                                handlerCounter, classes,
+                                                handlerCounter, bindingCounter, classes,
                                                 customSignalOwner, signalName, handlerBody, idTypes,
                                                 customSignalParams.get(signalName), declaredProps, aliases,
                                                 rootFunctions);
                     } else if (isRelay) {
                         emitRelaySignalHandler(ctor, outerType, outerLocal, componentBinaryName,
-                                               handlerCounter, classes, signalName, handlerBody, idTypes,
+                                               handlerCounter, bindingCounter, classes, signalName, handlerBody, idTypes,
                                                declaredProps, aliases, rootFunctions);
                     } else {
                         emitSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
-                                          handlerCounter, classes, signalField, handlerBody, idTypes,
+                                          handlerCounter, bindingCounter, classes, signalField, handlerBody, idTypes,
                                           declaredProps, aliases, rootFunctions);
                     }
                     return;
@@ -419,13 +420,9 @@ public final class QmlCompiler {
                                              Map<String, Integer> rootFunctions) {
         String outerInternal = Type.getInternalName(outerType);
         String componentInternal = componentBinaryName.replace('.', '/');
-        int n = bindingCounter[0]++;
-        String bindingBinaryName = componentBinaryName + "$Binding$" + n;
-        String bindingInternal = bindingBinaryName.replace('.', '/');
-        byte[] bindingBytes = emitBindingClass(bindingInternal, outerInternal, outerType, expr,
-                                               componentInternal, idTypes, declaredProps, aliases,
-                                               rootFunctions);
-        classes.put(bindingBinaryName, bindingBytes);
+        String bindingInternal = emitBindingClass(outerInternal, outerType, expr, componentBinaryName,
+                                                  idTypes, declaredProps, aliases, rootFunctions,
+                                                  bindingCounter, classes);
 
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitFieldInsn(Opcodes.GETFIELD, ownerInternal, name, PROPERTY_DESC);
@@ -893,13 +890,9 @@ public final class QmlCompiler {
         }
         String outerInternal = Type.getInternalName(outerType);
         String componentInternal = componentBinaryName.replace('.', '/');
-        int n = bindingCounter[0]++;
-        String bindingBinaryName = componentBinaryName + "$Binding$" + n;
-        String bindingInternal = bindingBinaryName.replace('.', '/');
-        byte[] bindingBytes = emitBindingClass(bindingInternal, outerInternal, outerType, expr,
-                                               componentInternal, idTypes, declaredProps, aliases,
-                                               rootFunctions);
-        classes.put(bindingBinaryName, bindingBytes);
+        String bindingInternal = emitBindingClass(outerInternal, outerType, expr, componentBinaryName,
+                                                  idTypes, declaredProps, aliases, rootFunctions,
+                                                  bindingCounter, classes);
 
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitLdcInsn(name);
@@ -989,14 +982,9 @@ public final class QmlCompiler {
         String outerInternal = Type.getInternalName(outerType);
         String componentInternal = componentBinaryName.replace('.', '/');
 
-        int n = bindingCounter[0]++;
-        String bindingBinaryName = componentBinaryName + "$Binding$" + n;
-        String bindingInternal = bindingBinaryName.replace('.', '/');
-
-        byte[] bindingBytes = emitBindingClass(bindingInternal, outerInternal, outerType, expr,
-                                               componentInternal, idTypes, declaredProps, aliases,
-                                               rootFunctions);
-        classes.put(bindingBinaryName, bindingBytes);
+        String bindingInternal = emitBindingClass(outerInternal, outerType, expr, componentBinaryName,
+                                                  idTypes, declaredProps, aliases, rootFunctions,
+                                                  bindingCounter, classes);
 
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitFieldInsn(Opcodes.GETFIELD, declOwner, propName, PROPERTY_DESC);
@@ -1049,13 +1037,9 @@ public final class QmlCompiler {
             return;
         }
 
-        int n = bindingCounter[0]++;
-        String bindingBinaryName = componentBinaryName + "$Binding$" + n;
-        String bindingInternal = bindingBinaryName.replace('.', '/');
-        byte[] bindingBytes = emitBindingClass(bindingInternal, outerInternal, outerType, expr,
-                                               componentInternal, idTypes, declaredProps, aliases,
-                                               rootFunctions);
-        classes.put(bindingBinaryName, bindingBytes);
+        String bindingInternal = emitBindingClass(outerInternal, outerType, expr, componentBinaryName,
+                                                  idTypes, declaredProps, aliases, rootFunctions,
+                                                  bindingCounter, classes);
 
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitFieldInsn(Opcodes.GETFIELD, groupDeclOwner, groupName,
@@ -1097,7 +1081,7 @@ public final class QmlCompiler {
 
     private void emitCustomSignalHandler(MethodVisitor ctor, Class<? extends QObject> outerType,
                                          int outerLocal, String componentBinaryName,
-                                         int[] handlerCounter, Map<String, byte[]> classes,
+                                         int[] handlerCounter, int[] bindingCounter, Map<String, byte[]> classes,
                                          String signalOwnerInternal, String signalName,
                                          Ast.Statement body,
                                          Map<String, Class<? extends QObject>> idTypes,
@@ -1111,9 +1095,10 @@ public final class QmlCompiler {
         String handlerBinaryName = componentBinaryName + "$Handler$" + n;
         String handlerInternal = handlerBinaryName.replace('.', '/');
         byte[] handlerBytes = emitHandlerClass(handlerInternal, outerInternal, outerType, body,
-                                               componentInternal, idTypes,
+                                               componentInternal, componentBinaryName, idTypes,
                                                signalParams != null ? signalParams : Collections.<String>emptyList(),
-                                               declaredProps, aliases, rootFunctions);
+                                               declaredProps, aliases, rootFunctions,
+                                               bindingCounter, classes);
         classes.put(handlerBinaryName, handlerBytes);
 
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
@@ -1130,7 +1115,7 @@ public final class QmlCompiler {
 
     private void emitSignalHandler(MethodVisitor ctor, Class<? extends QObject> outerType,
                                    int outerLocal, String componentBinaryName,
-                                   int[] handlerCounter, Map<String, byte[]> classes,
+                                   int[] handlerCounter, int[] bindingCounter, Map<String, byte[]> classes,
                                    Field signalField, Ast.Statement body,
                                    Map<String, Class<? extends QObject>> idTypes,
                                    Map<String, String> declaredProps,
@@ -1145,9 +1130,10 @@ public final class QmlCompiler {
         String handlerInternal = handlerBinaryName.replace('.', '/');
 
         byte[] handlerBytes = emitHandlerClass(handlerInternal, outerInternal, outerType, body,
-                                               componentInternal, idTypes,
+                                               componentInternal, componentBinaryName, idTypes,
                                                Collections.<String>emptyList(),
-                                               declaredProps, aliases, rootFunctions);
+                                               declaredProps, aliases, rootFunctions,
+                                               bindingCounter, classes);
         classes.put(handlerBinaryName, handlerBytes);
 
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
@@ -1164,7 +1150,7 @@ public final class QmlCompiler {
 
     private void emitRelaySignalHandler(MethodVisitor ctor, Class<? extends QObject> outerType,
                                         int outerLocal, String componentBinaryName,
-                                        int[] handlerCounter, Map<String, byte[]> classes,
+                                        int[] handlerCounter, int[] bindingCounter, Map<String, byte[]> classes,
                                         String signalName, Ast.Statement body,
                                         Map<String, Class<? extends QObject>> idTypes,
                                         Map<String, String> declaredProps,
@@ -1178,9 +1164,10 @@ public final class QmlCompiler {
         String handlerInternal = handlerBinaryName.replace('.', '/');
 
         byte[] handlerBytes = emitHandlerClass(handlerInternal, outerInternal, outerType, body,
-                                               componentInternal, idTypes,
+                                               componentInternal, componentBinaryName, idTypes,
                                                Collections.<String>emptyList(),
-                                               declaredProps, aliases, rootFunctions);
+                                               declaredProps, aliases, rootFunctions,
+                                               bindingCounter, classes);
         classes.put(handlerBinaryName, handlerBytes);
 
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
@@ -1199,11 +1186,14 @@ public final class QmlCompiler {
     private byte[] emitHandlerClass(String handlerInternal, String outerInternal,
                                     Class<?> outerType, Ast.Statement body,
                                     String componentInternal,
+                                    String componentBinaryName,
                                     Map<String, Class<? extends QObject>> idTypes,
                                     List<String> signalParams,
                                     Map<String, String> declaredProps,
                                     Map<String, AliasRef> aliases,
-                                    Map<String, Integer> rootFunctions) {
+                                    Map<String, Integer> rootFunctions,
+                                    int[] bindingCounter,
+                                    Map<String, byte[]> classes) {
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
         cw.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
                  handlerInternal, null, "java/lang/Object",
@@ -1240,6 +1230,11 @@ public final class QmlCompiler {
                                                           componentInternal, idTypes,
                                                           paramIdx, localVars, declaredProps, aliases,
                                                           rootFunctions);
+        @SuppressWarnings("unchecked")
+        Class<? extends QObject> outerQ = (Class<? extends QObject>) outerType;
+        codegen.setBindingEmitter(childExpr -> emitBindingClass(
+            outerInternal, outerQ, childExpr, componentBinaryName,
+            idTypes, declaredProps, aliases, rootFunctions, bindingCounter, classes));
         StatementCodegen stmts = new StatementCodegen(codegen, 2);
         stmts.emit(invoke, body);
         invoke.visitInsn(Opcodes.RETURN);
@@ -1250,13 +1245,20 @@ public final class QmlCompiler {
         return cw.toByteArray();
     }
 
-    private byte[] emitBindingClass(String bindingInternal, String outerInternal,
+    private String emitBindingClass(String outerInternal,
                                     Class<?> outerType, Ast.Expression expr,
-                                    String componentInternal,
+                                    String componentBinaryName,
                                     Map<String, Class<? extends QObject>> idTypes,
                                     Map<String, String> declaredProps,
                                     Map<String, AliasRef> aliases,
-                                    Map<String, Integer> rootFunctions) {
+                                    Map<String, Integer> rootFunctions,
+                                    int[] bindingCounter,
+                                    Map<String, byte[]> classes) {
+        String componentInternal = componentBinaryName.replace('.', '/');
+        int n = bindingCounter[0]++;
+        String bindingBinaryName = componentBinaryName + "$Binding$" + n;
+        String bindingInternal = bindingBinaryName.replace('.', '/');
+
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
         cw.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
                  bindingInternal, null, BINDING_INTERNAL, null);
@@ -1288,13 +1290,17 @@ public final class QmlCompiler {
         ExpressionCodegen codegen = ExpressionCodegen.forBinding(outerInternal, bindingInternal, outerType,
                                                                  componentInternal, idTypes, declaredProps, aliases,
                                                                  rootFunctions);
+        codegen.setBindingEmitter(childExpr -> emitBindingClass(
+            outerInternal, outerType, childExpr, componentBinaryName,
+            idTypes, declaredProps, aliases, rootFunctions, bindingCounter, classes));
         codegen.emit(eval, expr);
         eval.visitInsn(Opcodes.ARETURN);
         eval.visitMaxs(0, 0);
         eval.visitEnd();
 
         cw.visitEnd();
-        return cw.toByteArray();
+        classes.put(bindingBinaryName, cw.toByteArray());
+        return bindingInternal;
     }
 
     private void emitRootFunctionMethod(ClassWriter cw, String componentInternal,
@@ -1303,7 +1309,10 @@ public final class QmlCompiler {
                                         Map<String, Class<? extends QObject>> idTypes,
                                         Map<String, String> rootDeclaredProps,
                                         Map<String, AliasRef> rootAliases,
-                                        Map<String, Integer> rootFunctions) {
+                                        Map<String, Integer> rootFunctions,
+                                        String componentBinaryName,
+                                        int[] bindingCounter,
+                                        Map<String, byte[]> classes) {
         StringBuilder desc = new StringBuilder("(");
         for (int i = 0; i < fd.paramNames.size(); i++) desc.append("Ljava/lang/Object;");
         desc.append(")Ljava/lang/Object;");
@@ -1318,6 +1327,9 @@ public final class QmlCompiler {
         ExpressionCodegen codegen = ExpressionCodegen.forFunction(componentInternal, rootType, idTypes,
                                                                   directParams, rootDeclaredProps,
                                                                   rootAliases, rootFunctions);
+        codegen.setBindingEmitter(childExpr -> emitBindingClass(
+            componentInternal, rootType, childExpr, componentBinaryName,
+            idTypes, rootDeclaredProps, rootAliases, rootFunctions, bindingCounter, classes));
         StatementCodegen stmts = new StatementCodegen(codegen, fd.paramNames.size() + 1,
                                                       StatementCodegen.ReturnKind.OBJECT);
         stmts.emit(mv, fd.body);

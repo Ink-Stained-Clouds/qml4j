@@ -40,7 +40,12 @@ public final class Property<T> {
         return value;
     }
 
+    @SuppressWarnings("unchecked")
     public void set(T newValue) {
+        if (newValue instanceof Binding) {
+            bind((Binding) newValue);
+            return;
+        }
         clearBinding();
         if (interceptor != null) {
             interceptor.write(this, newValue);

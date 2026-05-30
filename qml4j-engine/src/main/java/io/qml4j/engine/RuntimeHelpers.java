@@ -1,5 +1,7 @@
 package io.qml4j.engine;
 
+import io.qml4j.engine.binding.Binding;
+import io.qml4j.engine.binding.DirtyQueue;
 import io.qml4j.engine.binding.Property;
 
 import java.lang.reflect.Field;
@@ -300,6 +302,82 @@ public final class RuntimeHelpers {
         }
         throw new IllegalArgumentException(
             "no method '" + name + "' with " + n + " args on " + cls.getName());
+    }
+
+    public static Object qtRgba(Object r, Object g, Object b, Object a) {
+        int ri = clampByte((int) Math.round(toNumber(r) * 255.0));
+        int gi = clampByte((int) Math.round(toNumber(g) * 255.0));
+        int bi = clampByte((int) Math.round(toNumber(b) * 255.0));
+        int ai = clampByte((int) Math.round(toNumber(a) * 255.0));
+        return formatHex(ai, ri, gi, bi);
+    }
+
+    public static Object qtHsla(Object h, Object s, Object l, Object a) {
+        double hh = wrap01(toNumber(h));
+        double ss = clamp01(toNumber(s));
+        double ll = clamp01(toNumber(l));
+        double aa = clamp01(toNumber(a));
+        double[] rgb = hslToRgb(hh, ss, ll);
+        int ri = (int) Math.round(rgb[0] * 255.0);
+        int gi = (int) Math.round(rgb[1] * 255.0);
+        int bi = (int) Math.round(rgb[2] * 255.0);
+        int ai = (int) Math.round(aa * 255.0);
+        return formatHex(ai, ri, gi, bi);
+    }
+
+    public static void qtCallLater(Object work) {
+        if (work == null) return;
+        Runnable r = toRunnable(work);
+        DirtyQueue dq = DirtyQueue.current();
+        if (dq != null) dq.enqueue(r);
+        else r.run();
+    }
+
+    private static Runnable toRunnable(Object work) {
+        if (work instanceof Runnable) return (Runnable) work;
+        if (work instanceof Binding) {
+            Binding b = (Binding) work;
+            return b::evaluate;
+        }
+        throw new IllegalArgumentException(
+            "Qt.callLater requires Qt.binding(...) or a callable; got " + work.getClass().getName());
+    }
+
+    private static int clampByte(int v) {
+        return v < 0 ? 0 : (v > 255 ? 255 : v);
+    }
+
+    private static double clamp01(double v) {
+        return v < 0 ? 0 : (v > 1 ? 1 : v);
+    }
+
+    private static double wrap01(double v) {
+        double w = v - Math.floor(v);
+        return w < 0 ? w + 1 : w;
+    }
+
+    private static String formatHex(int a, int r, int g, int b) {
+        return String.format("#%02x%02x%02x%02x", a, r, g, b);
+    }
+
+    private static double[] hslToRgb(double h, double s, double l) {
+        if (s == 0.0) return new double[]{l, l, l};
+        double q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        double p = 2 * l - q;
+        return new double[]{
+            hueToRgb(p, q, h + 1.0 / 3.0),
+            hueToRgb(p, q, h),
+            hueToRgb(p, q, h - 1.0 / 3.0)
+        };
+    }
+
+    private static double hueToRgb(double p, double q, double t) {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1.0 / 6.0) return p + (q - p) * 6 * t;
+        if (t < 1.0 / 2.0) return q;
+        if (t < 2.0 / 3.0) return p + (q - p) * (2.0 / 3.0 - t) * 6;
+        return p;
     }
 
     private static Object[] coerceArgs(Object[] args, Class<?>[] paramTypes) {

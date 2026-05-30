@@ -29,6 +29,10 @@ final class ExpressionCodegen {
         }
     }
 
+    interface BindingEmitter {
+        String emit(Ast.Expression expr);
+    }
+
     private final String outerInternal;
     private final String bindingInternal;
     private final Class<?> outerType;
@@ -40,6 +44,7 @@ final class ExpressionCodegen {
     private final Map<String, AliasRef> aliases;
     private final Map<String, Integer> rootFunctions;
     private final boolean selfReceiver;
+    private BindingEmitter bindingEmitter;
 
     ExpressionCodegen(String outerInternal, String bindingInternal, Class<?> outerType) {
         this(outerInternal, bindingInternal, outerType, null,
@@ -98,6 +103,10 @@ final class ExpressionCodegen {
                       Map<String, Integer> rootFunctions) {
         this(outerInternal, bindingInternal, outerType, componentInternal, idTypes,
              signalParams, localVars, declaredProps, aliases, rootFunctions, false);
+    }
+
+    void setBindingEmitter(BindingEmitter emitter) {
+        this.bindingEmitter = emitter;
     }
 
     private ExpressionCodegen(String outerInternal, String bindingInternal, Class<?> outerType,
@@ -423,6 +432,7 @@ final class ExpressionCodegen {
                 "only method calls of the form receiver.method(...) are supported");
         }
         Ast.MemberExpr m = (Ast.MemberExpr) c.callee;
+        if (tryEmitQtCall(mv, m, c.args)) return;
         emit(mv, m.target);
         mv.visitLdcInsn(m.property);
         pushInt(mv, c.args.size());
@@ -437,6 +447,91 @@ final class ExpressionCodegen {
                            "callMethod",
                            "(Ljava/lang/Object;Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/Object;",
                            false);
+    }
+
+    private boolean tryEmitQtCall(MethodVisitor mv, Ast.MemberExpr m, java.util.List<Ast.Expression> args) {
+        if (!(m.target instanceof Ast.IdentifierExpr)) return false;
+        if (!"Qt".equals(((Ast.IdentifierExpr) m.target).name)) return false;
+        switch (m.property) {
+            case "binding":
+                emitQtBinding(mv, args);
+                return true;
+            case "callLater":
+                emitQtCallLater(mv, args);
+                return true;
+            case "rgba":
+                emitQtFourArg(mv, args, "qtRgba");
+                return true;
+            case "hsla":
+                emitQtFourArg(mv, args, "qtHsla");
+                return true;
+            default:
+                throw new UnsupportedOperationException("Qt." + m.property + " is not supported");
+        }
+    }
+
+    private void emitQtBinding(MethodVisitor mv, java.util.List<Ast.Expression> args) {
+        if (args.size() != 1) {
+            throw new IllegalArgumentException("Qt.binding expects 1 argument, got " + args.size());
+        }
+        if (bindingEmitter == null) {
+            throw new IllegalStateException("Qt.binding requires BindingEmitter in this codegen scope");
+        }
+        String childInternal = bindingEmitter.emit(args.get(0));
+        mv.visitTypeInsn(Opcodes.NEW, childInternal);
+        mv.visitInsn(Opcodes.DUP);
+        loadOuter(mv);
+        loadRoot(mv);
+        mv.visitMethodInsn(Opcodes.INVOKESPECIAL, childInternal, "<init>",
+                           "(L" + outerInternal + ";L" + componentInternal + ";)V", false);
+    }
+
+    private void emitQtCallLater(MethodVisitor mv, java.util.List<Ast.Expression> args) {
+        if (args.size() != 1) {
+            throw new IllegalArgumentException("Qt.callLater expects 1 argument, got " + args.size());
+        }
+        Ast.Expression arg = args.get(0);
+        if (arg instanceof Ast.CallExpr
+            && ((Ast.CallExpr) arg).callee instanceof Ast.MemberExpr) {
+            Ast.MemberExpr inner = (Ast.MemberExpr) ((Ast.CallExpr) arg).callee;
+            if (inner.target instanceof Ast.IdentifierExpr
+                && "Qt".equals(((Ast.IdentifierExpr) inner.target).name)
+                && "binding".equals(inner.property)) {
+                emit(mv, arg);
+                callQtHelper(mv, "qtCallLater", "(Ljava/lang/Object;)V");
+                pushUndefined(mv);
+                return;
+            }
+        }
+        if (bindingEmitter == null) {
+            throw new IllegalStateException("Qt.callLater requires BindingEmitter in this codegen scope");
+        }
+        String childInternal = bindingEmitter.emit(arg);
+        mv.visitTypeInsn(Opcodes.NEW, childInternal);
+        mv.visitInsn(Opcodes.DUP);
+        loadOuter(mv);
+        loadRoot(mv);
+        mv.visitMethodInsn(Opcodes.INVOKESPECIAL, childInternal, "<init>",
+                           "(L" + outerInternal + ";L" + componentInternal + ";)V", false);
+        callQtHelper(mv, "qtCallLater", "(Ljava/lang/Object;)V");
+        pushUndefined(mv);
+    }
+
+    private void emitQtFourArg(MethodVisitor mv, java.util.List<Ast.Expression> args, String helper) {
+        if (args.size() != 4) {
+            throw new IllegalArgumentException("Qt." + helper + " expects 4 arguments, got " + args.size());
+        }
+        for (Ast.Expression a : args) emit(mv, a);
+        callQtHelper(mv, helper,
+            "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+    }
+
+    private void callQtHelper(MethodVisitor mv, String name, String desc) {
+        mv.visitMethodInsn(Opcodes.INVOKESTATIC, HELPERS_INTERNAL, name, desc, false);
+    }
+
+    private void pushUndefined(MethodVisitor mv) {
+        mv.visitInsn(Opcodes.ACONST_NULL);
     }
 
     private void emitBareNameCall(MethodVisitor mv, Ast.IdentifierExpr callee, java.util.List<Ast.Expression> args) {
