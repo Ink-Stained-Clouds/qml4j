@@ -80,9 +80,55 @@ Rectangle {
         root.taps = root.taps + 1;
     }
 
+    Rectangle {
+        id: editorPanel
+        x: 0
+        y: 0
+        width: parent.width
+        height: 280
+        color: "#1c1c28"
+
+        Text {
+            x: 16
+            y: 12
+            text: "TextEdit (tap to focus; IME will appear):"
+            color: "#ffffff"
+            fontSize: 24
+            width: 800
+            height: 32
+        }
+
+        Rectangle {
+            x: 16
+            y: 56
+            width: parent.width - 32
+            height: 200
+            color: "#2a2a3a"
+            radius: 8
+            border.color: "#404060"
+            border.width: 2
+
+            TextEdit {
+                id: editor
+                x: 12
+                y: 10
+                width: parent.width - 24
+                height: 180
+                text: "qml4j TextEdit milestone M38.\nThis paragraph wraps inside the box when the width is exceeded. WrapAnywhere kicks in for long unbreakable tokens like supercalifragilisticexpialidocious."
+                wrapMode: "WrapAnywhere"
+                color: "#ffffff"
+                fontSize: 22
+                verticalAlignment: "AlignTop"
+            }
+        }
+    }
+
     Flickable {
         id: scroll
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: editorPanel.bottom
+        anchors.bottom: parent.bottom
         contentWidth: parent.width
         contentHeight: 4300
 
@@ -810,58 +856,6 @@ Rectangle {
                     fontSize: 24
                 }
             }
-        }
-    }
-
-    Rectangle {
-        x: 60
-        y: 3980
-        width: 880
-        height: 280
-        color: "#1c1c28"
-
-        Text {
-            x: 16
-            y: 12
-            text: "TextEdit (multi-line, WordWrap):"
-            color: "#ffffff"
-            fontSize: 24
-            width: 800
-            height: 32
-        }
-
-        Rectangle {
-            x: 16
-            y: 56
-            width: 848
-            height: 200
-            color: "#2a2a3a"
-            radius: 8
-            border.color: "#404060"
-            border.width: 2
-
-            TextEdit {
-                id: editor
-                x: 12
-                y: 10
-                width: 824
-                height: 180
-                text: "qml4j TextEdit milestone M38.\nThis paragraph wraps inside the box when the width is exceeded. WrapAnywhere kicks in for long unbreakable tokens like supercalifragilisticexpialidocious."
-                wrapMode: "WrapAnywhere"
-                color: "#ffffff"
-                fontSize: 22
-                verticalAlignment: "AlignTop"
-            }
-        }
-
-        Text {
-            x: 16
-            y: 256
-            text: "lines: " + editor.lineCount
-            color: "#a0c0ff"
-            fontSize: 18
-            width: 400
-            height: 24
         }
     }
 
