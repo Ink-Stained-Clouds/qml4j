@@ -42,6 +42,7 @@ public final class QmlView {
     private final Renderer renderer = new Renderer();
     private final DirtyQueue dirty = new DirtyQueue();
     private final Map<String, Class<? extends QObject>> importedTypes = new HashMap<>();
+    private final Map<String, Class<? extends QObject>> resolvedSingletons = new HashMap<>();
     private final Map<String, Map<String, QmldirEntry>> qmldirCache = new HashMap<>();
     private final Set<String> compilingNow = new HashSet<>();
     private ResourceLoader resources;
@@ -97,11 +98,16 @@ public final class QmlView {
         return (Item) inst;
     }
 
-    private Class<? extends QObject> compileAndDefine(Ast.QmlDocument doc) {
+    private TypeRegistry buildDocTypes(Ast.QmlDocument doc) {
         List<String> prefixes = stringImportPrefixes(doc);
-        TypeRegistry docTypes = types.copy()
+        return types.copy()
             .withResolver(name -> resolveCompound(name, prefixes))
             .withAliases(importAliases(doc));
+    }
+
+    private Class<? extends QObject> compileAndDefine(Ast.QmlDocument doc) {
+        TypeRegistry docTypes = buildDocTypes(doc);
+        registerKnownSingletons(docTypes);
         CompiledUnit unit = compiler.compile(doc, docTypes);
         ClassLoaderBackend backend = engine.backend();
         Map<String, Class<?>> defined = backend.defineClasses(unit.classes());
@@ -116,6 +122,12 @@ public final class QmlView {
         @SuppressWarnings("unchecked")
         Class<? extends QObject> qc = (Class<? extends QObject>) rootClass;
         return qc;
+    }
+
+    private void registerKnownSingletons(TypeRegistry docTypes) {
+        for (Map.Entry<String, Class<? extends QObject>> e : resolvedSingletons.entrySet()) {
+            docTypes.registerSingleton(e.getKey(), e.getValue());
+        }
     }
 
     private Class<? extends QObject> resolveCompound(String name, List<String> prefixes) {
@@ -133,8 +145,15 @@ public final class QmlView {
             }
             try {
                 Ast.QmlDocument subDoc = Qml4j.parse(new String(bytes, StandardCharsets.UTF_8));
+                boolean singleton = (entry != null && entry.singleton) || subDoc.hasPragma("Singleton");
+                if (singleton) subDoc.addPragma("Singleton");
                 Class<? extends QObject> rootClass = compileAndDefine(subDoc);
                 importedTypes.put(name, rootClass);
+                if (singleton) {
+                    resolvedSingletons.put(name, rootClass);
+                    TypeRegistry current = QmlCompiler.currentRegistry();
+                    if (current != null) current.registerSingleton(name, rootClass);
+                }
                 return rootClass;
             } finally {
                 compilingNow.remove(name);

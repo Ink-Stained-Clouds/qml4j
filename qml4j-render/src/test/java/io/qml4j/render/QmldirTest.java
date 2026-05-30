@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class QmldirTest {
 
@@ -33,7 +34,7 @@ class QmldirTest {
     }
 
     @Test
-    void qmldirSingletonMarkerIsParsedButLoadsClassForNow() {
+    void qmldirSingletonMarkerRejectsObjectConstruction() {
         QmlView v = newView();
         Map<String, byte[]> files = new HashMap<>();
         files.put("theme/qmldir",
@@ -41,11 +42,10 @@ class QmldirTest {
         files.put("theme/Theme.qml",
             "Rectangle { width: 1; height: 1 }".getBytes());
         v.resources(files::get);
-        Item root = v.load(
-            "import \"theme\"\n" +
-            "Item { Theme { } }");
-        Rectangle t = (Rectangle) root.children.get(0);
-        assertEquals(1L, t.width.peek().longValue());
+        assertThrows(IllegalArgumentException.class, () ->
+            v.load(
+                "import \"theme\"\n" +
+                "Item { Theme { } }"));
     }
 
     @Test

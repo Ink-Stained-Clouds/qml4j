@@ -1,5 +1,6 @@
 package io.qml4j.parser.ast;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -8,12 +9,28 @@ public final class Ast {
 
     public static final class QmlDocument {
         public final List<ImportNode> imports;
+        public final List<String> pragmas;
         public final ObjectNode root;
         public QmlDocument(List<ImportNode> imports, ObjectNode root) {
+            this(imports, Collections.<String>emptyList(), root);
+        }
+        public QmlDocument(List<ImportNode> imports, List<String> pragmas, ObjectNode root) {
             this.imports = Collections.unmodifiableList(imports);
+            this.pragmas = new ArrayList<>(pragmas);
             this.root = root;
         }
-        @Override public String toString() { return "QmlDocument{imports=" + imports + ", root=" + root + "}"; }
+        public boolean hasPragma(String name) {
+            for (String p : pragmas) if (p.equals(name)) return true;
+            return false;
+        }
+        public void addPragma(String name) {
+            if (!hasPragma(name)) pragmas.add(name);
+        }
+        @Override public String toString() {
+            return "QmlDocument{imports=" + imports
+                + (pragmas.isEmpty() ? "" : ", pragmas=" + pragmas)
+                + ", root=" + root + "}";
+        }
     }
 
     public static final class ImportNode {

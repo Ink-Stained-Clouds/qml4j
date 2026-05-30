@@ -46,6 +46,9 @@ public final class QmlCompiler {
     private static final ThreadLocal<int[]> DELEGATE_SCOPE_DEPTH =
         ThreadLocal.withInitial(() -> new int[]{0});
 
+    private static final ThreadLocal<java.util.Deque<TypeRegistry>> REGISTRY_STACK =
+        ThreadLocal.withInitial(java.util.ArrayDeque::new);
+
     public static boolean inDelegateScope() {
         return DELEGATE_SCOPE_DEPTH.get()[0] > 0;
     }
@@ -58,34 +61,86 @@ public final class QmlCompiler {
         DELEGATE_SCOPE_DEPTH.get()[0]--;
     }
 
+    public static Class<? extends QObject> currentSingletonClass(String name) {
+        for (TypeRegistry r : REGISTRY_STACK.get()) {
+            Class<? extends QObject> c = r.singletonClass(name);
+            if (c != null) return c;
+        }
+        return null;
+    }
+
+    public static TypeRegistry currentRegistry() {
+        return REGISTRY_STACK.get().peek();
+    }
+
+    public static void tryResolveType(String name) {
+        TypeRegistry r = currentRegistry();
+        if (r == null) return;
+        if (r.isRegistered(name)) return;
+        try { r.resolve(name); }
+        catch (IllegalArgumentException ignored) {}
+    }
+
     private final AtomicInteger componentCounter = new AtomicInteger();
 
     private ClassWriter activeComponentCw;
     private int factoryCounter;
 
     public CompiledUnit compile(Ast.QmlDocument doc, TypeRegistry registry) {
-        Class<? extends QObject> rootType = registry.resolve(doc.root.typeName);
-        int id = componentCounter.getAndIncrement();
-        String componentBinaryName = "io.qml4j.generated.Component$" + id;
-        String componentInternal = componentBinaryName.replace('.', '/');
-        String rootInternal = Type.getInternalName(rootType);
-
-        Map<String, Class<? extends QObject>> idTypes = new LinkedHashMap<>();
-        collectIds(doc.root, registry, idTypes, false);
-
-        Map<String, byte[]> classes = new LinkedHashMap<>();
-
-        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
-        cw.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
-                 componentInternal, null, rootInternal, null);
-        this.activeComponentCw = cw;
-        this.factoryCounter = 0;
+        REGISTRY_STACK.get().push(registry);
         try {
-            return compileBody(doc, registry, rootType, componentBinaryName,
-                               componentInternal, rootInternal, idTypes, classes, cw);
+            Class<? extends QObject> rootType = registry.resolve(doc.root.typeName);
+            int id = componentCounter.getAndIncrement();
+            String componentBinaryName = "io.qml4j.generated.Component$" + id;
+            String componentInternal = componentBinaryName.replace('.', '/');
+            String rootInternal = Type.getInternalName(rootType);
+
+            Map<String, Class<? extends QObject>> idTypes = new LinkedHashMap<>();
+            collectIds(doc.root, registry, idTypes, false);
+
+            Map<String, byte[]> classes = new LinkedHashMap<>();
+
+            ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
+            cw.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
+                     componentInternal, null, rootInternal, null);
+            this.activeComponentCw = cw;
+            this.factoryCounter = 0;
+            try {
+                if (doc.hasPragma("Singleton")) {
+                    emitSingletonAccessor(cw, componentInternal);
+                }
+                return compileBody(doc, registry, rootType, componentBinaryName,
+                                   componentInternal, rootInternal, idTypes, classes, cw);
+            } finally {
+                this.activeComponentCw = null;
+            }
         } finally {
-            this.activeComponentCw = null;
+            REGISTRY_STACK.get().pop();
         }
+    }
+
+    private static void emitSingletonAccessor(ClassWriter cw, String componentInternal) {
+        cw.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC,
+                      "__singleton", "Ljava/lang/Object;", null, null).visitEnd();
+        MethodVisitor mv = cw.visitMethod(
+            Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_SYNCHRONIZED,
+            "__instance", "()Ljava/lang/Object;", null, null);
+        mv.visitCode();
+        mv.visitFieldInsn(Opcodes.GETSTATIC, componentInternal, "__singleton",
+                          "Ljava/lang/Object;");
+        org.objectweb.asm.Label ret = new org.objectweb.asm.Label();
+        mv.visitJumpInsn(Opcodes.IFNONNULL, ret);
+        mv.visitTypeInsn(Opcodes.NEW, componentInternal);
+        mv.visitInsn(Opcodes.DUP);
+        mv.visitMethodInsn(Opcodes.INVOKESPECIAL, componentInternal, "<init>", "()V", false);
+        mv.visitFieldInsn(Opcodes.PUTSTATIC, componentInternal, "__singleton",
+                          "Ljava/lang/Object;");
+        mv.visitLabel(ret);
+        mv.visitFieldInsn(Opcodes.GETSTATIC, componentInternal, "__singleton",
+                          "Ljava/lang/Object;");
+        mv.visitInsn(Opcodes.ARETURN);
+        mv.visitMaxs(0, 0);
+        mv.visitEnd();
     }
 
     private CompiledUnit compileBody(Ast.QmlDocument doc, TypeRegistry registry,
@@ -468,6 +523,10 @@ public final class QmlCompiler {
                                      Map<String, List<String>> outerSignalParams,
                                      String listFieldName,
                                      Map<String, Integer> rootFunctions) {
+        if (registry.isSingleton(child.typeName)) {
+            throw new IllegalArgumentException(
+                "cannot instantiate singleton type with object syntax: " + child.typeName);
+        }
         Class<? extends QObject> childType = registry.resolve(child.typeName);
         String parentInternal = Type.getInternalName(childType);
         String componentInternal = componentBinaryName.replace('.', '/');

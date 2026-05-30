@@ -14,6 +14,7 @@ public final class TypeRegistry {
     }
 
     private final Map<String, Class<? extends QObject>> types = new HashMap<>();
+    private final Map<String, Class<? extends QObject>> singletons = new HashMap<>();
     private TypeResolver resolver;
     private Set<String> aliases = Collections.emptySet();
 
@@ -22,9 +23,24 @@ public final class TypeRegistry {
         return this;
     }
 
+    public TypeRegistry registerSingleton(String qmlName, Class<? extends QObject> klass) {
+        types.put(qmlName, klass);
+        singletons.put(qmlName, klass);
+        return this;
+    }
+
+    public Class<? extends QObject> singletonClass(String qmlName) {
+        return singletons.get(qmlName);
+    }
+
+    public boolean isSingleton(String qmlName) {
+        return singletons.containsKey(qmlName);
+    }
+
     public TypeRegistry copy() {
         TypeRegistry t = new TypeRegistry();
         t.types.putAll(this.types);
+        t.singletons.putAll(this.singletons);
         return t;
     }
 

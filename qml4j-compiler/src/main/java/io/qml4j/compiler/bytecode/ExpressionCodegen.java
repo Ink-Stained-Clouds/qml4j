@@ -394,6 +394,13 @@ final class ExpressionCodegen {
                                false);
             return;
         }
+        QmlCompiler.tryResolveType(id.name);
+        Class<? extends QObject> singleton = QmlCompiler.currentSingletonClass(id.name);
+        if (singleton != null) {
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, Type.getInternalName(singleton),
+                               "__instance", "()Ljava/lang/Object;", false);
+            return;
+        }
         Field f = findPropertyField(outerType, id.name);
         String declOwner = Type.getInternalName(f.getDeclaringClass());
         loadOuter(mv);

@@ -15,8 +15,12 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
         for (QmlParser.ImportDeclarationContext ic : ctx.importDeclaration()) {
             imports.add(visitImportDeclaration(ic));
         }
+        List<String> pragmas = new ArrayList<>();
+        for (QmlParser.PragmaDeclarationContext pc : ctx.pragmaDeclaration()) {
+            pragmas.add(pc.Identifier().getText());
+        }
         Ast.ObjectNode root = (Ast.ObjectNode) visit(ctx.rootObject().objectDeclaration());
-        return new Ast.QmlDocument(imports, root);
+        return new Ast.QmlDocument(imports, pragmas, root);
     }
 
     @Override

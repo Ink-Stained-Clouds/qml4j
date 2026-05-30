@@ -5,11 +5,15 @@ grammar Qml;
 // =====================
 
 qmlDocument
-    : importDeclaration* rootObject EOF
+    : importDeclaration* pragmaDeclaration* rootObject EOF
     ;
 
 importDeclaration
     : 'import' (StringLiteral | qualifiedId) version? ('as' Identifier)? ';'?
+    ;
+
+pragmaDeclaration
+    : 'pragma' Identifier ';'?
     ;
 
 version
