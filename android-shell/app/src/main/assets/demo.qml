@@ -981,5 +981,7 @@ Rectangle {
     KeysShowcase { }
 
     FocusScopeShowcase { }
+
+    ShapeShowcase { }
     }
 }
