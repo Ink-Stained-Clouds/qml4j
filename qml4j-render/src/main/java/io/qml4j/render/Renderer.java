@@ -12,7 +12,15 @@ import io.qml4j.render.items.ImageFill;
 import io.qml4j.render.items.Item;
 import io.qml4j.render.items.Loader;
 import io.qml4j.render.items.MouseArea;
+import io.qml4j.render.items.PathArc;
+import io.qml4j.render.items.PathCubic;
+import io.qml4j.render.items.PathElement;
+import io.qml4j.render.items.PathLine;
+import io.qml4j.render.items.PathMove;
+import io.qml4j.render.items.PathQuad;
 import io.qml4j.render.items.Rectangle;
+import io.qml4j.render.items.Shape;
+import io.qml4j.render.items.ShapePath;
 import io.qml4j.render.items.Row;
 import io.qml4j.render.items.Text;
 import io.qml4j.render.items.TextEdit;
@@ -25,6 +33,12 @@ import io.github.humbleui.skija.FontMgr;
 import io.github.humbleui.skija.FontStyle;
 import io.github.humbleui.skija.Paint;
 import io.github.humbleui.skija.PaintMode;
+import io.github.humbleui.skija.PaintStrokeCap;
+import io.github.humbleui.skija.PaintStrokeJoin;
+import io.github.humbleui.skija.Path;
+import io.github.humbleui.skija.PathDirection;
+import io.github.humbleui.skija.PathEllipseArc;
+import io.github.humbleui.skija.PathFillMode;
 import io.github.humbleui.skija.Shader;
 import io.github.humbleui.skija.Typeface;
 import io.github.humbleui.types.RRect;
@@ -327,6 +341,8 @@ public final class Renderer {
     private void paintNode(Canvas canvas, Item node, float w, float h, float alpha) {
         if (node instanceof Rectangle) {
             paintRectangle(canvas, (Rectangle) node, w, h, alpha);
+        } else if (node instanceof Shape) {
+            paintShape(canvas, (Shape) node, w, h, alpha);
         } else if (node instanceof Image) {
             paintImage(canvas, (Image) node, w, h, alpha);
         } else if (node instanceof TextInput) {
