@@ -3,7 +3,7 @@ package io.qml4j.android;
 import android.view.KeyEvent;
 import android.view.inputmethod.BaseInputConnection;
 
-import io.qml4j.render.items.TextInput;
+import io.qml4j.render.items.TextEditable;
 
 final class QmlInputConnection extends BaseInputConnection {
 
@@ -14,28 +14,28 @@ final class QmlInputConnection extends BaseInputConnection {
         this.view = view;
     }
 
-    private TextInput focusedTextInput() {
+    private TextEditable focusedTextEditable() {
         if (view.qmlView() == null) return null;
         Object f = view.qmlView().focused();
-        return f instanceof TextInput ? (TextInput) f : null;
+        return f instanceof TextEditable ? (TextEditable) f : null;
     }
 
     @Override
     public CharSequence getTextBeforeCursor(int n, int flags) {
-        TextInput ti = focusedTextInput();
+        TextEditable ti = focusedTextEditable();
         if (ti == null) return "";
-        String s = ti.text.peek(); if (s == null) s = "";
-        int pos = clamp(ti.cursorPosition.peek().intValue(), s.length());
+        String s = ti.text(); if (s == null) s = "";
+        int pos = clamp(ti.cursorPosition(), s.length());
         int start = Math.max(0, pos - n);
         return s.substring(start, pos);
     }
 
     @Override
     public CharSequence getTextAfterCursor(int n, int flags) {
-        TextInput ti = focusedTextInput();
+        TextEditable ti = focusedTextEditable();
         if (ti == null) return "";
-        String s = ti.text.peek(); if (s == null) s = "";
-        int pos = clamp(ti.cursorPosition.peek().intValue(), s.length());
+        String s = ti.text(); if (s == null) s = "";
+        int pos = clamp(ti.cursorPosition(), s.length());
         int end = Math.min(s.length(), pos + n);
         return s.substring(pos, end);
     }

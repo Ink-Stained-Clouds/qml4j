@@ -24,7 +24,7 @@ import io.qml4j.engine.binding.DirtyQueue;
 import io.qml4j.render.QmlView;
 import io.qml4j.render.ResourceLoader;
 import io.qml4j.render.SurfaceBackend;
-import io.qml4j.render.items.TextInput;
+import io.qml4j.render.items.TextEditable;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
@@ -63,9 +63,9 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
                 queueEvent(new Runnable() {
                     @Override public void run() {
                         if (view == null) return;
-                        boolean hitTextInput = view.pickTextInput(x, y) != null;
+                        boolean hitTextEditable = view.pickTextEditable(x, y) != null;
                         view.dispatchPointerDown(x, y);
-                        if (hitTextInput) showImeOnUiThread();
+                        if (hitTextEditable) showImeOnUiThread();
                     }
                 });
                 return true;
@@ -91,16 +91,16 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
 
     @Override
     public boolean onCheckIsTextEditor() {
-        return view != null && view.focused() instanceof TextInput;
+        return view != null && view.focused() instanceof TextEditable;
     }
 
     @Override
     public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
         outAttrs.inputType = EditorInfo.TYPE_CLASS_TEXT;
         outAttrs.imeOptions = EditorInfo.IME_ACTION_DONE | EditorInfo.IME_FLAG_NO_EXTRACT_UI;
-        if (view != null && view.focused() instanceof TextInput) {
-            TextInput ti = (TextInput) view.focused();
-            int pos = ti.cursorPosition.peek().intValue();
+        if (view != null && view.focused() instanceof TextEditable) {
+            TextEditable ti = (TextEditable) view.focused();
+            int pos = ti.cursorPosition();
             outAttrs.initialSelStart = pos;
             outAttrs.initialSelEnd = pos;
         }
@@ -121,7 +121,7 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
 
     boolean dispatchKeyEvent(KeyEvent event, boolean down) {
         if (view == null) return false;
-        if (!(view.focused() instanceof TextInput)) return false;
+        if (!(view.focused() instanceof TextEditable)) return false;
         if (down && handleClipboardShortcut(event)) return true;
         final int mapped = mapKeyCode(event.getKeyCode());
         final String text;
@@ -198,6 +198,8 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
         if (kc == KeyEvent.KEYCODE_ENTER || kc == KeyEvent.KEYCODE_NUMPAD_ENTER) return QmlView.KEY_ENTER;
         if (kc == KeyEvent.KEYCODE_DPAD_LEFT) return QmlView.KEY_LEFT;
         if (kc == KeyEvent.KEYCODE_DPAD_RIGHT) return QmlView.KEY_RIGHT;
+        if (kc == KeyEvent.KEYCODE_DPAD_UP) return QmlView.KEY_UP;
+        if (kc == KeyEvent.KEYCODE_DPAD_DOWN) return QmlView.KEY_DOWN;
         if (kc == KeyEvent.KEYCODE_MOVE_HOME) return QmlView.KEY_HOME;
         if (kc == KeyEvent.KEYCODE_MOVE_END) return QmlView.KEY_END;
         return 0;
@@ -247,7 +249,7 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
                 view = QmlView.withStockTypes(engine).resources(resources);
                 view.setClipboard(new AndroidClipboard(getContext()));
                 view.setFocusListener((nf, of) -> {
-                    if (of instanceof TextInput && !(nf instanceof TextInput)) {
+                    if (of instanceof TextEditable && !(nf instanceof TextEditable)) {
                         hideImeOnUiThread();
                     }
                 });
