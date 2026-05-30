@@ -925,6 +925,7 @@ Rectangle {
         width: 880
         height: 440
         color: "#1c1c28"
+        state: animShowcase.flipped ? "right" : ""
 
         property bool flipped: false
 
@@ -938,7 +939,7 @@ Rectangle {
         Text {
             x: 16
             y: 12
-            text: "M40 typed animations (ColorAnimation / RotationAnimation / OpacityAnimation)"
+            text: "M40 typed animations (Color / Rotation / Opacity, driven by State + Transition)"
             color: "#ffffff"
             fontSize: 22
             width: 850
@@ -951,11 +952,11 @@ Rectangle {
             y: 64
             width: 220
             height: 160
-            color: animShowcase.flipped ? "#00c8ff" : "#ff3060"
+            color: "#ff3060"
 
             Text {
                 x: 12; y: 12
-                text: "ColorAnimation\n(see state box)"
+                text: "ColorAnimation\nHSV lerp"
                 color: "#ffffff"
                 fontSize: 18
                 width: 200
@@ -965,14 +966,12 @@ Rectangle {
 
         Rectangle {
             id: animRotate
-            x: 330
-            y: 110
+            x: 360
+            y: 100
             width: 80
             height: 80
             color: "#ffd000"
-            rotation: animShowcase.flipped ? 0 : 350
-
-            Behavior on rotation { RotationAnimation { duration: 900; direction: "Shortest" } }
+            rotation: 0
         }
 
         Text {
@@ -992,9 +991,7 @@ Rectangle {
             width: 240
             height: 160
             color: "#80ff80"
-            opacity: animShowcase.flipped ? 1.0 : 0.15
-
-            Behavior on opacity { OpacityAnimation { duration: 900 } }
+            opacity: 0.15
 
             Text {
                 x: 12; y: 12
@@ -1013,7 +1010,6 @@ Rectangle {
             width: 768
             height: 160
             color: "#2a2a3a"
-            state: animShowcase.flipped ? "right" : ""
 
             Rectangle {
                 id: stateBall
@@ -1025,36 +1021,34 @@ Rectangle {
                 rotation: 0
             }
 
-            states: [
-                State {
-                    name: "right"
-                    PropertyChanges {
-                        target: stateBall
-                        x: 672
-                        color: "#80ffff"
-                        rotation: 360
-                    }
-                }
-            ]
-
-            transitions: [
-                Transition {
-                    NumberAnimation { properties: "x"; duration: 900; easing: "easeOutQuad" }
-                    ColorAnimation { duration: 900 }
-                    RotationAnimation { duration: 900; direction: "Clockwise" }
-                }
-            ]
-
             Text {
                 x: 16
                 y: 116
-                text: "State transition: NumberAnimation + ColorAnimation + RotationAnimation in one Transition"
+                text: "Combined State transition: NumberAnimation + ColorAnimation + RotationAnimation"
                 color: "#a0c0ff"
                 fontSize: 14
                 width: 736
                 height: 24
             }
         }
+
+        states: [
+            State {
+                name: "right"
+                PropertyChanges { target: animColor; color: "#00c8ff" }
+                PropertyChanges { target: animRotate; rotation: 180 }
+                PropertyChanges { target: animOpacity; opacity: 1.0 }
+                PropertyChanges { target: stateBall; x: 672; color: "#80ffff"; rotation: 180 }
+            }
+        ]
+
+        transitions: [
+            Transition {
+                ColorAnimation { properties: "color"; duration: 900 }
+                NumberAnimation { properties: "x,opacity"; duration: 900; easing: "easeOutQuad" }
+                RotationAnimation { properties: "rotation"; duration: 900; direction: "Shortest" }
+            }
+        ]
     }
 
     Item {
