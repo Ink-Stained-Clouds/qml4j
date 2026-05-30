@@ -15,12 +15,21 @@ Rectangle {
     }
 
     Rectangle {
+        x: 24
+        y: 60
+        width: 200
+        height: 150
+        radius: 8
+        color: "#c8ccd4"
+    }
+
+    Rectangle {
         x: 40
         y: 80
         width: 160
         height: 110
         radius: 10
-        color: "#e8e8ee"
+        color: "#ffffff"
         layer.enabled: true
         layer.effect: DropShadow {
             offsetX: 8
