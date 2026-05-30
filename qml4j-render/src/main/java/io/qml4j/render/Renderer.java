@@ -843,4 +843,95 @@ public final class Renderer {
         int na = Math.round(a * alpha);
         return (na << 24) | (color & 0x00FFFFFF);
     }
+
+    private void paintShape(Canvas canvas, Shape shape, float w, float h, float alpha) {
+        for (ShapePath sp : shape.elements) {
+            Path path = buildPath(sp);
+            fillPath(canvas, path, sp, alpha);
+            strokePath(canvas, path, sp, alpha);
+            path.close();
+        }
+    }
+
+    private Path buildPath(ShapePath sp) {
+        Path path = new Path();
+        path.setFillMode("WindingFill".equals(sp.fillRule.peek())
+            ? PathFillMode.WINDING : PathFillMode.EVEN_ODD);
+        path.moveTo(sp.startX.peek().floatValue(), sp.startY.peek().floatValue());
+        for (PathElement e : sp.pathElements) {
+            appendElement(path, e);
+        }
+        return path;
+    }
+
+    private void appendElement(Path path, PathElement e) {
+        if (e instanceof PathLine) {
+            PathLine l = (PathLine) e;
+            path.lineTo(l.x.peek().floatValue(), l.y.peek().floatValue());
+        } else if (e instanceof PathMove) {
+            PathMove m = (PathMove) e;
+            path.moveTo(m.x.peek().floatValue(), m.y.peek().floatValue());
+        } else if (e instanceof PathQuad) {
+            PathQuad q = (PathQuad) e;
+            path.quadTo(q.controlX.peek().floatValue(), q.controlY.peek().floatValue(),
+                        q.x.peek().floatValue(), q.y.peek().floatValue());
+        } else if (e instanceof PathCubic) {
+            PathCubic c = (PathCubic) e;
+            path.cubicTo(c.control1X.peek().floatValue(), c.control1Y.peek().floatValue(),
+                         c.control2X.peek().floatValue(), c.control2Y.peek().floatValue(),
+                         c.x.peek().floatValue(), c.y.peek().floatValue());
+        } else if (e instanceof PathArc) {
+            PathArc a = (PathArc) e;
+            PathEllipseArc size = Boolean.TRUE.equals(a.useLargeArc.peek())
+                ? PathEllipseArc.LARGE : PathEllipseArc.SMALL;
+            PathDirection dir = "Counterclockwise".equals(a.direction.peek())
+                ? PathDirection.COUNTER_CLOCKWISE : PathDirection.CLOCKWISE;
+            path.ellipticalArcTo(a.radiusX.peek().floatValue(), a.radiusY.peek().floatValue(),
+                                 a.xAxisRotation.peek().floatValue(), size, dir,
+                                 a.x.peek().floatValue(), a.y.peek().floatValue());
+        }
+    }
+
+    private void fillPath(Canvas canvas, Path path, ShapePath sp, float alpha) {
+        int argb = shapeArgb(sp.fillColor.peek(), alpha);
+        if (argb == 0) return;
+        Paint p = paint();
+        p.setColor(argb);
+        p.setMode(PaintMode.FILL);
+        canvas.drawPath(path, p);
+    }
+
+    private void strokePath(Canvas canvas, Path path, ShapePath sp, float alpha) {
+        float sw = sp.strokeWidth.peek().floatValue();
+        if (sw <= 0f) return;
+        int argb = shapeArgb(sp.strokeColor.peek(), alpha);
+        if (argb == 0) return;
+        Paint p = paint();
+        p.setColor(argb);
+        p.setMode(PaintMode.STROKE);
+        p.setStrokeWidth(sw);
+        p.setStrokeCap(mapCap(sp.capStyle.peek()));
+        p.setStrokeJoin(mapJoin(sp.joinStyle.peek()));
+        canvas.drawPath(path, p);
+    }
+
+    private static int shapeArgb(String colorStr, float alpha) {
+        if (colorStr == null || "transparent".equals(colorStr)) return 0;
+        int rgb = parseColor(colorStr);
+        int a = (int) (((rgb >>> 24) & 0xFF) * alpha);
+        if (a <= 0) return 0;
+        return (a << 24) | (rgb & 0xFFFFFF);
+    }
+
+    private static PaintStrokeCap mapCap(String cap) {
+        if ("RoundCap".equals(cap)) return PaintStrokeCap.ROUND;
+        if ("FlatCap".equals(cap)) return PaintStrokeCap.BUTT;
+        return PaintStrokeCap.SQUARE;
+    }
+
+    private static PaintStrokeJoin mapJoin(String join) {
+        if ("RoundJoin".equals(join)) return PaintStrokeJoin.ROUND;
+        if ("MiterJoin".equals(join)) return PaintStrokeJoin.MITER;
+        return PaintStrokeJoin.BEVEL;
+    }
 }
