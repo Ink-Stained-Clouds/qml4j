@@ -25,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -95,7 +96,9 @@ public final class QmlView {
 
     private Class<? extends QObject> compileAndDefine(Ast.QmlDocument doc) {
         List<String> prefixes = stringImportPrefixes(doc);
-        TypeRegistry docTypes = types.copy().withResolver(name -> resolveCompound(name, prefixes));
+        TypeRegistry docTypes = types.copy()
+            .withResolver(name -> resolveCompound(name, prefixes))
+            .withAliases(importAliases(doc));
         CompiledUnit unit = compiler.compile(doc, docTypes);
         ClassLoaderBackend backend = engine.backend();
         Map<String, Class<?>> defined = backend.defineClasses(unit.classes());
@@ -133,6 +136,14 @@ public final class QmlView {
             }
         }
         return null;
+    }
+
+    private static Set<String> importAliases(Ast.QmlDocument doc) {
+        Set<String> out = new LinkedHashSet<>();
+        for (Ast.ImportNode imp : doc.imports) {
+            if (imp.alias != null) out.add(imp.alias);
+        }
+        return out;
     }
 
     private static List<String> stringImportPrefixes(Ast.QmlDocument doc) {
