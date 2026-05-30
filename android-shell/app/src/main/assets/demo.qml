@@ -117,6 +117,7 @@ Rectangle {
                 text: "qml4j TextEdit milestone M38.\nThis paragraph wraps inside the box when the width is exceeded. WrapAnywhere kicks in for long unbreakable tokens like supercalifragilisticexpialidocious."
                 wrapMode: "WrapAnywhere"
                 color: "#ffffff"
+                cursorColor: "#5070ff"
                 fontSize: 22
                 verticalAlignment: "AlignTop"
             }
