@@ -349,6 +349,16 @@ public final class RuntimeHelpers {
         return list.toArray(new Object[0]);
     }
 
+    public static Object callQml(Object start, Object root, String name, Object[] args) {
+        Object cur = start;
+        while (cur instanceof QObject) {
+            Callable c = ((QObject) cur).__getFunction(name);
+            if (c != null) return c.call(args);
+            cur = ((QObject) cur).__getQmlParent();
+        }
+        return callMethod(root, name, args);
+    }
+
     public static Object callValue(Object callee, Object[] args) {
         if (callee == null) throw new NullPointerException("cannot call null");
         if (callee instanceof Callable) return ((Callable) callee).call(args);
@@ -394,9 +404,16 @@ public final class RuntimeHelpers {
             Binding b = (Binding) work;
             return b::evaluate;
         }
+        if (work instanceof Callable) {
+            Callable c = (Callable) work;
+            return () -> c.call(EMPTY_ARGS);
+        }
         throw new IllegalArgumentException(
-            "Qt.callLater requires Qt.binding(...) or a callable; got " + work.getClass().getName());
+            "Qt.callLater requires Qt.binding(...), an arrow function, or a callable; got "
+            + work.getClass().getName());
     }
+
+    private static final Object[] EMPTY_ARGS = new Object[0];
 
     private static int clampByte(int v) {
         return v < 0 ? 0 : (v > 255 ? 255 : v);

@@ -100,6 +100,26 @@ class QtNamespaceTest {
         }
     }
 
+    @Test
+    void callLaterAcceptsArrowFunction() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle {\n" +
+            "  id: r\n" +
+            "  property int hits: 0\n" +
+            "  function bump() { Qt.callLater(() => { r.hits = r.hits + 1; }); }\n" +
+            "}");
+        v.dirtyQueue().install();
+        try {
+            invoke(root, "bump");
+            assertEquals(0L, readProp(root, "hits"));
+            v.dirtyQueue().flush();
+            assertEquals(1L, readProp(root, "hits"));
+        } finally {
+            v.dirtyQueue().uninstall();
+        }
+    }
+
     private static Object invoke(Object o, String name) {
         try {
             for (java.lang.reflect.Method m : o.getClass().getMethods()) {

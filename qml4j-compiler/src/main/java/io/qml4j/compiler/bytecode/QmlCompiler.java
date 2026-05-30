@@ -541,6 +541,11 @@ public final class QmlCompiler {
         ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, childInternal, "<init>", "()V", false);
         ctor.visitVarInsn(Opcodes.ASTORE, childLocal);
 
+        ctor.visitVarInsn(Opcodes.ALOAD, childLocal);
+        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+        ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, QOBJECT_INTERNAL,
+                             "__setQmlParent", "(L" + QOBJECT_INTERNAL + ";)V", false);
+
         for (String sig : childSignals) {
             ctor.visitVarInsn(Opcodes.ALOAD, childLocal);
             ctor.visitTypeInsn(Opcodes.NEW, SIGNAL_INTERNAL);

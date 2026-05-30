@@ -422,13 +422,6 @@ class QmlCompilerTest {
     }
 
     @Test
-    void unknownBareCallRejected() {
-        Ast.QmlDocument doc = Qml4j.parse("TestItem { width: foo(1) }");
-        assertThrows(IllegalArgumentException.class,
-            () -> COMPILER.compile(doc, REGISTRY));
-    }
-
-    @Test
     void unknownGroupRejected() {
         Ast.QmlDocument doc = Qml4j.parse("TestItem { mystery.left: 10 }");
         assertThrows(IllegalArgumentException.class,
@@ -927,16 +920,6 @@ class QmlCompilerTest {
         Signal poked = (Signal) child.getClass().getField("poked").get(child);
         poked.emit();
         assertEquals(77L, it.width.peek().longValue());
-    }
-
-    @Test
-    void functionArityMismatchRejected() {
-        Ast.QmlDocument doc = Qml4j.parse(
-            "TestItem {\n" +
-            "  function f(a, b) { return a; }\n" +
-            "  width: f(1)\n" +
-            "}");
-        assertThrows(IllegalArgumentException.class, () -> COMPILER.compile(doc, REGISTRY));
     }
 
     @Test

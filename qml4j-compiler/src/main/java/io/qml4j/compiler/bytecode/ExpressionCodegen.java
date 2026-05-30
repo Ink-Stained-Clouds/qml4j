@@ -584,6 +584,12 @@ final class ExpressionCodegen {
             throw new IllegalArgumentException("Qt.callLater expects 1 argument, got " + args.size());
         }
         Ast.Expression arg = args.get(0);
+        if (arg instanceof Ast.ArrowFunctionExpr) {
+            emit(mv, arg);
+            callQtHelper(mv, "qtCallLater", "(Ljava/lang/Object;)V");
+            pushUndefined(mv);
+            return;
+        }
         if (arg instanceof Ast.CallExpr
             && ((Ast.CallExpr) arg).callee instanceof Ast.MemberExpr) {
             Ast.MemberExpr inner = (Ast.MemberExpr) ((Ast.CallExpr) arg).callee;
@@ -637,29 +643,14 @@ final class ExpressionCodegen {
                                "(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;", false);
             return;
         }
-        Integer paramCount = rootFunctions.get(callee.name);
-        if (paramCount == null) {
-            throw new IllegalArgumentException(
-                "unknown function '" + callee.name + "' (only root-scope function declarations are callable)");
-        }
-        if (paramCount != args.size() && !hasSpread(args)) {
-            throw new IllegalArgumentException(
-                "function '" + callee.name + "' expects " + paramCount
-                + " args, got " + args.size());
-        }
-        if (hasSpread(args)) {
-            throw new UnsupportedOperationException(
-                "spread arguments not yet supported for root-scope function calls");
-        }
+        loadOuter(mv);
         loadRoot(mv);
-        StringBuilder desc = new StringBuilder("(");
-        for (int i = 0; i < args.size(); i++) {
-            emit(mv, args.get(i));
-            desc.append("Ljava/lang/Object;");
-        }
-        desc.append(")Ljava/lang/Object;");
-        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, componentInternal,
-                           callee.name, desc.toString(), false);
+        mv.visitLdcInsn(callee.name);
+        emitArgsArray(mv, args);
+        mv.visitMethodInsn(Opcodes.INVOKESTATIC, HELPERS_INTERNAL,
+                           "callQml",
+                           "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/Object;",
+                           false);
     }
 
     private void emitCond(MethodVisitor mv, Ast.CondExpr c) {

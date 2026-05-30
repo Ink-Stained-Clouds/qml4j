@@ -119,6 +119,18 @@ class Es6ExpressionTest {
         assertEquals(60L, readProp(root, "sum"));
     }
 
+    @Test
+    void spreadIntoRootFunctionBareCall() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle {\n" +
+            "  function totalOf(a, b, c) { return a + b + c; }\n" +
+            "  property var items: [10, 20, 30]\n" +
+            "  property var sum: totalOf(...items)\n" +
+            "}");
+        assertEquals(60L, readProp(root, "sum"));
+    }
+
     // ---- Arrow functions ----
 
     @Test

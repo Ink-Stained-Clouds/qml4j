@@ -1316,10 +1316,10 @@ Rectangle {
         }
 
         Timer {
-            interval: 60
+            interval: 16
             repeat: true
             running: true
-            onTriggered: qtNamespaceShowcase.hue = qtNamespaceShowcase.hue + 0.012
+            onTriggered: qtNamespaceShowcase.hue = qtNamespaceShowcase.hue + 0.0032
         }
     }
 
