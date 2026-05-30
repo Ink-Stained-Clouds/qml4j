@@ -142,6 +142,26 @@ class KeysTest {
         assertEquals("hi", readProp(root, "typed"));
     }
 
+    @Test
+    void blankTapKeepsNonTextFocus() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item {\n" +
+            "  width: 400; height: 400\n" +
+            "  Rectangle {\n" +
+            "    focus: true\n" +
+            "    width: 50; height: 50\n" +
+            "    property int hits: 0\n" +
+            "    Keys.onPressed: { hits = hits + 1; event.accepted = true }\n" +
+            "  }\n" +
+            "}");
+        v.dispatchPointerDown(300, 300);
+        v.dispatchPointerUp(300, 300);
+        boolean handled = v.dispatchKey(65, "a", true);
+        assertTrue(handled);
+        assertEquals(1L, readProp(root.children.get(0), "hits"));
+    }
+
     private static Object readProp(Object o, String name) {
         try {
             Field f = o.getClass().getField(name);

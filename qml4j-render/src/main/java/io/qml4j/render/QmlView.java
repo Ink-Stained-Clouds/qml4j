@@ -515,7 +515,7 @@ public final class QmlView {
             textCapturing = ti;
             return true;
         }
-        if (focused != null) clearFocus();
+        if (focused instanceof TextEditable) clearFocus();
         MouseArea hit = hitTestMouseArea(root, x, y);
         if (hit != null) {
             captured = hit;
