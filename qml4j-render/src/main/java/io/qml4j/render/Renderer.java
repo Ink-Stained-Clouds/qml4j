@@ -8,6 +8,7 @@ import io.qml4j.render.items.Flickable;
 import io.qml4j.render.items.Gradient;
 import io.qml4j.render.items.GradientStop;
 import io.qml4j.render.items.Image;
+import io.qml4j.render.items.ImageFill;
 import io.qml4j.render.items.Item;
 import io.qml4j.render.items.Loader;
 import io.qml4j.render.items.MouseArea;
@@ -613,9 +614,45 @@ public final class Renderer {
         if (iw <= 0 || ih <= 0) return;
         if (w <= 0) w = iw;
         if (h <= 0) h = ih;
-        Rect src2 = Rect.makeXYWH(0, 0, iw, ih);
-        Rect dst = Rect.makeXYWH(0, 0, w, h);
-        canvas.drawImageRect(node.skiaImage, src2, dst);
+        ImageFill.Plan plan = ImageFill.compute(node.fillMode.peek(), iw, ih, w, h);
+        if (plan == null) return;
+        node.paintedWidth.set(plan.paintedWidth);
+        node.paintedHeight.set(plan.paintedHeight);
+        switch (plan.op) {
+            case DRAW_RECT:
+                drawImagePlan(canvas, node.skiaImage, plan);
+                break;
+            case TILE_X:
+            case TILE_Y:
+            case TILE_XY:
+                drawTilePlan(canvas, node.skiaImage, plan, w, h);
+                break;
+        }
+    }
+
+    private void drawImagePlan(Canvas canvas, io.github.humbleui.skija.Image img, ImageFill.Plan plan) {
+        Rect src = Rect.makeXYWH(plan.srcX, plan.srcY, plan.srcW, plan.srcH);
+        Rect dst = Rect.makeXYWH(plan.dstX, plan.dstY, plan.dstW, plan.dstH);
+        canvas.drawImageRect(img, src, dst);
+    }
+
+    private void drawTilePlan(Canvas canvas, io.github.humbleui.skija.Image img,
+                              ImageFill.Plan plan, float boundsW, float boundsH) {
+        int saved = canvas.save();
+        try {
+            canvas.clipRect(Rect.makeXYWH(plan.clipX, plan.clipY, plan.clipW, plan.clipH));
+            float stepX = plan.tileStepX > 0 ? plan.tileStepX : boundsW;
+            float stepY = plan.tileStepY > 0 ? plan.tileStepY : boundsH;
+            Rect src = Rect.makeXYWH(plan.srcX, plan.srcY, plan.srcW, plan.srcH);
+            for (float y = 0; y < boundsH; y += stepY) {
+                for (float x = 0; x < boundsW; x += stepX) {
+                    Rect dst = Rect.makeXYWH(x, y, plan.dstW, plan.dstH);
+                    canvas.drawImageRect(img, src, dst);
+                }
+            }
+        } finally {
+            canvas.restoreToCount(saved);
+        }
     }
 
     private static int[] peekImageDimensions(byte[] bytes) {

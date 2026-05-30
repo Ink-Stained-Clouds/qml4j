@@ -274,6 +274,19 @@ class QmlViewTest {
     }
 
     @Test
+    void imageFillModeDefaultsToStretch() {
+        Image img = (Image) newView().load("Image { width: 32; height: 32 }");
+        assertEquals("Stretch", img.fillMode.peek());
+    }
+
+    @Test
+    void imageFillModeAcceptsStandardValues() {
+        Image img = (Image) newView().load(
+            "Image { width: 32; height: 32; fillMode: \"PreserveAspectFit\" }");
+        assertEquals("PreserveAspectFit", img.fillMode.peek());
+    }
+
+    @Test
     void loaderResolvesNestedQml() {
         QmlView v = newView();
         v.resources(name -> {

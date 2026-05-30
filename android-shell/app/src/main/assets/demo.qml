@@ -858,6 +858,66 @@ Rectangle {
         }
     }
 
+    Rectangle {
+        x: 60
+        y: 3980
+        width: 880
+        height: 220
+        color: "#1c1c28"
+
+        Text {
+            x: 16
+            y: 12
+            text: "Image.fillMode (160x100 box, source 128x128):"
+            color: "#ffffff"
+            fontSize: 24
+            width: 820
+            height: 32
+        }
+
+        Row {
+            x: 16
+            y: 56
+            spacing: 12
+
+            Item {
+                width: 160; height: 140
+                Rectangle { width: 160; height: 100; color: "#2a2a3a"
+                    Image { width: 160; height: 100; source: "test.png"; fillMode: "Stretch" }
+                }
+                Text { y: 108; text: "Stretch"; color: "#a0c0ff"; fontSize: 16; width: 160; height: 24 }
+            }
+            Item {
+                width: 160; height: 140
+                Rectangle { width: 160; height: 100; color: "#2a2a3a"
+                    Image { width: 160; height: 100; source: "test.png"; fillMode: "PreserveAspectFit" }
+                }
+                Text { y: 108; text: "AspectFit"; color: "#a0c0ff"; fontSize: 16; width: 160; height: 24 }
+            }
+            Item {
+                width: 160; height: 140
+                Rectangle { width: 160; height: 100; color: "#2a2a3a"
+                    Image { width: 160; height: 100; source: "test.png"; fillMode: "PreserveAspectCrop" }
+                }
+                Text { y: 108; text: "AspectCrop"; color: "#a0c0ff"; fontSize: 16; width: 160; height: 24 }
+            }
+            Item {
+                width: 160; height: 140
+                Rectangle { width: 160; height: 100; color: "#2a2a3a"
+                    Image { width: 160; height: 100; source: "test.png"; fillMode: "Tile" }
+                }
+                Text { y: 108; text: "Tile"; color: "#a0c0ff"; fontSize: 16; width: 160; height: 24 }
+            }
+            Item {
+                width: 160; height: 140
+                Rectangle { width: 160; height: 100; color: "#2a2a3a"
+                    Image { width: 160; height: 100; source: "test.png"; fillMode: "Pad" }
+                }
+                Text { y: 108; text: "Pad"; color: "#a0c0ff"; fontSize: 16; width: 160; height: 24 }
+            }
+        }
+    }
+
     Item {
         id: blinker
         x: 60
