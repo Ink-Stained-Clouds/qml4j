@@ -42,6 +42,8 @@ public class Item extends QObject {
     public final Property<Boolean> activeFocus = new Property<>(Boolean.FALSE);
     public final Property<Boolean> activeFocusOnTab = new Property<>(Boolean.FALSE);
 
+    public final Layer layer = new Layer();
+
     private final StateController stateController = new StateController(this);
     private Keys keys;
     private Consumer<Item> focusHook;

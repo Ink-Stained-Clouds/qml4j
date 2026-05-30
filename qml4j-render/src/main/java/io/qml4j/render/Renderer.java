@@ -11,6 +11,9 @@ import io.qml4j.render.items.Image;
 import io.qml4j.render.items.ImageFill;
 import io.qml4j.render.items.Item;
 import io.qml4j.render.items.Loader;
+import io.qml4j.render.items.ColorOverlay;
+import io.qml4j.render.items.DropShadow;
+import io.qml4j.render.items.Glow;
 import io.qml4j.render.items.MouseArea;
 import io.qml4j.render.items.PathArc;
 import io.qml4j.render.items.PathCubic;
@@ -31,6 +34,9 @@ import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.skija.Font;
 import io.github.humbleui.skija.FontMgr;
 import io.github.humbleui.skija.FontStyle;
+import io.github.humbleui.skija.BlendMode;
+import io.github.humbleui.skija.ColorFilter;
+import io.github.humbleui.skija.ImageFilter;
 import io.github.humbleui.skija.Paint;
 import io.github.humbleui.skija.PaintMode;
 import io.github.humbleui.skija.PaintStrokeCap;
@@ -151,9 +157,14 @@ public final class Renderer {
         boolean clip = Boolean.TRUE.equals(node.clip.peek());
 
         int savedCount = canvas.save();
+        Paint layerPaint = layerEffectPaint(node);
         try {
             canvas.translate(x, y);
             applyTransform(canvas, w, h, rot, sc);
+            if (layerPaint != null) {
+                float m = layerEffectMargin(node);
+                canvas.saveLayer(Rect.makeXYWH(-m, -m, w + 2 * m, h + 2 * m), layerPaint);
+            }
             if (clip) canvas.clipRect(Rect.makeXYWH(0, 0, w, h));
             paintNode(canvas, node, w, h, alpha);
             if (node instanceof Flickable) {
@@ -166,6 +177,7 @@ public final class Renderer {
             }
         } finally {
             canvas.restoreToCount(savedCount);
+            if (layerPaint != null) layerPaint.close();
         }
     }
 
@@ -855,6 +867,51 @@ public final class Renderer {
                 }
             }
         }
+    }
+
+    private Paint layerEffectPaint(Item node) {
+        if (!Boolean.TRUE.equals(node.layer.enabled.peek())) return null;
+        Object effect = node.layer.effect.peek();
+        if (effect == null) return null;
+        Paint p = new Paint();
+        if (effect instanceof DropShadow) {
+            DropShadow d = (DropShadow) effect;
+            p.setImageFilter(ImageFilter.makeDropShadow(
+                d.offsetX.peek().floatValue(), d.offsetY.peek().floatValue(),
+                sigma(d.radius.peek().floatValue()), sigma(d.radius.peek().floatValue()),
+                parseColor(d.color.peek())));
+        } else if (effect instanceof Glow) {
+            Glow g = (Glow) effect;
+            p.setImageFilter(ImageFilter.makeDropShadowOnly(
+                0f, 0f, sigma(g.radius.peek().floatValue()), sigma(g.radius.peek().floatValue()),
+                parseColor(g.color.peek())));
+        } else if (effect instanceof ColorOverlay) {
+            ColorOverlay c = (ColorOverlay) effect;
+            p.setColorFilter(ColorFilter.makeBlend(parseColor(c.color.peek()), BlendMode.SRC_IN));
+        } else {
+            p.close();
+            return null;
+        }
+        return p;
+    }
+
+    private static float layerEffectMargin(Item node) {
+        Object effect = node.layer.effect.peek();
+        if (effect instanceof DropShadow) {
+            DropShadow d = (DropShadow) effect;
+            float r = d.radius.peek().floatValue();
+            float ox = Math.abs(d.offsetX.peek().floatValue());
+            float oy = Math.abs(d.offsetY.peek().floatValue());
+            return r + Math.max(ox, oy) + 4f;
+        }
+        if (effect instanceof Glow) {
+            return ((Glow) effect).radius.peek().floatValue() + 4f;
+        }
+        return 0f;
+    }
+
+    private static float sigma(float radius) {
+        return radius <= 0f ? 0f : radius / 2f;
     }
 
     private Path buildPath(ShapePath sp) {

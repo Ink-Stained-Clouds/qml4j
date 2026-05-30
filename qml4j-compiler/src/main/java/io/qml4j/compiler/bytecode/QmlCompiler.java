@@ -335,6 +335,15 @@ public final class QmlCompiler {
                 return;
             }
             if (b.value instanceof Ast.ObjectValue) {
+                if (path.size() == 2) {
+                    emitGroupedObjectAssignment(ctor, outerType, outerLocal,
+                                                ((Ast.ObjectValue) b.value).object, registry,
+                                                localCounter, bindingCounter, handlerCounter,
+                                                classes, componentBinaryName, idTypes,
+                                                customSignalParams, path.get(0), path.get(1),
+                                                declaredProps, rootFunctions);
+                    return;
+                }
                 if (path.size() != 1) {
                     throw new UnsupportedOperationException(
                         "object assignment to nested path not supported: " + path);
@@ -937,6 +946,43 @@ public final class QmlCompiler {
                             declaredProps, rootFunctions);
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitFieldInsn(Opcodes.GETFIELD, propOwner, propName, PROPERTY_DESC);
+        ctor.visitVarInsn(Opcodes.ALOAD, childLocal);
+        ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
+                             "set", "(Ljava/lang/Object;)V", false);
+    }
+
+    private void emitGroupedObjectAssignment(MethodVisitor ctor, Class<? extends QObject> outerType,
+                                             int outerLocal, Ast.ObjectNode node,
+                                             TypeRegistry registry,
+                                             int[] localCounter, int[] bindingCounter, int[] handlerCounter,
+                                             Map<String, byte[]> classes, String componentBinaryName,
+                                             Map<String, Class<? extends QObject>> idTypes,
+                                             Map<String, List<String>> customSignalParams,
+                                             String groupName, String propName,
+                                             Map<String, String> declaredProps,
+                                             Map<String, Integer> rootFunctions) {
+        Field groupField;
+        try {
+            groupField = outerType.getField(groupName);
+        } catch (NoSuchFieldException ex) {
+            throw new IllegalArgumentException(
+                "no group field '" + groupName + "' on " + outerType.getName());
+        }
+        Class<?> groupType = groupField.getType();
+        Field propField = findPropertyField(groupType, propName);
+        String groupDeclOwner = Type.getInternalName(groupField.getDeclaringClass());
+        String groupTypeInternal = Type.getInternalName(groupType);
+        String propDeclOwner = Type.getInternalName(propField.getDeclaringClass());
+
+        int childLocal = localCounter[0];
+        emitChildObjectInto(ctor, outerType, outerLocal, node, registry,
+                            localCounter, bindingCounter, handlerCounter, classes,
+                            componentBinaryName, idTypes, customSignalParams, "",
+                            declaredProps, rootFunctions);
+        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+        ctor.visitFieldInsn(Opcodes.GETFIELD, groupDeclOwner, groupName,
+                            "L" + groupTypeInternal + ";");
+        ctor.visitFieldInsn(Opcodes.GETFIELD, propDeclOwner, propName, PROPERTY_DESC);
         ctor.visitVarInsn(Opcodes.ALOAD, childLocal);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
                              "set", "(Ljava/lang/Object;)V", false);

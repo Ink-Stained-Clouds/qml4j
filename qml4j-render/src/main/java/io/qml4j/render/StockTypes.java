@@ -7,6 +7,9 @@ import io.qml4j.render.items.Connections;
 import io.qml4j.render.items.Flickable;
 import io.qml4j.render.items.FocusScope;
 import io.qml4j.render.items.Gradient;
+import io.qml4j.render.items.ColorOverlay;
+import io.qml4j.render.items.DropShadow;
+import io.qml4j.render.items.Glow;
 import io.qml4j.render.items.PathArc;
 import io.qml4j.render.items.PathCubic;
 import io.qml4j.render.items.PathLine;
@@ -89,6 +92,9 @@ public final class StockTypes {
             .register("PathQuad", PathQuad.class)
             .register("PathCubic", PathCubic.class)
             .register("PathArc", PathArc.class)
+            .register("DropShadow", DropShadow.class)
+            .register("Glow", Glow.class)
+            .register("ColorOverlay", ColorOverlay.class)
             .register("Gradient", Gradient.class)
             .register("GradientStop", GradientStop.class)
             .register("TextInput", TextInput.class)
