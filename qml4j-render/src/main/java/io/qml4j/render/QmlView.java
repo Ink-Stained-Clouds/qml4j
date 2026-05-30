@@ -23,8 +23,10 @@ import io.qml4j.parser.ast.Ast;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +42,7 @@ public final class QmlView {
     private final Renderer renderer = new Renderer();
     private final DirtyQueue dirty = new DirtyQueue();
     private final Map<String, Class<? extends QObject>> importedTypes = new HashMap<>();
+    private final Map<String, Map<String, QmldirEntry>> qmldirCache = new HashMap<>();
     private final Set<String> compilingNow = new HashSet<>();
     private ResourceLoader resources;
     private Item root;
@@ -120,7 +123,9 @@ public final class QmlView {
         if (cached != null) return cached;
         if (resources == null) return null;
         for (String p : prefixes) {
-            String path = p.isEmpty() ? name + ".qml" : p + "/" + name + ".qml";
+            QmldirEntry entry = loadQmldir(p).get(name);
+            String relFile = entry != null ? entry.file : name + ".qml";
+            String path = p.isEmpty() ? relFile : p + "/" + relFile;
             byte[] bytes = resources.load(path);
             if (bytes == null) continue;
             if (!compilingNow.add(name)) {
@@ -136,6 +141,48 @@ public final class QmlView {
             }
         }
         return null;
+    }
+
+    private Map<String, QmldirEntry> loadQmldir(String prefix) {
+        Map<String, QmldirEntry> cached = qmldirCache.get(prefix);
+        if (cached != null) return cached;
+        Map<String, QmldirEntry> map = Collections.emptyMap();
+        if (resources != null) {
+            String path = prefix.isEmpty() ? "qmldir" : prefix + "/qmldir";
+            byte[] bytes = resources.load(path);
+            if (bytes != null) {
+                map = parseQmldir(new String(bytes, StandardCharsets.UTF_8));
+            }
+        }
+        qmldirCache.put(prefix, map);
+        return map;
+    }
+
+    private static Map<String, QmldirEntry> parseQmldir(String text) {
+        Map<String, QmldirEntry> out = new LinkedHashMap<>();
+        for (String raw : text.split("\\R")) {
+            String line = raw.trim();
+            if (line.isEmpty() || line.startsWith("#")) continue;
+            String[] parts = line.split("\\s+");
+            int i = 0;
+            boolean singleton = false;
+            if ("singleton".equals(parts[i])) { singleton = true; i++; }
+            if (parts.length - i < 2) continue;
+            String typeName = parts[i++];
+            if (i < parts.length && parts[i].matches("\\d+(\\.\\d+)?")) i++;
+            if (i >= parts.length) continue;
+            out.put(typeName, new QmldirEntry(parts[i], singleton));
+        }
+        return out;
+    }
+
+    private static final class QmldirEntry {
+        final String file;
+        final boolean singleton;
+        QmldirEntry(String file, boolean singleton) {
+            this.file = file;
+            this.singleton = singleton;
+        }
     }
 
     private static Set<String> importAliases(Ast.QmlDocument doc) {
