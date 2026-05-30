@@ -525,6 +525,20 @@ public final class Renderer {
         canvas.drawRect(Rect.makeXYWH(cx, yOffset + lineIdx * lineH + glyphTop, cw, glyphHeight), p);
     }
 
+    public int moveCaretVerticalForTextEdit(TextEdit te, int caret, int delta) {
+        String s = te.text.peek();
+        if (s == null) s = "";
+        float size = te.fontSize.peek().floatValue();
+        try (Font font = fontFor(size, s)) {
+            float w = te.width.peek().floatValue();
+            TextWrap.Result wrapped = wrapFor(te, s, w, size, font);
+            return TextWrap.moveCaretVertical(wrapped, caret, delta,
+                seg -> font.measureTextWidth(seg));
+        } catch (Throwable ignored) {
+            return caret;
+        }
+    }
+
     public int caretIndexForTextEdit(TextEdit te, float localX, float localY) {
         String s = te.text.peek();
         if (s == null) s = "";

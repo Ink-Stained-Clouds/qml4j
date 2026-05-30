@@ -2387,6 +2387,89 @@ class QmlViewTest {
         assertEquals("AlignVCenter", te.verticalAlignment.peek());
     }
 
+    @Test
+    void textEditAcceptsTypedText() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextEdit { focus: true; text: \"ab\" }\n" +
+            "}");
+        TextEdit te = (TextEdit) root.children.get(0);
+        te.cursorPosition.set(2);
+        v.dispatchKey(0, "c", true);
+        assertEquals("abc", te.text.peek());
+        assertEquals(3, te.cursorPosition.peek().intValue());
+    }
+
+    @Test
+    void textEditBackspaceDeletes() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextEdit { focus: true; text: \"abc\" }\n" +
+            "}");
+        TextEdit te = (TextEdit) root.children.get(0);
+        te.cursorPosition.set(3);
+        v.dispatchKey(QmlView.KEY_BACKSPACE, null, true);
+        assertEquals("ab", te.text.peek());
+        assertEquals(2, te.cursorPosition.peek().intValue());
+    }
+
+    @Test
+    void textEditEnterInsertsNewline() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextEdit { focus: true; text: \"ab\" }\n" +
+            "}");
+        TextEdit te = (TextEdit) root.children.get(0);
+        te.cursorPosition.set(1);
+        v.dispatchKey(QmlView.KEY_ENTER, null, true);
+        assertEquals("a\nb", te.text.peek());
+        assertEquals(2, te.cursorPosition.peek().intValue());
+    }
+
+    @Test
+    void textEditArrowKeysMoveCaret() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextEdit { focus: true; text: \"abcd\" }\n" +
+            "}");
+        TextEdit te = (TextEdit) root.children.get(0);
+        te.cursorPosition.set(2);
+        v.dispatchKey(QmlView.KEY_LEFT, null, true);
+        assertEquals(1, te.cursorPosition.peek().intValue());
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true);
+        v.dispatchKey(QmlView.KEY_RIGHT, null, true);
+        assertEquals(3, te.cursorPosition.peek().intValue());
+    }
+
+    @Test
+    void tapFocusesTextEdit() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 400; height: 200\n" +
+            "  TextEdit { x: 10; y: 20; width: 200; height: 100; text: \"hi\" }\n" +
+            "}");
+        TextEdit te = (TextEdit) root.children.get(0);
+        v.dispatchPointerDown(50, 60);
+        assertSame(te, v.focused());
+    }
+
+    @Test
+    void textEditReadOnlyIgnoresKeys() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextEdit { focus: true; readOnly: true; text: \"x\" }\n" +
+            "}");
+        TextEdit te = (TextEdit) root.children.get(0);
+        v.dispatchKey(0, "y", true);
+        v.dispatchKey(QmlView.KEY_BACKSPACE, null, true);
+        assertEquals("x", te.text.peek());
+    }
+
     @SuppressWarnings("unchecked")
     private static Object reflectField(Object root, String name) {
         try {

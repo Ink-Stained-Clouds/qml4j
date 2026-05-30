@@ -2,8 +2,9 @@ package io.qml4j.render.items;
 
 import io.qml4j.engine.Signal;
 import io.qml4j.engine.binding.Property;
+import io.qml4j.render.Renderer;
 
-public class TextInput extends Item {
+public class TextInput extends Item implements TextEditable {
     public final Property<String> text = new Property<>("");
     public final Property<String> color = new Property<>("#000000");
     public final Property<String> cursorColor = new Property<>("#000000");
@@ -19,4 +20,27 @@ public class TextInput extends Item {
     public final Signal accepted = new Signal();
 
     public int selectionAnchor = -1;
+
+    @Override public String text() { return text.peek(); }
+    @Override public void setText(String t) { text.set(t); }
+    @Override public int cursorPosition() { return cursorPosition.peek().intValue(); }
+    @Override public void setCursorPosition(int p) { cursorPosition.set(p); }
+    @Override public int selectionStart() { return selectionStart.peek().intValue(); }
+    @Override public int selectionEnd() { return selectionEnd.peek().intValue(); }
+    @Override public void setSelectionRange(int s, int e) {
+        selectionStart.set(s);
+        selectionEnd.set(e);
+    }
+    @Override public int selectionAnchor() { return selectionAnchor; }
+    @Override public void setSelectionAnchor(int a) { selectionAnchor = a; }
+    @Override public boolean readOnly() { return Boolean.TRUE.equals(readOnly.peek()); }
+    @Override public int maximumLength() { return maximumLength.peek().intValue(); }
+    @Override public void emitTextChanged() { textChanged.emit(); }
+    @Override public boolean handleEnter() { accepted.emit(); return true; }
+    @Override public int caretIndexAt(float localX, float localY, Renderer r) {
+        return r.caretIndexFor(this, localX);
+    }
+    @Override public int moveCaretVertical(int caret, int delta, Renderer r) {
+        return caret;
+    }
 }
