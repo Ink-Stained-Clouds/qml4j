@@ -956,19 +956,9 @@ Rectangle {
 
             Text {
                 x: 12; y: 12
-                text: "ColorAnimation"
+                text: "ColorAnimation\n(state-driven)"
                 color: "#ffffff"
                 fontSize: 16
-                width: 200
-                height: 22
-            }
-            Text {
-                x: 12; y: 36
-                text: "(state-driven)"
-                color: "#ffffff"
-                fontSize: 14
-                width: 200
-                height: 20
             }
         }
 
@@ -1007,19 +997,9 @@ Rectangle {
 
             Text {
                 x: 12; y: 12
-                text: "Behavior on opacity"
+                text: "Behavior on opacity\n(binding-driven)"
                 color: "#000000"
                 fontSize: 16
-                width: 220
-                height: 22
-            }
-            Text {
-                x: 12; y: 36
-                text: "(binding-driven)"
-                color: "#000000"
-                fontSize: 14
-                width: 220
-                height: 20
             }
         }
 

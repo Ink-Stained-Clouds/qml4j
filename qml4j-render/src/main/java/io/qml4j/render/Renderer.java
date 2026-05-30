@@ -185,19 +185,30 @@ public final class Renderer {
         boolean canMeasureH = !t.height.isBound() && ownsHeight(t);
         if (!canMeasureW && !canMeasureH) return;
         if (s.equals(t.lastMeasuredText) && size == t.lastMeasuredSize) return;
+        String[] lines = splitLines(s);
         try (Font font = fontFor(size, s)) {
             if (canMeasureW) {
-                float w = font.measureTextWidth(s);
+                float w = 0f;
+                for (String line : lines) {
+                    float lw = font.measureTextWidth(line);
+                    if (lw > w) w = lw;
+                }
                 t.width.set(w);
                 t.lastSetWidth = w;
             }
             if (canMeasureH) {
-                t.height.set(size);
-                t.lastSetHeight = size;
+                float h = size * lines.length;
+                t.height.set(h);
+                t.lastSetHeight = h;
             }
         }
         t.lastMeasuredText = s;
         t.lastMeasuredSize = size;
+    }
+
+    private static String[] splitLines(String s) {
+        if (s == null || s.isEmpty()) return new String[]{""};
+        return s.split("\n", -1);
     }
 
     private static boolean ownsWidth(Text t) {
@@ -328,9 +339,12 @@ public final class Renderer {
             paint().setColor(color);
             float size = t.fontSize.peek().floatValue();
             String s = t.text.peek();
+            if (s == null || s.isEmpty()) return;
+            String[] lines = splitLines(s);
             try (Font font = fontFor(size, s)) {
-                if (s != null && !s.isEmpty()) {
-                    canvas.drawString(s, 0, size, font, paint);
+                for (int i = 0; i < lines.length; i++) {
+                    if (lines[i].isEmpty()) continue;
+                    canvas.drawString(lines[i], 0, size * (i + 1), font, paint);
                 }
             }
         }
