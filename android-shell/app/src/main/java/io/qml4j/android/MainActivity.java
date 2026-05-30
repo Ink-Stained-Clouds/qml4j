@@ -2,10 +2,9 @@ package io.qml4j.android;
 
 import android.app.Activity;
 import android.os.Bundle;
-import android.view.Gravity;
+import android.util.TypedValue;
 import android.view.View;
 import android.widget.Button;
-import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
 import io.qml4j.engine.QmlEngine;
@@ -62,7 +61,11 @@ public final class MainActivity extends Activity {
         glView = new QmlGLSurfaceView(this, engine, qml,
             new AssetResourceLoader(getAssets()));
 
-        FrameLayout root = new FrameLayout(this);
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams glLp = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
+        glView.setLayoutParams(glLp);
         root.addView(glView);
         root.addView(buildKeyBar());
         setContentView(root);
@@ -71,11 +74,9 @@ public final class MainActivity extends Activity {
     private LinearLayout buildKeyBar() {
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT);
-        lp.gravity = Gravity.BOTTOM;
-        bar.setLayoutParams(lp);
+        bar.setLayoutParams(new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT));
         addKeyButton(bar, "A", 65, "a");
         addKeyButton(bar, "Spc", 32, " ");
         addKeyButton(bar, "Ent", QmlView.KEY_ENTER, null);
@@ -92,6 +93,12 @@ public final class MainActivity extends Activity {
     private void addKeyButton(LinearLayout bar, String label, final int code, final String text) {
         Button b = new Button(this);
         b.setText(label);
+        b.setAllCaps(false);
+        b.setMaxLines(1);
+        b.setMinWidth(0);
+        b.setMinimumWidth(0);
+        b.setPadding(0, 0, 0, 0);
+        b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
         b.setLayoutParams(new LinearLayout.LayoutParams(
             0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         b.setOnClickListener(new View.OnClickListener() {
