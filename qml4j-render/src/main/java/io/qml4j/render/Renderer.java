@@ -177,6 +177,9 @@ public final class Renderer {
             for (Item child : zOrdered(node.children)) {
                 draw(canvas, child, alpha);
             }
+            if (node instanceof ApplicationWindow) {
+                drawChrome(canvas, (ApplicationWindow) node, w, h, alpha);
+            }
         } finally {
             canvas.restoreToCount(savedCount);
             if (layerPaint != null) layerPaint.close();
@@ -391,6 +394,16 @@ public final class Renderer {
         p.setShader(null);
         p.setColor(applyAlpha(parseColor(c), alpha));
         canvas.drawRect(Rect.makeXYWH(0, 0, w, h), p);
+    }
+
+    private void drawChrome(Canvas canvas, ApplicationWindow win, float w, float h, float alpha) {
+        win.layoutChrome(w, h);
+        Item m = win.menuBar.peek();
+        Item hdr = win.header.peek();
+        Item ftr = win.footer.peek();
+        if (m != null) draw(canvas, m, alpha);
+        if (hdr != null) draw(canvas, hdr, alpha);
+        if (ftr != null) draw(canvas, ftr, alpha);
     }
 
     private void paintRectangle(Canvas canvas, Rectangle r, float w, float h, float alpha) {
