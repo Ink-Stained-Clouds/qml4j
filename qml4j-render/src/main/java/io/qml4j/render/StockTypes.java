@@ -5,6 +5,7 @@ import io.qml4j.render.items.Column;
 import io.qml4j.render.items.Component;
 import io.qml4j.render.items.Connections;
 import io.qml4j.render.items.Flickable;
+import io.qml4j.render.items.FocusScope;
 import io.qml4j.render.items.Gradient;
 import io.qml4j.render.items.GradientStop;
 import io.qml4j.render.items.GridView;
@@ -73,6 +74,7 @@ public final class StockTypes {
             .register("Component", Component.class)
             .register("Connections", Connections.class)
             .register("Flickable", Flickable.class)
+            .register("FocusScope", FocusScope.class)
             .register("Gradient", Gradient.class)
             .register("GradientStop", GradientStop.class)
             .register("TextInput", TextInput.class)
