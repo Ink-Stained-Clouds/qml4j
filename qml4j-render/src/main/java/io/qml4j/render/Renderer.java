@@ -36,6 +36,7 @@ import io.github.humbleui.skija.PaintMode;
 import io.github.humbleui.skija.PaintStrokeCap;
 import io.github.humbleui.skija.PaintStrokeJoin;
 import io.github.humbleui.skija.Path;
+import io.github.humbleui.skija.PathBuilder;
 import io.github.humbleui.skija.PathDirection;
 import io.github.humbleui.skija.PathEllipseArc;
 import io.github.humbleui.skija.PathFillMode;
@@ -846,49 +847,49 @@ public final class Renderer {
 
     private void paintShape(Canvas canvas, Shape shape, float w, float h, float alpha) {
         for (ShapePath sp : shape.elements) {
-            Path path = buildPath(sp);
-            fillPath(canvas, path, sp, alpha);
-            strokePath(canvas, path, sp, alpha);
-            path.close();
+            try (Path path = buildPath(sp)) {
+                fillPath(canvas, path, sp, alpha);
+                strokePath(canvas, path, sp, alpha);
+            }
         }
     }
 
     private Path buildPath(ShapePath sp) {
-        Path path = new Path();
-        path.setFillMode("WindingFill".equals(sp.fillRule.peek())
+        PathBuilder pb = new PathBuilder();
+        pb.setFillMode("WindingFill".equals(sp.fillRule.peek())
             ? PathFillMode.WINDING : PathFillMode.EVEN_ODD);
-        path.moveTo(sp.startX.peek().floatValue(), sp.startY.peek().floatValue());
+        pb.moveTo(sp.startX.peek().floatValue(), sp.startY.peek().floatValue());
         for (PathElement e : sp.pathElements) {
-            appendElement(path, e);
+            appendElement(pb, e);
         }
-        return path;
+        return pb.build();
     }
 
-    private void appendElement(Path path, PathElement e) {
+    private void appendElement(PathBuilder pb, PathElement e) {
         if (e instanceof PathLine) {
             PathLine l = (PathLine) e;
-            path.lineTo(l.x.peek().floatValue(), l.y.peek().floatValue());
+            pb.lineTo(l.x.peek().floatValue(), l.y.peek().floatValue());
         } else if (e instanceof PathMove) {
             PathMove m = (PathMove) e;
-            path.moveTo(m.x.peek().floatValue(), m.y.peek().floatValue());
+            pb.moveTo(m.x.peek().floatValue(), m.y.peek().floatValue());
         } else if (e instanceof PathQuad) {
             PathQuad q = (PathQuad) e;
-            path.quadTo(q.controlX.peek().floatValue(), q.controlY.peek().floatValue(),
-                        q.x.peek().floatValue(), q.y.peek().floatValue());
+            pb.quadTo(q.controlX.peek().floatValue(), q.controlY.peek().floatValue(),
+                      q.x.peek().floatValue(), q.y.peek().floatValue());
         } else if (e instanceof PathCubic) {
             PathCubic c = (PathCubic) e;
-            path.cubicTo(c.control1X.peek().floatValue(), c.control1Y.peek().floatValue(),
-                         c.control2X.peek().floatValue(), c.control2Y.peek().floatValue(),
-                         c.x.peek().floatValue(), c.y.peek().floatValue());
+            pb.cubicTo(c.control1X.peek().floatValue(), c.control1Y.peek().floatValue(),
+                       c.control2X.peek().floatValue(), c.control2Y.peek().floatValue(),
+                       c.x.peek().floatValue(), c.y.peek().floatValue());
         } else if (e instanceof PathArc) {
             PathArc a = (PathArc) e;
             PathEllipseArc size = Boolean.TRUE.equals(a.useLargeArc.peek())
                 ? PathEllipseArc.LARGER : PathEllipseArc.SMALLER;
             PathDirection dir = "Counterclockwise".equals(a.direction.peek())
                 ? PathDirection.COUNTER_CLOCKWISE : PathDirection.CLOCKWISE;
-            path.ellipticalArcTo(a.radiusX.peek().floatValue(), a.radiusY.peek().floatValue(),
-                                 a.xAxisRotation.peek().floatValue(), size, dir,
-                                 a.x.peek().floatValue(), a.y.peek().floatValue());
+            pb.ellipticalArcTo(a.radiusX.peek().floatValue(), a.radiusY.peek().floatValue(),
+                               a.xAxisRotation.peek().floatValue(), size, dir,
+                               a.x.peek().floatValue(), a.y.peek().floatValue());
         }
     }
 
