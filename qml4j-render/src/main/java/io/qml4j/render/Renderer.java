@@ -782,7 +782,7 @@ public final class Renderer {
         }
     }
 
-    static int parseColor(String s) {
+    public static int parseColor(String s) {
         if (s == null) return 0xFF000000;
         s = s.trim();
         if (s.isEmpty() || s.charAt(0) != '#') return 0xFF000000;

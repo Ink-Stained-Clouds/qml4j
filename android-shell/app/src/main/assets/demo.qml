@@ -130,7 +130,7 @@ Rectangle {
         anchors.top: editorPanel.bottom
         anchors.bottom: parent.bottom
         contentWidth: parent.width
-        contentHeight: 4300
+        contentHeight: 4720
 
     Rectangle {
         x: 60
@@ -914,6 +914,145 @@ Rectangle {
                     Image { width: 160; height: 100; source: "test.png"; fillMode: "Pad" }
                 }
                 Text { y: 108; text: "Pad"; color: "#a0c0ff"; fontSize: 16; width: 160; height: 24 }
+            }
+        }
+    }
+
+    Rectangle {
+        id: animShowcase
+        x: 60
+        y: 4240
+        width: 880
+        height: 440
+        color: "#1c1c28"
+
+        property bool flipped: false
+
+        Timer {
+            interval: 1400
+            repeat: true
+            running: true
+            onTriggered: animShowcase.flipped = !animShowcase.flipped
+        }
+
+        Text {
+            x: 16
+            y: 12
+            text: "M40 typed animations (ColorAnimation / RotationAnimation / OpacityAnimation)"
+            color: "#ffffff"
+            fontSize: 22
+            width: 850
+            height: 28
+        }
+
+        Rectangle {
+            id: animColor
+            x: 32
+            y: 64
+            width: 220
+            height: 160
+            color: animShowcase.flipped ? "#00c8ff" : "#ff3060"
+
+            Text {
+                x: 12; y: 12
+                text: "ColorAnimation\n(see state box)"
+                color: "#ffffff"
+                fontSize: 18
+                width: 200
+                height: 50
+            }
+        }
+
+        Rectangle {
+            id: animRotate
+            x: 330
+            y: 110
+            width: 80
+            height: 80
+            color: "#ffd000"
+            rotation: animShowcase.flipped ? 0 : 350
+
+            Behavior on rotation { RotationAnimation { duration: 900; direction: "Shortest" } }
+        }
+
+        Text {
+            x: 290
+            y: 200
+            text: "RotationAnimation (Shortest)"
+            color: "#a0c0ff"
+            fontSize: 16
+            width: 220
+            height: 24
+        }
+
+        Rectangle {
+            id: animOpacity
+            x: 560
+            y: 64
+            width: 240
+            height: 160
+            color: "#80ff80"
+            opacity: animShowcase.flipped ? 1.0 : 0.15
+
+            Behavior on opacity { OpacityAnimation { duration: 900 } }
+
+            Text {
+                x: 12; y: 12
+                text: "OpacityAnimation"
+                color: "#000000"
+                fontSize: 18
+                width: 220
+                height: 28
+            }
+        }
+
+        Rectangle {
+            id: animStateBox
+            x: 32
+            y: 260
+            width: 768
+            height: 160
+            color: "#2a2a3a"
+            state: animShowcase.flipped ? "right" : ""
+
+            Rectangle {
+                id: stateBall
+                x: 16
+                y: 24
+                width: 80
+                height: 80
+                color: "#ff80ff"
+                rotation: 0
+            }
+
+            states: [
+                State {
+                    name: "right"
+                    PropertyChanges {
+                        target: stateBall
+                        x: 672
+                        color: "#80ffff"
+                        rotation: 360
+                    }
+                }
+            ]
+
+            transitions: [
+                Transition {
+                    NumberAnimation { properties: "x"; duration: 900; easing: "easeOutQuad" }
+                    ColorAnimation { duration: 900 }
+                    RotationAnimation { duration: 900; direction: "Clockwise" }
+                }
+            ]
+
+            Text {
+                x: 16
+                y: 116
+                text: "State transition: NumberAnimation + ColorAnimation + RotationAnimation in one Transition"
+                color: "#a0c0ff"
+                fontSize: 14
+                width: 736
+                height: 24
             }
         }
     }

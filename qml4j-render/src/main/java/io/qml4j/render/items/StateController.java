@@ -63,8 +63,8 @@ final class StateController {
         swap(next);
         Map<TargetKey, Object> after = readAll(keys);
         for (Item child : tr.children) {
-            if (child instanceof NumberAnimation) {
-                spawnAnimations((NumberAnimation) child, before, after);
+            if (child instanceof PropertyAnimation) {
+                spawnAnimations((PropertyAnimation) child, before, after);
             }
         }
     }
@@ -98,7 +98,7 @@ final class StateController {
         return snap;
     }
 
-    private void spawnAnimations(NumberAnimation tpl,
+    private void spawnAnimations(PropertyAnimation tpl,
                                  Map<TargetKey, Object> before,
                                  Map<TargetKey, Object> after) {
         Object targetFilter = tpl.target.peek();
@@ -109,23 +109,23 @@ final class StateController {
         }
     }
 
-    private void considerSpawn(NumberAnimation tpl, TargetKey k,
+    private void considerSpawn(PropertyAnimation tpl, TargetKey k,
                                Object beforeVal, Object afterVal,
                                Object targetFilter, String[] propFilter) {
         if (Objects.equals(beforeVal, afterVal)) return;
         if (targetFilter != null && targetFilter != k.target) return;
         if (propFilter != null && !contains(propFilter, k.name)) return;
-        if (!(beforeVal instanceof Number) || !(afterVal instanceof Number)) return;
+        if (!tpl.acceptsTransition(beforeVal, afterVal)) return;
         cancelEphemeralsFor(k);
-        owner.children.add(buildEphemeral(tpl, k, (Number) beforeVal, (Number) afterVal));
+        owner.children.add(buildEphemeral(tpl, k, beforeVal, afterVal));
         RuntimeHelpers.writeMember(k.target, k.name, beforeVal);
     }
 
     private void cancelEphemeralsFor(TargetKey k) {
         for (int i = owner.children.size() - 1; i >= 0; i--) {
             Item c = owner.children.get(i);
-            if (!(c instanceof NumberAnimation)) continue;
-            NumberAnimation a = (NumberAnimation) c;
+            if (!(c instanceof PropertyAnimation)) continue;
+            PropertyAnimation a = (PropertyAnimation) c;
             if (!a.ephemeral) continue;
             if (a.target.peek() != k.target) continue;
             if (!k.name.equals(a.property.peek())) continue;
@@ -134,9 +134,9 @@ final class StateController {
         }
     }
 
-    private static NumberAnimation buildEphemeral(NumberAnimation tpl, TargetKey k,
-                                                  Number from, Number to) {
-        NumberAnimation a = new NumberAnimation();
+    private static PropertyAnimation buildEphemeral(PropertyAnimation tpl, TargetKey k,
+                                                  Object from, Object to) {
+        PropertyAnimation a = cloneTemplate(tpl);
         a.target.set(k.target);
         a.property.set(k.name);
         a.from.set(from);
@@ -146,6 +146,18 @@ final class StateController {
         a.ephemeral = true;
         a.running.set(Boolean.TRUE);
         return a;
+    }
+
+    private static PropertyAnimation cloneTemplate(PropertyAnimation tpl) {
+        try {
+            PropertyAnimation a = tpl.getClass().getDeclaredConstructor().newInstance();
+            if (a instanceof RotationAnimation && tpl instanceof RotationAnimation) {
+                ((RotationAnimation) a).direction.set(((RotationAnimation) tpl).direction.peek());
+            }
+            return a;
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Cannot clone animation template " + tpl.getClass(), e);
+        }
     }
 
     private static String[] parseCsv(String csv) {

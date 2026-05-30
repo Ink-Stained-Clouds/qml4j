@@ -15,8 +15,12 @@ import io.qml4j.render.items.ListModel;
 import io.qml4j.render.items.ListView;
 import io.qml4j.render.items.Loader;
 import io.qml4j.render.items.MouseArea;
+import io.qml4j.render.items.ColorAnimation;
 import io.qml4j.render.items.NumberAnimation;
+import io.qml4j.render.items.OpacityAnimation;
+import io.qml4j.render.items.PropertyAnimation;
 import io.qml4j.render.items.PropertyChanges;
+import io.qml4j.render.items.RotationAnimation;
 import io.qml4j.render.items.Rectangle;
 import io.qml4j.render.items.Repeater;
 import io.qml4j.render.items.Row;
@@ -44,7 +48,11 @@ public final class StockTypes {
             .register("MouseArea", MouseArea.class)
             .register("Image", Image.class)
             .register("Loader", Loader.class)
+            .register("PropertyAnimation", PropertyAnimation.class)
             .register("NumberAnimation", NumberAnimation.class)
+            .register("ColorAnimation", ColorAnimation.class)
+            .register("RotationAnimation", RotationAnimation.class)
+            .register("OpacityAnimation", OpacityAnimation.class)
             .register("State", State.class)
             .register("PropertyChanges", PropertyChanges.class)
             .register("Transition", Transition.class)

@@ -5,7 +5,7 @@ import io.qml4j.render.items.Drag;
 import io.qml4j.render.items.Flickable;
 import io.qml4j.render.items.Item;
 import io.qml4j.render.items.MouseArea;
-import io.qml4j.render.items.NumberAnimation;
+import io.qml4j.render.items.PropertyAnimation;
 import io.qml4j.render.items.TextEditable;
 import io.qml4j.render.items.TextInput;
 
@@ -673,8 +673,8 @@ public final class QmlView {
         for (int i = node.children.size() - 1; i >= 0; i--) {
             Item c = node.children.get(i);
             tickAnimations(c, now);
-            if (c instanceof NumberAnimation) {
-                NumberAnimation a = (NumberAnimation) c;
+            if (c instanceof PropertyAnimation) {
+                PropertyAnimation a = (PropertyAnimation) c;
                 if (a.ephemeral && !Boolean.TRUE.equals(a.running.peek())) {
                     node.children.remove(i);
                 }

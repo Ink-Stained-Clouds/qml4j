@@ -36,8 +36,8 @@ public class Behavior extends Item implements Animatable {
 
     private void readTemplate() {
         for (Item c : children) {
-            if (!(c instanceof NumberAnimation)) continue;
-            NumberAnimation na = (NumberAnimation) c;
+            if (!(c instanceof PropertyAnimation)) continue;
+            PropertyAnimation na = (PropertyAnimation) c;
             Number d = na.duration.peek();
             if (d != null) durationMs = d.longValue();
             String e = na.easing.peek();
