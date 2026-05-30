@@ -883,7 +883,7 @@ public final class Renderer {
         } else if (e instanceof PathArc) {
             PathArc a = (PathArc) e;
             PathEllipseArc size = Boolean.TRUE.equals(a.useLargeArc.peek())
-                ? PathEllipseArc.LARGE : PathEllipseArc.SMALL;
+                ? PathEllipseArc.LARGER : PathEllipseArc.SMALLER;
             PathDirection dir = "Counterclockwise".equals(a.direction.peek())
                 ? PathDirection.COUNTER_CLOCKWISE : PathDirection.CLOCKWISE;
             path.ellipticalArcTo(a.radiusX.peek().floatValue(), a.radiusY.peek().floatValue(),
