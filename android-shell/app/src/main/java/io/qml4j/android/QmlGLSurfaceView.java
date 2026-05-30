@@ -173,6 +173,16 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
         return view;
     }
 
+    void sendSyntheticKey(final int code, final String text) {
+        queueEvent(new Runnable() {
+            @Override public void run() {
+                if (view == null) return;
+                view.dispatchKey(code, text, true, false);
+                view.dispatchKey(code, text, false, false);
+            }
+        });
+    }
+
     void deleteFromIme(final int beforeLength) {
         if (beforeLength <= 0) return;
         queueEvent(new Runnable() {

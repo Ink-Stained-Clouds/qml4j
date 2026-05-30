@@ -2,8 +2,14 @@ package io.qml4j.android;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.LinearLayout;
 
 import io.qml4j.engine.QmlEngine;
+import io.qml4j.render.QmlView;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -55,7 +61,41 @@ public final class MainActivity extends Activity {
 
         glView = new QmlGLSurfaceView(this, engine, qml,
             new AssetResourceLoader(getAssets()));
-        setContentView(glView);
+
+        FrameLayout root = new FrameLayout(this);
+        root.addView(glView);
+        root.addView(buildKeyBar());
+        setContentView(root);
+    }
+
+    private LinearLayout buildKeyBar() {
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT);
+        lp.gravity = Gravity.BOTTOM;
+        bar.setLayoutParams(lp);
+        addKeyButton(bar, "A", 65, "a");
+        addKeyButton(bar, "Spc", 32, " ");
+        addKeyButton(bar, "Ent", QmlView.KEY_ENTER, null);
+        addKeyButton(bar, "Esc", QmlView.KEY_ESCAPE, null);
+        addKeyButton(bar, "<", QmlView.KEY_LEFT, null);
+        addKeyButton(bar, ">", QmlView.KEY_RIGHT, null);
+        addKeyButton(bar, "Up", QmlView.KEY_UP, null);
+        addKeyButton(bar, "Dn", QmlView.KEY_DOWN, null);
+        return bar;
+    }
+
+    private void addKeyButton(LinearLayout bar, String label, final int code, final String text) {
+        Button b = new Button(this);
+        b.setText(label);
+        b.setLayoutParams(new LinearLayout.LayoutParams(
+            0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        b.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { glView.sendSyntheticKey(code, text); }
+        });
+        bar.addView(b);
     }
 
     @Override
