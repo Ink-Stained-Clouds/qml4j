@@ -98,6 +98,12 @@ public final class RuntimeHelpers {
     public static Object eqStrict(Object l, Object r) {
         if (l == r) return true;
         if (l == null || r == null) return false;
+        // QML/JS has a single number type: 400 === 400.0 is true. Compare any
+        // two Numbers by value, regardless of Java box class (a tween can leave
+        // an int property holding a Double).
+        if (l instanceof Number && r instanceof Number) {
+            return toNumber(l) == toNumber(r);
+        }
         if (l.getClass() != r.getClass()) return false;
         return l.equals(r);
     }
