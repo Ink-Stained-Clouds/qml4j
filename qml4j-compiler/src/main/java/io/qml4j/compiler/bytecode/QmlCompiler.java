@@ -477,11 +477,21 @@ public final class QmlCompiler {
         if ("alias".equals(pd.typeName)) return;
         if (pd.initializer == null) return;
         if (pd.initializer instanceof Ast.ObjectValue) {
-            emitObjectValueAssignment(ctor, outerType, outerLocal,
-                                      ((Ast.ObjectValue) pd.initializer).object, registry,
-                                      localCounter, bindingCounter, handlerCounter, classes,
-                                      componentBinaryName, idTypes, customSignalParams,
-                                      pd.name, declaredProps, rootFunctions);
+            String objOwner = declaredProps.get(pd.name);
+            if (objOwner == null) {
+                throw new IllegalStateException("declared property not registered: " + pd.name);
+            }
+            int childLocal = localCounter[0];
+            emitChildObjectInto(ctor, outerType, outerLocal,
+                                ((Ast.ObjectValue) pd.initializer).object, registry,
+                                localCounter, bindingCounter, handlerCounter, classes,
+                                componentBinaryName, idTypes, customSignalParams, "",
+                                declaredProps, rootFunctions);
+            ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+            ctor.visitFieldInsn(Opcodes.GETFIELD, objOwner, pd.name, PROPERTY_DESC);
+            ctor.visitVarInsn(Opcodes.ALOAD, childLocal);
+            ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
+                                 "set", "(Ljava/lang/Object;)V", false);
             return;
         }
         if (!(pd.initializer instanceof Ast.ExpressionValue)) {
