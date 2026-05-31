@@ -47,6 +47,9 @@ import io.qml4j.render.items.Timer;
 import io.qml4j.render.items.Transition;
 import io.qml4j.render.items.Window;
 import io.qml4j.render.items.ApplicationWindow;
+import io.qml4j.render.items.Button;
+import io.qml4j.render.items.Label;
+import io.qml4j.render.items.TextField;
 
 import io.qml4j.compiler.TypeRegistry;
 
@@ -102,6 +105,9 @@ public final class StockTypes {
             .register("TextInput", TextInput.class)
             .register("TextEdit", TextEdit.class)
             .register("Window", Window.class)
-            .register("ApplicationWindow", ApplicationWindow.class);
+            .register("ApplicationWindow", ApplicationWindow.class)
+            .register("Button", Button.class)
+            .register("Label", Label.class)
+            .register("TextField", TextField.class);
     }
 }

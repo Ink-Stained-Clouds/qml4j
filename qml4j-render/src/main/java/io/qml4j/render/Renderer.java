@@ -15,7 +15,9 @@ import io.qml4j.render.items.ColorOverlay;
 import io.qml4j.render.items.DropShadow;
 import io.qml4j.render.items.Glow;
 import io.qml4j.render.items.ApplicationWindow;
+import io.qml4j.render.items.Button;
 import io.qml4j.render.items.MouseArea;
+import io.qml4j.render.items.TextField;
 import io.qml4j.render.items.PathArc;
 import io.qml4j.render.items.PathCubic;
 import io.qml4j.render.items.PathElement;
@@ -379,6 +381,10 @@ public final class Renderer {
             paintShape(canvas, (Shape) node, w, h, alpha);
         } else if (node instanceof Image) {
             paintImage(canvas, (Image) node, w, h, alpha);
+        } else if (node instanceof Button) {
+            paintButton(canvas, (Button) node, w, h, alpha);
+        } else if (node instanceof TextField) {
+            paintTextField(canvas, (TextField) node, w, h, alpha);
         } else if (node instanceof TextInput) {
             paintTextInput(canvas, (TextInput) node, w, h, alpha);
         } else if (node instanceof TextEdit) {
