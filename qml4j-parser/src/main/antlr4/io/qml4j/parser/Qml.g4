@@ -5,7 +5,7 @@ grammar Qml;
 // =====================
 
 qmlDocument
-    : importDeclaration* pragmaDeclaration* rootObject EOF
+    : (importDeclaration | pragmaDeclaration)* rootObject EOF
     ;
 
 importDeclaration
