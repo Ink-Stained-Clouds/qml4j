@@ -123,7 +123,7 @@ Rectangle {
     transitions: [
         Transition {
             ColorAnimation { properties: "color"; duration: 900 }
-            NumberAnimation { properties: "x,opacity"; duration: 900; easing: "easeOutQuad" }
+            NumberAnimation { properties: "x,opacity"; duration: 900; easing.type: Easing.OutQuad }
             RotationAnimation { properties: "rotation"; duration: 900; direction: "Shortest" }
         }
     ]

@@ -142,7 +142,7 @@ final class StateController {
         a.from.set(from);
         a.to.set(to);
         a.duration.set(tpl.duration.peek());
-        a.easing.set(tpl.easing.peek());
+        a.easing.type.set(tpl.easing.type.peek());
         a.ephemeral = true;
         a.running.set(Boolean.TRUE);
         return a;

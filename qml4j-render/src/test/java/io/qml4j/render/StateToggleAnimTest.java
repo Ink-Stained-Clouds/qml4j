@@ -93,7 +93,7 @@ class StateToggleAnimTest {
         "  states: [ State { name: \"big\"; PropertyChanges { target: box;\n" +
         "    width: 720; height: 720; color: \"#5050ff\"; x: 60; y: 120 } } ]\n" +
         "  transitions: [ Transition { NumberAnimation {\n" +
-        "    properties: \"width,height\"; duration: 100; easing: \"easeOutQuad\" } } ]\n" +
+        "    properties: \"width,height\"; duration: 100; easing.type: Easing.OutQuad } } ]\n" +
         "}";
 
     @Test

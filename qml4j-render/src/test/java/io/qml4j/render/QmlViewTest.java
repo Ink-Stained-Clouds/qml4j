@@ -442,7 +442,7 @@ class QmlViewTest {
             "  NumberAnimation {\n" +
             "    target: parent\n" +
             "    from: 0; to: 100; duration: 100\n" +
-            "    easing: \"easeOutQuad\"\n" +
+            "    easing.type: Easing.OutQuad\n" +
             "    running: true\n" +
             "  }\n" +
             "}");

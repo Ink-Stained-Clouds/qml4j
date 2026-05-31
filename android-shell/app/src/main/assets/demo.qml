@@ -192,7 +192,7 @@ Rectangle {
                 NumberAnimation {
                     properties: "width,height"
                     duration: 450
-                    easing: "easeOutQuad"
+                    easing.type: Easing.OutQuad
                 }
             }
         ]
@@ -253,7 +253,7 @@ Rectangle {
         height: 80
         color: "#ffcc00"
 
-        Behavior on x { NumberAnimation { duration: 350; easing: "easeOutQuad" } }
+        Behavior on x { NumberAnimation { duration: 350; easing.type: Easing.OutQuad } }
 
         MouseArea {
             anchors.fill: parent

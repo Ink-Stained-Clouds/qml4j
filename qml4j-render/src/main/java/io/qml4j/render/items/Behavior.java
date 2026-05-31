@@ -10,7 +10,7 @@ public class Behavior extends Item implements Animatable, Property.WriteIntercep
     private Property<Object> bound;
     private PropertyAnimation template;
     private long durationMs = 250L;
-    private String easing = "linear";
+    private int easingType = 0;
 
     private boolean running;
     private long startNanos = -1L;
@@ -40,8 +40,8 @@ public class Behavior extends Item implements Animatable, Property.WriteIntercep
             template = (PropertyAnimation) c;
             Number d = template.duration.peek();
             if (d != null) durationMs = d.longValue();
-            String e = template.easing.peek();
-            if (e != null) easing = e;
+            Number e = template.easing.type.peek();
+            if (e != null) easingType = e.intValue();
             return;
         }
     }
@@ -78,7 +78,7 @@ public class Behavior extends Item implements Animatable, Property.WriteIntercep
         double frac = durationMs <= 0
             ? 1.0
             : Math.min(1.0, (nowNanos - startNanos) / 1_000_000.0 / durationMs);
-        double eased = Easings.apply(easing, frac);
+        double eased = Easings.apply(easingType, frac);
         Object out = template != null
             ? template.interpolate(preparedFrom, preparedTo, eased)
             : preparedTo;

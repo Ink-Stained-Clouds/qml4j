@@ -35,13 +35,13 @@ Rectangle {
         SequentialAnimation {
             id: pulse
             ParallelAnimation {
-                NumberAnimation { target: pulseBox; property: "width";  from: 120; to: 180; duration: 250; easing: "easeOutQuad" }
-                NumberAnimation { target: pulseBox; property: "height"; from: 120; to: 180; duration: 250; easing: "easeOutQuad" }
+                NumberAnimation { target: pulseBox; property: "width";  from: 120; to: 180; duration: 250; easing.type: Easing.OutQuad }
+                NumberAnimation { target: pulseBox; property: "height"; from: 120; to: 180; duration: 250; easing.type: Easing.OutQuad }
                 ColorAnimation  { target: pulseBox; property: "color";  from: "#ff8040"; to: "#ffe080"; duration: 250 }
             }
             ParallelAnimation {
-                NumberAnimation { target: pulseBox; property: "width";  from: 180; to: 120; duration: 350; easing: "easeOutQuad" }
-                NumberAnimation { target: pulseBox; property: "height"; from: 180; to: 120; duration: 350; easing: "easeOutQuad" }
+                NumberAnimation { target: pulseBox; property: "width";  from: 180; to: 120; duration: 350; easing.type: Easing.OutQuad }
+                NumberAnimation { target: pulseBox; property: "height"; from: 180; to: 120; duration: 350; easing.type: Easing.OutQuad }
                 ColorAnimation  { target: pulseBox; property: "color";  from: "#ffe080"; to: "#ff8040"; duration: 350 }
             }
         }
@@ -74,9 +74,9 @@ Rectangle {
 
         SequentialAnimation {
             id: toast
-            OpacityAnimation { target: toastBox; from: 0; to: 1; duration: 320; easing: "easeOutQuad" }
+            OpacityAnimation { target: toastBox; from: 0; to: 1; duration: 320; easing.type: Easing.OutQuad }
             PauseAnimation { duration: 800 }
-            OpacityAnimation { target: toastBox; from: 1; to: 0; duration: 320; easing: "easeOutQuad" }
+            OpacityAnimation { target: toastBox; from: 1; to: 0; duration: 320; easing.type: Easing.OutQuad }
             ScriptAction { onTrigger: compositeShowcase.cycles = compositeShowcase.cycles + 1 }
         }
     }

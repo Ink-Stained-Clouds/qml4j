@@ -10,7 +10,7 @@ public class PropertyAnimation extends AbstractAnimation {
     public final Property<Object> from = new Property<>(null);
     public final Property<Object> to = new Property<>(null);
     public final Property<Number> duration = new Property<>(250);
-    public final Property<String> easing = new Property<>("linear");
+    public final Easing easing = new Easing();
 
     public boolean ephemeral;
 
@@ -40,7 +40,7 @@ public class PropertyAnimation extends AbstractAnimation {
         double frac = (nowNanos - startNanos) / 1_000_000.0 / durMs;
         boolean done = frac >= 1.0;
         if (done) frac = 1.0;
-        double eased = Easings.apply(easing.peek(), frac);
+        double eased = Easings.apply(easing.type.peek().intValue(), frac);
         RuntimeHelpers.writeMember(t, prop, interpolate(preparedFrom, preparedTo, eased));
         if (done) stop();
     }
