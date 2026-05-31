@@ -232,23 +232,27 @@ public final class Renderer {
         float size = t.effectiveFontSize();
         String s = t.text.peek();
         if (s == null) s = "";
+        if (s.equals(t.lastMeasuredText) && size == t.lastMeasuredSize) return;
         boolean canMeasureW = !t.width.isBound() && ownsWidth(t);
         boolean canMeasureH = !t.height.isBound() && ownsHeight(t);
-        if (!canMeasureW && !canMeasureH) return;
-        if (s.equals(t.lastMeasuredText) && size == t.lastMeasuredSize) return;
         String[] lines = splitLines(s);
         try (Font font = fontFor(size, s)) {
+            float w = 0f;
+            for (String line : lines) {
+                float lw = font.measureTextWidth(line);
+                if (lw > w) w = lw;
+            }
+            float h = size * lines.length;
+            // Natural content size always feeds implicitWidth/Height (Qt), even
+            // when width/height are bound externally (e.g. a tooltip background
+            // binds to label.implicitWidth).
+            if (!t.implicitWidth.isBound()) t.implicitWidth.set(w);
+            if (!t.implicitHeight.isBound()) t.implicitHeight.set(h);
             if (canMeasureW) {
-                float w = 0f;
-                for (String line : lines) {
-                    float lw = font.measureTextWidth(line);
-                    if (lw > w) w = lw;
-                }
                 t.width.set(w);
                 t.lastSetWidth = w;
             }
             if (canMeasureH) {
-                float h = size * lines.length;
                 t.height.set(h);
                 t.lastSetHeight = h;
             }
