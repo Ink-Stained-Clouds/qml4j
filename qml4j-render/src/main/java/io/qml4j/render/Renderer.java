@@ -174,11 +174,25 @@ public final class Renderer {
                 canvas.clipRect(Rect.makeXYWH(0, 0, w, h));
                 canvas.translate(-f.contentX.peek().floatValue(), -f.contentY.peek().floatValue());
             }
-            for (Item child : zOrdered(node.children)) {
-                draw(canvas, child, alpha);
-            }
             if (node instanceof ApplicationWindow) {
-                drawChrome(canvas, (ApplicationWindow) node, w, h, alpha);
+                ApplicationWindow win = (ApplicationWindow) node;
+                float top = win.contentTop();
+                float bottom = win.contentBottom(h);
+                int contentSave = canvas.save();
+                try {
+                    canvas.clipRect(Rect.makeXYWH(0, top, w, Math.max(0f, bottom - top)));
+                    canvas.translate(0, top);
+                    for (Item child : zOrdered(node.children)) {
+                        draw(canvas, child, alpha);
+                    }
+                } finally {
+                    canvas.restoreToCount(contentSave);
+                }
+                drawChrome(canvas, win, w, h, alpha);
+            } else {
+                for (Item child : zOrdered(node.children)) {
+                    draw(canvas, child, alpha);
+                }
             }
         } finally {
             canvas.restoreToCount(savedCount);
