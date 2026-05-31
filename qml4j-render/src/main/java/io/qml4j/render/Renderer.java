@@ -142,6 +142,7 @@ public final class Renderer {
         if (!node.visible.peek()) return;
         if (node instanceof Text) measureText((Text) node);
         if (node instanceof Control) measureControl((Control) node);
+        followImplicitSize(node);
         applyAnchors(node);
         if (node instanceof Loader) {
             resolveLoader((Loader) node);
@@ -277,13 +278,27 @@ public final class Renderer {
         } else {
             return;
         }
-        if (!c.width.isBound() && ownsControlWidth(c)) {
-            c.width.set(iw);
-            c.lastImplicitWidth = iw;
+        // Controls publish their measured content size as implicitWidth/Height;
+        // followImplicitSize then copies it into width/height when unset.
+        if (!c.implicitWidth.isBound()) c.implicitWidth.set(iw);
+        if (!c.implicitHeight.isBound()) c.implicitHeight.set(ih);
+    }
+
+    // Qt: an Item's width follows implicitWidth until width is explicitly set.
+    // We approximate "explicitly set" with an owns-check (current value equals
+    // the last implicit value we wrote, or 0 if never written) plus the binding
+    // flag, mirroring Text auto-measure. Not unit-testable (no headless trigger
+    // beyond this pass); verified on device.
+    private static void followImplicitSize(Item node) {
+        double iw = node.implicitWidth.peek().doubleValue();
+        if (iw > 0 && !node.width.isBound() && ownsImplicitWidth(node)) {
+            node.width.set(iw);
+            node.lastImplicitWidth = iw;
         }
-        if (!c.height.isBound() && ownsControlHeight(c)) {
-            c.height.set(ih);
-            c.lastImplicitHeight = ih;
+        double ih = node.implicitHeight.peek().doubleValue();
+        if (ih > 0 && !node.height.isBound() && ownsImplicitHeight(node)) {
+            node.height.set(ih);
+            node.lastImplicitHeight = ih;
         }
     }
 
@@ -297,12 +312,12 @@ public final class Renderer {
         return p > 0f ? p : fallback;
     }
 
-    private static boolean ownsControlWidth(Control c) {
+    private static boolean ownsImplicitWidth(Item c) {
         if (Double.isNaN(c.lastImplicitWidth)) return c.width.peek().doubleValue() == 0.0;
         return c.width.peek().doubleValue() == c.lastImplicitWidth;
     }
 
-    private static boolean ownsControlHeight(Control c) {
+    private static boolean ownsImplicitHeight(Item c) {
         if (Double.isNaN(c.lastImplicitHeight)) return c.height.peek().doubleValue() == 0.0;
         return c.height.peek().doubleValue() == c.lastImplicitHeight;
     }

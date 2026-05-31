@@ -6,8 +6,6 @@ public class Control extends Item {
     public final Property<Boolean> enabled = new Property<>(Boolean.TRUE);
     public final Property<Number> padding = new Property<>(0);
 
-    public double lastImplicitWidth = Double.NaN;
-    public double lastImplicitHeight = Double.NaN;
     public final Property<Number> leftPadding = new Property<>(null);
     public final Property<Number> rightPadding = new Property<>(null);
     public final Property<Number> topPadding = new Property<>(null);

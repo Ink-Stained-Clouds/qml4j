@@ -15,6 +15,10 @@ public class Item extends QObject {
     public final Property<Number> y = new Property<>(0);
     public final Property<Number> width = new Property<>(0);
     public final Property<Number> height = new Property<>(0);
+    public final Property<Number> implicitWidth = new Property<>(0);
+    public final Property<Number> implicitHeight = new Property<>(0);
+    public double lastImplicitWidth = Double.NaN;
+    public double lastImplicitHeight = Double.NaN;
     public final Property<Boolean> visible = new Property<>(Boolean.TRUE);
     public final Property<Number> opacity = new Property<>(1.0);
     public final Property<Number> rotation = new Property<>(0);
