@@ -2,6 +2,19 @@
 
 Living document. Updated whenever a milestone lands or the plan shifts.
 
+## Direction reset (2026-05-31, post-M50)
+
+Phases L–R (M35–M50) all landed: data views, animation, language
+closeouts, keyboard, vector graphics, layer effects, window layer, and a
+first controls slice (Control/AbstractButton/Button/Label/TextField).
+260 tests; every milestone shipped an on-device APK.
+
+New primary direction: **run unmodified third-party QML component
+libraries** (be a drop-in QML engine), not grow our own Controls clone.
+North-star test: the MD3 library. See Phase S below and `COMPAT_REPORT.md`.
+M51/M52 (more own-controls) are deferred in favour of closing the engine
+gaps real libraries need.
+
 ## Where we are (2026-05-29, post-M34)
 
 Engine + compiler now host enough QML to express interactive screens:
@@ -227,12 +240,108 @@ system, keyboard input, vector graphics, and a controls layer.
 - Style is a thin theme record; no full QtQuick.Controls style API
   yet.
 
-### M51 — Slider, CheckBox, RadioButton, Switch
-- Each is composed from existing items; expose `value` / `checked` /
-  `from` / `to` / `stepSize` properties matching Qt naming.
+### M51 — Slider, CheckBox, RadioButton, Switch  ⏳ DEFERRED
+- Each composed from existing items; `value`/`checked`/`from`/`to`/`stepSize`.
+- DEFERRED: superseded by Phase S below. Building more of our OWN controls
+  is lower value than making the engine run THIRD-PARTY control libraries.
+  Revisit only if a target library needs a primitive we lack.
 
-### M52 — ScrollBar, ScrollIndicator, BusyIndicator, ProgressBar
-- Slots into Flickable / ListView / GridView via attached properties.
+### M52 — ScrollBar, ScrollIndicator, BusyIndicator, ProgressBar  ⏳ DEFERRED
+- Same rationale as M51.
+
+## Phase S — Third-party-library compatibility (NEW PRIMARY DIRECTION, 2026-05-31)
+
+**Goal change.** The real objective (user, 2026-05-31): qml4j must run
+*unmodified third-party QML component libraries*, i.e. be a drop-in QML
+engine, not ship its own clone of Quick.Controls. North-star test case:
+the MD3 library (github.com/sudoevolve/material-components-qml). Full gap
+analysis in `COMPAT_REPORT.md` + memory `project_md3_compat_goal`. This
+phase reframes M51+ : every milestone closes an *engine* capability gap
+that real libraries depend on, ranked by how many components it unblocks
+(frequency counts from scanning MD3's ~70 components).
+
+Hard constraint: MD3's dynamic-color theming is a C++ backend
+(`StyleManager` + Google material-color-utilities). A pure-QML engine
+cannot load C++ plugins; that backend must be reimplemented in Java
+(M57) or stubbed to static colors. Acceptance is therefore on the
+pure-QML subset first.
+
+Acceptance ladder: after each milestone, a hand-written minimal QML that
+exercises only that feature must run on-device; once enough land, target
+real MD3 components in increasing order of dependency weight.
+
+### M51′ — QtObject + nested-object properties + multi-dot bindings  🔜 NEXT
+- Register `QtObject` as a constructible base type.
+- Support a property whose value is a nested object literal:
+  `property QtObject color: QtObject { property color primary: "#6750A4" }`.
+- Multi-level dotted read in bindings: `Theme.color.primary`,
+  `_colors.onSurfaceColor` (chained member access already partly works;
+  must work through a nested-QtObject-valued property + a singleton).
+- Unblocks the Theme-singleton pattern — the single most common idiom in
+  real libraries (MD3 Theme.qml is entirely this). Highest leverage.
+- Acceptance: a `pragma Singleton QtObject` theme with nested groups,
+  read via `Theme.group.prop` from another component, on-device.
+
+### M52′ — implicitWidth/implicitHeight + font group + enums
+- `implicitWidth`/`implicitHeight` as first-class Item properties:
+  writable bound expressions, readable off children (drives all
+  content-sized layout). Generalises the M50 Control measure hack.
+- `font` grouped property on Text/controls: `font.family`,
+  `font.pixelSize`, `font.weight`, `font.bold`, `font.italic`,
+  `font.capitalization`; render via Skija Typeface family/weight
+  (Skija already supports it). Keep flat `fontSize` as alias.
+- Real enums: `Font.*`, `Text.*` (AlignVCenter/ElideRight/Wrap…),
+  `Easing.*`, `Qt.Align*` — resolved as typed values, not string guesses.
+
+### M53′ — QtQuick.Layouts
+- `RowLayout` / `ColumnLayout` / `GridLayout` (+ `Flow`, `StackLayout`)
+  with the `Layout.*` attached properties (fillWidth/fillHeight/
+  preferredWidth/Height/alignment/margins/row/column/columnSpan).
+- Pure layout logic in Java over implicitWidth (needs M52′). Used by
+  ~59 MD3 files — biggest single subsystem gap.
+
+### M54′ — Cross-cutting language gaps
+- `property alias` to a child's grouped sub-property
+  (`property alias font: label.font`); `default property [alias]` for
+  content forwarding.
+- `switch` statements in binding bodies; `required property`;
+  imperative writes to grouped props (`obj.parent = x`,
+  `obj.anchors.centerIn = y`); `Component.onCompleted`.
+- `Qt.lighter/darker/color/point/size/rect`, `Qt.formatDate`.
+- `Binding {}` element; `Connections { function onX(){} }` form;
+  `import "file.js" as M` JS resources.
+
+### M55′ — Canvas (HTML5 2D context)
+- `Canvas { onPaint: { var ctx = getContext('2d'); … } }` mapping the
+  2D context (beginPath/moveTo/lineTo/arc/arcTo/bezier/rect/fill/stroke/
+  fillText/clip/save/restore/gradients/setLineDash/transform) onto Skija
+  Canvas — near 1:1. Unblocks chart/custom-draw components (×11 in MD3).
+
+### M56′ — QtQuick.Effects MultiEffect + hover + contentItem
+- `MultiEffect` (shadowEnabled/shadowColor/shadowBlur/
+  shadowVerticalOffset/shadowOpacity/blurMax/blur/brightness/
+  saturation/colorization/maskSource) over Skija ImageFilter (M48 base).
+- MouseArea `hoverEnabled`/`containsMouse`/`entered`/`exited` real
+  dispatch (ripples & hover states depend on it).
+- `contentItem` delegation + imperative reparent (needs M54′).
+
+### M57′ — StyleManager + dynamic color (Java port)
+- Java reimplementation of MD3's `StyleManager` QML singleton API
+  (isDarkTheme/seedColor/currentScheme/lightScheme/darkScheme +
+  setSeedColorHct/setSourceImage), backed by a Java port of
+  material-color-utilities (HCT colour space, tonal palettes, schemes).
+- Register it as a qml4j built-in so `import md3.Core` (loaded as a
+  directory module via qmldir) finds `StyleManager`. Enables MD3 dynamic
+  theming end-to-end.
+- Generalises to: "to run a C++-backed QML library, reimplement its
+  backend in Java and register it." Document the pattern.
+
+### Phase S deferred / out of scope for the first pass
+- TapHandler/DragHandler/HoverHandler/PointerHandler (pointer-handler
+  family); 3D transforms (Rotation axis/Translate); Dialogs/Popups/Menus
+  as a popup layer; XmlListModel/SqlModel; named model roles; ListView
+  currentIndex/sections/highlight + key nav; IME composition; clipboard.
+  Add as specific target libraries demand them.
 
 ## Cross-cutting tech debt (work on opportunistically)
 
@@ -246,6 +355,8 @@ system, keyboard input, vector graphics, and a controls layer.
 | T6 | Move `id:` to a real grammar production (not a normal property binding) | The current "ignored property" hack leaks into error messages |
 | T7 | Disambiguate `property` keyword from a property named `property` | Blocks `NumberAnimation { property: "width" }` syntax |
 | T8 | TextInput: IME composition span (M32 reverted), touch selection handles, desktop key bridge | Tracked in `project_textinput_todo` memory; revisit when a real text-heavy consumer needs it |
+| T9 | M50 control divergences from Qt Quick Controls (D3/D5/D7/D10/D11/D13/D15) | Tracked in `project_m50_controls` memory; only matters where a target library subclasses our controls — most libs roll their own off Item, so low priority |
+| T10 | C++ QML module loading (`import Foo` registered from C++) | Unsupported by design — pure-QML/Java engine. Per-library workaround: load its QML dir via qmldir + reimplement its C++ backend in Java (see Phase S / M57′) |
 
 ## Pick-up order rationale
 
@@ -270,3 +381,8 @@ keyboard (M46) before vector graphics (M47–M48) before window layer
   positioners (`Row`, `Column`, `Grid`) cover most cases for v0
 - WebView, Particles, 3D
 - Multi-window choreography beyond a single root `Window`
+- Loading C++-registered QML modules / plugins directly — unsupported by
+  design; reimplement a library's C++ backend in Java instead (Phase S)
+
+(Note: `QtQuick.Layouts`, previously out of scope, is now IN scope as
+M53′ — real libraries depend on it heavily.)
