@@ -280,6 +280,10 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
             try {
                 view.tickAnimations(System.nanoTime());
                 dq.flush();
+                // Measure text/controls and let size-driven bindings settle
+                // before painting, so first-appearance layout doesn't flash.
+                renderer.measure(view.root());
+                dq.flush();
                 Canvas canvas = surface.acquireCanvas();
                 renderer.render(canvas, view.root());
                 surface.present();

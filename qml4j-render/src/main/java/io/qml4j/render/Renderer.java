@@ -138,6 +138,17 @@ public final class Renderer {
         draw(canvas, root, 1f);
     }
 
+    // Layout pre-pass: populate implicitWidth/Height (text/control measurement)
+    // across the whole tree so size-driven bindings can settle BEFORE painting.
+    // Without this, a node sized from a child's implicit size (e.g. a tooltip
+    // background bound to label.implicitWidth) paints one frame stale = a flash.
+    public void measure(Item node) {
+        if (node == null || !node.visible.peek()) return;
+        if (node instanceof Text) measureText((Text) node);
+        if (node instanceof Control) measureControl((Control) node);
+        for (Item child : node.children) measure(child);
+    }
+
     private void draw(Canvas canvas, Item node, float inheritedAlpha) {
         if (!node.visible.peek()) return;
         if (node instanceof Text) measureText((Text) node);
