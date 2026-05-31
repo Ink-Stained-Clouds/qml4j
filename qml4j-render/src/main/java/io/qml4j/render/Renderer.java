@@ -146,6 +146,10 @@ public final class Renderer {
         if (node == null || !node.visible.peek()) return;
         if (node instanceof Text) measureText((Text) node);
         if (node instanceof Control) measureControl((Control) node);
+        followImplicitSize(node);
+        if (node instanceof Column) ((Column) node).layout();
+        if (node instanceof Row) ((Row) node).layout();
+        applyAnchors(node);
         for (Item child : node.children) measure(child);
     }
 
