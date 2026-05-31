@@ -8,4 +8,8 @@ public abstract class AbstractAnimation extends Item implements Animatable {
     protected AbstractAnimation() {
         visible.set(Boolean.FALSE);
     }
+
+    public void start() { running.set(Boolean.TRUE); }
+    public void stop() { running.set(Boolean.FALSE); }
+    public void restart() { stop(); start(); }
 }

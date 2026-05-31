@@ -29,7 +29,7 @@ public class PropertyAnimation extends AbstractAnimation {
         String prop = effectiveProperty();
         if (t == null || prop == null) return;
 
-        if (!prepared) prepare();
+        if (!prepared) prepare(t, prop);
         if (startNanos < 0L) startNanos = nowNanos;
         double durMs = duration.peek().doubleValue();
         if (durMs <= 0) {
@@ -49,8 +49,11 @@ public class PropertyAnimation extends AbstractAnimation {
         return property.peek();
     }
 
-    private void prepare() {
-        preparedFrom = coerceFrom(from.peek());
+    private void prepare(Object target, String prop) {
+        // Qt: an omitted `from` defaults to the property's current value.
+        Object rawFrom = from.peek();
+        if (rawFrom == null) rawFrom = RuntimeHelpers.readMember(target, prop);
+        preparedFrom = coerceFrom(rawFrom);
         preparedTo = coerceTo(to.peek());
         onPrepared();
         prepared = true;
@@ -61,7 +64,8 @@ public class PropertyAnimation extends AbstractAnimation {
         prepared = false;
     }
 
-    private void stop() {
+    @Override
+    public void stop() {
         running.set(Boolean.FALSE);
         reset();
     }

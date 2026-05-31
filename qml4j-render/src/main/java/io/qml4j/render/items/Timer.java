@@ -21,6 +21,10 @@ public class Timer extends Item implements Animatable {
 
     private boolean armed = false;
 
+    public void start() { running.set(Boolean.TRUE); }
+    public void stop() { running.set(Boolean.FALSE); }
+    public void restart() { stop(); start(); }
+
     @Override
     public void tick(long nowNanos) {
         if (!Boolean.TRUE.equals(running.peek())) return;

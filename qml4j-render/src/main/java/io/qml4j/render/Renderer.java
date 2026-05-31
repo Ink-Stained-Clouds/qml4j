@@ -229,7 +229,7 @@ public final class Renderer {
     }
 
     private void measureText(Text t) {
-        float size = t.fontSize.peek().floatValue();
+        float size = t.effectiveFontSize();
         String s = t.text.peek();
         if (s == null) s = "";
         boolean canMeasureW = !t.width.isBound() && ownsWidth(t);
@@ -461,7 +461,7 @@ public final class Renderer {
             Text t = (Text) node;
             int color = applyAlpha(parseColor(t.color.peek()), alpha);
             paint().setColor(color);
-            float size = t.fontSize.peek().floatValue();
+            float size = t.effectiveFontSize();
             String s = t.text.peek();
             if (s == null || s.isEmpty()) return;
             String[] lines = splitLines(s);

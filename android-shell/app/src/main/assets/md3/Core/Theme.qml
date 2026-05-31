@@ -5,5 +5,26 @@ QtObject {
     property QtObject color: QtObject {
         property color outline: "#79747e"
         property color primary: "#6750a4"
+        property color inverseSurface: "#322f35"
+        property color inverseOnSurface: "#f5eff7"
+        property color surface: "#fef7ff"
+        property color onSurfaceColor: "#1d1b20"
+        property color shadow: "#000000"
+    }
+    property QtObject typography: QtObject {
+        property QtObject bodySmall: QtObject {
+            property string family: "Roboto"
+            property int size: 12
+            property int weight: 50
+        }
+        property QtObject labelLarge: QtObject {
+            property string family: "Roboto"
+            property int size: 14
+            property int weight: 57
+        }
+    }
+    property QtObject shape: QtObject {
+        property int extraSmall: 4
+        property int small: 8
     }
 }
