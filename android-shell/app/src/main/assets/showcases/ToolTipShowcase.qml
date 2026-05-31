@@ -45,7 +45,7 @@ Rectangle {
         ToolTip {
             id: tip
             text: "Saved to your library"
-            y: -48
+            y: trigger.height + 8
         }
     }
 }
