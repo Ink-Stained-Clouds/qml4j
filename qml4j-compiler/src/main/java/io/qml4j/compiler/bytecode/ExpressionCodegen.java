@@ -420,11 +420,114 @@ final class ExpressionCodegen {
     }
 
     private void emitMember(MethodVisitor mv, Ast.MemberExpr m) {
+        Long enumVal = enumConstant(m);
+        if (enumVal != null) {
+            mv.visitLdcInsn(enumVal.longValue());
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Long",
+                               "valueOf", "(J)Ljava/lang/Long;", false);
+            return;
+        }
         emit(mv, m.target);
         mv.visitLdcInsn(m.property);
         mv.visitMethodInsn(Opcodes.INVOKESTATIC, HELPERS_INTERNAL,
                            "readMember",
                            "(Ljava/lang/Object;Ljava/lang/String;)Ljava/lang/Object;", false);
+    }
+
+    // QML enum member access (Qt.Vertical, Text.AlignVCenter, Font.Bold,
+    // Easing.OutQuad). Resolved to int constants at compile time. Only when the
+    // namespace identifier is a known enum namespace AND is not shadowed by a
+    // local var / signal param / alias / declared property / id.
+    private Long enumConstant(Ast.MemberExpr m) {
+        if (!(m.target instanceof Ast.IdentifierExpr)) return null;
+        String ns = ((Ast.IdentifierExpr) m.target).name;
+        Map<String, Long> members = ENUMS.get(ns);
+        if (members == null) return null;
+        if (localVars.containsKey(ns) || signalParams.containsKey(ns)
+            || aliases.containsKey(ns) || declaredProps.containsKey(ns)
+            || idTypes.containsKey(ns)) {
+            return null;
+        }
+        return members.get(m.property);
+    }
+
+    private static final Map<String, Map<String, Long>> ENUMS = buildEnums();
+
+    private static Map<String, Map<String, Long>> buildEnums() {
+        Map<String, Map<String, Long>> e = new HashMap<>();
+
+        Map<String, Long> qt = new HashMap<>();
+        qt.put("Horizontal", 1L);
+        qt.put("Vertical", 2L);
+        qt.put("AlignLeft", 1L);
+        qt.put("AlignRight", 2L);
+        qt.put("AlignHCenter", 4L);
+        qt.put("AlignJustify", 8L);
+        qt.put("AlignTop", 32L);
+        qt.put("AlignBottom", 64L);
+        qt.put("AlignVCenter", 128L);
+        qt.put("AlignBaseline", 256L);
+        qt.put("AlignCenter", 132L); // AlignVCenter | AlignHCenter
+        e.put("Qt", qt);
+
+        Map<String, Long> text = new HashMap<>();
+        text.put("AlignLeft", 1L);
+        text.put("AlignRight", 2L);
+        text.put("AlignHCenter", 4L);
+        text.put("AlignJustify", 8L);
+        text.put("AlignTop", 32L);
+        text.put("AlignBottom", 64L);
+        text.put("AlignVCenter", 128L);
+        text.put("NoWrap", 0L);
+        text.put("WordWrap", 1L);
+        text.put("WrapAnywhere", 3L);
+        text.put("Wrap", 4L);
+        text.put("ElideNone", 0L);
+        text.put("ElideLeft", 1L);
+        text.put("ElideMiddle", 2L);
+        text.put("ElideRight", 3L);
+        e.put("Text", text);
+
+        Map<String, Long> font = new HashMap<>();
+        font.put("Thin", 0L);
+        font.put("ExtraLight", 12L);
+        font.put("Light", 25L);
+        font.put("Normal", 50L);
+        font.put("Medium", 57L);
+        font.put("DemiBold", 63L);
+        font.put("Bold", 75L);
+        font.put("ExtraBold", 81L);
+        font.put("Black", 87L);
+        font.put("MixedCase", 0L);
+        font.put("AllUppercase", 1L);
+        font.put("AllLowercase", 2L);
+        font.put("SmallCaps", 3L);
+        font.put("Capitalize", 4L);
+        e.put("Font", font);
+
+        // QEasingCurve::Type ordinals.
+        Map<String, Long> easing = new HashMap<>();
+        easing.put("Linear", 0L);
+        easing.put("InQuad", 1L);
+        easing.put("OutQuad", 2L);
+        easing.put("InOutQuad", 3L);
+        easing.put("OutInQuad", 4L);
+        easing.put("InCubic", 5L);
+        easing.put("OutCubic", 6L);
+        easing.put("InOutCubic", 7L);
+        easing.put("OutInCubic", 8L);
+        easing.put("InQuart", 9L);
+        easing.put("OutQuart", 10L);
+        easing.put("InOutQuart", 11L);
+        easing.put("InSine", 13L);
+        easing.put("OutSine", 14L);
+        easing.put("InOutSine", 15L);
+        easing.put("InBack", 29L);
+        easing.put("OutBack", 30L);
+        easing.put("InOutBack", 31L);
+        e.put("Easing", easing);
+
+        return e;
     }
 
     private void emitUnary(MethodVisitor mv, Ast.UnaryExpr u) {
