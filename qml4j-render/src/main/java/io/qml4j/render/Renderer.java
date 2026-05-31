@@ -481,18 +481,25 @@ public final class Renderer {
             }
             p.setMode(PaintMode.FILL);
         }
-        String s = tf.text.peek();
-        if (s == null || s.isEmpty()) {
-            String ph = tf.placeholderText.peek();
-            if (ph != null && !ph.isEmpty()) {
-                float size = tf.fontSize.peek().floatValue();
-                try (Font font = fontFor(size, ph)) {
-                    p.setColor(applyAlpha(parseColor(tf.placeholderColor.peek()), alpha));
-                    canvas.drawString(ph, 0, size, font, p);
+        float size = tf.fontSize.peek().floatValue();
+        float vcenter = (h + size * 0.7f) / 2f - size;
+        int tfSave = canvas.save();
+        try {
+            canvas.translate(0, vcenter);
+            String s = tf.text.peek();
+            if (s == null || s.isEmpty()) {
+                String ph = tf.placeholderText.peek();
+                if (ph != null && !ph.isEmpty()) {
+                    try (Font font = fontFor(size, ph)) {
+                        p.setColor(applyAlpha(parseColor(tf.placeholderColor.peek()), alpha));
+                        canvas.drawString(ph, 0, size, font, p);
+                    }
                 }
             }
+            paintTextInput(canvas, tf, w, h, alpha);
+        } finally {
+            canvas.restoreToCount(tfSave);
         }
-        paintTextInput(canvas, tf, w, h, alpha);
     }
 
     private void paintRectangle(Canvas canvas, Rectangle r, float w, float h, float alpha) {
