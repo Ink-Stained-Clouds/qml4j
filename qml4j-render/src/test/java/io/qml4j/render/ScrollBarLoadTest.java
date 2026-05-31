@@ -64,7 +64,7 @@ class ScrollBarLoadTest {
             "  Flickable { id: fl; x: 16; y: 56; width: 420; height: 240\n" +
             "    contentWidth: 420; contentHeight: 2000; clip: true }\n" +
             "  ScrollBar { target: fl; orientation: Qt.Vertical\n" +
-            "    x: fl.x + fl.width + 2; y: fl.y; height: fl.height }\n" +
+            "    width: 32; x: fl.x + fl.width - width; y: fl.y; height: fl.height }\n" +
             "}");
         assertFalse(root.children.isEmpty(), "showcase should instantiate");
     }

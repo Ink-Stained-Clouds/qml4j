@@ -55,7 +55,10 @@ Rectangle {
     ScrollBar {
         target: fl
         orientation: Qt.Vertical
-        x: fl.x + fl.width + 2
+        // Widen the (transparent) track so the touch target is finger-sized;
+        // the thumb stays thin and centred. ScrollBar.qml is unmodified.
+        width: 32
+        x: fl.x + fl.width - width
         y: fl.y
         height: fl.height
     }
