@@ -131,7 +131,7 @@ Rectangle {
         anchors.top: editorPanel.bottom
         anchors.bottom: parent.bottom
         contentWidth: parent.width
-        contentHeight: 9240
+        contentHeight: 9720
 
     Rectangle {
         x: 60
@@ -987,5 +987,7 @@ Rectangle {
     LayerEffectShowcase { }
 
     WindowShowcase { }
+
+    ControlsShowcase { }
     }
 }
