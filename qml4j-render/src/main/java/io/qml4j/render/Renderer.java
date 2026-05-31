@@ -426,6 +426,75 @@ public final class Renderer {
         if (ftr != null) draw(canvas, ftr, alpha);
     }
 
+    private void paintButton(Canvas canvas, Button b, float w, float h, float alpha) {
+        boolean enabled = !Boolean.FALSE.equals(b.enabled.peek());
+        boolean down = Boolean.TRUE.equals(b.isPressed.peek());
+        float a = enabled ? alpha : alpha * 0.5f;
+        float radius = Math.max(0f, b.radius.peek().floatValue());
+        int bg = parseColor(down ? b.downColor.peek() : b.color.peek());
+        Paint p = paint();
+        p.setShader(null);
+        p.setMode(PaintMode.FILL);
+        p.setColor(applyAlpha(bg, a));
+        if (radius > 0f) {
+            canvas.drawRRect(RRect.makeXYWH(0, 0, w, h, radius), p);
+        } else {
+            canvas.drawRect(Rect.makeXYWH(0, 0, w, h), p);
+        }
+        String label = b.text.peek();
+        if (label == null || label.isEmpty()) return;
+        float size = b.fontSize.peek().floatValue();
+        try (Font font = fontFor(size, label)) {
+            float tw = font.measureTextWidth(label);
+            float tx = (w - tw) / 2f;
+            float ty = (h + size * 0.7f) / 2f;
+            p.setColor(applyAlpha(parseColor(b.textColor.peek()), a));
+            canvas.drawString(label, tx, ty, font, p);
+        }
+    }
+
+    private void paintTextField(Canvas canvas, TextField tf, float w, float h, float alpha) {
+        float radius = Math.max(0f, tf.radius.peek().floatValue());
+        Paint p = paint();
+        p.setShader(null);
+        p.setMode(PaintMode.FILL);
+        p.setColor(applyAlpha(parseColor(tf.backgroundColor.peek()), alpha));
+        if (radius > 0f) {
+            canvas.drawRRect(RRect.makeXYWH(0, 0, w, h, radius), p);
+        } else {
+            canvas.drawRect(Rect.makeXYWH(0, 0, w, h), p);
+        }
+        float bw = Math.max(0f, tf.borderWidth.peek().floatValue());
+        if (bw > 0f) {
+            boolean focused = Boolean.TRUE.equals(tf.activeFocus.peek());
+            int bc = parseColor(focused ? tf.focusBorderColor.peek() : tf.borderColor.peek());
+            p.setMode(PaintMode.STROKE);
+            p.setStrokeWidth(bw);
+            p.setColor(applyAlpha(bc, alpha));
+            float inset = bw / 2f;
+            float iw = Math.max(0f, w - bw);
+            float ih = Math.max(0f, h - bw);
+            if (radius > 0f) {
+                canvas.drawRRect(RRect.makeXYWH(inset, inset, iw, ih, Math.max(0f, radius - inset)), p);
+            } else {
+                canvas.drawRect(Rect.makeXYWH(inset, inset, iw, ih), p);
+            }
+            p.setMode(PaintMode.FILL);
+        }
+        String s = tf.text.peek();
+        if (s == null || s.isEmpty()) {
+            String ph = tf.placeholderText.peek();
+            if (ph != null && !ph.isEmpty()) {
+                float size = tf.fontSize.peek().floatValue();
+                try (Font font = fontFor(size, ph)) {
+                    p.setColor(applyAlpha(parseColor(tf.placeholderColor.peek()), alpha));
+                    canvas.drawString(ph, 0, size, font, p);
+                }
+            }
+        }
+        paintTextInput(canvas, tf, w, h, alpha);
+    }
+
     private void paintRectangle(Canvas canvas, Rectangle r, float w, float h, float alpha) {
         float radius = Math.max(0f, r.radius.peek().floatValue());
         float borderWidth = Math.max(0f, r.border.width.peek().floatValue());
