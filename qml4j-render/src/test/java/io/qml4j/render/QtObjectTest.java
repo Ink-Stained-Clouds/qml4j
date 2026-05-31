@@ -93,7 +93,9 @@ class QtObjectTest {
         Object m = readProp(root, "m");
         try {
             Field vf = m.getClass().getField("v");
-            ((Property<?>) vf.get(m)).set(10);
+            @SuppressWarnings("unchecked")
+            Property<Object> vp = (Property<Object>) vf.get(m);
+            vp.set(10);
         } catch (Exception e) { throw new RuntimeException(e); }
         assertEquals(20L, readProp(root, "doubled"));
     }
