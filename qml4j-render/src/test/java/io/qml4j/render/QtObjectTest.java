@@ -62,6 +62,7 @@ class QtObjectTest {
         Map<String, byte[]> files = new HashMap<>();
         files.put("theme/Theme.qml",
             ("pragma Singleton\n" +
+             "import QtQuick\n" +
              "QtObject {\n" +
              "  property QtObject color: QtObject {\n" +
              "    property color primary: \"#ff8800\"\n" +
