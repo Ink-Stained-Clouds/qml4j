@@ -2,6 +2,7 @@ package io.qml4j.render;
 
 import io.qml4j.engine.DelegateFactory;
 import io.qml4j.engine.QObject;
+import io.qml4j.engine.binding.DirtyQueue;
 import io.qml4j.render.items.Column;
 import io.qml4j.render.items.Component;
 import io.qml4j.render.items.Flickable;
@@ -133,16 +134,32 @@ public final class Renderer {
         return false;
     }
 
+    // Max layout-settle iterations per frame. Converges multi-level implicit-size
+    // chains; capped so a pathological oscillating layout can't spin forever.
+    private static final int MAX_LAYOUT_PASSES = 8;
+
     public void render(Canvas canvas, Item root) {
         if (root == null) return;
+        settleLayout(root);
         draw(canvas, root, 1f);
     }
 
-    // Layout pre-pass: populate implicitWidth/Height (text/control measurement)
-    // across the whole tree so size-driven bindings can settle BEFORE painting.
-    // Without this, a node sized from a child's implicit size (e.g. a tooltip
-    // background bound to label.implicitWidth) paints one frame stale = a flash.
-    public void measure(Item node) {
+    // Run the layout pre-pass and flush size-driven bindings until the tree
+    // stops changing (or the cap is hit), so first-appearance layout is correct
+    // on the very frame a node becomes visible instead of flashing for one frame.
+    private void settleLayout(Item root) {
+        DirtyQueue dq = DirtyQueue.current();
+        for (int i = 0; i < MAX_LAYOUT_PASSES; i++) {
+            measure(root);
+            if (dq == null || dq.isEmpty()) break;
+            dq.flush();
+        }
+    }
+
+    // Layout pre-pass: populate implicitWidth/Height (text/control measurement),
+    // run implicit-size following, container layout and anchors across the whole
+    // tree so size-driven bindings can settle BEFORE painting.
+    private void measure(Item node) {
         if (node == null || !node.visible.peek()) return;
         if (node instanceof Text) measureText((Text) node);
         if (node instanceof Control) measureControl((Control) node);
