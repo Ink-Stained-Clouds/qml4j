@@ -1024,5 +1024,7 @@ Rectangle {
     ControlsShowcase { }
 
     QtObjectShowcase { }
+
+    ScrollBarShowcase { }
     }
 }

@@ -314,6 +314,40 @@ public final class RuntimeHelpers {
             "no method '" + name + "' with " + n + " args on " + cls.getName());
     }
 
+    // The JS Math global. Always returns a double, matching JS number semantics.
+    public static Object callMath(String name, Object[] a) {
+        switch (name) {
+            case "max": {
+                double r = Double.NEGATIVE_INFINITY;
+                for (Object o : a) r = Math.max(r, toNumber(o));
+                return r;
+            }
+            case "min": {
+                double r = Double.POSITIVE_INFINITY;
+                for (Object o : a) r = Math.min(r, toNumber(o));
+                return r;
+            }
+            case "abs":   return Math.abs(toNumber(a[0]));
+            case "floor": return Math.floor(toNumber(a[0]));
+            case "ceil":  return Math.ceil(toNumber(a[0]));
+            case "round": return (double) Math.round(toNumber(a[0]));
+            case "trunc": return (double) (long) toNumber(a[0]);
+            case "sign":  return Math.signum(toNumber(a[0]));
+            case "sqrt":  return Math.sqrt(toNumber(a[0]));
+            case "pow":   return Math.pow(toNumber(a[0]), toNumber(a[1]));
+            case "exp":   return Math.exp(toNumber(a[0]));
+            case "log":   return Math.log(toNumber(a[0]));
+            case "sin":   return Math.sin(toNumber(a[0]));
+            case "cos":   return Math.cos(toNumber(a[0]));
+            case "tan":   return Math.tan(toNumber(a[0]));
+            case "atan2": return Math.atan2(toNumber(a[0]), toNumber(a[1]));
+            case "hypot": return Math.hypot(toNumber(a[0]), toNumber(a[1]));
+            case "random": return Math.random();
+            default:
+                throw new UnsupportedOperationException("Math." + name + " is not supported");
+        }
+    }
+
     public static String stringify(Object v) {
         if (v == null) return "null";
         if (v instanceof String) return (String) v;

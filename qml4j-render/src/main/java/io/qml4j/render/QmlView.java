@@ -221,12 +221,17 @@ public final class QmlView {
     private static List<String> stringImportPrefixes(Ast.QmlDocument doc) {
         List<String> out = new ArrayList<>();
         for (Ast.ImportNode imp : doc.imports) {
-            if (!imp.isStringPath) continue;
             String p = imp.moduleOrPath;
             if (p == null) continue;
-            if (".".equals(p)) out.add("");
-            else if (p.startsWith("./")) out.add(p.substring(2));
-            else out.add(p);
+            if (imp.isStringPath) {
+                if (".".equals(p)) out.add("");
+                else if (p.startsWith("./")) out.add(p.substring(2));
+                else out.add(p);
+            } else {
+                // Module URI (import md3.Core) maps to a resource dir md3/Core.
+                // Built-in modules (QtQuick) just won't resolve any file.
+                out.add(p.replace('.', '/'));
+            }
         }
         return out;
     }

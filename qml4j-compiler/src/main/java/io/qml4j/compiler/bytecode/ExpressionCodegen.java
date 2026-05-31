@@ -644,6 +644,7 @@ final class ExpressionCodegen {
         }
         Ast.MemberExpr m = (Ast.MemberExpr) c.callee;
         if (tryEmitQtCall(mv, m, c.args)) return;
+        if (tryEmitMathCall(mv, m, c.args)) return;
         emit(mv, m.target);
         mv.visitLdcInsn(m.property);
         emitArgsArray(mv, c.args);
@@ -651,6 +652,24 @@ final class ExpressionCodegen {
                            "callMethod",
                            "(Ljava/lang/Object;Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/Object;",
                            false);
+    }
+
+    // The JS Math global: Math.max(...), Math.min(...), Math.floor(x), etc.
+    // Resolved at compile time unless `Math` is shadowed by a local binding.
+    private boolean tryEmitMathCall(MethodVisitor mv, Ast.MemberExpr m, java.util.List<Ast.Expression> args) {
+        if (!(m.target instanceof Ast.IdentifierExpr)) return false;
+        String ns = ((Ast.IdentifierExpr) m.target).name;
+        if (!"Math".equals(ns)) return false;
+        if (localVars.containsKey(ns) || signalParams.containsKey(ns)
+            || aliases.containsKey(ns) || declaredProps.containsKey(ns)
+            || idTypes.containsKey(ns)) {
+            return false;
+        }
+        mv.visitLdcInsn(m.property);
+        emitArgsArray(mv, args);
+        mv.visitMethodInsn(Opcodes.INVOKESTATIC, HELPERS_INTERNAL, "callMath",
+                           "(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/Object;", false);
+        return true;
     }
 
     private boolean tryEmitQtCall(MethodVisitor mv, Ast.MemberExpr m, java.util.List<Ast.Expression> args) {
