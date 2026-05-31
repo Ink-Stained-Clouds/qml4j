@@ -10,6 +10,7 @@ import io.qml4j.render.items.Item;
 import io.qml4j.render.items.KeyEvent;
 import io.qml4j.render.items.Keys;
 import io.qml4j.render.items.MouseArea;
+import io.qml4j.render.items.MouseEvent;
 import io.qml4j.render.items.PropertyAnimation;
 import io.qml4j.render.items.TextEditable;
 import io.qml4j.render.items.TextInput;
@@ -609,7 +610,7 @@ public final class QmlView {
             hit.mouseY.set(local[1]);
             hit.pressed.set(Boolean.TRUE);
             setContains(hit, true);
-            hit.pressedSignal.emit();
+            hit.pressedSignal.emit(new MouseEvent(local[0], local[1]));
             beginDragIfRequested(hit);
             return true;
         }
@@ -635,7 +636,7 @@ public final class QmlView {
             captured.mouseY.set(local[1]);
             setContains(captured, within(captured, local));
             applyDrag(x, y);
-            captured.positionChanged.emit();
+            captured.positionChanged.emit(new MouseEvent(local[0], local[1]));
             return true;
         }
         if (scrolling != null) {
@@ -693,11 +694,11 @@ public final class QmlView {
             target.pressed.set(Boolean.FALSE);
             setContains(target, false);
             endDrag(target);
-            target.released.emit();
+            target.released.emit(new MouseEvent(local[0], local[1]));
             boolean inside = local[0] >= 0 && local[1] >= 0
                 && local[0] <= target.width.peek().floatValue()
                 && local[1] <= target.height.peek().floatValue();
-            if (inside) target.clicked.emit();
+            if (inside) target.clicked.emit(new MouseEvent(local[0], local[1]));
             captured = null;
             return true;
         }

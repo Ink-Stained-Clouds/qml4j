@@ -379,21 +379,24 @@ public final class QmlCompiler {
                         "statement block only allowed as signal handler body: " + key);
                 }
                 if (isHandler) {
-                    Ast.Statement handlerBody = toStatement(b.value);
+                    Ast.ArrowFunctionExpr arrow = arrowHandler(b.value);
+                    List<String> handlerParams = arrow != null ? arrow.paramNames
+                        : (isCustomHandler ? customSignalParams.get(signalName) : null);
+                    Ast.Statement handlerBody = arrow != null ? arrowBody(arrow) : toStatement(b.value);
                     if (isCustomHandler) {
                         emitCustomSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
                                                 handlerCounter, bindingCounter, classes,
                                                 customSignalOwner, signalName, handlerBody, idTypes,
-                                                customSignalParams.get(signalName), declaredProps, aliases,
+                                                handlerParams, declaredProps, aliases,
                                                 rootFunctions);
                     } else if (isRelay) {
                         emitRelaySignalHandler(ctor, outerType, outerLocal, componentBinaryName,
                                                handlerCounter, bindingCounter, classes, signalName, handlerBody, idTypes,
-                                               declaredProps, aliases, rootFunctions);
+                                               handlerParams, declaredProps, aliases, rootFunctions);
                     } else {
                         emitSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
                                           handlerCounter, bindingCounter, classes, signalField, handlerBody, idTypes,
-                                          declaredProps, aliases, rootFunctions);
+                                          handlerParams, declaredProps, aliases, rootFunctions);
                     }
                     return;
                 }
@@ -1295,6 +1298,19 @@ public final class QmlCompiler {
         return new Ast.Block(Collections.<Ast.Statement>singletonList(new Ast.ExprStmt(expr)));
     }
 
+    // `onPressed: (mouse) => {...}` — Qt's typed handler form. The arrow's params
+    // bind to the signal args; its body becomes the handler body.
+    private static Ast.ArrowFunctionExpr arrowHandler(Ast.Value v) {
+        if (!(v instanceof Ast.ExpressionValue)) return null;
+        Ast.Expression e = ((Ast.ExpressionValue) v).expr;
+        return e instanceof Ast.ArrowFunctionExpr ? (Ast.ArrowFunctionExpr) e : null;
+    }
+
+    private static Ast.Statement arrowBody(Ast.ArrowFunctionExpr arrow) {
+        if (arrow.bodyBlock != null) return arrow.bodyBlock;
+        return new Ast.Block(Collections.<Ast.Statement>singletonList(new Ast.ExprStmt(arrow.bodyExpr)));
+    }
+
     private void emitCustomSignalHandler(MethodVisitor ctor, Class<? extends QObject> outerType,
                                          int outerLocal, String componentBinaryName,
                                          int[] handlerCounter, int[] bindingCounter, Map<String, byte[]> classes,
@@ -1334,6 +1350,7 @@ public final class QmlCompiler {
                                    int[] handlerCounter, int[] bindingCounter, Map<String, byte[]> classes,
                                    Field signalField, Ast.Statement body,
                                    Map<String, Class<? extends QObject>> idTypes,
+                                   List<String> signalParams,
                                    Map<String, String> declaredProps,
                                    Map<String, AliasRef> aliases,
                                    Map<String, Integer> rootFunctions) {
@@ -1347,7 +1364,7 @@ public final class QmlCompiler {
 
         byte[] handlerBytes = emitHandlerClass(handlerInternal, outerInternal, outerType, body,
                                                componentInternal, componentBinaryName, idTypes,
-                                               Collections.<String>emptyList(),
+                                               signalParams != null ? signalParams : Collections.<String>emptyList(),
                                                declaredProps, aliases, rootFunctions,
                                                bindingCounter, classes);
         classes.put(handlerBinaryName, handlerBytes);
@@ -1369,6 +1386,7 @@ public final class QmlCompiler {
                                         int[] handlerCounter, int[] bindingCounter, Map<String, byte[]> classes,
                                         String signalName, Ast.Statement body,
                                         Map<String, Class<? extends QObject>> idTypes,
+                                        List<String> signalParams,
                                         Map<String, String> declaredProps,
                                         Map<String, AliasRef> aliases,
                                         Map<String, Integer> rootFunctions) {
@@ -1381,7 +1399,7 @@ public final class QmlCompiler {
 
         byte[] handlerBytes = emitHandlerClass(handlerInternal, outerInternal, outerType, body,
                                                componentInternal, componentBinaryName, idTypes,
-                                               Collections.<String>emptyList(),
+                                               signalParams != null ? signalParams : Collections.<String>emptyList(),
                                                declaredProps, aliases, rootFunctions,
                                                bindingCounter, classes);
         classes.put(handlerBinaryName, handlerBytes);
