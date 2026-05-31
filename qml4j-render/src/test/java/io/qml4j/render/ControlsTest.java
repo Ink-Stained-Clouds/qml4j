@@ -159,6 +159,19 @@ class ControlsTest {
         assertEquals("#ffffff", ((TextField) root).backgroundColor.peek());
     }
 
+    @Test
+    void textFieldPlaceholderTextColorAndPadding() {
+        Item root = newView().load(
+            "TextField {\n" +
+            "  width: 200; height: 40\n" +
+            "  placeholderTextColor: \"#aabbcc\"\n" +
+            "  padding: 12\n" +
+            "}");
+        TextField tf = (TextField) root;
+        assertEquals("#aabbcc", tf.placeholderTextColor.peek());
+        assertEquals(12L, tf.padding.peek().longValue());
+    }
+
     private static Object readProp(Object o, String name) {
         try {
             Field f = o.getClass().getField(name);
