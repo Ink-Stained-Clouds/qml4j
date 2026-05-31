@@ -46,8 +46,12 @@ public final class QmlView {
     private final QmlCompiler compiler = new QmlCompiler();
     private final Renderer renderer = new Renderer();
     private final DirtyQueue dirty = new DirtyQueue();
+    // Keyed by resolved path (prefix/file), not bare type name: two modules may
+    // each export a `Theme`, and they must not collide in the cache.
     private final Map<String, Class<? extends QObject>> importedTypes = new HashMap<>();
-    private final Map<String, Class<? extends QObject>> resolvedSingletons = new HashMap<>();
+    // prefix -> (type name -> singleton class). Singletons are scoped to the
+    // import that brought them in, so a doc only sees its own modules' Themes.
+    private final Map<String, Map<String, Class<? extends QObject>>> singletonsByPrefix = new HashMap<>();
     private final Map<String, Map<String, QmldirEntry>> qmldirCache = new HashMap<>();
     private final Set<String> compilingNow = new HashSet<>();
     private ResourceLoader resources;
@@ -104,16 +108,12 @@ public final class QmlView {
         return (Item) inst;
     }
 
-    private TypeRegistry buildDocTypes(Ast.QmlDocument doc) {
+    private Class<? extends QObject> compileAndDefine(Ast.QmlDocument doc) {
         List<String> prefixes = stringImportPrefixes(doc);
-        return types.copy()
+        TypeRegistry docTypes = types.copy()
             .withResolver(name -> resolveCompound(name, prefixes))
             .withAliases(importAliases(doc));
-    }
-
-    private Class<? extends QObject> compileAndDefine(Ast.QmlDocument doc) {
-        TypeRegistry docTypes = buildDocTypes(doc);
-        registerKnownSingletons(docTypes);
+        registerKnownSingletons(docTypes, prefixes);
         CompiledUnit unit = compiler.compile(doc, docTypes);
         ClassLoaderBackend backend = engine.backend();
         Map<String, Class<?>> defined = backend.defineClasses(unit.classes());
@@ -130,39 +130,43 @@ public final class QmlView {
         return qc;
     }
 
-    private void registerKnownSingletons(TypeRegistry docTypes) {
-        for (Map.Entry<String, Class<? extends QObject>> e : resolvedSingletons.entrySet()) {
-            docTypes.registerSingleton(e.getKey(), e.getValue());
+    private void registerKnownSingletons(TypeRegistry docTypes, List<String> prefixes) {
+        for (String p : prefixes) {
+            Map<String, Class<? extends QObject>> m = singletonsByPrefix.get(p);
+            if (m == null) continue;
+            for (Map.Entry<String, Class<? extends QObject>> e : m.entrySet()) {
+                docTypes.registerSingleton(e.getKey(), e.getValue());
+            }
         }
     }
 
     private Class<? extends QObject> resolveCompound(String name, List<String> prefixes) {
-        Class<? extends QObject> cached = importedTypes.get(name);
-        if (cached != null) return cached;
         if (resources == null) return null;
         for (String p : prefixes) {
             QmldirEntry entry = loadQmldir(p).get(name);
             String relFile = entry != null ? entry.file : name + ".qml";
             String path = p.isEmpty() ? relFile : p + "/" + relFile;
+            Class<? extends QObject> cached = importedTypes.get(path);
+            if (cached != null) return cached;
             byte[] bytes = resources.load(path);
             if (bytes == null) continue;
-            if (!compilingNow.add(name)) {
-                throw new IllegalStateException("cyclic import: " + name);
+            if (!compilingNow.add(path)) {
+                throw new IllegalStateException("cyclic import: " + path);
             }
             try {
                 Ast.QmlDocument subDoc = Qml4j.parse(new String(bytes, StandardCharsets.UTF_8));
                 boolean singleton = (entry != null && entry.singleton) || subDoc.hasPragma("Singleton");
                 if (singleton) subDoc.addPragma("Singleton");
                 Class<? extends QObject> rootClass = compileAndDefine(subDoc);
-                importedTypes.put(name, rootClass);
+                importedTypes.put(path, rootClass);
                 if (singleton) {
-                    resolvedSingletons.put(name, rootClass);
+                    singletonsByPrefix.computeIfAbsent(p, k -> new HashMap<>()).put(name, rootClass);
                     TypeRegistry current = QmlCompiler.currentRegistry();
                     if (current != null) current.registerSingleton(name, rootClass);
                 }
                 return rootClass;
             } finally {
-                compilingNow.remove(name);
+                compilingNow.remove(path);
             }
         }
         return null;

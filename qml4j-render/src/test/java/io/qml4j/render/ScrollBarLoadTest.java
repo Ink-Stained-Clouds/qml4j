@@ -39,6 +39,9 @@ class ScrollBarLoadTest {
             "  Flickable { id: fl; contentWidth: 100; contentHeight: 2000 }\n" +
             "  ScrollBar { target: fl }\n" +
             "}");
+        io.qml4j.engine.binding.DirtyQueue dq = v.dirtyQueue();
+        dq.install();
+        try { dq.flush(); } finally { dq.uninstall(); }
         assertFalse(root.children.isEmpty(), "ScrollBar should instantiate");
     }
 
