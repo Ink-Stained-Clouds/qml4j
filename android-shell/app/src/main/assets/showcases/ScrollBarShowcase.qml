@@ -4,6 +4,8 @@ import md3.Core
 // Loads the UNMODIFIED third-party MD3 ScrollBar.qml. Flick the list: the
 // thumb tracks contentY and fades in while moving (no engine-specific code).
 Rectangle {
+    x: 60
+    y: 10120
     width: 880
     height: 320
     color: "#1c1c28"
