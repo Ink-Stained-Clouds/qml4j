@@ -471,8 +471,8 @@ Rectangle {
     }
 
     Text {
-        x: 700
-        y: 1715
+        x: 60
+        y: 1795
         text: "flick moving: " + scroll.moving
         color: "#a0a0c0"
         fontSize: 22
