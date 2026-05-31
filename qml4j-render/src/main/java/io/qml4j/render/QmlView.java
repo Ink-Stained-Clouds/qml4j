@@ -236,6 +236,7 @@ public final class QmlView {
     }
 
     private MouseArea captured;
+    private MouseArea hovered;
     private AbstractButton capturedButton;
     private float captureRootX;
     private float captureRootY;
@@ -598,6 +599,7 @@ public final class QmlView {
             hit.mouseX.set(local[0]);
             hit.mouseY.set(local[1]);
             hit.isPressed.set(Boolean.TRUE);
+            setContains(hit, true);
             hit.pressed.emit();
             beginDragIfRequested(hit);
             return true;
@@ -605,6 +607,7 @@ public final class QmlView {
         Flickable f = hitTestFlickable(root, x, y);
         if (f == null) return false;
         scrolling = f;
+        f.moving.set(Boolean.TRUE);
         captureRootX = x;
         captureRootY = y;
         scrollStartContentX = f.contentX.peek().floatValue();
@@ -621,6 +624,7 @@ public final class QmlView {
             float[] local = localCoords(captured, x, y);
             captured.mouseX.set(local[0]);
             captured.mouseY.set(local[1]);
+            setContains(captured, within(captured, local));
             applyDrag(x, y);
             captured.positionChanged.emit();
             return true;
@@ -629,7 +633,30 @@ public final class QmlView {
             applyScroll(x, y);
             return true;
         }
-        return false;
+        return updateHover(x, y);
+    }
+
+    private boolean updateHover(float x, float y) {
+        MouseArea hit = hitTestMouseArea(root, x, y);
+        MouseArea next = (hit != null && Boolean.TRUE.equals(hit.hoverEnabled.peek())) ? hit : null;
+        if (next == hovered) return next != null;
+        if (hovered != null) setContains(hovered, false);
+        hovered = next;
+        if (hovered != null) setContains(hovered, true);
+        return hovered != null;
+    }
+
+    // Toggles containsMouse and fires entered/exited only on a real transition.
+    private static void setContains(MouseArea ma, boolean inside) {
+        if (Boolean.valueOf(inside).equals(ma.containsMouse.peek())) return;
+        ma.containsMouse.set(inside);
+        (inside ? ma.entered : ma.exited).emit();
+    }
+
+    private static boolean within(MouseArea ma, float[] local) {
+        return local[0] >= 0 && local[1] >= 0
+            && local[0] <= ma.width.peek().floatValue()
+            && local[1] <= ma.height.peek().floatValue();
     }
 
     public boolean dispatchPointerUp(float x, float y) {
@@ -655,6 +682,7 @@ public final class QmlView {
             target.mouseX.set(local[0]);
             target.mouseY.set(local[1]);
             target.isPressed.set(Boolean.FALSE);
+            setContains(target, false);
             endDrag(target);
             target.released.emit();
             boolean inside = local[0] >= 0 && local[1] >= 0
@@ -666,6 +694,7 @@ public final class QmlView {
         }
         if (scrolling != null) {
             applyScroll(x, y);
+            scrolling.moving.set(Boolean.FALSE);
             scrolling = null;
             return true;
         }

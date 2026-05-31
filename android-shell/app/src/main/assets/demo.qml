@@ -448,6 +448,39 @@ Rectangle {
     }
 
     Rectangle {
+        id: hoverBox
+        x: 700
+        y: 1620
+        width: 240
+        height: 90
+        radius: 8
+        color: hoverMa.containsMouse ? "#5070ff" : "#303040"
+
+        MouseArea {
+            id: hoverMa
+            anchors.fill: parent
+            hoverEnabled: true
+        }
+
+        Text {
+            anchors.centerIn: parent
+            text: hoverMa.containsMouse ? "containsMouse" : "press me"
+            color: "#ffffff"
+            fontSize: 22
+        }
+    }
+
+    Text {
+        x: 700
+        y: 1715
+        text: "flick moving: " + scroll.moving
+        color: "#a0a0c0"
+        fontSize: 22
+        width: 300
+        height: 30
+    }
+
+    Rectangle {
         x: 60
         y: 1850
         width: 600
