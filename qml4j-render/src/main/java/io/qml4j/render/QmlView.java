@@ -598,9 +598,9 @@ public final class QmlView {
             float[] local = localCoords(hit, x, y);
             hit.mouseX.set(local[0]);
             hit.mouseY.set(local[1]);
-            hit.isPressed.set(Boolean.TRUE);
+            hit.pressed.set(Boolean.TRUE);
             setContains(hit, true);
-            hit.pressed.emit();
+            hit.pressedSignal.emit();
             beginDragIfRequested(hit);
             return true;
         }
@@ -681,7 +681,7 @@ public final class QmlView {
             float[] local = localCoords(target, x, y);
             target.mouseX.set(local[0]);
             target.mouseY.set(local[1]);
-            target.isPressed.set(Boolean.FALSE);
+            target.pressed.set(Boolean.FALSE);
             setContains(target, false);
             endDrag(target);
             target.released.emit();

@@ -1216,12 +1216,12 @@ class QmlViewTest {
             "  }\n" +
             "}");
         MouseArea ma = (MouseArea) root.children.get(0);
-        assertEquals(Boolean.FALSE, ma.isPressed.peek());
+        assertEquals(Boolean.FALSE, ma.pressed.peek());
         v.dispatchPointerDown(10, 10);
         assertEquals(1, (int) propLong(root, "presses"));
-        assertEquals(Boolean.TRUE, ma.isPressed.peek());
+        assertEquals(Boolean.TRUE, ma.pressed.peek());
         v.dispatchPointerUp(10, 10);
-        assertEquals(Boolean.FALSE, ma.isPressed.peek());
+        assertEquals(Boolean.FALSE, ma.pressed.peek());
     }
 
     @Test
@@ -1310,7 +1310,7 @@ class QmlViewTest {
         QmlView v = newView();
         Item root = v.load(
             "Rectangle { id: r; width: 100; height: 100\n" +
-            "  color: pad.isPressed ? \"#00ff00\" : \"#ff0000\"\n" +
+            "  color: pad.pressed ? \"#00ff00\" : \"#ff0000\"\n" +
             "  MouseArea { id: pad; width: 100; height: 100 }\n" +
             "}");
         Rectangle r = (Rectangle) root;
@@ -1523,7 +1523,7 @@ class QmlViewTest {
         Flickable f = (Flickable) root;
         MouseArea ma = (MouseArea) f.children.get(0);
         v.dispatchPointerDown(40, 20);
-        assertEquals(Boolean.TRUE, ma.isPressed.peek());
+        assertEquals(Boolean.TRUE, ma.pressed.peek());
         assertEquals(10f, ma.mouseX.peek().floatValue());
         assertEquals(10f, ma.mouseY.peek().floatValue());
     }

@@ -431,7 +431,7 @@ Rectangle {
         y: 1720
         width: 360
         height: 120
-        color: pad.isPressed ? "#406040" : "#303040"
+        color: pad.pressed ? "#406040" : "#303040"
 
         MouseArea {
             id: pad
@@ -441,7 +441,7 @@ Rectangle {
         Text {
             x: 12
             y: 12
-            text: pad.isPressed ? "drag: x=" + pad.mouseX + " y=" + pad.mouseY : "press & drag here"
+            text: pad.pressed ? "drag: x=" + pad.mouseX + " y=" + pad.mouseY : "press & drag here"
             color: "#ffffff"
             fontSize: 22
         }

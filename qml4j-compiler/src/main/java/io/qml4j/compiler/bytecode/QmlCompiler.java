@@ -366,6 +366,11 @@ public final class QmlCompiler {
                 boolean isCustomHandler = signalName != null && customSignals.contains(signalName);
                 Field signalField = (signalName != null && !isCustomHandler)
                     ? findSignalFieldOrNull(outerType, signalName) : null;
+                // A signal whose name collides with a same-named property (Qt's
+                // MouseArea.pressed) is declared as <name>Signal; fall back to it.
+                if (signalField == null && signalName != null && !isCustomHandler) {
+                    signalField = findSignalFieldOrNull(outerType, signalName + "Signal");
+                }
                 boolean isRelay = signalName != null && !isCustomHandler && signalField == null
                     && SignalRelay.class.isAssignableFrom(outerType);
                 boolean isHandler = isCustomHandler || signalField != null || isRelay;

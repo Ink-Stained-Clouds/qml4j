@@ -5,13 +5,16 @@ import io.qml4j.engine.binding.Property;
 
 public class MouseArea extends Item {
     public final Signal clicked = new Signal();
-    public final Signal pressed = new Signal();
+    // Qt names both a bool property `pressed` and a press signal `pressed(mouse)`.
+    // Java can't share the field name, so the signal lives under pressedSignal;
+    // the onPressed handler resolves to it via the <name>Signal fallback.
+    public final Signal pressedSignal = new Signal();
     public final Signal released = new Signal();
     public final Signal positionChanged = new Signal();
     public final Signal entered = new Signal();
     public final Signal exited = new Signal();
 
-    public final Property<Boolean> isPressed = new Property<>(Boolean.FALSE);
+    public final Property<Boolean> pressed = new Property<>(Boolean.FALSE);
     public final Property<Boolean> hoverEnabled = new Property<>(Boolean.FALSE);
     public final Property<Boolean> containsMouse = new Property<>(Boolean.FALSE);
     public final Property<Number> mouseX = new Property<>(0);
