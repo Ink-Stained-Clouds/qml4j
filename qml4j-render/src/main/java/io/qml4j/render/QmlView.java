@@ -1,5 +1,6 @@
 package io.qml4j.render;
 
+import io.qml4j.render.items.AbstractButton;
 import io.qml4j.render.items.Animatable;
 import io.qml4j.render.items.Drag;
 import io.qml4j.render.items.Flickable;
@@ -235,6 +236,7 @@ public final class QmlView {
     }
 
     private MouseArea captured;
+    private AbstractButton capturedButton;
     private float captureRootX;
     private float captureRootY;
     private Item dragTarget;
@@ -579,6 +581,14 @@ public final class QmlView {
             return true;
         }
         if (focused instanceof TextEditable) clearFocus();
+        AbstractButton btn = hitTestButton(root, x, y);
+        if (btn != null) {
+            capturedButton = btn;
+            captureRootX = x;
+            captureRootY = y;
+            if (!Boolean.FALSE.equals(btn.enabled.peek())) btn.press();
+            return true;
+        }
         MouseArea hit = hitTestMouseArea(root, x, y);
         if (hit != null) {
             captured = hit;
@@ -626,6 +636,17 @@ public final class QmlView {
         if (textCapturing != null) {
             extendTextSelection(x, y);
             textCapturing = null;
+            return true;
+        }
+        if (capturedButton != null) {
+            AbstractButton b = capturedButton;
+            capturedButton = null;
+            if (Boolean.FALSE.equals(b.enabled.peek())) return true;
+            float[] local = localCoords(b, x, y);
+            boolean inside = local[0] >= 0 && local[1] >= 0
+                && local[0] <= b.width.peek().floatValue()
+                && local[1] <= b.height.peek().floatValue();
+            if (inside) b.releaseInside(); else b.releaseOutside();
             return true;
         }
         if (captured != null) {
@@ -786,6 +807,30 @@ public final class QmlView {
             if (hit != null) return hit;
         }
         return item instanceof TextEditable ? (TextEditable) item : null;
+    }
+
+    private AbstractButton hitTestButton(Item item, float x, float y) {
+        if (!item.visible.peek()) return null;
+        float ix = item.x.peek().floatValue();
+        float iy = item.y.peek().floatValue();
+        float w = item.width.peek().floatValue();
+        float h = item.height.peek().floatValue();
+        float lx = x - ix;
+        float ly = y - iy;
+        if (lx < 0 || ly < 0 || lx > w || ly > h) return null;
+        float childLx = lx;
+        float childLy = ly;
+        if (item instanceof Flickable) {
+            Flickable f = (Flickable) item;
+            childLx += f.contentX.peek().floatValue();
+            childLy += f.contentY.peek().floatValue();
+        }
+        List<Item> ordered = zOrdered(item.children);
+        for (int i = ordered.size() - 1; i >= 0; i--) {
+            AbstractButton hit = hitTestButton(ordered.get(i), childLx, childLy);
+            if (hit != null) return hit;
+        }
+        return item instanceof AbstractButton ? (AbstractButton) item : null;
     }
 
     private MouseArea hitTestMouseArea(Item item, float x, float y) {

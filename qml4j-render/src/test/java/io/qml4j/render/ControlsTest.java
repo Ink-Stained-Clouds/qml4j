@@ -49,9 +49,68 @@ class ControlsTest {
             "}");
         Button b = (Button) root.children.get(0);
         v.dispatchPointerDown(20, 20);
-        assertTrue(b.isPressed.peek());
+        assertTrue(b.down.peek());
         v.dispatchPointerUp(20, 20);
-        assertEquals(Boolean.FALSE, b.isPressed.peek());
+        assertEquals(Boolean.FALSE, b.down.peek());
+    }
+
+    @Test
+    void checkableButtonToggles() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  Button { x: 0; y: 0; width: 100; height: 40; text: \"t\"; checkable: true }\n" +
+            "}");
+        Button b = (Button) root.children.get(0);
+        assertEquals(Boolean.FALSE, b.checked.peek());
+        v.dispatchPointerDown(20, 20);
+        v.dispatchPointerUp(20, 20);
+        assertTrue(b.checked.peek());
+        v.dispatchPointerDown(20, 20);
+        v.dispatchPointerUp(20, 20);
+        assertEquals(Boolean.FALSE, b.checked.peek());
+    }
+
+    @Test
+    void releaseOutsideDoesNotClick() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 300; height: 200\n" +
+            "  Button {\n" +
+            "    x: 0; y: 0; width: 100; height: 40; text: \"x\"\n" +
+            "    property int taps: 0\n" +
+            "    onClicked: taps = taps + 1\n" +
+            "  }\n" +
+            "}");
+        Button b = (Button) root.children.get(0);
+        v.dispatchPointerDown(20, 20);
+        v.dispatchPointerUp(250, 150);
+        assertEquals(0L, readProp(b, "taps"));
+        assertEquals(Boolean.FALSE, b.down.peek());
+    }
+
+    @Test
+    void disabledButtonNoClick() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  Button {\n" +
+            "    x: 0; y: 0; width: 100; height: 40; text: \"x\"; enabled: false\n" +
+            "    property int taps: 0\n" +
+            "    onClicked: taps = taps + 1\n" +
+            "  }\n" +
+            "}");
+        Button b = (Button) root.children.get(0);
+        v.dispatchPointerDown(20, 20);
+        v.dispatchPointerUp(20, 20);
+        assertEquals(0L, readProp(b, "taps"));
+    }
+
+    @Test
+    void buttonIsControl() {
+        Item root = newView().load("Button { text: \"k\" }");
+        assertInstanceOf(io.qml4j.render.items.Control.class, root);
+        assertInstanceOf(io.qml4j.render.items.AbstractButton.class, root);
     }
 
     @Test

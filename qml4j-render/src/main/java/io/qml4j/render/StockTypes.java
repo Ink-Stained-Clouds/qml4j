@@ -47,7 +47,9 @@ import io.qml4j.render.items.Timer;
 import io.qml4j.render.items.Transition;
 import io.qml4j.render.items.Window;
 import io.qml4j.render.items.ApplicationWindow;
+import io.qml4j.render.items.AbstractButton;
 import io.qml4j.render.items.Button;
+import io.qml4j.render.items.Control;
 import io.qml4j.render.items.Label;
 import io.qml4j.render.items.TextField;
 
@@ -106,6 +108,8 @@ public final class StockTypes {
             .register("TextEdit", TextEdit.class)
             .register("Window", Window.class)
             .register("ApplicationWindow", ApplicationWindow.class)
+            .register("Control", Control.class)
+            .register("AbstractButton", AbstractButton.class)
             .register("Button", Button.class)
             .register("Label", Label.class)
             .register("TextField", TextField.class);

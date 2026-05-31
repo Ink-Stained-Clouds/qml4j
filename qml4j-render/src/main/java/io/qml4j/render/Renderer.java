@@ -428,7 +428,7 @@ public final class Renderer {
 
     private void paintButton(Canvas canvas, Button b, float w, float h, float alpha) {
         boolean enabled = !Boolean.FALSE.equals(b.enabled.peek());
-        boolean down = Boolean.TRUE.equals(b.isPressed.peek());
+        boolean down = Boolean.TRUE.equals(b.down.peek()) || Boolean.TRUE.equals(b.checked.peek());
         float a = enabled ? alpha : alpha * 0.5f;
         float radius = Math.max(0f, b.radius.peek().floatValue());
         int bg = parseColor(down ? b.downColor.peek() : b.color.peek());
