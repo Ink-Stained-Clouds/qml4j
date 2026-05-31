@@ -483,15 +483,16 @@ public final class Renderer {
         }
         float size = tf.fontSize.peek().floatValue();
         float vcenter = (h + size * 0.7f) / 2f - size;
+        float pad = tf.padding.peek().floatValue();
         int tfSave = canvas.save();
         try {
-            canvas.translate(0, vcenter);
+            canvas.translate(pad, vcenter);
             String s = tf.text.peek();
             if (s == null || s.isEmpty()) {
                 String ph = tf.placeholderText.peek();
                 if (ph != null && !ph.isEmpty()) {
                     try (Font font = fontFor(size, ph)) {
-                        p.setColor(applyAlpha(parseColor(tf.placeholderColor.peek()), alpha));
+                        p.setColor(applyAlpha(parseColor(tf.placeholderTextColor.peek()), alpha));
                         canvas.drawString(ph, 0, size, font, p);
                     }
                 }
@@ -730,6 +731,9 @@ public final class Renderer {
 
     public int caretIndexFor(TextInput ti, float localX) {
         String s = ti.text.peek();
+        if (ti instanceof TextField) {
+            localX -= ((TextField) ti).padding.peek().floatValue();
+        }
         if (s == null || s.isEmpty() || localX <= 0) return 0;
         float size = ti.fontSize.peek().floatValue();
         try (Font font = fontFor(size, s)) {
