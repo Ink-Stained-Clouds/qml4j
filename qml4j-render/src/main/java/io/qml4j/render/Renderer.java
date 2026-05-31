@@ -16,6 +16,7 @@ import io.qml4j.render.items.DropShadow;
 import io.qml4j.render.items.Glow;
 import io.qml4j.render.items.ApplicationWindow;
 import io.qml4j.render.items.Button;
+import io.qml4j.render.items.Control;
 import io.qml4j.render.items.MouseArea;
 import io.qml4j.render.items.TextField;
 import io.qml4j.render.items.PathArc;
@@ -140,6 +141,7 @@ public final class Renderer {
     private void draw(Canvas canvas, Item node, float inheritedAlpha) {
         if (!node.visible.peek()) return;
         if (node instanceof Text) measureText((Text) node);
+        if (node instanceof Control) measureControl((Control) node);
         applyAnchors(node);
         if (node instanceof Loader) {
             resolveLoader((Loader) node);
@@ -252,6 +254,57 @@ public final class Renderer {
         }
         t.lastMeasuredText = s;
         t.lastMeasuredSize = size;
+    }
+
+    private void measureControl(Control c) {
+        float iw, ih;
+        if (c instanceof Button) {
+            Button b = (Button) c;
+            float size = b.fontSize.peek().floatValue();
+            String label = b.text.peek();
+            float tw;
+            if (label == null || label.isEmpty()) {
+                tw = 0f;
+            } else {
+                try (Font font = fontFor(size, label)) {
+                    tw = font.measureTextWidth(label);
+                }
+            }
+            float hp = horizontalPad(c, 16f);
+            float vp = verticalPad(c, 10f);
+            iw = tw + 2f * hp;
+            ih = size + 2f * vp;
+        } else {
+            return;
+        }
+        if (!c.width.isBound() && ownsControlWidth(c)) {
+            c.width.set(iw);
+            c.lastImplicitWidth = iw;
+        }
+        if (!c.height.isBound() && ownsControlHeight(c)) {
+            c.height.set(ih);
+            c.lastImplicitHeight = ih;
+        }
+    }
+
+    private static float horizontalPad(Control c, float fallback) {
+        float p = c.padding.peek().floatValue();
+        return p > 0f ? p : fallback;
+    }
+
+    private static float verticalPad(Control c, float fallback) {
+        float p = c.padding.peek().floatValue();
+        return p > 0f ? p : fallback;
+    }
+
+    private static boolean ownsControlWidth(Control c) {
+        if (Double.isNaN(c.lastImplicitWidth)) return c.width.peek().doubleValue() == 0.0;
+        return c.width.peek().doubleValue() == c.lastImplicitWidth;
+    }
+
+    private static boolean ownsControlHeight(Control c) {
+        if (Double.isNaN(c.lastImplicitHeight)) return c.height.peek().doubleValue() == 0.0;
+        return c.height.peek().doubleValue() == c.lastImplicitHeight;
     }
 
     private static String[] splitLines(String s) {

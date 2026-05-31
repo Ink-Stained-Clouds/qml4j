@@ -113,6 +113,19 @@ class ControlsTest {
         assertInstanceOf(io.qml4j.render.items.AbstractButton.class, root);
     }
 
+    // NOTE: implicit sizing (measureControl) needs font measurement via native
+    // Skija, which is unavailable in the JVM unit-test env (no libskija.so) — the
+    // same reason Text auto-measure has no unit test. Verified on-device instead.
+    // Here we only assert the non-render contract: explicit size is preserved.
+    @Test
+    void explicitButtonSizePreserved() {
+        Item root = newView().load(
+            "Item { width: 400; height: 200\n  Button { text: \"Hello\"; width: 222; height: 55 }\n}");
+        Button b = (Button) root.children.get(0);
+        assertEquals(222L, b.width.peek().longValue());
+        assertEquals(55L, b.height.peek().longValue());
+    }
+
     @Test
     void buttonDefaults() {
         Item root = newView().load("Button { text: \"k\" }");
