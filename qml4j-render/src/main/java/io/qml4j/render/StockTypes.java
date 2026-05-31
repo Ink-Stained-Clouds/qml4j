@@ -52,6 +52,7 @@ import io.qml4j.render.items.Button;
 import io.qml4j.render.items.Control;
 import io.qml4j.render.items.Label;
 import io.qml4j.render.items.TextField;
+import io.qml4j.engine.QtObject;
 
 import io.qml4j.compiler.TypeRegistry;
 
@@ -112,6 +113,7 @@ public final class StockTypes {
             .register("AbstractButton", AbstractButton.class)
             .register("Button", Button.class)
             .register("Label", Label.class)
-            .register("TextField", TextField.class);
+            .register("TextField", TextField.class)
+            .register("QtObject", QtObject.class);
     }
 }

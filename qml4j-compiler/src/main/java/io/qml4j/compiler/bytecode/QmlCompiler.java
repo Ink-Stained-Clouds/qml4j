@@ -451,7 +451,9 @@ public final class QmlCompiler {
         if (m instanceof Ast.PropertyDeclaration) {
             emitPropertyDeclarationInitializer(ctor, outerType, outerLocal, componentBinaryName,
                                                bindingCounter, classes, (Ast.PropertyDeclaration) m,
-                                               idTypes, declaredProps, aliases, rootFunctions);
+                                               idTypes, declaredProps, aliases, rootFunctions,
+                                               registry, localCounter, handlerCounter,
+                                               customSignalParams);
             return;
         }
         if (m instanceof Ast.FunctionDeclaration) {
@@ -468,12 +470,23 @@ public final class QmlCompiler {
                                                     Map<String, Class<? extends QObject>> idTypes,
                                                     Map<String, String> declaredProps,
                                                     Map<String, AliasRef> aliases,
-                                                    Map<String, Integer> rootFunctions) {
+                                                    Map<String, Integer> rootFunctions,
+                                                    TypeRegistry registry, int[] localCounter,
+                                                    int[] handlerCounter,
+                                                    Map<String, List<String>> customSignalParams) {
         if ("alias".equals(pd.typeName)) return;
         if (pd.initializer == null) return;
+        if (pd.initializer instanceof Ast.ObjectValue) {
+            emitObjectValueAssignment(ctor, outerType, outerLocal,
+                                      ((Ast.ObjectValue) pd.initializer).object, registry,
+                                      localCounter, bindingCounter, handlerCounter, classes,
+                                      componentBinaryName, idTypes, customSignalParams,
+                                      pd.name, declaredProps, rootFunctions);
+            return;
+        }
         if (!(pd.initializer instanceof Ast.ExpressionValue)) {
             throw new UnsupportedOperationException(
-                "only expression initializer supported for property: " + pd.name);
+                "only expression/object initializer supported for property: " + pd.name);
         }
         String ownerInternal = declaredProps.get(pd.name);
         if (ownerInternal == null) {

@@ -131,7 +131,7 @@ Rectangle {
         anchors.top: editorPanel.bottom
         anchors.bottom: parent.bottom
         contentWidth: parent.width
-        contentHeight: 9720
+        contentHeight: 10160
 
     Rectangle {
         x: 60
@@ -989,5 +989,7 @@ Rectangle {
     WindowShowcase { }
 
     ControlsShowcase { }
+
+    QtObjectShowcase { }
     }
 }
