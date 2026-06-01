@@ -4,6 +4,7 @@ import io.qml4j.engine.DelegateFactory;
 import io.qml4j.engine.QObject;
 import io.qml4j.engine.binding.DirtyQueue;
 import io.qml4j.render.items.Column;
+import io.qml4j.render.items.ColumnLayout;
 import io.qml4j.render.items.Component;
 import io.qml4j.render.items.Flickable;
 import io.qml4j.render.items.Gradient;
@@ -30,6 +31,7 @@ import io.qml4j.render.items.Rectangle;
 import io.qml4j.render.items.Shape;
 import io.qml4j.render.items.ShapePath;
 import io.qml4j.render.items.Row;
+import io.qml4j.render.items.RowLayout;
 import io.qml4j.render.items.Text;
 import io.qml4j.render.items.TextEdit;
 import io.qml4j.render.items.TextInput;
@@ -164,10 +166,17 @@ public final class Renderer {
         if (node instanceof Text) measureText((Text) node);
         if (node instanceof Control) measureControl((Control) node);
         followImplicitSize(node);
-        if (node instanceof Column) ((Column) node).layout();
-        if (node instanceof Row) ((Row) node).layout();
-        applyAnchors(node);
+        // Children first so a container can size itself from their measured sizes.
         for (Item child : node.children) measure(child);
+        runLayout(node);
+        applyAnchors(node);
+    }
+
+    private static void runLayout(Item node) {
+        if (node instanceof Column) ((Column) node).layout();
+        else if (node instanceof Row) ((Row) node).layout();
+        else if (node instanceof RowLayout) ((RowLayout) node).layout();
+        else if (node instanceof ColumnLayout) ((ColumnLayout) node).layout();
     }
 
     private void draw(Canvas canvas, Item node, float inheritedAlpha) {
@@ -179,12 +188,7 @@ public final class Renderer {
         if (node instanceof Loader) {
             resolveLoader((Loader) node);
         }
-        if (node instanceof Column) {
-            ((Column) node).layout();
-        }
-        if (node instanceof Row) {
-            ((Row) node).layout();
-        }
+        runLayout(node);
         float x = node.x.peek().floatValue();
         float y = node.y.peek().floatValue();
         float w = node.width.peek().floatValue();

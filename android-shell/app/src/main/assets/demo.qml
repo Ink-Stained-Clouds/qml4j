@@ -131,7 +131,7 @@ Rectangle {
         anchors.top: editorPanel.bottom
         anchors.bottom: parent.bottom
         contentWidth: parent.width
-        contentHeight: 10760
+        contentHeight: 11100
 
     Rectangle {
         x: 60
@@ -1028,5 +1028,7 @@ Rectangle {
     ScrollBarShowcase { }
 
     ToolTipShowcase { }
+
+    LayoutShowcase { }
     }
 }

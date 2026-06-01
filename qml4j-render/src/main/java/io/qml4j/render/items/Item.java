@@ -28,6 +28,8 @@ public class Item extends QObject {
     public final Property<Item> parent = new Property<>(null);
     public final List<Item> children = new ArrayList<>();
     public final Anchors anchors = new Anchors();
+    // QtQuick.Layouts attached props (Layout.fillWidth, Layout.leftMargin, ...).
+    public final LayoutAttached Layout = new LayoutAttached();
 
     public final Property<AnchorLine> left = new Property<>(new AnchorLine(this, AnchorLine.Edge.LEFT));
     public final Property<AnchorLine> right = new Property<>(new AnchorLine(this, AnchorLine.Edge.RIGHT));
