@@ -10,6 +10,7 @@ public class Text extends Item {
     public final Property<Number> wrapMode = new Property<>(0);            // Text.NoWrap
     public final Property<Number> horizontalAlignment = new Property<>(1); // Text.AlignLeft
     public final Property<Number> verticalAlignment = new Property<>(32);  // Text.AlignTop
+    public final Property<Number> elide = new Property<>(0);                // Text.ElideNone
 
     // Effective pixel size: Qt's font.pixelSize wins when set, else flat fontSize.
     public float effectiveFontSize() {

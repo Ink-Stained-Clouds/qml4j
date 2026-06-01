@@ -505,13 +505,25 @@ public final class Renderer {
             String s = t.text.peek();
             if (s == null || s.isEmpty()) return;
             String[] lines = splitLines(s);
+            boolean elideRight = t.elide.peek().intValue() == 3; // Text.ElideRight
             try (Font font = fontFor(size, s)) {
                 for (int i = 0; i < lines.length; i++) {
                     if (lines[i].isEmpty()) continue;
-                    canvas.drawString(lines[i], 0, size * (i + 1), font, paint);
+                    String line = elideRight ? elideToWidth(lines[i], font, w) : lines[i];
+                    canvas.drawString(line, 0, size * (i + 1), font, paint);
                 }
             }
         }
+    }
+
+    // Truncate with a trailing ellipsis so the line fits within maxWidth (Text.ElideRight).
+    private static String elideToWidth(String line, Font font, float maxWidth) {
+        if (maxWidth <= 0 || font.measureTextWidth(line) <= maxWidth) return line;
+        String ell = "…";
+        float ellW = font.measureTextWidth(ell);
+        int end = line.length();
+        while (end > 0 && font.measureTextWidth(line.substring(0, end)) + ellW > maxWidth) end--;
+        return line.substring(0, end) + ell;
     }
 
     private void paintWindow(Canvas canvas, Window win, float w, float h, float alpha) {

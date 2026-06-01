@@ -6,7 +6,7 @@ Rectangle {
     x: 60
     y: 11100
     width: 880
-    height: 150
+    height: 200
     color: "#1c1c28"
 
     readonly property string base: "#5070ff"
@@ -34,5 +34,14 @@ Rectangle {
                            Qt.color(parent.parent.base).b, 0.4)
             Text { anchors.centerIn: parent; text: "alpha 0.4"; color: "#ffffff"; fontSize: 20 }
         }
+    }
+
+    // Text.ElideRight: a long string clipped to a fixed width with an ellipsis.
+    Text {
+        x: 16; y: 140
+        width: 360; height: 28
+        text: "This caption is far too long to fit in its box"
+        elide: Text.ElideRight
+        color: "#a0c0ff"; fontSize: 22
     }
 }
