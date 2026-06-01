@@ -688,6 +688,13 @@ final class ExpressionCodegen {
             case "hsla":
                 emitQtFourArg(mv, args, "qtHsla");
                 return true;
+            case "color":
+                if (args.size() != 1) {
+                    throw new IllegalArgumentException("Qt.color expects 1 argument, got " + args.size());
+                }
+                emit(mv, args.get(0));
+                callQtHelper(mv, "qtColor", "(Ljava/lang/Object;)Ljava/lang/Object;");
+                return true;
             default:
                 throw new UnsupportedOperationException("Qt." + m.property + " is not supported");
         }

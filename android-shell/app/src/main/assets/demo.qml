@@ -131,7 +131,7 @@ Rectangle {
         anchors.top: editorPanel.bottom
         anchors.bottom: parent.bottom
         contentWidth: parent.width
-        contentHeight: 11100
+        contentHeight: 11320
 
     Rectangle {
         x: 60
@@ -1030,5 +1030,7 @@ Rectangle {
     ToolTipShowcase { }
 
     LayoutShowcase { }
+
+    ColorShowcase { }
     }
 }

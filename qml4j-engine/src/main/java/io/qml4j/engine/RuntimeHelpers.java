@@ -409,6 +409,35 @@ public final class RuntimeHelpers {
         throw new IllegalArgumentException("not callable: " + callee.getClass().getName());
     }
 
+    // Qt.color(str): parse a #rgb / #rrggbb / #aarrggbb color into channels 0..1.
+    public static Object qtColor(Object v) {
+        if (v instanceof QColor) return v;
+        String s = String.valueOf(v).trim();
+        if (s.startsWith("#")) s = s.substring(1);
+        long bits;
+        try {
+            bits = Long.parseLong(s, 16);
+        } catch (NumberFormatException e) {
+            return new QColor(0, 0, 0, 1);
+        }
+        int r, g, b, a = 255;
+        if (s.length() == 3) {
+            r = (int) ((bits >> 8) & 0xF) * 17;
+            g = (int) ((bits >> 4) & 0xF) * 17;
+            b = (int) (bits & 0xF) * 17;
+        } else if (s.length() == 8) {
+            a = (int) ((bits >> 24) & 0xFF);
+            r = (int) ((bits >> 16) & 0xFF);
+            g = (int) ((bits >> 8) & 0xFF);
+            b = (int) (bits & 0xFF);
+        } else {
+            r = (int) ((bits >> 16) & 0xFF);
+            g = (int) ((bits >> 8) & 0xFF);
+            b = (int) (bits & 0xFF);
+        }
+        return new QColor(r / 255.0, g / 255.0, b / 255.0, a / 255.0);
+    }
+
     public static Object qtRgba(Object r, Object g, Object b, Object a) {
         int ri = clampByte((int) Math.round(toNumber(r) * 255.0));
         int gi = clampByte((int) Math.round(toNumber(g) * 255.0));

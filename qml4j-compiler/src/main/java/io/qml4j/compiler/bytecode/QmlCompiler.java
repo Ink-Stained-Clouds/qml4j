@@ -1841,9 +1841,12 @@ public final class QmlCompiler {
         for (Ast.ObjectMember m : obj.members) {
             if (!(m instanceof Ast.PropertyDeclaration)) continue;
             Ast.PropertyDeclaration pd = (Ast.PropertyDeclaration) m;
-            if (pd.isDefault || pd.isRequired || pd.isReadonly) {
+            // readonly/required are accepted as plain properties (v0 doesn't
+            // enforce immutability or instantiation-time requirement). `default`
+            // needs child-redirection machinery and isn't supported yet.
+            if (pd.isDefault) {
                 throw new UnsupportedOperationException(
-                    "default/required/readonly modifiers not supported: " + pd.name);
+                    "default property modifier not supported: " + pd.name);
             }
             if (!seen.add(pd.name)) {
                 throw new IllegalArgumentException("duplicate property declaration: " + pd.name);

@@ -22,6 +22,11 @@ QtObject {
             property int size: 14
             property int weight: 57
         }
+        property QtObject titleLarge: QtObject {
+            property string family: "Roboto"
+            property int size: 22
+            property int weight: 50
+        }
     }
     property QtObject shape: QtObject {
         property int extraSmall: 4

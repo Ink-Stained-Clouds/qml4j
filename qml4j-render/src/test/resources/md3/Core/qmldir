@@ -1,3 +1,5 @@
 singleton Theme 1.0 Theme.qml
 ScrollBar 1.0 ScrollBar.qml
 ToolTip 1.0 ToolTip.qml
+TopAppBar 1.0 TopAppBar.qml
+IconButton 1.0 IconButton.qml
