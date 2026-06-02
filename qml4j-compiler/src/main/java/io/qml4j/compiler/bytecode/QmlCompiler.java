@@ -400,8 +400,16 @@ public final class QmlCompiler {
                     && SignalRelay.class.isAssignableFrom(outerType);
                 boolean isHandler = isCustomHandler || signalField != null || isRelay;
                 if (isStmtBlock && !isHandler) {
-                    throw new UnsupportedOperationException(
-                        "statement block only allowed as signal handler body: " + key);
+                    // A function-style binding `prop: { ...; return x }` becomes an
+                    // immediately-invoked arrow so the normal binding path applies.
+                    Ast.Block block = ((Ast.StatementBlockValue) b.value).block;
+                    Ast.ArrowFunctionExpr fn = new Ast.ArrowFunctionExpr(
+                        Collections.<String>emptyList(), null, block);
+                    Ast.Expression iife = new Ast.CallExpr(fn, Collections.<Ast.Expression>emptyList());
+                    emitExpressionBinding(ctor, outerType, outerLocal, componentBinaryName,
+                                          bindingCounter, classes, key, iife, idTypes,
+                                          declaredProps, aliases, rootFunctions);
+                    return;
                 }
                 if (isHandler) {
                     Ast.ArrowFunctionExpr arrow = arrowHandler(b.value);
@@ -454,11 +462,16 @@ public final class QmlCompiler {
                 return;
             }
             if (path.size() == 2) {
-                if (!isExprVal) {
-                    throw new UnsupportedOperationException(
-                        "statement block not allowed in grouped binding: " + path);
+                Ast.Expression e;
+                if (isExprVal) {
+                    e = ((Ast.ExpressionValue) b.value).expr;
+                } else {
+                    // Function-style grouped binding (border.color: { ...; return x }).
+                    Ast.Block block = ((Ast.StatementBlockValue) b.value).block;
+                    Ast.ArrowFunctionExpr fn = new Ast.ArrowFunctionExpr(
+                        Collections.<String>emptyList(), null, block);
+                    e = new Ast.CallExpr(fn, Collections.<Ast.Expression>emptyList());
                 }
-                Ast.Expression e = ((Ast.ExpressionValue) b.value).expr;
                 emitGroupedBinding(ctor, outerType, outerLocal, componentBinaryName,
                                    bindingCounter, classes, path.get(0), path.get(1), e, idTypes,
                                    declaredProps, aliases, rootFunctions);

@@ -13,8 +13,10 @@ public class MouseArea extends Item {
     public final Signal positionChanged = new Signal();
     public final Signal entered = new Signal();
     public final Signal exited = new Signal();
+    public final Signal canceled = new Signal();
 
     public final Property<Boolean> pressed = new Property<>(Boolean.FALSE);
+    public final Property<Boolean> enabled = new Property<>(Boolean.TRUE);
     public final Property<Boolean> hoverEnabled = new Property<>(Boolean.FALSE);
     public final Property<Boolean> containsMouse = new Property<>(Boolean.FALSE);
     public final Property<Number> mouseX = new Property<>(0);

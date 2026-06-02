@@ -31,6 +31,7 @@ import io.qml4j.render.items.Rectangle;
 import io.qml4j.render.items.Shape;
 import io.qml4j.render.items.ShapePath;
 import io.qml4j.render.items.Row;
+import io.qml4j.render.items.MultiEffect;
 import io.qml4j.render.items.RowLayout;
 import io.qml4j.render.items.Text;
 import io.qml4j.render.items.TextEdit;
@@ -513,7 +514,37 @@ public final class Renderer {
                     canvas.drawString(line, 0, size * (i + 1), font, paint);
                 }
             }
+        } else if (node instanceof MultiEffect) {
+            paintMultiEffect(canvas, (MultiEffect) node, w, h, alpha);
         }
+    }
+
+    // v0 MultiEffect: paint the source subtree clipped to the mask's rounded-rect
+    // shape (true per-pixel alpha masking is not implemented). The source is
+    // normally an invisible sibling, so we draw its children directly here.
+    private void paintMultiEffect(Canvas canvas, MultiEffect me, float w, float h, float alpha) {
+        Object src = me.source.peek();
+        if (!(src instanceof Item)) return;
+        if (Boolean.TRUE.equals(me.maskEnabled.peek())) {
+            float r = maskRadius(me.maskSource.peek());
+            if (r > 0) canvas.clipRRect(RRect.makeXYWH(0, 0, w, h, r));
+            else canvas.clipRect(Rect.makeXYWH(0, 0, w, h));
+        }
+        for (Item child : zOrdered(((Item) src).children)) {
+            draw(canvas, child, alpha);
+        }
+    }
+
+    // Effective corner radius of the mask: the first Rectangle in the mask subtree.
+    private static float maskRadius(Object maskSource) {
+        if (!(maskSource instanceof Item)) return 0f;
+        for (Item n : (((Item) maskSource).children)) {
+            if (n instanceof Rectangle) return ((Rectangle) n).radius.peek().floatValue();
+            float r = maskRadius(n);
+            if (r > 0) return r;
+        }
+        if (maskSource instanceof Rectangle) return ((Rectangle) maskSource).radius.peek().floatValue();
+        return 0f;
     }
 
     // Truncate with a trailing ellipsis so the line fits within maxWidth (Text.ElideRight).

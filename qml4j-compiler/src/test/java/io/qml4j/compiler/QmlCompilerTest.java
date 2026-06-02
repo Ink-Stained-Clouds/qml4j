@@ -617,13 +617,10 @@ class QmlCompilerTest {
     }
 
     @Test
-    void statementBlockOnNonHandlerRejected() {
-        Ast.QmlDocument doc = Qml4j.parse(
-            "TestItem {\n" +
-            "  width: { var x = 5; x }\n" +
-            "}");
-        assertThrows(UnsupportedOperationException.class,
-            () -> COMPILER.compile(doc, REGISTRY));
+    void statementBlockBindingReturnsValue() throws Exception {
+        // Function-style binding: a `{ ... return x }` block evaluates to its return.
+        TestItem it = instantiate("TestItem { width: { var x = 5; return x * 2 } }");
+        assertEquals(10L, it.width.peek().longValue());
     }
 
     private static Property<?> declaredProp(Object obj, String name) throws Exception {

@@ -105,14 +105,19 @@ public class Behavior extends Item implements Animatable, Property.WriteIntercep
         lastDisplayed = out;
     }
 
-    private static Property<?> findProperty(Object obj, String name) {
+    // Resolves a possibly-dotted property path: "color" or a grouped
+    // "border.color" / "font.pixelSize" walking the intermediate group objects.
+    private static Property<?> findProperty(Object obj, String path) {
         try {
-            Field f = obj.getClass().getField(name);
-            if (Property.class.isAssignableFrom(f.getType())) {
-                return (Property<?>) f.get(obj);
+            int dot = path.indexOf('.');
+            if (dot < 0) {
+                Field f = obj.getClass().getField(path);
+                return Property.class.isAssignableFrom(f.getType()) ? (Property<?>) f.get(obj) : null;
             }
+            Object group = obj.getClass().getField(path.substring(0, dot)).get(obj);
+            return group == null ? null : findProperty(group, path.substring(dot + 1));
         } catch (NoSuchFieldException | IllegalAccessException ignore) {
+            return null;
         }
-        return null;
     }
 }

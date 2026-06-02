@@ -9,7 +9,12 @@ QtObject {
         property color inverseOnSurface: "#f5eff7"
         property color surface: "#fef7ff"
         property color onSurfaceColor: "#1d1b20"
+        property color onSurfaceVariantColor: "#49454f"
+        property color onPrimaryColor: "#ffffff"
         property color shadow: "#000000"
+    }
+    property QtObject iconFont: QtObject {
+        property string name: "Material Symbols Outlined"
     }
     property QtObject typography: QtObject {
         property QtObject bodySmall: QtObject {

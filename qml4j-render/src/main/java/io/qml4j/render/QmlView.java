@@ -148,7 +148,13 @@ public final class QmlView {
             String relFile = entry != null ? entry.file : name + ".qml";
             String path = p.isEmpty() ? relFile : p + "/" + relFile;
             Class<? extends QObject> cached = importedTypes.get(path);
-            if (cached != null) return cached;
+            if (cached != null) {
+                // Re-register a cached singleton into the doc currently compiling:
+                // the first resolver registered it, but later docs hit the cache
+                // and would otherwise not know it's a singleton.
+                registerCachedSingleton(p, name, cached);
+                return cached;
+            }
             byte[] bytes = resources.load(path);
             if (bytes == null) continue;
             if (!compilingNow.add(path)) {
@@ -171,6 +177,13 @@ public final class QmlView {
             }
         }
         return null;
+    }
+
+    private void registerCachedSingleton(String prefix, String name, Class<? extends QObject> cached) {
+        Map<String, Class<? extends QObject>> m = singletonsByPrefix.get(prefix);
+        if (m == null || m.get(name) != cached) return;
+        TypeRegistry current = QmlCompiler.currentRegistry();
+        if (current != null) current.registerSingleton(name, cached);
     }
 
     private Map<String, QmldirEntry> loadQmldir(String prefix) {

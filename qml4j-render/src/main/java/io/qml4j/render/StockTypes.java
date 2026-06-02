@@ -41,6 +41,7 @@ import io.qml4j.render.items.Repeater;
 import io.qml4j.render.items.Row;
 import io.qml4j.render.items.RowLayout;
 import io.qml4j.render.items.ColumnLayout;
+import io.qml4j.render.items.MultiEffect;
 import io.qml4j.render.items.State;
 import io.qml4j.render.items.Text;
 import io.qml4j.render.items.TextEdit;
@@ -71,6 +72,7 @@ public final class StockTypes {
             .register("Row", Row.class)
             .register("RowLayout", RowLayout.class)
             .register("ColumnLayout", ColumnLayout.class)
+            .register("MultiEffect", MultiEffect.class)
             .register("Timer", Timer.class)
             .register("MouseArea", MouseArea.class)
             .register("Image", Image.class)

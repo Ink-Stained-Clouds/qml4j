@@ -76,12 +76,16 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     @Override
     public Ast.BehaviorMember visitBehaviorDeclaration(QmlParser.BehaviorDeclarationContext ctx) {
         String type = ctx.qualifiedId().getText();
-        String prop = ctx.Identifier().getText();
+        StringBuilder prop = new StringBuilder();
+        for (org.antlr.v4.runtime.tree.TerminalNode id : ctx.Identifier()) {
+            if (prop.length() > 0) prop.append('.');
+            prop.append(id.getText());
+        }
         List<Ast.ObjectMember> members = new ArrayList<>();
         for (QmlParser.ObjectMemberContext mc : ctx.objectMember()) {
             members.add((Ast.ObjectMember) visit(mc));
         }
-        return new Ast.BehaviorMember(type, prop, members);
+        return new Ast.BehaviorMember(type, prop.toString(), members);
     }
 
     @Override
@@ -132,7 +136,23 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
         if (ctx.statementBlock() != null) {
             return new Ast.StatementBlockValue(visitStatementBlock(ctx.statementBlock()));
         }
+        // A bare control-flow statement as a handler body (onExited: if (...) ...).
+        if (ctx.ifStatement() != null) {
+            return new Ast.StatementBlockValue(oneStatement(visitIfStatement(ctx.ifStatement())));
+        }
+        if (ctx.forStatement() != null) {
+            return new Ast.StatementBlockValue(oneStatement(visitForStatement(ctx.forStatement())));
+        }
+        if (ctx.whileStatement() != null) {
+            return new Ast.StatementBlockValue(oneStatement(visitWhileStatement(ctx.whileStatement())));
+        }
         return new Ast.ExpressionValue((Ast.Expression) visit(ctx.expression()));
+    }
+
+    private static Ast.Block oneStatement(Ast.Statement s) {
+        List<Ast.Statement> stmts = new ArrayList<>();
+        stmts.add(s);
+        return new Ast.Block(stmts);
     }
 
     @Override

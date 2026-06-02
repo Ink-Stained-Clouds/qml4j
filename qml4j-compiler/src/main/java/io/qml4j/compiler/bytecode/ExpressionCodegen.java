@@ -638,6 +638,14 @@ final class ExpressionCodegen {
             emitBareNameCall(mv, (Ast.IdentifierExpr) c.callee, c.args);
             return;
         }
+        if (c.callee instanceof Ast.ArrowFunctionExpr) {
+            // Inline-invoked function expression, e.g. an IIFE block binding.
+            emit(mv, c.callee);
+            emitArgsArray(mv, c.args);
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, HELPERS_INTERNAL, "callValue",
+                               "(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;", false);
+            return;
+        }
         if (!(c.callee instanceof Ast.MemberExpr)) {
             throw new UnsupportedOperationException(
                 "only method calls of the form receiver.method(...) are supported");

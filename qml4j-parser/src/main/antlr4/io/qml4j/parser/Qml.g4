@@ -43,7 +43,7 @@ functionDeclaration
     ;
 
 behaviorDeclaration
-    : qualifiedId 'on' Identifier '{' objectMember* '}'
+    : qualifiedId 'on' Identifier ('.' Identifier)* '{' objectMember* '}'
     ;
 
 propertyDeclaration
@@ -76,6 +76,9 @@ value
     : objectDeclaration
     | '[' objectDeclaration (',' objectDeclaration)* ','? ']'
     | statementBlock
+    | ifStatement
+    | forStatement
+    | whileStatement
     | expression
     ;
 
