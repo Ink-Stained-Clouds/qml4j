@@ -24,8 +24,6 @@ class TopAppBarLoadTest {
         } catch (Exception e) { throw new RuntimeException(e); }
     }
 
-    @Disabled("blocked on `default property alias actions: actionsLayout.data` —"
-        + " needs default-property child redirection + .data list alias (future milestone)")
     @Test
     void loadsMd3TopAppBar() {
         Map<String, byte[]> files = new HashMap<>();

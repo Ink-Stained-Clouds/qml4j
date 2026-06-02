@@ -40,6 +40,7 @@ public final class QmlCompiler {
     private static final String LIST_DESC = "L" + LIST_INTERNAL + ";";
     private static final String SINK_INTERNAL = "io/qml4j/engine/PropertyChangeSink";
     private static final String QOBJECT_INTERNAL = "io/qml4j/engine/QObject";
+    private static final String QOBJECT_DESC = "L" + QOBJECT_INTERNAL + ";";
     private static final String DELEGATE_FACTORY_INTERNAL = "io/qml4j/engine/DelegateFactory";
     private static final String DELEGATE_HOST_INTERNAL = "io/qml4j/engine/DelegateHost";
     private static final String SIGNAL_RELAY_INTERNAL = "io/qml4j/engine/SignalRelay";
@@ -183,16 +184,40 @@ public final class QmlCompiler {
         Map<String, AliasRef> rootAliases = new LinkedHashMap<>();
         List<DeclaredProp> rootRegularDecls = new ArrayList<>();
         List<AliasDecl> rootAliasDecls = new ArrayList<>();
+        String defaultListAlias = null;
         for (DeclaredProp dp : rootDecls) {
-            cw.visitField(Opcodes.ACC_PUBLIC, dp.name, PROPERTY_DESC, null, null).visitEnd();
             if ("alias".equals(dp.typeName)) {
                 AliasDecl ad = parseAlias(dp);
                 rootAliasDecls.add(ad);
-                rootAliases.put(ad.name, new AliasRef(ad.targetId, ad.targetProperty));
+                if (ad.isList) {
+                    // List alias (id.data/id.children): a List field linked to the
+                    // inner container's children. The default one is the component's
+                    // default child container.
+                    cw.visitField(Opcodes.ACC_PUBLIC, dp.name, LIST_DESC, null, null).visitEnd();
+                    if (ad.isDefault) {
+                        if (defaultListAlias != null) {
+                            throw new IllegalArgumentException("multiple default properties");
+                        }
+                        defaultListAlias = ad.name;
+                    }
+                } else if (ad.targetProperty == null) {
+                    // Object alias: a field holding the referenced object.
+                    cw.visitField(Opcodes.ACC_PUBLIC, dp.name, QOBJECT_DESC, null, null).visitEnd();
+                } else {
+                    cw.visitField(Opcodes.ACC_PUBLIC, dp.name, PROPERTY_DESC, null, null).visitEnd();
+                    rootAliases.put(ad.name, new AliasRef(ad.targetId, ad.targetProperty));
+                }
             } else {
+                cw.visitField(Opcodes.ACC_PUBLIC, dp.name, PROPERTY_DESC, null, null).visitEnd();
                 rootRegularDecls.add(dp);
                 rootDeclaredProps.put(dp.name, componentInternal);
             }
+        }
+        if (defaultListAlias != null) {
+            org.objectweb.asm.AnnotationVisitor av =
+                cw.visitAnnotation("Lio/qml4j/engine/QmlDefaultList;", true);
+            av.visit("value", defaultListAlias);
+            av.visitEnd();
         }
 
         List<Ast.FunctionDeclaration> rootFunctionDecls = new ArrayList<>();
@@ -1752,10 +1777,15 @@ public final class QmlCompiler {
         final String name;
         final String typeName;
         final Ast.Value initializer;
+        final boolean isDefault;
         DeclaredProp(String name, String typeName, Ast.Value initializer) {
+            this(name, typeName, initializer, false);
+        }
+        DeclaredProp(String name, String typeName, Ast.Value initializer, boolean isDefault) {
             this.name = name;
             this.typeName = typeName;
             this.initializer = initializer;
+            this.isDefault = isDefault;
         }
     }
 
@@ -1763,10 +1793,17 @@ public final class QmlCompiler {
         final String name;
         final String targetId;
         final String targetProperty;
+        final boolean isList;     // alias to id.data / id.children (a List)
+        final boolean isDefault;  // default property alias -> the default child container
         AliasDecl(String name, String targetId, String targetProperty) {
+            this(name, targetId, targetProperty, false, false);
+        }
+        AliasDecl(String name, String targetId, String targetProperty, boolean isList, boolean isDefault) {
             this.name = name;
             this.targetId = targetId;
             this.targetProperty = targetProperty;
+            this.isList = isList;
+            this.isDefault = isDefault;
         }
     }
 
@@ -1780,9 +1817,13 @@ public final class QmlCompiler {
                 "property alias '" + dp.name + "' initializer must be expression id.property");
         }
         Ast.Expression e = ((Ast.ExpressionValue) dp.initializer).expr;
+        if (e instanceof Ast.IdentifierExpr) {
+            // Object alias: `property alias foo: someId` exposes the object itself.
+            return new AliasDecl(dp.name, ((Ast.IdentifierExpr) e).name, null, false, dp.isDefault);
+        }
         if (!(e instanceof Ast.MemberExpr)) {
             throw new IllegalArgumentException(
-                "property alias '" + dp.name + "' must reference id.property, got "
+                "property alias '" + dp.name + "' must reference id or id.property, got "
                 + e.getClass().getSimpleName());
         }
         Ast.MemberExpr m = (Ast.MemberExpr) e;
@@ -1790,7 +1831,8 @@ public final class QmlCompiler {
             throw new IllegalArgumentException(
                 "property alias '" + dp.name + "' must reference id.property (target must be id)");
         }
-        return new AliasDecl(dp.name, ((Ast.IdentifierExpr) m.target).name, m.property);
+        boolean isList = "data".equals(m.property) || "children".equals(m.property);
+        return new AliasDecl(dp.name, ((Ast.IdentifierExpr) m.target).name, m.property, isList, dp.isDefault);
     }
 
     private static void emitAliasLink(MethodVisitor ctor, String componentInternal,
@@ -1802,6 +1844,35 @@ public final class QmlCompiler {
         if (targetType == null) {
             throw new IllegalArgumentException(
                 "property alias '" + ad.name + "' references unknown id: " + ad.targetId);
+        }
+        if (ad.isList) {
+            // this.NAME = this.targetId.children  (share the inner container's list)
+            Field childrenField;
+            try {
+                childrenField = targetType.getField("children");
+            } catch (NoSuchFieldException e) {
+                throw new IllegalArgumentException(
+                    "list alias '" + ad.name + "' target '" + ad.targetId + "' has no children list");
+            }
+            String childrenOwner = Type.getInternalName(childrenField.getDeclaringClass());
+            String targetInternal = Type.getInternalName(targetType);
+            ctor.visitVarInsn(Opcodes.ALOAD, 0);
+            ctor.visitVarInsn(Opcodes.ALOAD, 0);
+            ctor.visitFieldInsn(Opcodes.GETFIELD, componentInternal, ad.targetId,
+                                "L" + targetInternal + ";");
+            ctor.visitFieldInsn(Opcodes.GETFIELD, childrenOwner, "children", LIST_DESC);
+            ctor.visitFieldInsn(Opcodes.PUTFIELD, componentInternal, ad.name, LIST_DESC);
+            return;
+        }
+        if (ad.targetProperty == null) {
+            // Object alias: this.NAME = this.targetId
+            String targetInternal = Type.getInternalName(targetType);
+            ctor.visitVarInsn(Opcodes.ALOAD, 0);
+            ctor.visitVarInsn(Opcodes.ALOAD, 0);
+            ctor.visitFieldInsn(Opcodes.GETFIELD, componentInternal, ad.targetId,
+                                "L" + targetInternal + ";");
+            ctor.visitFieldInsn(Opcodes.PUTFIELD, componentInternal, ad.name, QOBJECT_DESC);
+            return;
         }
         String targetFieldOwner = resolveAliasTargetFieldOwner(
             ad, targetType, rootId, componentInternal, rootDeclaredProps);
@@ -1843,10 +1914,10 @@ public final class QmlCompiler {
             Ast.PropertyDeclaration pd = (Ast.PropertyDeclaration) m;
             // readonly/required are accepted as plain properties (v0 doesn't
             // enforce immutability or instantiation-time requirement). `default`
-            // needs child-redirection machinery and isn't supported yet.
-            if (pd.isDefault) {
+            // is only supported on a list alias (default property alias x: id.data).
+            if (pd.isDefault && !"alias".equals(pd.typeName)) {
                 throw new UnsupportedOperationException(
-                    "default property modifier not supported: " + pd.name);
+                    "default property modifier supported only on a list alias: " + pd.name);
             }
             if (!seen.add(pd.name)) {
                 throw new IllegalArgumentException("duplicate property declaration: " + pd.name);
@@ -1856,7 +1927,7 @@ public final class QmlCompiler {
                 throw new IllegalArgumentException(
                     "property '" + pd.name + "' shadows existing field on " + ownerType.getName());
             }
-            out.add(new DeclaredProp(pd.name, pd.typeName, pd.initializer));
+            out.add(new DeclaredProp(pd.name, pd.typeName, pd.initializer, pd.isDefault));
         }
         return out;
     }
