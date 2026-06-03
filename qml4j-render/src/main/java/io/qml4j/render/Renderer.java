@@ -55,8 +55,11 @@ import io.github.humbleui.skija.PathBuilder;
 import io.github.humbleui.skija.PathDirection;
 import io.github.humbleui.skija.PathEllipseArc;
 import io.github.humbleui.skija.PathFillMode;
+import io.github.humbleui.skija.Data;
 import io.github.humbleui.skija.Shader;
+import io.github.humbleui.skija.TextBlob;
 import io.github.humbleui.skija.Typeface;
+import io.github.humbleui.skija.shaper.Shaper;
 import io.github.humbleui.types.RRect;
 import io.github.humbleui.types.Rect;
 
@@ -189,6 +192,49 @@ public final class Renderer {
 
     private static boolean isIconFamily(String family) {
         return family != null && (family.contains("Symbols") || family.contains("Material"));
+    }
+
+    private Typeface iconTypeface;
+    private boolean iconLookupFailed;
+    private Shaper shaper;
+
+    // The bundled Material Symbols font (icon glyphs are ligatures of the names).
+    // Loaded once from resources; null if absent (then we fall back to the
+    // curated Unicode mapping).
+    private Typeface iconTypeface() {
+        if (iconTypeface != null) return iconTypeface;
+        if (iconLookupFailed || resources == null) return null;
+        byte[] bytes = resources.load("fonts/MaterialSymbolsOutlined.ttf");
+        FontMgr mgr = FontMgr.getDefault();
+        if (bytes == null || mgr == null) { iconLookupFailed = true; return null; }
+        try {
+            iconTypeface = mgr.makeFromData(Data.makeFromBytes(bytes));
+            if (iconTypeface == null) iconLookupFailed = true;
+            return iconTypeface;
+        } catch (Throwable t) {
+            iconLookupFailed = true;
+            return null;
+        }
+    }
+
+    private Shaper shaper() {
+        if (shaper == null) shaper = Shaper.makeShapeDontWrapOrReorder();
+        return shaper;
+    }
+
+    // For an icon-font Text with the real Material Symbols face available, shape
+    // the raw ligature name (e.g. "check") into its icon glyph. null otherwise.
+    private TextBlob iconBlob(Text t, float size) {
+        if (!isIconFamily(t.font.family.peek())) return null;
+        Typeface itf = iconTypeface();
+        if (itf == null) return null;
+        String name = t.text.peek();
+        if (name == null || name.isEmpty()) return null;
+        try (Font f = new Font(itf, size)) {
+            return shaper().shape(name, f);
+        } catch (Throwable ex) {
+            return null;
+        }
     }
 
     private static String displayText(Text t) {
@@ -339,10 +385,24 @@ public final class Renderer {
 
     private void measureText(Text t) {
         float size = t.effectiveFontSize();
-        String s = displayText(t);
-        if (s.equals(t.lastMeasuredText) && size == t.lastMeasuredSize) return;
         boolean canMeasureW = !t.width.isBound() && ownsWidth(t);
         boolean canMeasureH = !t.height.isBound() && ownsHeight(t);
+
+        TextBlob icon = iconBlob(t, size);
+        if (icon != null) {
+            Rect b = icon.getBounds();
+            float w = b.getRight();          // glyph advances from origin x=0
+            float h = size;
+            if (!t.implicitWidth.isBound()) t.implicitWidth.set(w);
+            if (!t.implicitHeight.isBound()) t.implicitHeight.set(h);
+            if (canMeasureW) { t.width.set(w); t.lastSetWidth = w; }
+            if (canMeasureH) { t.height.set(h); t.lastSetHeight = h; }
+            icon.close();
+            return;
+        }
+
+        String s = displayText(t);
+        if (s.equals(t.lastMeasuredText) && size == t.lastMeasuredSize) return;
         String[] lines = splitLines(s);
         try (Font font = fontFor(size, s)) {
             float w = 0f;
@@ -574,6 +634,13 @@ public final class Renderer {
             int color = applyAlpha(parseColor(t.color.peek()), alpha);
             paint().setColor(color);
             float size = t.effectiveFontSize();
+            TextBlob icon = iconBlob(t, size);
+            if (icon != null) {
+                // Shaped icon glyph; centre vertically in the line box.
+                canvas.drawTextBlob(icon, 0, size * 0.8f, paint);
+                icon.close();
+                return;
+            }
             String s = displayText(t);
             if (s.isEmpty()) return;
             String[] lines = splitLines(s);
