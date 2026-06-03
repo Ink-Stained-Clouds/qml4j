@@ -5,3 +5,5 @@ TopAppBar 1.0 TopAppBar.qml
 IconButton 1.0 IconButton.qml
 Ripple 1.0 Ripple.qml
 Checkbox 1.0 Checkbox.qml
+Switch 1.0 Switch.qml
+RadioButton 1.0 RadioButton.qml

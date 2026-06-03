@@ -11,6 +11,7 @@ QtObject {
         property color onSurfaceColor: "#1d1b20"
         property color onSurfaceVariantColor: "#49454f"
         property color onPrimaryColor: "#ffffff"
+        property color surfaceContainerHighest: "#e6e0e9"
         property color shadow: "#000000"
     }
     property QtObject iconFont: QtObject {
