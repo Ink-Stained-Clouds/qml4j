@@ -131,7 +131,7 @@ Rectangle {
         anchors.top: editorPanel.bottom
         anchors.bottom: parent.bottom
         contentWidth: parent.width
-        contentHeight: 12320
+        contentHeight: 12500
 
     Rectangle {
         x: 60
@@ -1038,5 +1038,7 @@ Rectangle {
     CheckboxShowcase { }
 
     SwitchRadioShowcase { }
+
+    IconButtonShowcase { }
     }
 }

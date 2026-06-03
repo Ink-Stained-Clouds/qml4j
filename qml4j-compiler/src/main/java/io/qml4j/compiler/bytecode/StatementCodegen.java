@@ -49,6 +49,8 @@ final class StatementCodegen {
             emitWhile(mv, (Ast.WhileStmt) s);
         } else if (s instanceof Ast.ForStmt) {
             emitFor(mv, (Ast.ForStmt) s);
+        } else if (s instanceof Ast.SwitchStmt) {
+            emitSwitch(mv, (Ast.SwitchStmt) s);
         } else if (s instanceof Ast.BreakStmt) {
             emitBreak(mv);
         } else if (s instanceof Ast.ContinueStmt) {
@@ -135,6 +137,42 @@ final class StatementCodegen {
             mv.visitInsn(Opcodes.POP);
         }
         mv.visitJumpInsn(Opcodes.GOTO, condL);
+        mv.visitLabel(endL);
+    }
+
+    private void emitSwitch(MethodVisitor mv, Ast.SwitchStmt s) {
+        expr.emit(mv, s.discriminant);
+        int discSlot = nextSlot++;
+        mv.visitVarInsn(Opcodes.ASTORE, discSlot);
+
+        int n = s.clauses.size();
+        Label[] clauseL = new Label[n];
+        for (int i = 0; i < n; i++) clauseL[i] = new Label();
+        Label endL = new Label();
+        int defaultIdx = -1;
+
+        // Dispatch: jump to the first case whose label === discriminant.
+        for (int i = 0; i < n; i++) {
+            Ast.SwitchClause c = s.clauses.get(i);
+            if (c.label == null) { defaultIdx = i; continue; }
+            mv.visitVarInsn(Opcodes.ALOAD, discSlot);
+            expr.emit(mv, c.label);
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, ExpressionCodegen.HELPERS_INTERNAL,
+                               "eqStrict", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", false);
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, ExpressionCodegen.HELPERS_INTERNAL,
+                               "truthy", "(Ljava/lang/Object;)Z", false);
+            mv.visitJumpInsn(Opcodes.IFNE, clauseL[i]);
+        }
+        mv.visitJumpInsn(Opcodes.GOTO, defaultIdx >= 0 ? clauseL[defaultIdx] : endL);
+
+        // Bodies in source order; fall through to the next clause, break -> end.
+        Label continueL = loopStack.isEmpty() ? null : loopStack.peek().continueL;
+        loopStack.push(new LoopLabels(continueL, endL));
+        for (int i = 0; i < n; i++) {
+            mv.visitLabel(clauseL[i]);
+            for (Ast.Statement st : s.clauses.get(i).body) emit(mv, st);
+        }
+        loopStack.pop();
         mv.visitLabel(endL);
     }
 

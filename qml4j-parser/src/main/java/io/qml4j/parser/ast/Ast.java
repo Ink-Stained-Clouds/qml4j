@@ -243,6 +243,25 @@ public final class Ast {
         }
     }
 
+    public static final class SwitchStmt extends Statement {
+        public final Expression discriminant;
+        public final List<SwitchClause> clauses;
+        public SwitchStmt(Expression discriminant, List<SwitchClause> clauses) {
+            this.discriminant = discriminant;
+            this.clauses = Collections.unmodifiableList(clauses);
+        }
+        @Override public String toString() { return "switch (" + discriminant + ") {...}"; }
+    }
+
+    public static final class SwitchClause {
+        public final Expression label;   // null = default
+        public final List<Statement> body;
+        public SwitchClause(Expression label, List<Statement> body) {
+            this.label = label;
+            this.body = Collections.unmodifiableList(body);
+        }
+    }
+
     public static final class BreakStmt extends Statement {
         @Override public String toString() { return "break;"; }
     }

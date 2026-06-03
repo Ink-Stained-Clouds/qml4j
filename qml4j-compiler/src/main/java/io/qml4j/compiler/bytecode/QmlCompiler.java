@@ -540,15 +540,23 @@ public final class QmlCompiler {
                                  "set", "(Ljava/lang/Object;)V", false);
             return;
         }
-        if (!(pd.initializer instanceof Ast.ExpressionValue)) {
-            throw new UnsupportedOperationException(
-                "only expression/object initializer supported for property: " + pd.name);
-        }
         String ownerInternal = declaredProps.get(pd.name);
         if (ownerInternal == null) {
             throw new IllegalStateException("declared property not registered: " + pd.name);
         }
-        Ast.Expression e = ((Ast.ExpressionValue) pd.initializer).expr;
+        Ast.Expression e;
+        if (pd.initializer instanceof Ast.ExpressionValue) {
+            e = ((Ast.ExpressionValue) pd.initializer).expr;
+        } else if (pd.initializer instanceof Ast.StatementBlockValue) {
+            // Function-style property default: { ...; return x } -> IIFE arrow.
+            Ast.Block block = ((Ast.StatementBlockValue) pd.initializer).block;
+            Ast.ArrowFunctionExpr fn = new Ast.ArrowFunctionExpr(
+                Collections.<String>emptyList(), null, block);
+            e = new Ast.CallExpr(fn, Collections.<Ast.Expression>emptyList());
+        } else {
+            throw new UnsupportedOperationException(
+                "only expression/object/block initializer supported for property: " + pd.name);
+        }
         if (e instanceof Ast.LiteralExpr) {
             ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
             ctor.visitFieldInsn(Opcodes.GETFIELD, ownerInternal, pd.name, PROPERTY_DESC);

@@ -156,6 +156,19 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     }
 
     @Override
+    public Ast.SwitchStmt visitSwitchStatement(QmlParser.SwitchStatementContext ctx) {
+        Ast.Expression disc = (Ast.Expression) visit(ctx.expression());
+        List<Ast.SwitchClause> clauses = new ArrayList<>();
+        for (QmlParser.SwitchClauseContext cc : ctx.switchClause()) {
+            Ast.Expression label = cc.expression() != null ? (Ast.Expression) visit(cc.expression()) : null;
+            List<Ast.Statement> body = new ArrayList<>();
+            for (QmlParser.StatementContext sc : cc.statement()) body.add(visitStatement(sc));
+            clauses.add(new Ast.SwitchClause(label, body));
+        }
+        return new Ast.SwitchStmt(disc, clauses);
+    }
+
+    @Override
     public Ast.Block visitStatementBlock(QmlParser.StatementBlockContext ctx) {
         List<Ast.Statement> stmts = new ArrayList<>();
         for (QmlParser.StatementContext sc : ctx.statement()) {
@@ -171,6 +184,7 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
         if (ctx.ifStatement() != null) return visitIfStatement(ctx.ifStatement());
         if (ctx.whileStatement() != null) return visitWhileStatement(ctx.whileStatement());
         if (ctx.forStatement() != null) return visitForStatement(ctx.forStatement());
+        if (ctx.switchStatement() != null) return visitSwitchStatement(ctx.switchStatement());
         if (ctx.breakStatement() != null) return new Ast.BreakStmt();
         if (ctx.continueStatement() != null) return new Ast.ContinueStmt();
         if (ctx.returnStatement() != null) return visitReturnStatement(ctx.returnStatement());

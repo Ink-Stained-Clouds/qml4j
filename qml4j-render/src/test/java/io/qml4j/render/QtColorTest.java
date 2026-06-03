@@ -39,4 +39,16 @@ class QtColorTest {
         assertEquals(160 / 255.0, ((Number) prop(root, "green")).doubleValue(), 1e-6);
         assertEquals("#ff80a0c0", prop(root, "back"));
     }
+
+    @Test
+    void colorPropertyExposesChannelsDirectly() {
+        QmlView v = newView();
+        Item root = v.load(
+            "import QtQuick\n" +
+            "Item {\n" +
+            "  property color c: \"#80a0c0\"\n" +
+            "  property real cr: c.r\n" +
+            "}");
+        assertEquals(128 / 255.0, ((Number) prop(root, "cr")).doubleValue(), 1e-6);
+    }
 }

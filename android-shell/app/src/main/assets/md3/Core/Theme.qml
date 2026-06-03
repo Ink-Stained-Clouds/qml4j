@@ -12,7 +12,19 @@ QtObject {
         property color onSurfaceVariantColor: "#49454f"
         property color onPrimaryColor: "#ffffff"
         property color surfaceContainerHighest: "#e6e0e9"
+        property color secondaryContainer: "#e8def8"
+        property color onSecondaryContainerColor: "#1d192b"
         property color shadow: "#000000"
+    }
+    property QtObject elevation: QtObject {
+        property real level0: 0
+        property real level1: 1
+        property real level2: 3
+    }
+    property QtObject state: QtObject {
+        property real hoverStateLayerOpacity: 0.08
+        property real pressedStateLayerOpacity: 0.12
+        property real focusStateLayerOpacity: 0.12
     }
     property QtObject iconFont: QtObject {
         property string name: "Material Symbols Outlined"
@@ -37,5 +49,6 @@ QtObject {
     property QtObject shape: QtObject {
         property int extraSmall: 4
         property int small: 8
+        property int cornerFull: 999
     }
 }

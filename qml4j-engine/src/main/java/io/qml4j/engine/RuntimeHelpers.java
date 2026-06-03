@@ -162,6 +162,20 @@ public final class RuntimeHelpers {
             if (target instanceof List) return (long) ((List<?>) target).size();
             if (target instanceof Map) return (long) ((Map<?, ?>) target).size();
         }
+        // A color value's channels: Qt exposes .r/.g/.b/.a on a color. Our colors
+        // are strings ("#rrggbb"); resolve the channel on demand.
+        if (target instanceof QColor && (name.length() == 1)) {
+            QColor q = (QColor) target;
+            switch (name) {
+                case "r": return q.r; case "g": return q.g;
+                case "b": return q.b; case "a": return q.a;
+                default: break;
+            }
+        }
+        if (target instanceof String && name.length() == 1
+            && ("r".equals(name) || "g".equals(name) || "b".equals(name) || "a".equals(name))) {
+            return readMember(qtColor(target), name);
+        }
         if (target instanceof Map) {
             return ((Map<?, ?>) target).get(name);
         }

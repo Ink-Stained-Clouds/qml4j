@@ -92,10 +92,20 @@ statement
     | ifStatement
     | whileStatement
     | forStatement
+    | switchStatement
     | breakStatement
     | continueStatement
     | returnStatement
     | expressionStatement
+    ;
+
+switchStatement
+    : 'switch' '(' expression ')' '{' switchClause* '}'
+    ;
+
+switchClause
+    : 'case' expression ':' statement*
+    | 'default' ':' statement*
     ;
 
 whileStatement
