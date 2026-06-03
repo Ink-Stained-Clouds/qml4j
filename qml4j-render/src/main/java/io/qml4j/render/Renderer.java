@@ -646,7 +646,11 @@ public final class Renderer {
             if (ig != null) {
                 if (!ig.isEmpty()) {
                     try (Font f = new Font(iconTypeface(), size)) {
-                        canvas.drawString(ig, 0, size * 0.82f, f, paint);
+                        // Centre the glyph vertically in the node box using its
+                        // actual visual bounds (baseline-relative; top is negative).
+                        Rect gb = f.measureText(ig);
+                        float baseline = h / 2f - (gb.getTop() + gb.getBottom()) / 2f;
+                        canvas.drawString(ig, 0, baseline, f, paint);
                     }
                 }
                 return;

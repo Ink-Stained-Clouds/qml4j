@@ -4,6 +4,7 @@ import md3.Core
 // Real MD3 Switch + RadioButton, unmodified (RowLayout + Ripple + Behaviors).
 // Tap to toggle: the thumb slides / the dot fills, with ripple feedback.
 Rectangle {
+    id: root
     x: 60
     y: 11980
     width: 880
@@ -23,11 +24,15 @@ Rectangle {
         Switch { text: "Bluetooth"; checked: false }
     }
 
+    // RadioButton itself isn't a group; the app wires exclusivity (like a
+    // ButtonGroup): each binds checked to the shared selection and selects on click.
+    property string theme: "Light"
+
     Column {
         x: 440; y: 56
         spacing: 0
-        RadioButton { text: "Light"; checked: true }
-        RadioButton { text: "Dark"; checked: false }
-        RadioButton { text: "System"; checked: false }
+        RadioButton { text: "Light";  checked: root.theme === "Light";  onClicked: root.theme = "Light" }
+        RadioButton { text: "Dark";   checked: root.theme === "Dark";   onClicked: root.theme = "Dark" }
+        RadioButton { text: "System"; checked: root.theme === "System"; onClicked: root.theme = "System" }
     }
 }
