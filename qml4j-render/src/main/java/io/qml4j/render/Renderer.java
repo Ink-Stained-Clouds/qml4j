@@ -128,6 +128,53 @@ public final class Renderer {
         "Microsoft YaHei", "WenQuanYi Micro Hei"
     };
 
+    // Material Symbols are accessed by ligature name (e.g. "check"). We don't
+    // bundle the icon font / ligature shaper; instead a curated subset of names
+    // maps to standard Unicode glyphs the default face can draw. Unmapped names
+    // render empty rather than as overflowing literal words.
+    private static final java.util.Map<String, String> ICON_GLYPHS = buildIconGlyphs();
+
+    private static java.util.Map<String, String> buildIconGlyphs() {
+        java.util.Map<String, String> m = new java.util.HashMap<>();
+        m.put("check", "✓");          // ✓
+        m.put("done", "✓");
+        m.put("close", "✕");          // ✕
+        m.put("remove", "−");         // −
+        m.put("add", "＋");            // ＋
+        m.put("menu", "☰");           // ☰
+        m.put("more_vert", "⋮");      // ⋮
+        m.put("more_horiz", "⋯");     // ⋯
+        m.put("search", "⚲");
+        m.put("arrow_back", "←");     // ←
+        m.put("arrow_forward", "→");  // →
+        m.put("arrow_upward", "↑");   // ↑
+        m.put("arrow_downward", "↓"); // ↓
+        m.put("chevron_left", "‹");   // ‹
+        m.put("chevron_right", "›");  // ›
+        m.put("expand_more", "˅");    // ˅
+        m.put("expand_less", "˄");    // ˄
+        m.put("star", "★");           // ★
+        m.put("favorite", "♥");       // ♥
+        m.put("settings", "⚙");       // ⚙
+        m.put("home", "⌂");           // ⌂
+        m.put("info", "ⓘ");           // ⓘ
+        m.put("warning", "⚠");        // ⚠
+        return m;
+    }
+
+    private static boolean isIconFamily(String family) {
+        return family != null && (family.contains("Symbols") || family.contains("Material"));
+    }
+
+    private static String displayText(Text t) {
+        String s = t.text.peek();
+        if (s == null) return "";
+        if (isIconFamily(t.font.family.peek())) {
+            return ICON_GLYPHS.getOrDefault(s.trim(), "");
+        }
+        return s;
+    }
+
     private static boolean needsCjk(String s) {
         if (s == null) return false;
         for (int i = 0; i < s.length(); i++) {
@@ -267,8 +314,7 @@ public final class Renderer {
 
     private void measureText(Text t) {
         float size = t.effectiveFontSize();
-        String s = t.text.peek();
-        if (s == null) s = "";
+        String s = displayText(t);
         if (s.equals(t.lastMeasuredText) && size == t.lastMeasuredSize) return;
         boolean canMeasureW = !t.width.isBound() && ownsWidth(t);
         boolean canMeasureH = !t.height.isBound() && ownsHeight(t);
@@ -503,8 +549,8 @@ public final class Renderer {
             int color = applyAlpha(parseColor(t.color.peek()), alpha);
             paint().setColor(color);
             float size = t.effectiveFontSize();
-            String s = t.text.peek();
-            if (s == null || s.isEmpty()) return;
+            String s = displayText(t);
+            if (s.isEmpty()) return;
             String[] lines = splitLines(s);
             boolean elideRight = t.elide.peek().intValue() == 3; // Text.ElideRight
             try (Font font = fontFor(size, s)) {
