@@ -57,9 +57,7 @@ import io.github.humbleui.skija.PathEllipseArc;
 import io.github.humbleui.skija.PathFillMode;
 import io.github.humbleui.skija.Data;
 import io.github.humbleui.skija.Shader;
-import io.github.humbleui.skija.TextBlob;
 import io.github.humbleui.skija.Typeface;
-import io.github.humbleui.skija.shaper.Shaper;
 import io.github.humbleui.types.RRect;
 import io.github.humbleui.types.Rect;
 
@@ -196,7 +194,24 @@ public final class Renderer {
 
     private Typeface iconTypeface;
     private boolean iconLookupFailed;
-    private Shaper shaper;
+
+    // Material Symbols icon name -> private-use codepoint. We render the glyph by
+    // codepoint with the icon typeface (plain drawString), avoiding Skija's
+    // Shaper (its ShapingOptions JNI is broken in this build -> native crash).
+    private static final java.util.Map<String, Integer> ICON_CODEPOINTS = buildIconCodepoints();
+
+    private static java.util.Map<String, Integer> buildIconCodepoints() {
+        java.util.Map<String, Integer> m = new java.util.HashMap<>();
+        m.put("add", 0xe145); m.put("arrow_back", 0xe5c4); m.put("arrow_downward", 0xe5db);
+        m.put("arrow_forward", 0xe5c8); m.put("arrow_upward", 0xe5d8); m.put("check", 0xe5ca);
+        m.put("chevron_left", 0xe5cb); m.put("chevron_right", 0xe5cc); m.put("close", 0xe5cd);
+        m.put("done", 0xe876); m.put("expand_less", 0xe5ce); m.put("expand_more", 0xe5cf);
+        m.put("favorite", 0xe87e); m.put("home", 0xe9b2); m.put("info", 0xe88e);
+        m.put("menu", 0xe5d2); m.put("more_horiz", 0xe5d3); m.put("more_vert", 0xe5d4);
+        m.put("remove", 0xe15b); m.put("search", 0xe8b6); m.put("settings", 0xe8b8);
+        m.put("star", 0xf09a); m.put("warning", 0xf083);
+        return m;
+    }
 
     // The bundled Material Symbols font (icon glyphs are ligatures of the names).
     // Loaded once from resources; null if absent (then we fall back to the
@@ -217,24 +232,16 @@ public final class Renderer {
         }
     }
 
-    private Shaper shaper() {
-        if (shaper == null) shaper = Shaper.makeShapeDontWrapOrReorder();
-        return shaper;
-    }
-
-    // For an icon-font Text with the real Material Symbols face available, shape
-    // the raw ligature name (e.g. "check") into its icon glyph. null otherwise.
-    private TextBlob iconBlob(Text t, float size) {
+    // For an icon-font Text with the real Material Symbols face: the glyph string
+    // (a PUA codepoint) to draw with the icon typeface. "" = unknown name (drawn
+    // blank). null = not an icon font / font unavailable -> use the Unicode map.
+    private String iconGlyph(Text t) {
         if (!isIconFamily(t.font.family.peek())) return null;
-        Typeface itf = iconTypeface();
-        if (itf == null) return null;
+        if (iconTypeface() == null) return null;
         String name = t.text.peek();
-        if (name == null || name.isEmpty()) return null;
-        try (Font f = new Font(itf, size)) {
-            return shaper().shape(name, f);
-        } catch (Throwable ex) {
-            return null;
-        }
+        if (name == null) return "";
+        Integer cp = ICON_CODEPOINTS.get(name.trim());
+        return cp == null ? "" : new String(Character.toChars(cp));
     }
 
     private static String displayText(Text t) {
@@ -388,16 +395,17 @@ public final class Renderer {
         boolean canMeasureW = !t.width.isBound() && ownsWidth(t);
         boolean canMeasureH = !t.height.isBound() && ownsHeight(t);
 
-        TextBlob icon = iconBlob(t, size);
-        if (icon != null) {
-            Rect b = icon.getBounds();
-            float w = b.getRight();          // glyph advances from origin x=0
+        String ig = iconGlyph(t);
+        if (ig != null) {
+            float w;
+            try (Font f = new Font(iconTypeface(), size)) {
+                w = ig.isEmpty() ? 0f : f.measureTextWidth(ig);
+            }
             float h = size;
             if (!t.implicitWidth.isBound()) t.implicitWidth.set(w);
             if (!t.implicitHeight.isBound()) t.implicitHeight.set(h);
             if (canMeasureW) { t.width.set(w); t.lastSetWidth = w; }
             if (canMeasureH) { t.height.set(h); t.lastSetHeight = h; }
-            icon.close();
             return;
         }
 
@@ -634,11 +642,13 @@ public final class Renderer {
             int color = applyAlpha(parseColor(t.color.peek()), alpha);
             paint().setColor(color);
             float size = t.effectiveFontSize();
-            TextBlob icon = iconBlob(t, size);
-            if (icon != null) {
-                // Shaped icon glyph; centre vertically in the line box.
-                canvas.drawTextBlob(icon, 0, size * 0.8f, paint);
-                icon.close();
+            String ig = iconGlyph(t);
+            if (ig != null) {
+                if (!ig.isEmpty()) {
+                    try (Font f = new Font(iconTypeface(), size)) {
+                        canvas.drawString(ig, 0, size * 0.82f, f, paint);
+                    }
+                }
                 return;
             }
             String s = displayText(t);
