@@ -117,6 +117,31 @@ public final class Renderer {
     private Typeface cjkTypeface;
     private boolean cjkLookupFailed;
 
+    private final java.util.Map<Integer, Typeface> symbolCache = new java.util.HashMap<>();
+
+    // A typeface that actually contains the given symbol codepoint. The default
+    // Latin face lacks glyphs like ✓/✕/☰, so ask the font manager for any font
+    // that covers it (Noto etc.), falling back to the CJK face.
+    private Typeface symbolTypeface(int cp) {
+        if (symbolCache.containsKey(cp)) return symbolCache.get(cp);
+        Typeface t = null;
+        FontMgr mgr = FontMgr.getDefault();
+        if (mgr != null) {
+            try { t = mgr.matchFamilyStyleCharacter(null, FontStyle.NORMAL, null, cp); }
+            catch (Throwable ignored) {}
+        }
+        if (t == null) t = cjkTypeface();
+        symbolCache.put(cp, t);
+        return t;
+    }
+
+    // General-punctuation through misc-symbols/dingbats: where our icon glyphs live.
+    private static boolean isSymbol(String s) {
+        if (s == null || s.isEmpty()) return false;
+        int c = s.codePointAt(0);
+        return c >= 0x2000 && c <= 0x2BFF;
+    }
+
     private static final String[] LATIN_CANDIDATES = {
         null, "sans-serif", "Roboto", "Droid Sans", "Arial"
     };
@@ -1128,7 +1153,10 @@ public final class Renderer {
     }
 
     private Font fontFor(float size, String text) {
-        Typeface tf = needsCjk(text) ? cjkTypeface() : null;
+        Typeface tf;
+        if (isSymbol(text)) tf = symbolTypeface(text.codePointAt(0));
+        else if (needsCjk(text)) tf = cjkTypeface();
+        else tf = null;
         if (tf == null) tf = defaultTypeface();
         if (tf != null) return new Font(tf, size);
         return new Font().setSize(size);
