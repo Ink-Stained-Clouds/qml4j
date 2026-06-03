@@ -310,6 +310,15 @@ public final class RuntimeHelpers {
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         }
+        // A signal invoked as a function: control.clicked() emits the signal.
+        try {
+            java.lang.reflect.Field f = cls.getField(name);
+            if (Signal.class.isAssignableFrom(f.getType())) {
+                ((Signal) f.get(receiver)).emit(args);
+                return null;
+            }
+        } catch (NoSuchFieldException | IllegalAccessException ignore) {
+        }
         throw new IllegalArgumentException(
             "no method '" + name + "' with " + n + " args on " + cls.getName());
     }
