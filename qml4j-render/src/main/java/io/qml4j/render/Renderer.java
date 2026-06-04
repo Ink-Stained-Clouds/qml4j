@@ -196,9 +196,10 @@ public final class Renderer {
     private Typeface iconTypeface;
     private boolean iconLookupFailed;
 
-    // Material Symbols icon name -> private-use codepoint. We render the glyph by
-    // codepoint with the icon typeface (plain drawString), avoiding Skija's
-    // Shaper (its ShapingOptions JNI is broken in this build -> native crash).
+    // Material Symbols icon name -> private-use codepoint, drawn by codepoint
+    // with the icon typeface (plain drawString). A simple fast path that needs
+    // no text shaping; Shaper also works now (_nAfterLoad fixed it) if richer
+    // shaping is ever needed.
     private static final java.util.Map<String, Integer> ICON_CODEPOINTS = buildIconCodepoints();
 
     private static java.util.Map<String, Integer> buildIconCodepoints() {
