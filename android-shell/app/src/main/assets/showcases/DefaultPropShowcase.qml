@@ -5,16 +5,16 @@ import "."
 // Panel{} yet land in its inner Column (Panel.qml: default property alias
 // content: body.children).
 Rectangle {
-    x: 60
+    x: 0
     y: 11380
-    width: 880
+    width: parent.width
     height: 240
     color: "#1c1c28"
 
     Text {
         x: 16; y: 12
         text: "default property alias (children redirected into inner Column):"
-        color: "#ffffff"; fontSize: 24; width: 820; height: 32
+        color: "#ffffff"; fontSize: 24; width: parent.width - 32; height: 32
     }
 
     Panel {

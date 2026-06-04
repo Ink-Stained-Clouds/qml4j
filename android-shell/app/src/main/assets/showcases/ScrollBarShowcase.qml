@@ -4,9 +4,9 @@ import md3.Core
 // Loads the UNMODIFIED third-party MD3 ScrollBar.qml. Flick the list: the
 // thumb tracks contentY and fades in while moving (no engine-specific code).
 Rectangle {
-    x: 60
+    x: 0
     y: 10120
-    width: 880
+    width: parent.width
     height: 320
     color: "#1c1c28"
 
@@ -16,7 +16,7 @@ Rectangle {
         text: "MD3 ScrollBar (real third-party component, unmodified):"
         color: "#ffffff"
         fontSize: 24
-        width: 820
+        width: parent.width - 32
         height: 32
     }
 
@@ -24,9 +24,9 @@ Rectangle {
         id: fl
         x: 16
         y: 56
-        width: 420
+        width: parent.width - 32
         height: 240
-        contentWidth: 420
+        contentWidth: width
         contentHeight: 2000
         clip: true
 
@@ -35,7 +35,7 @@ Rectangle {
             Repeater {
                 model: 40
                 Rectangle {
-                    width: 420
+                    width: fl.width
                     height: 42
                     color: index % 2 === 0 ? "#2a3a52" : "#3a2a3a"
                     Text {

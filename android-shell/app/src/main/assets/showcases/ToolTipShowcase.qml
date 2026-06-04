@@ -4,9 +4,9 @@ import md3.Core
 // Loads the UNMODIFIED MD3 ToolTip.qml. Tap the button: tooltip fades in
 // (NumberAnimation, from = current opacity) and auto-hides after its timeout.
 Rectangle {
-    x: 60
+    x: 0
     y: 10500
-    width: 880
+    width: parent.width
     height: 220
     color: "#1c1c28"
 
@@ -16,7 +16,7 @@ Rectangle {
         text: "MD3 ToolTip (real third-party component, unmodified):"
         color: "#ffffff"
         fontSize: 24
-        width: 820
+        width: parent.width - 32
         height: 32
     }
 

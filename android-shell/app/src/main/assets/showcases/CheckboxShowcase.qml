@@ -4,16 +4,16 @@ import md3.Core
 // Real MD3 Checkbox.qml (unmodified): RowLayout + Ripple/MultiEffect + Qt.color.
 // Tap a box — it toggles, the ripple expands (masked to the touch target).
 Rectangle {
-    x: 60
+    x: 0
     y: 11680
-    width: 880
+    width: parent.width
     height: 240
     color: "#1c1c28"
 
     Text {
         x: 16; y: 12
         text: "MD3 Checkbox (real component: RowLayout + Ripple/MultiEffect):"
-        color: "#ffffff"; fontSize: 24; width: 820; height: 32
+        color: "#ffffff"; fontSize: 24; width: parent.width - 32; height: 32
     }
 
     Column {

@@ -3,9 +3,9 @@ import QtQuick.Layouts
 
 // QtQuick.Layouts: RowLayout / ColumnLayout + Layout.* attached properties.
 Rectangle {
-    x: 60
+    x: 0
     y: 10760
-    width: 880
+    width: parent.width
     height: 300
     color: "#1c1c28"
 
@@ -15,7 +15,7 @@ Rectangle {
         text: "QtQuick.Layouts (RowLayout / ColumnLayout):"
         color: "#ffffff"
         fontSize: 24
-        width: 820
+        width: parent.width - 32
         height: 32
     }
 
@@ -23,7 +23,7 @@ Rectangle {
     RowLayout {
         x: 16
         y: 56
-        width: 840
+        width: parent.width - 32
         spacing: 8
 
         Rectangle { implicitWidth: 80; implicitHeight: 56; radius: 8; color: "#5070ff" }

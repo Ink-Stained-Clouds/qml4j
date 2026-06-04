@@ -3,9 +3,9 @@ import QtQuick
 // Qt.color(str) -> channels, round-tripped through Qt.rgba to derive a faded
 // variant; `readonly property` holds the base color.
 Rectangle {
-    x: 60
+    x: 0
     y: 11100
-    width: 880
+    width: parent.width
     height: 200
     color: "#1c1c28"
 
@@ -14,7 +14,7 @@ Rectangle {
     Text {
         x: 16; y: 12
         text: "Qt.color / Qt.rgba (derive faded variant) + readonly property:"
-        color: "#ffffff"; fontSize: 24; width: 820; height: 32
+        color: "#ffffff"; fontSize: 24; width: parent.width - 32; height: 32
     }
 
     Row {
