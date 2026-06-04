@@ -20,6 +20,7 @@ public class Item extends QObject {
     public double lastImplicitWidth = Double.NaN;
     public double lastImplicitHeight = Double.NaN;
     public final Property<Boolean> visible = new Property<>(Boolean.TRUE);
+    public final Property<Boolean> enabled = new Property<>(Boolean.TRUE);
     public final Property<Number> opacity = new Property<>(1.0);
     public final Property<Number> rotation = new Property<>(0);
     public final Property<Number> scale = new Property<>(1.0);

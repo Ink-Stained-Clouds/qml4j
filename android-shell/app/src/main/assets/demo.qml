@@ -117,7 +117,8 @@ Rectangle {
                         { t: "DefaultProp", y: 11380 },
                         { t: "Checkbox", y: 11680 },
                         { t: "Switch/Radio", y: 11980 },
-                        { t: "IconButton", y: 12320 }
+                        { t: "IconButton", y: 12320 },
+                        { t: "Card", y: 12500 }
                     ]
                     Rectangle {
                         width: label.implicitWidth + 24
@@ -192,7 +193,7 @@ Rectangle {
         anchors.top: editorPanel.bottom
         anchors.bottom: parent.bottom
         contentWidth: parent.width
-        contentHeight: 12500
+        contentHeight: 12820
 
     Rectangle {
         x: 60
@@ -1101,5 +1102,7 @@ Rectangle {
     SwitchRadioShowcase { }
 
     IconButtonShowcase { }
+
+    CardShowcase { }
     }
 }

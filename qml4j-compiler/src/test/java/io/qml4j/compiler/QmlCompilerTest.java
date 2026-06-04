@@ -723,9 +723,11 @@ class QmlCompilerTest {
     }
 
     @Test
-    void declaredPropertyShadowingFieldRejected() {
-        assertThrows(IllegalArgumentException.class, () ->
-            instantiate("TestItem { property int width }"));
+    void declaredPropertyOverridesInheritedField() throws Exception {
+        // Redeclaring an inherited property (Qt-legal) overrides it: no new field,
+        // the initializer sets the inherited one.
+        TestItem it = instantiate("TestItem { property int width: 5 }");
+        assertEquals(5L, it.width.peek().longValue());
     }
 
     @Test

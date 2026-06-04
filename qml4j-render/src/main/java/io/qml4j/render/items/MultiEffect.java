@@ -14,6 +14,12 @@ public class MultiEffect extends Item {
     public final Property<Boolean> blurEnabled = new Property<>(Boolean.FALSE);
     public final Property<Number> blur = new Property<>(0);
     public final Property<Boolean> shadowEnabled = new Property<>(Boolean.FALSE);
+    public final Property<String> shadowColor = new Property<>("#000000");
+    public final Property<Number> shadowBlur = new Property<>(0);
+    public final Property<Number> shadowVerticalOffset = new Property<>(0);
+    public final Property<Number> shadowHorizontalOffset = new Property<>(0);
+    public final Property<Number> shadowOpacity = new Property<>(1.0);
+    public final Property<Number> shadowScale = new Property<>(1.0);
     public final Property<Boolean> colorizationEnabled = new Property<>(Boolean.FALSE);
     public final Property<Number> brightness = new Property<>(0);
     public final Property<Number> contrast = new Property<>(0);

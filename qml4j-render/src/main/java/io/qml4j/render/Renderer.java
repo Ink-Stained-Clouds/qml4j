@@ -309,6 +309,12 @@ public final class Renderer {
 
     private void draw(Canvas canvas, Item node, float inheritedAlpha) {
         if (!node.visible.peek()) return;
+        drawForced(canvas, node, inheritedAlpha);
+    }
+
+    // Draw a node ignoring its own `visible` flag (used to render a MultiEffect
+    // source, which is normally an invisible sibling rendered only via the effect).
+    private void drawForced(Canvas canvas, Item node, float inheritedAlpha) {
         if (node instanceof Text) measureText((Text) node);
         if (node instanceof Control) measureControl((Control) node);
         followImplicitSize(node);
@@ -679,14 +685,33 @@ public final class Renderer {
     private void paintMultiEffect(Canvas canvas, MultiEffect me, float w, float h, float alpha) {
         Object src = me.source.peek();
         if (!(src instanceof Item)) return;
+        Item source = (Item) src;
+
+        // Drop shadow: render the source through a drop-shadow image filter.
+        if (Boolean.TRUE.equals(me.shadowEnabled.peek())) {
+            float op = (float) (alpha * me.shadowOpacity.peek().doubleValue());
+            int sc = applyAlpha(parseColor(me.shadowColor.peek()), op);
+            float dy = me.shadowVerticalOffset.peek().floatValue();
+            float dx = me.shadowHorizontalOffset.peek().floatValue();
+            float sg = sigma(me.shadowBlur.peek().floatValue() * 32f); // Qt blur is 0..1
+            Paint sp = new Paint();
+            sp.setImageFilter(ImageFilter.makeDropShadow(dx, dy, sg, sg, sc));
+            float mg = sg * 3f + Math.abs(dx) + Math.abs(dy) + 8f;
+            int save = canvas.saveLayer(Rect.makeXYWH(-mg, -mg, w + 2 * mg, h + 2 * mg), sp);
+            try { drawForced(canvas, source, alpha); }
+            finally { canvas.restoreToCount(save); sp.close(); }
+            return;
+        }
+
+        // Mask: clip the source to the mask's rounded-rect shape (v0 approximation).
+        int save = canvas.save();
         if (Boolean.TRUE.equals(me.maskEnabled.peek())) {
             float r = maskRadius(me.maskSource.peek());
             if (r > 0) canvas.clipRRect(RRect.makeXYWH(0, 0, w, h, r));
             else canvas.clipRect(Rect.makeXYWH(0, 0, w, h));
         }
-        for (Item child : zOrdered(((Item) src).children)) {
-            draw(canvas, child, alpha);
-        }
+        try { drawForced(canvas, source, alpha); }
+        finally { canvas.restoreToCount(save); }
     }
 
     // Effective corner radius of the mask: the first Rectangle in the mask subtree.

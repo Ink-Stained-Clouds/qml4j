@@ -12,6 +12,8 @@ QtObject {
         property color onSurfaceVariantColor: "#49454f"
         property color onPrimaryColor: "#ffffff"
         property color surfaceContainerHighest: "#e6e0e9"
+        property color surfaceContainerLow: "#f7f2fa"
+        property color surfaceVariant: "#e7e0ec"
         property color secondaryContainer: "#e8def8"
         property color onSecondaryContainerColor: "#1d192b"
         property color shadow: "#000000"

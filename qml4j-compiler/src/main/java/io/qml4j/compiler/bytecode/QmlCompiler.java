@@ -216,6 +216,10 @@ public final class QmlCompiler {
                     cw.visitField(Opcodes.ACC_PUBLIC, dp.name, PROPERTY_DESC, null, null).visitEnd();
                     rootAliases.put(ad.name, new AliasRef(ad.targetId, ad.targetProperty));
                 }
+            } else if (dp.isOverride) {
+                // Inherited property: no new field; the initializer is applied as
+                // a binding to the inherited field (emitPropertyDeclarationInitializer).
+                rootRegularDecls.add(dp);
             } else {
                 cw.visitField(Opcodes.ACC_PUBLIC, dp.name, PROPERTY_DESC, null, null).visitEnd();
                 rootRegularDecls.add(dp);
@@ -260,6 +264,7 @@ public final class QmlCompiler {
             ctor.visitFieldInsn(Opcodes.PUTFIELD, componentInternal, sig, SIGNAL_DESC);
         }
         for (DeclaredProp dp : rootRegularDecls) {
+            if (dp.isOverride) continue; // inherited field already exists/initialized
             emitInitDeclaredProperty(ctor, 0, componentInternal, dp);
         }
 
@@ -536,6 +541,31 @@ public final class QmlCompiler {
                                                     Map<String, List<String>> customSignalParams) {
         if ("alias".equals(pd.typeName)) return;
         if (pd.initializer == null) return;
+        // Override of an inherited property (no own field): apply the initializer
+        // as a binding/literal to the inherited Property field.
+        if (declaredProps.get(pd.name) == null
+            && findPropertyFieldOrNull(outerType, pd.name) != null) {
+            Ast.Expression e;
+            if (pd.initializer instanceof Ast.ExpressionValue) {
+                e = ((Ast.ExpressionValue) pd.initializer).expr;
+            } else if (pd.initializer instanceof Ast.StatementBlockValue) {
+                Ast.Block block = ((Ast.StatementBlockValue) pd.initializer).block;
+                Ast.ArrowFunctionExpr fn = new Ast.ArrowFunctionExpr(
+                    Collections.<String>emptyList(), null, block);
+                e = new Ast.CallExpr(fn, Collections.<Ast.Expression>emptyList());
+            } else {
+                throw new UnsupportedOperationException(
+                    "unsupported override initializer for property: " + pd.name);
+            }
+            if (e instanceof Ast.LiteralExpr) {
+                emitLiteralAssignment(ctor, outerType, outerLocal, pd.name, (Ast.LiteralExpr) e);
+            } else {
+                emitExpressionBinding(ctor, outerType, outerLocal, componentBinaryName,
+                                      bindingCounter, classes, pd.name, e, idTypes,
+                                      declaredProps, aliases, rootFunctions);
+            }
+            return;
+        }
         if (pd.initializer instanceof Ast.ObjectValue) {
             String objOwner = declaredProps.get(pd.name);
             if (objOwner == null) {
@@ -690,6 +720,9 @@ public final class QmlCompiler {
         }
 
         List<DeclaredProp> childDecls = collectPropertyDecls(hostNode, childType);
+        // Overrides of inherited props create no new field; their initializers are
+        // applied as bindings (emitPropertyDeclarationInitializer) via member walk.
+        childDecls.removeIf(dp -> dp.isOverride);
 
         String childInternal;
         String childSignalOwner;
@@ -848,6 +881,7 @@ public final class QmlCompiler {
         }
 
         List<DeclaredProp> userDecls = collectPropertyDecls(delegateNode, delType);
+        userDecls.removeIf(dp -> dp.isOverride);
         for (DeclaredProp dp : userDecls) {
             if ("index".equals(dp.name) || "modelData".equals(dp.name)) {
                 throw new IllegalArgumentException(
@@ -1829,14 +1863,19 @@ public final class QmlCompiler {
         final String typeName;
         final Ast.Value initializer;
         final boolean isDefault;
+        final boolean isOverride;  // redeclares an inherited Property -> init it, no new field
         DeclaredProp(String name, String typeName, Ast.Value initializer) {
-            this(name, typeName, initializer, false);
+            this(name, typeName, initializer, false, false);
         }
         DeclaredProp(String name, String typeName, Ast.Value initializer, boolean isDefault) {
+            this(name, typeName, initializer, isDefault, false);
+        }
+        DeclaredProp(String name, String typeName, Ast.Value initializer, boolean isDefault, boolean isOverride) {
             this.name = name;
             this.typeName = typeName;
             this.initializer = initializer;
             this.isDefault = isDefault;
+            this.isOverride = isOverride;
         }
     }
 
@@ -1973,12 +2012,16 @@ public final class QmlCompiler {
             if (!seen.add(pd.name)) {
                 throw new IllegalArgumentException("duplicate property declaration: " + pd.name);
             }
-            if (findPropertyFieldOrNull(ownerType, pd.name) != null
-                || findSignalFieldOrNull(ownerType, pd.name) != null) {
+            if (findSignalFieldOrNull(ownerType, pd.name) != null) {
                 throw new IllegalArgumentException(
-                    "property '" + pd.name + "' shadows existing field on " + ownerType.getName());
+                    "property '" + pd.name + "' shadows existing signal on " + ownerType.getName());
             }
-            out.add(new DeclaredProp(pd.name, pd.typeName, pd.initializer, pd.isDefault));
+            // Redeclaring an inherited Property (Qt allows `property bool enabled`
+            // on a type that already has enabled) -> treat as an override: no new
+            // field, the initializer just sets the inherited one.
+            boolean isOverride = !"alias".equals(pd.typeName)
+                && findPropertyFieldOrNull(ownerType, pd.name) != null;
+            out.add(new DeclaredProp(pd.name, pd.typeName, pd.initializer, pd.isDefault, isOverride));
         }
         return out;
     }
