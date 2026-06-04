@@ -864,8 +864,8 @@ public final class Renderer {
         float size = ti.fontSize.peek().floatValue();
         try (Font font = fontFor(size, s)) {
             float baseline = size;
-            float glyphTop = baseline + size * GLYPH_ASCENT_RATIO;
-            float glyphHeight = size * (GLYPH_DESCENT_RATIO - GLYPH_ASCENT_RATIO);
+            float glyphTop = baseline + glyphTopOffset(font);
+            float glyphHeight = glyphExtent(font);
             paintSelectionRect(canvas, ti, s, font, glyphTop, glyphHeight, alpha);
             if (!s.isEmpty()) {
                 paint().setColor(applyAlpha(parseColor(ti.color.peek()), alpha));
@@ -903,8 +903,22 @@ public final class Renderer {
 
     private static final long CARET_BLINK_MS = 500;
 
-    private static final float GLYPH_ASCENT_RATIO = -0.78f;
-    private static final float GLYPH_DESCENT_RATIO = 0.22f;
+    // Real font-metric helpers (Skija native metrics work now that
+    // Library._nAfterLoad() runs — see MainActivity). Replace the old hardcoded
+    // ascent/descent ratios used for caret/selection rects and line height.
+    private static float glyphTopOffset(Font font) {     // <= 0, relative to baseline
+        return font.getMetrics().getAscent();
+    }
+    private static float glyphExtent(Font font) {        // ascent..descent height
+        FontMetrics m = font.getMetrics();
+        return m.getDescent() - m.getAscent();
+    }
+    private static float lineHeight(Font font) {
+        return font.getMetrics().getHeight();
+    }
+    private static float baselineInLine(Font font) {     // line-top -> baseline distance
+        return -font.getMetrics().getAscent();
+    }
 
     private void paintTextEdit(Canvas canvas, TextEdit te, float w, float h, float alpha) {
         String s = te.text.peek();
@@ -913,7 +927,7 @@ public final class Renderer {
         try (Font font = fontFor(size, s)) {
             TextWrap.Result wrapped = wrapFor(te, s, w, size, font);
             te.lineCount.set(wrapped.lines.size());
-            float lineH = size * (GLYPH_DESCENT_RATIO - GLYPH_ASCENT_RATIO) + size * 0.2f;
+            float lineH = lineHeight(font);
             float total = lineH * wrapped.lines.size();
             float yOffset = topOffset(te.verticalAlignment.peek(), h, total);
             paintSelectionMultiline(canvas, te, wrapped, font, yOffset, lineH, size, alpha);
@@ -921,7 +935,7 @@ public final class Renderer {
             for (int i = 0; i < wrapped.lines.size(); i++) {
                 String line = wrapped.lines.get(i);
                 if (!line.isEmpty()) {
-                    float baseline = yOffset + i * lineH + size;
+                    float baseline = yOffset + i * lineH + baselineInLine(font);
                     canvas.drawString(line, 0, baseline, font, paint);
                 }
             }
@@ -964,8 +978,8 @@ public final class Renderer {
         Paint p = paint();
         p.setMode(PaintMode.FILL);
         p.setColor(applyAlpha(parseColor(te.selectionColor.peek()), alpha));
-        float glyphTop = size + size * GLYPH_ASCENT_RATIO;
-        float glyphHeight = size * (GLYPH_DESCENT_RATIO - GLYPH_ASCENT_RATIO);
+        float glyphTop = baselineInLine(font) + glyphTopOffset(font);
+        float glyphHeight = glyphExtent(font);
         for (int i = 0; i < wrapped.lines.size(); i++) {
             int ls = wrapped.starts[i];
             String line = wrapped.lines.get(i);
@@ -988,8 +1002,8 @@ public final class Renderer {
         String line = wrapped.lines.get(lineIdx);
         int col = Math.max(0, Math.min(pos - wrapped.starts[lineIdx], line.length()));
         float cx = col == 0 ? 0 : font.measureTextWidth(line.substring(0, col));
-        float glyphTop = size + size * GLYPH_ASCENT_RATIO;
-        float glyphHeight = size * (GLYPH_DESCENT_RATIO - GLYPH_ASCENT_RATIO);
+        float glyphTop = baselineInLine(font) + glyphTopOffset(font);
+        float glyphHeight = glyphExtent(font);
         Paint p = paint();
         p.setMode(PaintMode.FILL);
         p.setColor(applyAlpha(parseColor(te.color.peek()), alpha));
@@ -1019,7 +1033,7 @@ public final class Renderer {
             float w = te.width.peek().floatValue();
             float h = te.height.peek().floatValue();
             TextWrap.Result wrapped = wrapFor(te, s, w, size, font);
-            float lineH = size * (GLYPH_DESCENT_RATIO - GLYPH_ASCENT_RATIO) + size * 0.2f;
+            float lineH = lineHeight(font);
             float total = lineH * wrapped.lines.size();
             float yOffset = topOffset(te.verticalAlignment.peek(), h, total);
             int lineIdx = (int) Math.floor((localY - yOffset) / lineH);
