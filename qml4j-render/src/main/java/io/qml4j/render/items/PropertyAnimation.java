@@ -20,6 +20,34 @@ public class PropertyAnimation extends AbstractAnimation {
     protected Object preparedTo;
 
     @Override
+    public void start() {
+        // Qt semantics: starting a property animation takes exclusive control of
+        // its (target, property). Stop any other animation still driving the same
+        // property so the newcomer wins instead of the two writing it each frame
+        // (e.g. a ripple's fade-out must override its still-running fade-in).
+        Object t = target.peek();
+        String prop = effectiveProperty();
+        if (t != null && prop != null) {
+            Item top = this;
+            while (top.parent.peek() != null) top = top.parent.peek();
+            stopConflicting(top, t, prop);
+        }
+        super.start();
+    }
+
+    private void stopConflicting(Item node, Object t, String prop) {
+        if (node != this && node instanceof PropertyAnimation) {
+            PropertyAnimation pa = (PropertyAnimation) node;
+            if (Boolean.TRUE.equals(pa.running.peek())
+                    && pa.target.peek() == t
+                    && prop.equals(pa.effectiveProperty())) {
+                pa.stop();
+            }
+        }
+        for (Item c : node.children) stopConflicting(c, t, prop);
+    }
+
+    @Override
     public void tick(long nowNanos) {
         if (!Boolean.TRUE.equals(running.peek())) {
             reset();
