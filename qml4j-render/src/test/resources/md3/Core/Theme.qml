@@ -11,6 +11,8 @@ QtObject {
         property color onSurfaceColor: "#1d1b20"
         property color onSurfaceVariantColor: "#49454f"
         property color onPrimaryColor: "#ffffff"
+        property color primaryContainer: "#eaddff"
+        property color onPrimaryContainerColor: "#21005d"
         property color surfaceContainerHighest: "#e6e0e9"
         property color surfaceContainerLow: "#f7f2fa"
         property color surfaceVariant: "#e7e0ec"
@@ -22,6 +24,8 @@ QtObject {
         property real level0: 0
         property real level1: 1
         property real level2: 3
+        property real level3: 6
+        property real level4: 8
     }
     property QtObject state: QtObject {
         property real hoverStateLayerOpacity: 0.08
@@ -51,6 +55,9 @@ QtObject {
     property QtObject shape: QtObject {
         property int extraSmall: 4
         property int small: 8
+        property int cornerMedium: 12
+        property int cornerLarge: 16
+        property int cornerExtraLarge: 28
         property int cornerFull: 999
     }
 }

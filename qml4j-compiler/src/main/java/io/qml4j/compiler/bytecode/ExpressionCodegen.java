@@ -478,6 +478,10 @@ final class ExpressionCodegen {
         Map<String, Long> qt = new HashMap<>();
         qt.put("Horizontal", 1L);
         qt.put("Vertical", 2L);
+        qt.put("NoButton", 0L);
+        qt.put("LeftButton", 1L);
+        qt.put("RightButton", 2L);
+        qt.put("MiddleButton", 4L);
         qt.put("AlignLeft", 1L);
         qt.put("AlignRight", 2L);
         qt.put("AlignHCenter", 4L);

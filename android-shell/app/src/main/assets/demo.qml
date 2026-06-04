@@ -118,7 +118,8 @@ Rectangle {
                         { t: "Checkbox", y: 11680 },
                         { t: "Switch/Radio", y: 11980 },
                         { t: "IconButton", y: 12320 },
-                        { t: "Card", y: 12500 }
+                        { t: "Card", y: 12500 },
+                        { t: "FAB", y: 12820 }
                     ]
                     Rectangle {
                         width: label.implicitWidth + 24
@@ -193,7 +194,7 @@ Rectangle {
         anchors.top: editorPanel.bottom
         anchors.bottom: parent.bottom
         contentWidth: parent.width
-        contentHeight: 12820
+        contentHeight: 13020
 
     Rectangle {
         x: 60
@@ -1104,5 +1105,7 @@ Rectangle {
     IconButtonShowcase { }
 
     CardShowcase { }
+
+    FabShowcase { }
     }
 }
