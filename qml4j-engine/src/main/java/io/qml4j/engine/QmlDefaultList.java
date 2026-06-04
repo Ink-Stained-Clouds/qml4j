@@ -9,4 +9,8 @@ import java.lang.annotation.Target;
 @Target(ElementType.TYPE)
 public @interface QmlDefaultList {
     String value();
+    // For a list alias `default property alias x: inner.data`, the id field of
+    // the inner container that default children should be parented to (so their
+    // anchors resolve against it, matching where they render). "" = the component.
+    String parentField() default "";
 }

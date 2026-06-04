@@ -194,6 +194,7 @@ public final class QmlCompiler {
         List<DeclaredProp> rootRegularDecls = new ArrayList<>();
         List<AliasDecl> rootAliasDecls = new ArrayList<>();
         String defaultListAlias = null;
+        String defaultListParent = null;
         for (DeclaredProp dp : rootDecls) {
             if ("alias".equals(dp.typeName)) {
                 AliasDecl ad = parseAlias(dp);
@@ -208,6 +209,7 @@ public final class QmlCompiler {
                             throw new IllegalArgumentException("multiple default properties");
                         }
                         defaultListAlias = ad.name;
+                        defaultListParent = ad.targetId; // parent default children to it
                     }
                 } else if (ad.targetProperty == null) {
                     // Object alias: a field holding the referenced object.
@@ -230,6 +232,7 @@ public final class QmlCompiler {
             org.objectweb.asm.AnnotationVisitor av =
                 cw.visitAnnotation("Lio/qml4j/engine/QmlDefaultList;", true);
             av.visit("value", defaultListAlias);
+            if (defaultListParent != null) av.visit("parentField", defaultListParent);
             av.visitEnd();
         }
 
@@ -659,6 +662,17 @@ public final class QmlCompiler {
         return ann != null ? ann.value() : "children";
     }
 
+    private static String defaultParentFieldFor(Class<?> type) {
+        QmlDefaultList ann = type.getAnnotation(QmlDefaultList.class);
+        if (ann == null || ann.parentField().isEmpty()) return null;
+        return ann.parentField();
+    }
+
+    private static Field findFieldOrNull(Class<?> type, String name) {
+        try { return type.getField(name); }
+        catch (NoSuchFieldException e) { return null; }
+    }
+
     private void emitChildObjectInto(MethodVisitor ctor, Class<? extends QObject> outerType,
                                      int outerLocal, Ast.ObjectNode child, TypeRegistry registry,
                                      int[] localCounter, int[] bindingCounter, int[] handlerCounter,
@@ -783,7 +797,18 @@ public final class QmlCompiler {
             String declOwner = Type.getInternalName(parentProp.getDeclaringClass());
             ctor.visitVarInsn(Opcodes.ALOAD, childLocal);
             ctor.visitFieldInsn(Opcodes.GETFIELD, declOwner, "parent", PROPERTY_DESC);
-            ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+            // Default-property children render under (and so should be parented to)
+            // the inner container the default list aliases, not the component.
+            String parentFieldName = defaultParentFieldFor(outerType);
+            Field pf = parentFieldName != null && listFieldName.equals(defaultListFieldFor(outerType))
+                ? findFieldOrNull(outerType, parentFieldName) : null;
+            if (pf != null) {
+                ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+                ctor.visitFieldInsn(Opcodes.GETFIELD, Type.getInternalName(pf.getDeclaringClass()),
+                                    parentFieldName, Type.getDescriptor(pf.getType()));
+            } else {
+                ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+            }
             ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
                                  "set", "(Ljava/lang/Object;)V", false);
         }
