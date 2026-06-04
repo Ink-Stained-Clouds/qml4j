@@ -1299,10 +1299,33 @@ public final class Renderer {
         }
     }
 
+    // Common CSS/QML named colors. "transparent" is the critical one (MD3 uses it
+    // heavily); without it parseColor returned opaque black and painted over.
+    private static final java.util.Map<String, Integer> NAMED_COLORS = buildNamedColors();
+
+    private static java.util.Map<String, Integer> buildNamedColors() {
+        java.util.Map<String, Integer> m = new java.util.HashMap<>();
+        m.put("transparent", 0x00000000);
+        m.put("black", 0xFF000000);
+        m.put("white", 0xFFFFFFFF);
+        m.put("red", 0xFFFF0000);
+        m.put("green", 0xFF008000);
+        m.put("blue", 0xFF0000FF);
+        m.put("gray", 0xFF808080);
+        m.put("grey", 0xFF808080);
+        m.put("yellow", 0xFFFFFF00);
+        m.put("orange", 0xFFFFA500);
+        return m;
+    }
+
     public static int parseColor(String s) {
         if (s == null) return 0xFF000000;
         s = s.trim();
-        if (s.isEmpty() || s.charAt(0) != '#') return 0xFF000000;
+        if (s.isEmpty()) return 0xFF000000;
+        if (s.charAt(0) != '#') {
+            Integer named = NAMED_COLORS.get(s.toLowerCase());
+            return named != null ? named : 0xFF000000;
+        }
         String hex = s.substring(1);
         long v;
         try { v = Long.parseLong(hex, 16); }
