@@ -48,6 +48,15 @@ public final class QmlCompiler {
     private static final ThreadLocal<int[]> DELEGATE_SCOPE_DEPTH =
         ThreadLocal.withInitial(() -> new int[]{0});
 
+    // Where id'd child objects are stored: the root component (load=ALOAD 0) or,
+    // inside a delegate, the delegate-root instance (load=ALOAD delegateLocal).
+    private static final class IdSink {
+        final String internal;
+        final int local;
+        IdSink(String internal, int local) { this.internal = internal; this.local = local; }
+    }
+    private final java.util.Deque<IdSink> idSinks = new java.util.ArrayDeque<>();
+
     private static final ThreadLocal<java.util.Deque<TypeRegistry>> REGISTRY_STACK =
         ThreadLocal.withInitial(java.util.ArrayDeque::new);
 
@@ -262,10 +271,15 @@ public final class QmlCompiler {
                                 "L" + Type.getInternalName(rootType) + ";");
         }
 
-        emitObjectBody(ctor, rootType, 0, doc.root, registry,
-                       localCounter, bindingCounter, handlerCounter, classes, componentBinaryName,
-                       componentInternal, rootSignalNames, customSignalParams, idTypes,
-                       rootDeclaredProps, rootAliases, rootFunctions);
+        idSinks.push(new IdSink(componentInternal, 0));
+        try {
+            emitObjectBody(ctor, rootType, 0, doc.root, registry,
+                           localCounter, bindingCounter, handlerCounter, classes, componentBinaryName,
+                           componentInternal, rootSignalNames, customSignalParams, idTypes,
+                           rootDeclaredProps, rootAliases, rootFunctions);
+        } finally {
+            idSinks.pop();
+        }
 
         for (AliasDecl ad : rootAliasDecls) {
             emitAliasLink(ctor, componentInternal, rootId, rootType,
@@ -724,9 +738,10 @@ public final class QmlCompiler {
 
         String childId = idOf(hostNode);
         if (childId != null) {
-            ctor.visitVarInsn(Opcodes.ALOAD, 0);
+            IdSink sink = idSinks.isEmpty() ? new IdSink(componentInternal, 0) : idSinks.peek();
+            ctor.visitVarInsn(Opcodes.ALOAD, sink.local);
             ctor.visitVarInsn(Opcodes.ALOAD, childLocal);
-            ctor.visitFieldInsn(Opcodes.PUTFIELD, componentInternal, childId,
+            ctor.visitFieldInsn(Opcodes.PUTFIELD, sink.internal, childId,
                                 "L" + parentInternal + ";");
         }
 
@@ -772,12 +787,13 @@ public final class QmlCompiler {
 
     private byte[] emitChildSubclass(String subInternal, String parentInternal,
                                      Set<String> signalNames, List<DeclaredProp> propDecls) {
-        return emitChildSubclass(subInternal, parentInternal, signalNames, propDecls, null);
+        return emitChildSubclass(subInternal, parentInternal, signalNames, propDecls, null, null);
     }
 
     private byte[] emitChildSubclass(String subInternal, String parentInternal,
                                      Set<String> signalNames, List<DeclaredProp> propDecls,
-                                     String[] extraInterfaces) {
+                                     String[] extraInterfaces,
+                                     Map<String, Class<? extends QObject>> idFields) {
         ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
         cw.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
                  subInternal, null, parentInternal, extraInterfaces);
@@ -786,6 +802,13 @@ public final class QmlCompiler {
         }
         for (DeclaredProp dp : propDecls) {
             cw.visitField(Opcodes.ACC_PUBLIC, dp.name, PROPERTY_DESC, null, null).visitEnd();
+        }
+        // Object fields for delegate-local ids (assigned to the delegate root).
+        if (idFields != null) {
+            for (Map.Entry<String, Class<? extends QObject>> e : idFields.entrySet()) {
+                cw.visitField(Opcodes.ACC_PUBLIC, e.getKey(),
+                              "L" + Type.getInternalName(e.getValue()) + ";", null, null).visitEnd();
+            }
         }
         MethodVisitor ctor = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
         ctor.visitCode();
@@ -838,8 +861,13 @@ public final class QmlCompiler {
 
         String delegateBinaryName = componentBinaryName + "$Delegate$" + n;
         String delegateInternal = delegateBinaryName.replace('.', '/');
+        // Delegate-local ids: fields on the delegate root, resolved at runtime via
+        // delegateContext() walking the parent chain to this DelegateRoot.
+        Map<String, Class<? extends QObject>> delIds = new LinkedHashMap<>();
+        collectIds(delegateNode, registry, delIds, false);
+        for (DeclaredProp dp : fullDecls) delIds.remove(dp.name); // don't shadow index/modelData/user props
         byte[] subBytes = emitChildSubclass(delegateInternal, delBaseInternal, delSignals,
-                                            fullDecls, new String[]{"io/qml4j/engine/DelegateRoot"});
+                                            fullDecls, new String[]{"io/qml4j/engine/DelegateRoot"}, delIds);
         classes.put(delegateBinaryName, subBytes);
 
         Map<String, String> delDeclaredProps = new LinkedHashMap<>();
@@ -912,12 +940,14 @@ public final class QmlCompiler {
                            "set", "(Ljava/lang/Object;)V", false);
 
         enterDelegateScope();
+        idSinks.push(new IdSink(delegateInternal, delegateLocal));
         try {
             emitObjectBody(mv, delType, delegateLocal, delegateNode, registry,
                            localCounter, bindingCounter, handlerCounter, classes, componentBinaryName,
                            delegateInternal, delSignals, delSignalParams, idTypes,
                            delDeclaredProps, Collections.<String, AliasRef>emptyMap(), rootFunctions);
         } finally {
+            idSinks.pop();
             exitDelegateScope();
         }
 

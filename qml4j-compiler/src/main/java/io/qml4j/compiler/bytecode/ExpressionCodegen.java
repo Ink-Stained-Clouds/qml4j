@@ -402,12 +402,30 @@ final class ExpressionCodegen {
                                "__instance", "()Ljava/lang/Object;", false);
             return;
         }
+        // Inside a delegate, an unresolved identifier may be a delegate-local id
+        // (or a delegate-scope name): resolve at runtime by walking the parent
+        // chain to the DelegateRoot. Only when it's not a property of this object.
+        if (QmlCompiler.inDelegateScope() && !hasPropertyField(outerType, id.name)) {
+            loadOuter(mv);
+            mv.visitLdcInsn(id.name);
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, HELPERS_INTERNAL, "delegateContext",
+                               "(Ljava/lang/Object;Ljava/lang/String;)Ljava/lang/Object;", false);
+            return;
+        }
         Field f = findPropertyField(outerType, id.name);
         String declOwner = Type.getInternalName(f.getDeclaringClass());
         loadOuter(mv);
         mv.visitFieldInsn(Opcodes.GETFIELD, declOwner, id.name, "L" + PROPERTY_INTERNAL + ";");
         mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
                            "get", "()Ljava/lang/Object;", false);
+    }
+
+    private static boolean hasPropertyField(Class<?> outerType, String name) {
+        try {
+            return Property.class.isAssignableFrom(outerType.getField(name).getType());
+        } catch (NoSuchFieldException e) {
+            return false;
+        }
     }
 
     private void loadDeclaredPropertyField(MethodVisitor mv, String name, String ownerInternal) {

@@ -120,17 +120,19 @@ Rectangle {
                         { t: "IconButton", y: 12320 }
                     ]
                     Rectangle {
-                        width: modelData.t.length * 12 + 28
+                        width: label.implicitWidth + 24
                         height: 40
                         radius: 20
-                        color: "#404060"
+                        color: tapNav.pressed ? "#5070ff" : "#404060"
                         Text {
+                            id: label
                             anchors.centerIn: parent
                             text: modelData.t
                             color: "#ffffff"
                             fontSize: 20
                         }
                         MouseArea {
+                            id: tapNav
                             anchors.fill: parent
                             onClicked: root.jump(modelData.y)
                         }
