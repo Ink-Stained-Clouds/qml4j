@@ -5,9 +5,7 @@ import md3.Core
 // Tap a box — it toggles, the ripple expands (masked to the touch target).
 Rectangle {
     x: 0
-    y: 11680
-    width: parent.width
-    height: 240
+    y: 0
     color: "#1c1c28"
 
     Text {

@@ -4,9 +4,7 @@ import md3.Core
 // Real MD3 FAB: standard / small / large / extended (Ripple + elevation shadow).
 Rectangle {
     x: 0
-    y: 12820
-    width: parent.width
-    height: 180
+    y: 0
     color: "#fef7ff"
 
     Text { x: 16; y: 12; text: "MD3 FAB (standard / small / large / extended):"

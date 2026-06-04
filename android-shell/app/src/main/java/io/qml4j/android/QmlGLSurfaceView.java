@@ -42,13 +42,13 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
     // Material components are physically sized (and the canvas drawn larger).
     private final float uiScale;
 
-    public QmlGLSurfaceView(Context ctx, QmlEngine engine, String qmlSource, ResourceLoader resources) {
+    public QmlGLSurfaceView(Context ctx, QmlEngine engine, String qmlSource, ResourceLoader resources,
+                            float uiScale) {
         super(ctx);
         this.engine = engine;
         this.qmlSource = qmlSource;
         this.resources = resources;
-        float d = ctx.getResources().getDisplayMetrics().density;
-        this.uiScale = d > 0 ? d : 1f;
+        this.uiScale = uiScale > 0 ? uiScale : 1f;
         setEGLContextClientVersion(2);
         setEGLConfigChooser(8, 8, 8, 8, 0, 8);
         setRenderer(new GlRenderer());

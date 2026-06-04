@@ -5,9 +5,7 @@ import md3.Core
 // (NumberAnimation, from = current opacity) and auto-hides after its timeout.
 Rectangle {
     x: 0
-    y: 10500
-    width: parent.width
-    height: 220
+    y: 0
     color: "#1c1c28"
 
     Text {

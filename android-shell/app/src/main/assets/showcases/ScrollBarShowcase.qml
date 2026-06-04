@@ -5,9 +5,7 @@ import md3.Core
 // thumb tracks contentY and fades in while moving (no engine-specific code).
 Rectangle {
     x: 0
-    y: 10120
-    width: parent.width
-    height: 320
+    y: 0
     color: "#1c1c28"
 
     Text {

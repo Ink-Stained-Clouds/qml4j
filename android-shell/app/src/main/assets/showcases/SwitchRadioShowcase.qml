@@ -6,9 +6,7 @@ import md3.Core
 Rectangle {
     id: root
     x: 0
-    y: 11980
-    width: parent.width
-    height: 320
+    y: 0
     color: "#1c1c28"
 
     Text {

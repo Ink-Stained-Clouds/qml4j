@@ -5,9 +5,7 @@ import md3.Core
 // color logic.
 Rectangle {
     x: 0
-    y: 12320
-    width: parent.width
-    height: 160
+    y: 0
     color: "#1c1c28"
 
     Text {

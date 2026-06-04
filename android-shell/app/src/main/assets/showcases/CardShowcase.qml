@@ -5,9 +5,7 @@ import md3.Core
 Rectangle {
     id: root
     x: 0
-    y: 12500
-    width: parent.width
-    height: 260
+    y: 0
     color: "#fef7ff"
 
     Text { x: 16; y: 12; text: "MD3 Card (elevated shadow / filled / outlined):"

@@ -81,73 +81,10 @@ Rectangle {
         root.taps = root.taps + 1;
     }
 
-    function jump(y) {
-        scroll.contentY = Math.max(0, Math.min(y, scroll.contentHeight - scroll.height));
-    }
-
-    // Fixed navigation bar: horizontally-scrollable jump buttons.
-    Rectangle {
-        id: navBar
-        x: 0
-        y: 0
-        width: parent.width
-        height: 56
-        color: "#2a2a3a"
-        z: 100
-
-        Flickable {
-            anchors.fill: parent
-            contentWidth: navRow.width + 24
-            contentHeight: parent.height
-            clip: true
-
-            Row {
-                id: navRow
-                x: 12
-                y: 8
-                spacing: 8
-
-                Repeater {
-                    model: [
-                        { t: "Top", y: 0 },
-                        { t: "ScrollBar", y: 10120 },
-                        { t: "ToolTip", y: 10500 },
-                        { t: "Layouts", y: 10760 },
-                        { t: "Color", y: 11100 },
-                        { t: "DefaultProp", y: 11380 },
-                        { t: "Checkbox", y: 11680 },
-                        { t: "Switch/Radio", y: 11980 },
-                        { t: "IconButton", y: 12320 },
-                        { t: "Card", y: 12500 },
-                        { t: "FAB", y: 12820 }
-                    ]
-                    Rectangle {
-                        width: label.implicitWidth + 24
-                        height: 40
-                        radius: 20
-                        color: tapNav.pressed ? "#5070ff" : "#404060"
-                        Text {
-                            id: label
-                            anchors.centerIn: parent
-                            text: modelData.t
-                            color: "#ffffff"
-                            fontSize: 20
-                        }
-                        MouseArea {
-                            id: tapNav
-                            anchors.fill: parent
-                            onClicked: root.jump(modelData.y)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     Rectangle {
         id: editorPanel
         x: 0
-        y: 56
+        y: 0
         width: parent.width
         height: 280
         color: "#1c1c28"
@@ -194,7 +131,7 @@ Rectangle {
         anchors.top: editorPanel.bottom
         anchors.bottom: parent.bottom
         contentWidth: parent.width
-        contentHeight: 13020
+        contentHeight: 10160
 
     Rectangle {
         x: 60
@@ -1088,24 +1025,14 @@ Rectangle {
 
     QtObjectShowcase { }
 
-    ScrollBarShowcase { }
 
-    ToolTipShowcase { }
 
-    LayoutShowcase { }
 
-    ColorShowcase { }
 
-    DefaultPropShowcase { }
 
-    CheckboxShowcase { }
 
-    SwitchRadioShowcase { }
 
-    IconButtonShowcase { }
 
-    CardShowcase { }
 
-    FabShowcase { }
     }
 }

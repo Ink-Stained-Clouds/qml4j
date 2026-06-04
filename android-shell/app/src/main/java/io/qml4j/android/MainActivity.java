@@ -51,22 +51,65 @@ public final class MainActivity extends Activity {
 
     private QmlGLSurfaceView glView;
 
+    private static final class Page {
+        final String title; final String file; final float scale;
+        Page(String title, String file, float scale) { this.title = title; this.file = file; this.scale = scale; }
+    }
+
+    private Page[] pages() {
+        float d = getResources().getDisplayMetrics().density;
+        return new Page[]{
+            new Page("Legacy demo (1×)", "demo.qml", 1f),
+            new Page("ScrollBar", "showcases/ScrollBarShowcase.qml", d),
+            new Page("ToolTip", "showcases/ToolTipShowcase.qml", d),
+            new Page("Layouts", "showcases/LayoutShowcase.qml", d),
+            new Page("Qt.color", "showcases/ColorShowcase.qml", d),
+            new Page("default property", "showcases/DefaultPropShowcase.qml", d),
+            new Page("Checkbox", "showcases/CheckboxShowcase.qml", d),
+            new Page("Switch / RadioButton", "showcases/SwitchRadioShowcase.qml", d),
+            new Page("IconButton", "showcases/IconButtonShowcase.qml", d),
+            new Page("Card", "showcases/CardShowcase.qml", d),
+            new Page("FAB", "showcases/FabShowcase.qml", d),
+        };
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        showLauncher();
+    }
 
+    private void showLauncher() {
+        if (glView != null) { glView.onPause(); glView = null; }
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(24, 24, 24, 24);
+        for (final Page p : pages()) {
+            Button b = new Button(this);
+            b.setAllCaps(false);
+            b.setText(p.title);
+            b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
+            b.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) { openPage(p); }
+            });
+            list.addView(b);
+        }
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        sv.addView(list);
+        setContentView(sv);
+    }
+
+    private void openPage(Page p) {
         String qml;
         try {
-            qml = readAsset("demo.qml");
+            qml = readAsset(p.file);
         } catch (IOException e) {
-            throw new RuntimeException("failed to read demo.qml asset", e);
+            throw new RuntimeException("failed to read asset: " + p.file, e);
         }
-
         QmlEngine engine = new QmlEngine(
             new DexClassLoaderBackend(getClass().getClassLoader()));
-
         glView = new QmlGLSurfaceView(this, engine, qml,
-            new AssetResourceLoader(getAssets()));
+            new AssetResourceLoader(getAssets()), p.scale);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -76,6 +119,12 @@ public final class MainActivity extends Activity {
         root.addView(glView);
         root.addView(buildKeyBar());
         setContentView(root);
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (glView != null) { showLauncher(); return; }
+        super.onBackPressed();
     }
 
     private LinearLayout buildKeyBar() {
@@ -117,13 +166,13 @@ public final class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
-        glView.onPause();
+        if (glView != null) glView.onPause();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        glView.onResume();
+        if (glView != null) glView.onResume();
     }
 
     private String readAsset(String name) throws IOException {

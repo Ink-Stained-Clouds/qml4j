@@ -4,9 +4,7 @@ import QtQuick
 // variant; `readonly property` holds the base color.
 Rectangle {
     x: 0
-    y: 11100
-    width: parent.width
-    height: 200
+    y: 0
     color: "#1c1c28"
 
     readonly property string base: "#5070ff"

@@ -4,9 +4,7 @@ import QtQuick.Layouts
 // QtQuick.Layouts: RowLayout / ColumnLayout + Layout.* attached properties.
 Rectangle {
     x: 0
-    y: 10760
-    width: parent.width
-    height: 300
+    y: 0
     color: "#1c1c28"
 
     Text {

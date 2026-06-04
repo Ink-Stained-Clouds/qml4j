@@ -6,9 +6,7 @@ import "."
 // content: body.children).
 Rectangle {
     x: 0
-    y: 11380
-    width: parent.width
-    height: 240
+    y: 0
     color: "#1c1c28"
 
     Text {
