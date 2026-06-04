@@ -38,12 +38,17 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
     // FQN: GLSurfaceView.Renderer (inherited) shadows imported Renderer in a subclass.
     private final io.qml4j.render.Renderer renderer = new io.qml4j.render.Renderer();
     private SkijaGlSurface surface;
+    // Logical-pixel scale: QML is authored in dp; render at the screen density so
+    // Material components are physically sized (and the canvas drawn larger).
+    private final float uiScale;
 
     public QmlGLSurfaceView(Context ctx, QmlEngine engine, String qmlSource, ResourceLoader resources) {
         super(ctx);
         this.engine = engine;
         this.qmlSource = qmlSource;
         this.resources = resources;
+        float d = ctx.getResources().getDisplayMetrics().density;
+        this.uiScale = d > 0 ? d : 1f;
         setEGLContextClientVersion(2);
         setEGLConfigChooser(8, 8, 8, 8, 0, 8);
         setRenderer(new GlRenderer());
@@ -55,8 +60,8 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
     @Override
     public boolean onTouchEvent(MotionEvent ev) {
         final int action = ev.getActionMasked();
-        final float x = ev.getX();
-        final float y = ev.getY();
+        final float x = ev.getX() / uiScale;
+        final float y = ev.getY() / uiScale;
         switch (action) {
             case MotionEvent.ACTION_DOWN:
                 requestFocus();
@@ -267,8 +272,8 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
                 renderer.setResourceLoader(resources);
             }
             if (view.root() != null) {
-                view.root().width.set(width);
-                view.root().height.set(height);
+                view.root().width.set(width / uiScale);
+                view.root().height.set(height / uiScale);
             }
         }
 
@@ -281,7 +286,10 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
                 view.tickAnimations(System.nanoTime());
                 dq.flush();
                 Canvas canvas = surface.acquireCanvas();
+                int sc = canvas.save();
+                canvas.scale(uiScale, uiScale);
                 renderer.render(canvas, view.root());
+                canvas.restoreToCount(sc);
                 surface.present();
             } finally {
                 dq.uninstall();

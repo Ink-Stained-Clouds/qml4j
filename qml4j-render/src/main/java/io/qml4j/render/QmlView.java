@@ -906,7 +906,15 @@ public final class QmlView {
             MouseArea hit = hitTestMouseArea(ordered.get(i), childLx, childLy);
             if (hit != null) return hit;
         }
-        return item instanceof MouseArea ? (MouseArea) item : null;
+        // A MouseArea is transparent to presses when disabled or accepting no
+        // buttons (Qt: acceptedButtons: Qt.NoButton) — let the press fall through.
+        if (item instanceof MouseArea) {
+            MouseArea ma = (MouseArea) item;
+            if (Boolean.FALSE.equals(ma.enabled.peek())) return null;
+            if (ma.acceptedButtons.peek().intValue() == 0) return null;
+            return ma;
+        }
+        return null;
     }
 
     private float[] localCoords(Item target, float rootX, float rootY) {
