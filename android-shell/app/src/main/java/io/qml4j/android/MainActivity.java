@@ -24,6 +24,13 @@ public final class MainActivity extends Activity {
         // and load via System.loadLibrary ourselves.
         System.setProperty("skija.staticLoad", "false");
         System.loadLibrary("skija");
+        // CRITICAL: Skija caches all jclass/jmethodID/jfieldID in native
+        // _nAfterLoad(). Library.load() normally calls it, but we bypass that
+        // with our own System.loadLibrary, so call it explicitly. Without this,
+        // every native method that constructs/reads a Java object (measureText
+        // -> Rect, getMetrics -> FontMetrics, Shaper) dereferences a NULL ID and
+        // crashes natively; only primitive-returning calls work.
+        io.github.humbleui.skija.impl.Library._nAfterLoad();
         // Pre-warm Skija classes so any JNI FindClass / class-ref caching
         // happens with the app classloader visible on the stack.
         try {

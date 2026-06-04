@@ -41,6 +41,7 @@ import io.qml4j.render.items.Window;
 
 import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.skija.Font;
+import io.github.humbleui.skija.FontMetrics;
 import io.github.humbleui.skija.FontMgr;
 import io.github.humbleui.skija.FontStyle;
 import io.github.humbleui.skija.BlendMode;
@@ -646,10 +647,11 @@ public final class Renderer {
             if (ig != null) {
                 if (!ig.isEmpty()) {
                     try (Font f = new Font(iconTypeface(), size)) {
-                        // Fixed baseline (no native measureText(Rect)/getMetrics:
-                        // those struct-returning JNI paths crash on this build).
-                        // ~0.88 visually centres a Material Symbols glyph.
-                        canvas.drawString(ig, 0, size * 0.88f, f, paint);
+                        // Centre the glyph vertically in the node box using real
+                        // font metrics (ascent is negative, descent positive).
+                        FontMetrics fm = f.getMetrics();
+                        float baseline = h / 2f - (fm.getAscent() + fm.getDescent()) / 2f;
+                        canvas.drawString(ig, 0, baseline, f, paint);
                     }
                 }
                 return;
