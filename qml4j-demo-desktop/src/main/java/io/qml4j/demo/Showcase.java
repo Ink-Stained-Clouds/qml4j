@@ -18,7 +18,9 @@ final class Showcase {
     }
 
     // MD3 component showcases first (the migration target), then the engine-feature
-    // showcases. Order is the launcher order.
+    // showcases. Order is the launcher order. DefaultProp/M45/QtObject are omitted:
+    // they import relative-directory components (Panel, widgets/Pill, apptheme) that
+    // were never migrated and don't exist in the Android assets either.
     static List<Showcase> all() {
         return Arrays.asList(
             of("Button", "ButtonShowcase"),
@@ -40,11 +42,8 @@ final class Showcase {
             of("Animations", "AnimShowcase"),
             of("Keys", "KeysShowcase"),
             of("FocusScope", "FocusScopeShowcase"),
-            of("default property", "DefaultPropShowcase"),
-            of("QtObject", "QtObjectShowcase"),
             of("Qt namespace", "QtNamespaceShowcase"),
             of("ES6", "Es6Showcase"),
-            of("M45", "M45Showcase"),
             of("Window", "WindowShowcase")
         );
     }

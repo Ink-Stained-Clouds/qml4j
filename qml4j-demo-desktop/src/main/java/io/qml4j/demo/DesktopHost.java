@@ -51,10 +51,32 @@ final class DesktopHost {
     }
 
     private void openShowcase(int index) {
-        byte[] bytes = loader.load(showcases.get(index).resource);
+        Showcase sc = showcases.get(index);
+        byte[] bytes = loader.load(sc.resource);
         if (bytes == null) return;
         inLauncher = false;
-        setView(new String(bytes, StandardCharsets.UTF_8));
+        // A showcase is untrusted content (it may reference a type the engine doesn't
+        // provide); a compile/load failure shows an error page instead of taking the
+        // whole host down. Esc still returns to the launcher.
+        try {
+            setView(new String(bytes, StandardCharsets.UTF_8));
+        } catch (RuntimeException e) {
+            setView(errorQml(sc.title, e));
+        }
+    }
+
+    // No \n escapes in the generated string: the error page must never itself fail
+    // to compile, so it sticks to plain literals and a wrapped Text for the message.
+    private static String errorQml(String title, Throwable e) {
+        String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+        msg = msg.split("\n")[0].replace("\"", "'").replace("\\", "/");
+        return "import QtQuick\n"
+            + "Rectangle { x: 0; y: 0; color: \"#3b1f1f\"\n"
+            + "  Text { x: 24; y: 24; color: \"#ffd0d0\"; fontSize: 20;\n"
+            + "    text: \"" + title + " failed to load (Esc to return):\" }\n"
+            + "  Text { x: 24; y: 64; width: parent.width - 48; wrapMode: Text.WordWrap;\n"
+            + "    color: \"#ffb0b0\"; fontSize: 15; text: \"" + msg + "\" }\n"
+            + "}\n";
     }
 
     private void setView(String qml) {
