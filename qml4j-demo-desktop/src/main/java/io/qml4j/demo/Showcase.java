@@ -32,6 +32,7 @@ final class Showcase {
             of("Card", "CardShowcase"),
             of("FAB", "FabShowcase"),
             of("Slider", "SliderShowcase"),
+            of("Snackbar", "SnackbarShowcase"),
             of("ScrollBar", "ScrollBarShowcase"),
             of("ToolTip", "ToolTipShowcase"),
             of("Controls", "ControlsShowcase"),

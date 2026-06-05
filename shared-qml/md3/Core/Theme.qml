@@ -7,6 +7,7 @@ QtObject {
         property color primary: "#6750a4"
         property color inverseSurface: "#322f35"
         property color inverseOnSurface: "#f5eff7"
+        property color inversePrimary: "#d0bcff"
         property color surface: "#fef7ff"
         property color onSurfaceColor: "#1d1b20"
         property color onSurfaceVariantColor: "#49454f"
