@@ -18,8 +18,8 @@ final class AstScan {
         return scan(body, n -> n instanceof Ast.ForInStmt);
     }
 
-    // True if the body calls Qt.binding or Qt.callLater. The Rhino globals do not yet
-    // bridge those (deferred to a later phase), so such a body stays on ASM.
+    // True if the body calls Qt.binding. The Rhino globals do not yet bridge the lazy
+    // Qt.binding (Qt.callLater is bridged), so such a body stays on ASM.
     static boolean usesDeferredQtHelper(Ast.Statement body) {
         return scan(body, AstScan::isDeferredQtMember);
     }
@@ -29,7 +29,7 @@ final class AstScan {
         Ast.MemberExpr m = (Ast.MemberExpr) n;
         return m.target instanceof Ast.IdentifierExpr
             && "Qt".equals(((Ast.IdentifierExpr) m.target).name)
-            && ("binding".equals(m.property) || "callLater".equals(m.property));
+            && "binding".equals(m.property);
     }
 
     private static boolean scan(Ast.Statement s, Predicate<Object> p) {

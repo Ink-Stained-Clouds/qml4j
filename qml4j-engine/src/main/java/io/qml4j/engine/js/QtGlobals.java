@@ -4,6 +4,7 @@ import io.qml4j.engine.RuntimeHelpers;
 import org.mozilla.javascript.BaseFunction;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.NativeObject;
+import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 
@@ -29,6 +30,7 @@ public final class QtGlobals {
         qt.put("rgba", qt, fn("rgba", 4, a -> RuntimeHelpers.qtRgba(arg(a, 0), arg(a, 1), arg(a, 2), arg(a, 3))));
         qt.put("hsla", qt, fn("hsla", 4, a -> RuntimeHelpers.qtHsla(arg(a, 0), arg(a, 1), arg(a, 2), arg(a, 3))));
         qt.put("color", qt, fn("color", 1, a -> RuntimeHelpers.qtColor(arg(a, 0))));
+        qt.put("callLater", qt, callLater());
         scope.put("Qt", scope, qt);
 
         scope.put("Text", scope, enumObject(TEXT));
@@ -41,6 +43,33 @@ public final class QtGlobals {
         scope.put("console", scope, console);
 
         return scope;
+    }
+
+    // Qt.callLater(fn): defer the JS function to the next DirtyQueue flush. The
+    // function is re-entered under a fresh Rhino context against its captured scope.
+    // (org.mozilla.javascript.Function is FQN'd here -- it clashes with the imported
+    // java.util.function.Function used by fn().)
+    private static BaseFunction callLater() {
+        return new BaseFunction() {
+            @Override public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+                Object f = args.length > 0 ? args[0] : null;
+                if (f instanceof org.mozilla.javascript.Function) {
+                    org.mozilla.javascript.Function jf = (org.mozilla.javascript.Function) f;
+                    Scriptable home = jf.getParentScope() != null ? jf.getParentScope() : scope;
+                    RuntimeHelpers.qtCallLater((Runnable) () -> {
+                        Context c = JsRuntime.enter();
+                        try {
+                            jf.call(c, home, home, ScriptRuntime.emptyArgs);
+                        } finally {
+                            Context.exit();
+                        }
+                    });
+                }
+                return null;
+            }
+            @Override public int getArity() { return 1; }
+            @Override public String getFunctionName() { return "callLater"; }
+        };
     }
 
     private static NativeObject enumObject(Map<String, Long> members) {

@@ -68,6 +68,36 @@ class RhinoHandlerTest {
         assertEquals(42, propLong(root, "got"));   // v * 2, v bound to the signal arg
     }
 
+    // Phase 4b: a handler using Qt.callLater runs on Rhino (the canHandle Qt-helper
+    // rejection no longer blocks callLater), and the deferred arrow fires on flush.
+    @Test
+    void callLaterHandlerRunsOnRhino() throws Exception {
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        Item root = v.load(
+            "import QtQuick\n" +
+            "Rectangle {\n" +
+            "  id: r\n" +
+            "  property int n: 0\n" +
+            "  signal go()\n" +
+            "  onGo: Qt.callLater(() => { r.n = r.n + 1 })\n" +
+            "}");
+        flush(v);
+
+        Signal go = (Signal) root.getClass().getField("go").get(root);
+        assertTrue(handlersOf(go).get(0) instanceof RhinoHandler);
+
+        DirtyQueue dq = v.dirtyQueue();
+        dq.install();
+        try {
+            go.emit();
+            assertEquals(0, propLong(root, "n"));   // deferred, not run yet
+            dq.flush();
+            assertEquals(1, propLong(root, "n"));   // runs on flush
+        } finally {
+            dq.uninstall();
+        }
+    }
+
     // A bare control-flow handler body (no braces) must produce legal wrapped JS --
     // `(function(){ if (...) ... })`, not `(function()if (...) ...)`.
     @Test
