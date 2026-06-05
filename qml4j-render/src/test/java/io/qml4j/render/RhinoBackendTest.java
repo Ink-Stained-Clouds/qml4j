@@ -54,4 +54,23 @@ class RhinoBackendTest {
         assertEquals(210, root.width.peek().intValue());  // 100*2+10
         assertEquals(1, root.z.peek().intValue());        // 210 > 50 ? 1 : 0
     }
+
+    @Test
+    void namespaceCallAndEnumBindingsRunOnRhino() throws Exception {
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        Item root = v.load(
+            "import QtQuick\n" +
+            "Rectangle {\n" +
+            "  height: 40\n" +
+            "  width: Math.max(height, 100)\n" +
+            "}");
+        flush(v);
+
+        assertTrue(bindingOf(root.width) instanceof RhinoBinding);
+        assertEquals(100, root.width.peek().intValue());  // max(40, 100)
+
+        root.height.set(250);
+        flush(v);
+        assertEquals(250, root.width.peek().intValue());  // max(250, 100)
+    }
 }

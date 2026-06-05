@@ -51,7 +51,7 @@ public final class JsRuntime {
             if (globals == null) {
                 Context cx = enter();
                 try {
-                    globals = cx.initStandardObjects(null, true);
+                    globals = QtGlobals.build(cx);
                 } finally {
                     Context.exit();
                 }

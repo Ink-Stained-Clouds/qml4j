@@ -1398,6 +1398,7 @@ public final class QmlCompiler {
         if (e instanceof Ast.IdentifierExpr) {
             String n = ((Ast.IdentifierExpr) e).name;
             if (aliases.containsKey(n)) return false;
+            if (JS_NAMESPACES.contains(n)) return true;
             return declaredProps.containsKey(n) || idTypes.containsKey(n)
                 || findPropertyFieldOrNull(outerType, n) != null;
         }
@@ -1423,8 +1424,29 @@ public final class QmlCompiler {
                 && rhinoCanHandle(c.thenBranch, outerType, idTypes, declaredProps, aliases)
                 && rhinoCanHandle(c.elseBranch, outerType, idTypes, declaredProps, aliases);
         }
+        if (e instanceof Ast.CallExpr) {
+            // Only namespace functions (Math.*, Qt.rgba/hsla/color); calling a method
+            // on an object needs JavaMember call support, and Qt.binding/callLater need
+            // scope capture -- those stay on ASM for now.
+            Ast.CallExpr call = (Ast.CallExpr) e;
+            if (!(call.callee instanceof Ast.MemberExpr)) return false;
+            Ast.MemberExpr m = (Ast.MemberExpr) call.callee;
+            if (!(m.target instanceof Ast.IdentifierExpr)) return false;
+            String ns = ((Ast.IdentifierExpr) m.target).name;
+            boolean ok = "Math".equals(ns)
+                || ("Qt".equals(ns) && !"binding".equals(m.property) && !"callLater".equals(m.property));
+            if (!ok) return false;
+            for (Ast.Expression arg : call.args) {
+                if (!rhinoCanHandle(arg, outerType, idTypes, declaredProps, aliases)) return false;
+            }
+            return true;
+        }
         return false;
     }
+
+    private static final java.util.Set<String> JS_NAMESPACES = new java.util.HashSet<>(java.util.Arrays.asList(
+        "Qt", "Math", "Text", "Font", "Easing", "console", "JSON",
+        "Number", "parseInt", "parseFloat", "isNaN"));
 
     private void emitGroupedBinding(MethodVisitor ctor, Class<? extends QObject> outerType,
                                     int outerLocal, String componentBinaryName,
