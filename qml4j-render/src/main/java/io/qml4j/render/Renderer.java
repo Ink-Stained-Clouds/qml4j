@@ -3,6 +3,7 @@ package io.qml4j.render;
 import io.qml4j.engine.DelegateFactory;
 import io.qml4j.engine.QObject;
 import io.qml4j.engine.binding.DirtyQueue;
+import io.qml4j.engine.binding.Property;
 import io.qml4j.render.items.Column;
 import io.qml4j.render.items.ColumnLayout;
 import io.qml4j.render.items.Component;
@@ -242,19 +243,32 @@ public final class Renderer {
     private String iconGlyph(Text t) {
         if (!isIconFamily(t.font.family.peek())) return null;
         if (iconTypeface() == null) return null;
-        String name = t.text.peek();
+        String name = rawText(t);
         if (name == null) return "";
         Integer cp = ICON_CODEPOINTS.get(name.trim());
         return cp == null ? "" : new String(Character.toChars(cp));
     }
 
     private static String displayText(Text t) {
-        String s = t.text.peek();
+        String s = rawText(t);
         if (s == null) return "";
         if (isIconFamily(t.font.family.peek())) {
             return ICON_GLYPHS.getOrDefault(s.trim(), "");
         }
         return s;
+    }
+
+    // QML allows binding a number (or any value) to Text.text; it stringifies. Read
+    // the raw value (avoiding the Property<String> checkcast) and format numbers the
+    // JS/QML way -- integral doubles without a trailing ".0".
+    private static String rawText(Text t) {
+        Object raw = ((Property<?>) t.text).peek();
+        if (raw == null) return null;
+        if (raw instanceof Double || raw instanceof Float) {
+            double d = ((Number) raw).doubleValue();
+            if (d == Math.rint(d) && !Double.isInfinite(d)) return Long.toString((long) d);
+        }
+        return raw.toString();
     }
 
     private static boolean needsCjk(String s) {
