@@ -14,6 +14,9 @@ MouseArea {
 
     hoverEnabled: true
 
+    // The wave currently held under the finger (fades once released).
+    property var activeWave: null
+
     // Mask for clipping (defines the shape)
     Item {
         id: mask
@@ -43,11 +46,11 @@ MouseArea {
         maskSource: mask
     }
 
-    // qml4j divergence from upstream md3 Ripple.qml: upstream reuses a single
-    // ripple rectangle, so a new tap restarts the one wave. Material allows
-    // overlapping ripples -- each touch is its own wave. We spawn an independent
-    // wave per press (Component.createObject) that expands, fades, and destroys
-    // itself, so concurrent taps coexist without disturbing each other.
+    // qml4j divergence from upstream md3 Ripple.qml: upstream reuses one ripple
+    // rectangle, so a new tap restarts the single wave. Material allows
+    // overlapping ripples. Each press spawns an independent wave that expands and
+    // holds at full opacity while pressed; on release it fades out and destroys
+    // itself, so concurrent presses coexist without disturbing each other.
     Component {
         id: waveComponent
         Rectangle {
@@ -56,6 +59,8 @@ MouseArea {
             property real startY: 0
             property real targetSize: Math.max(root.width, root.height) * 2.5
             property real size: 0
+            // Set false by the Ripple on release -> triggers fade-out + self-destruct.
+            property bool held: true
 
             width: size
             height: size
@@ -65,23 +70,34 @@ MouseArea {
             color: root.rippleColor
             opacity: 0
 
+            // Expand + fade in to full opacity, then hold while pressed.
             NumberAnimation {
                 target: wave; property: "size"
                 from: 0; to: wave.targetSize
                 duration: 450; easing.type: Easing.OutQuart
                 running: true
             }
-            SequentialAnimation {
+            NumberAnimation {
+                target: wave; property: "opacity"
+                from: 0; to: root.rippleOpacity
+                duration: 90
                 running: true
-                NumberAnimation { target: wave; property: "opacity"; from: 0; to: root.rippleOpacity; duration: 90 }
-                NumberAnimation { target: wave; property: "opacity"; to: 0; duration: 360; easing.type: Easing.InQuad }
             }
-            // Self-destruct just after the longest leg (size 450ms / fade 450ms).
-            Timer { interval: 470; running: true; repeat: false; onTriggered: wave.destroy() }
+
+            // On release (held -> false): ensure full, then fade out.
+            SequentialAnimation {
+                running: !wave.held
+                NumberAnimation { target: wave; property: "opacity"; to: root.rippleOpacity; duration: 60 }
+                NumberAnimation { target: wave; property: "opacity"; to: 0; duration: 300; easing.type: Easing.InQuad }
+            }
+            Timer { running: !wave.held; interval: 380; repeat: false; onTriggered: wave.destroy() }
         }
     }
 
     onPressed: (mouse) => {
-        waveComponent.createObject(rippleContent, { startX: mouse.x, startY: mouse.y })
+        root.activeWave = waveComponent.createObject(rippleContent, { startX: mouse.x, startY: mouse.y })
     }
+
+    onReleased: { if (root.activeWave) { root.activeWave.held = false; root.activeWave = null } }
+    onCanceled: { if (root.activeWave) { root.activeWave.held = false; root.activeWave = null } }
 }

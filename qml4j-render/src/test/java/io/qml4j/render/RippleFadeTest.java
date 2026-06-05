@@ -21,6 +21,8 @@ class RippleFadeTest {
         DirtyQueue dq = v.dirtyQueue(); dq.install();
         try { v.tickAnimations(clock); dq.flush(); } finally { dq.uninstall(); }
     }
+    private void frames(QmlView v, int n) { for (int i = 0; i < n; i++) tick(v, 16); }
+
     private Item content; // rippleContent: parent of live waves
     private QmlView load() {
         QmlView v = QmlView.withStockTypes(new QmlEngine());
@@ -37,19 +39,25 @@ class RippleFadeTest {
     private static double opacityOf(Item wave) { return wave.opacity.peek().doubleValue(); }
 
     @Test
-    void tapSpawnsAVisibleWaveThatFadesAndDestroysItself() {
+    void waveHoldsWhilePressedAndFadesOnlyOnRelease() {
         QmlView v = load();
         tick(v, 1);
-        assertEquals(0, content.children.size(), "no waves before any tap");
         v.dispatchPointerDown(40, 40);
-        tick(v, 1);
-        assertEquals(1, content.children.size(), "one wave spawned on press");
-        tick(v, 120);
-        double peak = opacityOf(content.children.get(0));
-        assertTrue(peak > 0.10, "wave rises to near-full opacity, was " + peak);
+        frames(v, 8); // ~128ms: expand + fade-in to full
+        assertEquals(1, content.children.size(), "wave spawned on press");
+        Item wave = content.children.get(0);
+        assertTrue(opacityOf(wave) > 0.10, "wave at full opacity while pressed");
+        // Hold a long time -- must NOT fade or destroy itself.
+        frames(v, 80); // ~1.3s held
+        assertEquals(1, content.children.size(), "wave persists while held");
+        assertTrue(opacityOf(wave) > 0.119, "wave still at full opacity while held, was " + opacityOf(wave));
+        // Release -> fades out, then destroys itself.
         v.dispatchPointerUp(40, 40);
-        tick(v, 600); // past the 470ms self-destruct timer
-        assertEquals(0, content.children.size(), "wave destroyed itself after fading");
+        frames(v, 18); // into the fade (after the brief hold-to-full leg)
+        assertTrue(opacityOf(wave) < 0.119 && opacityOf(wave) > 0.0,
+            "wave fading after release, was " + opacityOf(wave));
+        frames(v, 25); // past the ~380ms self-destruct
+        assertEquals(0, content.children.size(), "wave destroyed after fade-out");
     }
 
     @Test
@@ -57,21 +65,18 @@ class RippleFadeTest {
         QmlView v = load();
         tick(v, 1);
         v.dispatchPointerDown(20, 20);  // first wave
-        tick(v, 1);
-        tick(v, 150);                   // let the first wave ramp + expand
-        v.dispatchPointerUp(20, 20);
+        frames(v, 10);                  // let the first wave ramp + expand
+        v.dispatchPointerUp(20, 20);    // first wave begins fading
         v.dispatchPointerDown(60, 60);  // second wave, while first still alive
-        tick(v, 1);
+        frames(v, 2);
         assertEquals(2, content.children.size(), "both waves coexist");
         Item w1 = content.children.get(0), w2 = content.children.get(1);
-        tick(v, 30);
-        // First wave is older/bigger; both are independently visible.
-        assertTrue(opacityOf(w1) > 0.0, "first wave still visible, was " + opacityOf(w1));
-        assertTrue(opacityOf(w2) > 0.0, "second wave visible, was " + opacityOf(w2));
+        assertTrue(opacityOf(w1) > 0.0, "first (fading) wave still visible, was " + opacityOf(w1));
+        assertTrue(opacityOf(w2) > 0.0, "second (held) wave visible, was " + opacityOf(w2));
         assertTrue(w1.width.peek().doubleValue() > w2.width.peek().doubleValue(),
             "older wave has expanded further");
         v.dispatchPointerUp(60, 60);
-        tick(v, 800);
+        frames(v, 40);
         assertEquals(0, content.children.size(), "both waves eventually destroyed");
     }
 }
