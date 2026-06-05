@@ -18,6 +18,13 @@ public abstract class GroupAnimation extends AbstractAnimation {
         }
     }
 
+    @Override
+    public void stop() {
+        running.set(Boolean.FALSE);
+        wasRunning = false;
+        stopAllChildren();
+    }
+
     protected abstract void onStart(long nowNanos);
     protected abstract void onTick(long nowNanos);
     protected abstract boolean isFinished();
@@ -37,7 +44,7 @@ public abstract class GroupAnimation extends AbstractAnimation {
 
     private void stopAllChildren() {
         for (Item c : children) {
-            if (c instanceof AbstractAnimation) ((AbstractAnimation) c).running.set(Boolean.FALSE);
+            if (c instanceof AbstractAnimation) ((AbstractAnimation) c).stop();
         }
     }
 }

@@ -110,30 +110,32 @@ MouseArea {
         duration: 200
     }
     
-    NumberAnimation {
+    // qml4j divergence: MD3 "minimum visible ripple". Upstream fades straight to 0
+    // from the current opacity, so a fast tap (released before the 200ms fade-in
+    // ramps) barely shows. Sequence it: first finish rising to full opacity, then
+    // fade out -- a quick tap still produces a full, visible wave.
+    SequentialAnimation {
         id: fadeOutAnim
-        target: ripple
-        property: "opacity"
-        to: 0
-        duration: 300
+        NumberAnimation { target: ripple; property: "opacity"; to: root.rippleOpacity; duration: 90 }
+        NumberAnimation { target: ripple; property: "opacity"; to: 0; duration: 300 }
     }
 
     onPressed: (mouse) => {
         expandAnim.stop()
         fadeOutAnim.stop()
         fadeInAnim.stop()
-        
+
         ripple.startX = mouse.x
         ripple.startY = mouse.y
         ripple.size = 0
         ripple.opacity = 0
-        
+
         fadeInAnim.start()
         expandAnim.start()
     }
-    
-    onReleased: fadeOutAnim.start()
-    onCanceled: fadeOutAnim.start()
-    onExited: if (!pressed) fadeOutAnim.start()
+
+    onReleased: { fadeInAnim.stop(); fadeOutAnim.start() }
+    onCanceled: { fadeInAnim.stop(); fadeOutAnim.start() }
+    onExited: if (!pressed) { fadeInAnim.stop(); fadeOutAnim.start() }
 }
 

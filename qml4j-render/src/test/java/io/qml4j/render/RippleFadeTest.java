@@ -21,31 +21,58 @@ class RippleFadeTest {
         DirtyQueue dq = v.dirtyQueue(); dq.install();
         try { v.tickAnimations(clock); dq.flush(); } finally { dq.uninstall(); }
     }
-    @Test
-    void rippleFadesOutAfterRelease() {
+    private Item rippleOf(QmlView v) {
         Map<String, byte[]> files = new HashMap<>();
         for (String f : new String[]{"qmldir","Theme.qml","Ripple.qml"})
             files.put("md3/Core/" + f, res("md3/Core/" + f));
-        QmlView v = QmlView.withStockTypes(new QmlEngine());
         v.resources(files::get);
         Item root = v.load(
             "import QtQuick\nimport md3.Core\n" +
             "Item { width: 80; height: 80\n  Ripple { id: r; width: 80; height: 80; clipRadius: 20 }\n}");
-        Item ripple = root.children.get(0).children.get(1).children.get(0); // root>Ripple>rippleContent>ripple
+        return root.children.get(0).children.get(1).children.get(0); // root>Ripple>rippleContent>ripple
+    }
+
+    @Test
+    void rippleFadesOutAfterRelease() {
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        Item ripple = rippleOf(v);
         tick(v, 1);
         v.dispatchPointerDown(40, 40);
-        tick(v, 1);   // establish fade-in start time (frac 0)
-        tick(v, 150); // ramp fade-in (200ms anim)
+        tick(v, 1);   // establish fade-in start time
+        tick(v, 250); // fade-in (200ms) completes -> at peak
         double pressed = ripple.opacity.peek().doubleValue();
         v.dispatchPointerUp(40, 40);
-        tick(v, 1);   // establish fade-out start time
-        tick(v, 150); // 150ms into 300ms fade-out
+        tick(v, 1);   // hold-to-peak leg starts (frac 0)
+        tick(v, 95);  // hold leg (90ms, no-op at peak) done -> fade leg starts
+        tick(v, 120); // 120ms into the 300ms fade
         double mid = ripple.opacity.peek().doubleValue();
-        tick(v, 300); // well past fade-out
+        tick(v, 350);
         double after = ripple.opacity.peek().doubleValue();
-        System.out.println("RIPPLE pressed=" + pressed + " mid=" + mid + " after=" + after);
-        assertTrue(pressed > 0.0, "ripple visible during press, was " + pressed);
-        assertTrue(mid > 0.0 && mid < pressed, "ripple still fading 100ms after release, was " + mid);
+        System.out.println("FULLPRESS pressed=" + pressed + " mid=" + mid + " after=" + after);
+        assertTrue(pressed > 0.10, "ripple at peak during press, was " + pressed);
+        assertTrue(mid > 0.0 && mid < pressed, "ripple fading, was " + mid);
+        assertEquals(0.0, after, 1e-6, "ripple gone after fade");
+    }
+
+    @Test
+    void quickTapStillReachesPeak() {
+        // MD3 "minimum visible ripple": a fast tap (release before fade-in ramps)
+        // must still rise to full opacity before fading, not stay faint.
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        Item ripple = rippleOf(v);
+        tick(v, 1);
+        v.dispatchPointerDown(40, 40);
+        tick(v, 1);   // fade-in barely started: opacity ~ 0
+        double atPress = ripple.opacity.peek().doubleValue();
+        v.dispatchPointerUp(40, 40); // release almost immediately
+        tick(v, 1);
+        tick(v, 95);  // hold-to-peak leg (~90ms) completes
+        double peak = ripple.opacity.peek().doubleValue();
+        tick(v, 350); // fade-out completes
+        double after = ripple.opacity.peek().doubleValue();
+        System.out.println("QUICKTAP atPress=" + atPress + " peak=" + peak + " after=" + after);
+        assertTrue(atPress < 0.02, "fade-in had barely begun, was " + atPress);
+        assertTrue(peak > 0.10, "quick tap still reaches near-full opacity, was " + peak);
         assertEquals(0.0, after, 1e-6, "ripple gone after fade");
     }
 }
