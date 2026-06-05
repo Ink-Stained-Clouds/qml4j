@@ -16,6 +16,7 @@ QtObject {
         property color onPrimaryContainerColor: "#21005d"
         property color surfaceContainerHighest: "#e6e0e9"
         property color surfaceContainerHigh: "#ece6f0"
+        property color surfaceContainer: "#f3edf7"
         property color surfaceContainerLow: "#f7f2fa"
         property color secondary: "#625b71"
         property color surfaceVariant: "#e7e0ec"
@@ -47,6 +48,11 @@ QtObject {
         property QtObject labelLarge: QtObject {
             property string family: "Roboto"
             property int size: 14
+            property int weight: 57
+        }
+        property QtObject labelMedium: QtObject {
+            property string family: "Roboto"
+            property int size: 12
             property int weight: 57
         }
         property QtObject headlineSmall: QtObject {

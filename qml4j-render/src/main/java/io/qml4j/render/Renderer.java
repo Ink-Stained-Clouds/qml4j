@@ -34,6 +34,7 @@ import io.qml4j.render.items.ShapePath;
 import io.qml4j.render.items.Row;
 import io.qml4j.render.items.MultiEffect;
 import io.qml4j.render.items.RowLayout;
+import io.qml4j.render.items.StackLayout;
 import io.qml4j.render.items.Text;
 import io.qml4j.render.items.TextEdit;
 import io.qml4j.render.items.TextInput;
@@ -347,6 +348,7 @@ public final class Renderer {
         else if (node instanceof Row) ((Row) node).layout();
         else if (node instanceof RowLayout) ((RowLayout) node).layout();
         else if (node instanceof ColumnLayout) ((ColumnLayout) node).layout();
+        else if (node instanceof StackLayout) ((StackLayout) node).layout();
     }
 
     private void draw(Canvas canvas, Item node, float inheritedAlpha) {

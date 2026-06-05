@@ -1,0 +1,34 @@
+package io.qml4j.render.items;
+
+import io.qml4j.engine.binding.Property;
+
+// QtQuick.Layouts StackLayout: children are stacked; only the one at currentIndex
+// is visible, and it fills the layout's box. implicitWidth/Height track the largest
+// child so a StackLayout can content-size when not given an explicit/anchored size.
+public class StackLayout extends Item {
+    public final Property<Number> currentIndex = new Property<>(0);
+
+    public void layout() {
+        int cur = currentIndex.peek().intValue();
+        double w = width.peek().doubleValue();
+        double h = height.peek().doubleValue();
+        double iw = 0;
+        double ih = 0;
+        int i = 0;
+        for (Item c : children) {
+            iw = Math.max(iw, c.implicitWidth.peek().doubleValue());
+            ih = Math.max(ih, c.implicitHeight.peek().doubleValue());
+            boolean show = i == cur;
+            c.visible.set(show);
+            if (show) {
+                c.x.set(0);
+                c.y.set(0);
+                c.width.set(w);
+                c.height.set(h);
+            }
+            i++;
+        }
+        implicitWidth.set(iw);
+        implicitHeight.set(ih);
+    }
+}
