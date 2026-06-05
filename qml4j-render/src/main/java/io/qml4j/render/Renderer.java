@@ -213,6 +213,7 @@ public final class Renderer {
         m.put("remove", 0xe15b); m.put("search", 0xe8b6); m.put("settings", 0xe8b8);
         m.put("star", 0xf09a); m.put("warning", 0xf083);
         m.put("edit", 0xf097); m.put("delete", 0xe92e); m.put("share", 0xe80d);
+        m.put("person", 0xe7fd);
         return m;
     }
 

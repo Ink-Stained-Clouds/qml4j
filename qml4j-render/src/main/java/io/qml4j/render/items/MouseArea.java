@@ -19,6 +19,8 @@ public class MouseArea extends Item {
     public final Property<Boolean> hoverEnabled = new Property<>(Boolean.FALSE);
     public final Property<Number> acceptedButtons = new Property<>(1); // Qt.LeftButton
     public final Property<Boolean> propagateComposedEvents = new Property<>(Boolean.FALSE);
+    // Accepted for source compatibility; no cursor on a touch surface.
+    public final Property<Number> cursorShape = new Property<>(0);
     public final Property<Boolean> containsMouse = new Property<>(Boolean.FALSE);
     public final Property<Number> mouseX = new Property<>(0);
     public final Property<Number> mouseY = new Property<>(0);

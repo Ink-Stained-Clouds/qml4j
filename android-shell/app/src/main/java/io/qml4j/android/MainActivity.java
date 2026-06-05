@@ -70,6 +70,7 @@ public final class MainActivity extends Activity {
             new Page("IconButton", "showcases/IconButtonShowcase.qml", d),
             new Page("Card", "showcases/CardShowcase.qml", d),
             new Page("FAB", "showcases/FabShowcase.qml", d),
+            new Page("Chip", "showcases/ChipShowcase.qml", d),
         };
     }
 

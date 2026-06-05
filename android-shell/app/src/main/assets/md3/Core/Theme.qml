@@ -55,6 +55,7 @@ QtObject {
     property QtObject shape: QtObject {
         property int extraSmall: 4
         property int small: 8
+        property int cornerSmall: 8
         property int cornerMedium: 12
         property int cornerLarge: 16
         property int cornerExtraLarge: 28

@@ -491,6 +491,9 @@ final class ExpressionCodegen {
         qt.put("AlignVCenter", 128L);
         qt.put("AlignBaseline", 256L);
         qt.put("AlignCenter", 132L); // AlignVCenter | AlignHCenter
+        qt.put("ArrowCursor", 0L);
+        qt.put("IBeamCursor", 4L);
+        qt.put("PointingHandCursor", 13L);
         e.put("Qt", qt);
 
         Map<String, Long> text = new HashMap<>();
