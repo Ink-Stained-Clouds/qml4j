@@ -11,7 +11,6 @@ import io.github.humbleui.skija.SurfaceOrigin;
 import io.qml4j.render.SurfaceBackend;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.opengl.GL;
-import org.lwjgl.opengl.GL11;
 
 public final class GlfwSurfaceBackend implements SurfaceBackend {
 
@@ -39,9 +38,13 @@ public final class GlfwSurfaceBackend implements SurfaceBackend {
 
     @Override
     public Canvas acquireCanvas() {
-        GL11.glClearColor(0f, 0f, 0f, 1f);
-        GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_STENCIL_BUFFER_BIT);
-        return surface.getCanvas();
+        // Clear through Skija, not a raw GL11.glClear: a bare glClear is invisible
+        // to Skija's DirectContext and drops the frame's first draw (the root's
+        // full-surface fill), leaving the background black. canvas.clear() enters
+        // Skija's own command stream so ordering is correct.
+        Canvas canvas = surface.getCanvas();
+        canvas.clear(0xFF000000);
+        return canvas;
     }
 
     @Override
