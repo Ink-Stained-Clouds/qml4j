@@ -18,18 +18,24 @@ final class AstScan {
         return scan(body, n -> n instanceof Ast.ForInStmt);
     }
 
-    // True if the body calls Qt.binding. The Rhino globals do not yet bridge the lazy
-    // Qt.binding (Qt.callLater is bridged), so such a body stays on ASM.
+    // True if the body uses a Qt.binding form the Rhino backend can't take: only the
+    // arrow form `Qt.binding(() => expr)` preserves laziness on Rhino, so the bare
+    // expression form `Qt.binding(expr)` must stay on ASM.
     static boolean usesDeferredQtHelper(Ast.Statement body) {
-        return scan(body, AstScan::isDeferredQtMember);
+        return scan(body, AstScan::isUnsupportedQtBinding);
     }
 
-    private static boolean isDeferredQtMember(Object n) {
-        if (!(n instanceof Ast.MemberExpr)) return false;
-        Ast.MemberExpr m = (Ast.MemberExpr) n;
-        return m.target instanceof Ast.IdentifierExpr
-            && "Qt".equals(((Ast.IdentifierExpr) m.target).name)
-            && "binding".equals(m.property);
+    private static boolean isUnsupportedQtBinding(Object n) {
+        if (!(n instanceof Ast.CallExpr)) return false;
+        Ast.CallExpr c = (Ast.CallExpr) n;
+        if (!(c.callee instanceof Ast.MemberExpr)) return false;
+        Ast.MemberExpr m = (Ast.MemberExpr) c.callee;
+        if (!(m.target instanceof Ast.IdentifierExpr)
+            || !"Qt".equals(((Ast.IdentifierExpr) m.target).name)
+            || !"binding".equals(m.property)) {
+            return false;
+        }
+        return c.args.isEmpty() || !(c.args.get(0) instanceof Ast.ArrowFunctionExpr);
     }
 
     private static boolean scan(Ast.Statement s, Predicate<Object> p) {

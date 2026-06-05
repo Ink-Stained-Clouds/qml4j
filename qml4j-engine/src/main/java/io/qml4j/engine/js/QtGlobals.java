@@ -31,6 +31,7 @@ public final class QtGlobals {
         qt.put("hsla", qt, fn("hsla", 4, a -> RuntimeHelpers.qtHsla(arg(a, 0), arg(a, 1), arg(a, 2), arg(a, 3))));
         qt.put("color", qt, fn("color", 1, a -> RuntimeHelpers.qtColor(arg(a, 0))));
         qt.put("callLater", qt, callLater());
+        qt.put("binding", qt, qtBinding());
         scope.put("Qt", scope, qt);
 
         scope.put("Text", scope, enumObject(TEXT));
@@ -69,6 +70,24 @@ public final class QtGlobals {
             }
             @Override public int getArity() { return 1; }
             @Override public String getFunctionName() { return "callLater"; }
+        };
+    }
+
+    // Qt.binding(() => expr): wrap the arrow as a RhinoJsBinding. Assigning the result
+    // to a property establishes a reactive binding (Property.set detects a Binding).
+    private static BaseFunction qtBinding() {
+        return new BaseFunction() {
+            @Override public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+                Object f = args.length > 0 ? args[0] : null;
+                if (f instanceof org.mozilla.javascript.Function) {
+                    org.mozilla.javascript.Function jf = (org.mozilla.javascript.Function) f;
+                    Scriptable home = jf.getParentScope() != null ? jf.getParentScope() : scope;
+                    return JsWrap.toJs(new RhinoJsBinding(jf, home), scope);
+                }
+                return null;
+            }
+            @Override public int getArity() { return 1; }
+            @Override public String getFunctionName() { return "binding"; }
         };
     }
 

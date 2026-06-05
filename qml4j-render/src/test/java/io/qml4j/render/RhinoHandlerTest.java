@@ -98,6 +98,37 @@ class RhinoHandlerTest {
         }
     }
 
+    // Phase 4d: a handler that rebinds a property with Qt.binding(() => expr) runs on
+    // Rhino; the arrow becomes a reactive binding (changing a dependency recomputes it).
+    @Test
+    @SuppressWarnings("unchecked")
+    void qtBindingArrowFromHandlerRunsOnRhino() throws Exception {
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        Item root = v.load(
+            "import QtQuick\n" +
+            "Rectangle {\n" +
+            "  id: r\n" +
+            "  property int factor: 2\n" +
+            "  property int derived: 0\n" +
+            "  signal rebind()\n" +
+            "  onRebind: r.derived = Qt.binding(() => r.factor * 10)\n" +
+            "}");
+        flush(v);
+
+        Signal rebind = (Signal) root.getClass().getField("rebind").get(root);
+        assertTrue(handlersOf(rebind).get(0) instanceof RhinoHandler);
+        assertEquals(0, propLong(root, "derived"));   // not yet bound
+
+        rebind.emit();
+        flush(v);
+        assertEquals(20, propLong(root, "derived"));   // factor * 10, now bound
+
+        Property<Object> factor = (Property<Object>) root.getClass().getField("factor").get(root);
+        factor.set(5);
+        flush(v);
+        assertEquals(50, propLong(root, "derived"));   // recomputes -- the binding is live
+    }
+
     // A bare control-flow handler body (no braces) must produce legal wrapped JS --
     // `(function(){ if (...) ... })`, not `(function()if (...) ...)`.
     @Test
