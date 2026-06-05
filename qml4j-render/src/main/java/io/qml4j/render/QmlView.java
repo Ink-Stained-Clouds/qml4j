@@ -111,9 +111,12 @@ public final class QmlView {
 
     private Class<? extends QObject> compileAndDefine(Ast.QmlDocument doc) {
         List<String> prefixes = stringImportPrefixes(doc);
+        Set<String> moduleProvided = new HashSet<>();
+        for (String p : prefixes) moduleProvided.addAll(loadQmldir(p).keySet());
         TypeRegistry docTypes = types.copy()
             .withResolver(name -> resolveCompound(name, prefixes))
-            .withAliases(importAliases(doc));
+            .withAliases(importAliases(doc))
+            .withModuleProvided(moduleProvided);
         registerKnownSingletons(docTypes, prefixes);
         CompiledUnit unit = compiler.compile(doc, docTypes);
         ClassLoaderBackend backend = engine.backend();

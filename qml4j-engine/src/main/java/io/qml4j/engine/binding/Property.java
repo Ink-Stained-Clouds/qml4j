@@ -123,6 +123,14 @@ public final class Property<T> {
         valueListeners.add(l);
     }
 
+    // Wire a QML on<Prop>Changed handler: Qt's change handlers take no args (they
+    // read the property), so the new value is dropped.
+    public void addChangeHandler(io.qml4j.engine.SignalHandler h) {
+        valueListeners.add(v -> h.invoke(EMPTY_ARGS));
+    }
+
+    private static final Object[] EMPTY_ARGS = new Object[0];
+
     public void removeListener(Consumer<T> l) {
         valueListeners.remove(l);
     }

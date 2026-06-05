@@ -426,7 +426,19 @@ public final class QmlCompiler {
                 }
                 boolean isRelay = signalName != null && !isCustomHandler && signalField == null
                     && SignalRelay.class.isAssignableFrom(outerType);
-                boolean isHandler = isCustomHandler || signalField != null || isRelay;
+                // on<Prop>Changed handler: not a signal, but the named property
+                // exists -> connect to its change notification.
+                String changeProp = null;
+                if (signalName != null && !isCustomHandler && signalField == null && !isRelay
+                        && signalName.endsWith("Changed")) {
+                    String base = signalName.substring(0, signalName.length() - "Changed".length());
+                    if (!base.isEmpty()
+                            && (declaredProps.containsKey(base)
+                                || findPropertyFieldOrNull(outerType, base) != null)) {
+                        changeProp = base;
+                    }
+                }
+                boolean isHandler = isCustomHandler || signalField != null || isRelay || changeProp != null;
                 if (isStmtBlock && !isHandler) {
                     // A function-style binding `prop: { ...; return x }` becomes an
                     // immediately-invoked arrow so the normal binding path applies.
@@ -454,6 +466,10 @@ public final class QmlCompiler {
                         emitRelaySignalHandler(ctor, outerType, outerLocal, componentBinaryName,
                                                handlerCounter, bindingCounter, classes, signalName, handlerBody, idTypes,
                                                handlerParams, declaredProps, aliases, rootFunctions);
+                    } else if (changeProp != null) {
+                        emitPropertyChangeHandler(ctor, outerType, outerLocal, componentBinaryName,
+                                                  handlerCounter, bindingCounter, classes, changeProp, handlerBody,
+                                                  idTypes, declaredProps, aliases, rootFunctions);
                     } else {
                         emitSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
                                           handlerCounter, bindingCounter, classes, signalField, handlerBody, idTypes,
@@ -1533,6 +1549,48 @@ public final class QmlCompiler {
                              "(L" + outerInternal + ";L" + componentInternal + ";)V", false);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, SIGNAL_INTERNAL,
                              "connect", "(" + SIGNAL_HANDLER_DESC + ")V", false);
+    }
+
+    // on<Prop>Changed: run the handler whenever the property's value changes.
+    private void emitPropertyChangeHandler(MethodVisitor ctor, Class<? extends QObject> outerType,
+                                           int outerLocal, String componentBinaryName,
+                                           int[] handlerCounter, int[] bindingCounter,
+                                           Map<String, byte[]> classes, String propName,
+                                           Ast.Statement body,
+                                           Map<String, Class<? extends QObject>> idTypes,
+                                           Map<String, String> declaredProps,
+                                           Map<String, AliasRef> aliases,
+                                           Map<String, Integer> rootFunctions) {
+        String outerInternal = Type.getInternalName(outerType);
+        String componentInternal = componentBinaryName.replace('.', '/');
+        String fieldOwner;
+        if (declaredProps.containsKey(propName)) {
+            fieldOwner = declaredProps.get(propName);
+        } else {
+            fieldOwner = Type.getInternalName(
+                findPropertyField(outerType, propName).getDeclaringClass());
+        }
+
+        int n = handlerCounter[0]++;
+        String handlerBinaryName = componentBinaryName + "$Handler$" + n;
+        String handlerInternal = handlerBinaryName.replace('.', '/');
+        byte[] handlerBytes = emitHandlerClass(handlerInternal, outerInternal, outerType, body,
+                                               componentInternal, componentBinaryName, idTypes,
+                                               Collections.<String>emptyList(),
+                                               declaredProps, aliases, rootFunctions,
+                                               bindingCounter, classes);
+        classes.put(handlerBinaryName, handlerBytes);
+
+        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+        ctor.visitFieldInsn(Opcodes.GETFIELD, fieldOwner, propName, PROPERTY_DESC);
+        ctor.visitTypeInsn(Opcodes.NEW, handlerInternal);
+        ctor.visitInsn(Opcodes.DUP);
+        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+        ctor.visitVarInsn(Opcodes.ALOAD, 0);
+        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, handlerInternal, "<init>",
+                             "(L" + outerInternal + ";L" + componentInternal + ";)V", false);
+        ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
+                             "addChangeHandler", "(" + SIGNAL_HANDLER_DESC + ")V", false);
     }
 
     private void emitRelaySignalHandler(MethodVisitor ctor, Class<? extends QObject> outerType,

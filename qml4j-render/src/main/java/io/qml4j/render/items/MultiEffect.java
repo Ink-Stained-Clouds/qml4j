@@ -13,6 +13,7 @@ public class MultiEffect extends Item {
 
     public final Property<Boolean> blurEnabled = new Property<>(Boolean.FALSE);
     public final Property<Number> blur = new Property<>(0);
+    public final Property<Number> blurMax = new Property<>(32);
     public final Property<Boolean> shadowEnabled = new Property<>(Boolean.FALSE);
     public final Property<String> shadowColor = new Property<>("#000000");
     public final Property<Number> shadowBlur = new Property<>(0);

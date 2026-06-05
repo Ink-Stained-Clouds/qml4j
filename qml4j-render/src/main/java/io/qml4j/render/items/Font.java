@@ -13,4 +13,6 @@ public final class Font {
     public final Property<Number> weight = new Property<>(50);
     public final Property<Boolean> bold = new Property<>(Boolean.FALSE);
     public final Property<Boolean> italic = new Property<>(Boolean.FALSE);
+    // Font.MixedCase(0)/AllUppercase/AllLowercase/... — accepted; not yet applied.
+    public final Property<Number> capitalization = new Property<>(0);
 }

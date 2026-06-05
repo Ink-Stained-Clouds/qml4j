@@ -17,6 +17,10 @@ public final class TypeRegistry {
     private final Map<String, Class<? extends QObject>> singletons = new HashMap<>();
     private TypeResolver resolver;
     private Set<String> aliases = Collections.emptySet();
+    // Names a doc's imported modules explicitly export (qmldir entries). These
+    // shadow built-in stock types of the same name (e.g. md3.Core's Button vs the
+    // stock Button), matching QML: an explicit module import wins over built-ins.
+    private Set<String> moduleProvided = Collections.emptySet();
 
     public TypeRegistry register(String qmlName, Class<? extends QObject> klass) {
         types.put(qmlName, klass);
@@ -54,6 +58,11 @@ public final class TypeRegistry {
         return this;
     }
 
+    public TypeRegistry withModuleProvided(Set<String> names) {
+        this.moduleProvided = names == null ? Collections.emptySet() : names;
+        return this;
+    }
+
     public Class<? extends QObject> resolve(String qmlName) {
         Class<? extends QObject> c = lookup(qmlName);
         if (c != null) return c;
@@ -68,6 +77,11 @@ public final class TypeRegistry {
     }
 
     private Class<? extends QObject> lookup(String qmlName) {
+        // An explicitly imported module type shadows a same-named stock type.
+        if (moduleProvided.contains(qmlName) && resolver != null) {
+            Class<? extends QObject> rc = resolver.resolve(qmlName);
+            if (rc != null) { types.put(qmlName, rc); return rc; }
+        }
         Class<? extends QObject> c = types.get(qmlName);
         if (c != null) return c;
         if (resolver != null) {
