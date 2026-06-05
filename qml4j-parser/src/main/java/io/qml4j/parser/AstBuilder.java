@@ -138,17 +138,20 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
             return new Ast.ObjectListValue(objs);
         }
         if (ctx.statementBlock() != null) {
-            return new Ast.StatementBlockValue(visitStatementBlock(ctx.statementBlock()));
+            return new Ast.StatementBlockValue(visitStatementBlock(ctx.statementBlock()), rawSource(ctx.statementBlock()));
         }
         // A bare control-flow statement as a handler body (onExited: if (...) ...).
         if (ctx.ifStatement() != null) {
-            return new Ast.StatementBlockValue(oneStatement(visitIfStatement(ctx.ifStatement())));
+            return new Ast.StatementBlockValue(oneStatement(visitIfStatement(ctx.ifStatement())), rawSource(ctx.ifStatement()));
+        }
+        if (ctx.forInStatement() != null) {
+            return new Ast.StatementBlockValue(oneStatement(visitForInStatement(ctx.forInStatement())), rawSource(ctx.forInStatement()));
         }
         if (ctx.forStatement() != null) {
-            return new Ast.StatementBlockValue(oneStatement(visitForStatement(ctx.forStatement())));
+            return new Ast.StatementBlockValue(oneStatement(visitForStatement(ctx.forStatement())), rawSource(ctx.forStatement()));
         }
         if (ctx.whileStatement() != null) {
-            return new Ast.StatementBlockValue(oneStatement(visitWhileStatement(ctx.whileStatement())));
+            return new Ast.StatementBlockValue(oneStatement(visitWhileStatement(ctx.whileStatement())), rawSource(ctx.whileStatement()));
         }
         QmlParser.ExpressionContext ec = ctx.expression();
         return new Ast.ExpressionValue((Ast.Expression) visit(ec), rawSource(ec));
@@ -199,6 +202,7 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
         if (ctx.varStatement() != null) return visitVarStatement(ctx.varStatement());
         if (ctx.ifStatement() != null) return visitIfStatement(ctx.ifStatement());
         if (ctx.whileStatement() != null) return visitWhileStatement(ctx.whileStatement());
+        if (ctx.forInStatement() != null) return visitForInStatement(ctx.forInStatement());
         if (ctx.forStatement() != null) return visitForStatement(ctx.forStatement());
         if (ctx.switchStatement() != null) return visitSwitchStatement(ctx.switchStatement());
         if (ctx.breakStatement() != null) return new Ast.BreakStmt();
@@ -223,6 +227,14 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
             ? (Ast.Expression) visit(ctx.expression(1)) : null;
         Ast.Statement body = visitStatement(ctx.statement());
         return new Ast.ForStmt(init, cond, update, body);
+    }
+
+    @Override
+    public Ast.ForInStmt visitForInStatement(QmlParser.ForInStatementContext ctx) {
+        String name = ctx.Identifier().getText();
+        Ast.Expression iterable = (Ast.Expression) visit(ctx.expression());
+        Ast.Statement body = visitStatement(ctx.statement());
+        return new Ast.ForInStmt(name, iterable, body);
     }
 
     @Override

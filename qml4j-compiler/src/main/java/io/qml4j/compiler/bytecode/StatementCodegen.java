@@ -57,6 +57,11 @@ final class StatementCodegen {
             emitContinue(mv);
         } else if (s instanceof Ast.ReturnStmt) {
             emitReturn(mv, (Ast.ReturnStmt) s);
+        } else if (s instanceof Ast.ForInStmt) {
+            // for-in has no ASM lowering; it only reaches a handler/function whose
+            // body the Rhino backend runs. Hitting it here means canHandle let a
+            // for-in body fall through to ASM -- a routing bug, not a user error.
+            throw new IllegalStateException("for-in requires the Rhino backend");
         } else {
             throw new IllegalStateException("unknown statement: " + s.getClass().getName());
         }

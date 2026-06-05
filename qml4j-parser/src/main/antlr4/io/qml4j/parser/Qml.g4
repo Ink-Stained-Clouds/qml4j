@@ -77,6 +77,7 @@ value
     | '[' objectDeclaration (',' objectDeclaration)* ','? ']'
     | statementBlock
     | ifStatement
+    | forInStatement
     | forStatement
     | whileStatement
     | expression
@@ -91,6 +92,7 @@ statement
     | varStatement
     | ifStatement
     | whileStatement
+    | forInStatement
     | forStatement
     | switchStatement
     | breakStatement
@@ -114,6 +116,10 @@ whileStatement
 
 forStatement
     : 'for' '(' forInit? ';' expression? ';' expression? ')' statement
+    ;
+
+forInStatement
+    : 'for' '(' ('var' | 'let' | 'const')? Identifier 'in' expression ')' statement
     ;
 
 forInit

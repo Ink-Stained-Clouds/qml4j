@@ -166,7 +166,11 @@ public final class Ast {
 
     public static final class StatementBlockValue extends Value {
         public final Block block;
-        public StatementBlockValue(Block block) { this.block = block; }
+        // Raw JS source of the handler/function body (fed to the Rhino backend); null
+        // if the parser couldn't capture it, in which case the ASM backend handles it.
+        public final String source;
+        public StatementBlockValue(Block block) { this(block, null); }
+        public StatementBlockValue(Block block, String source) { this.block = block; this.source = source; }
         @Override public String toString() { return block.toString(); }
     }
 
@@ -244,6 +248,20 @@ public final class Ast {
         }
         @Override public String toString() {
             return "for (" + init + "; " + cond + "; " + update + ") " + body;
+        }
+    }
+
+    public static final class ForInStmt extends Statement {
+        public final String varName;
+        public final Expression iterable;
+        public final Statement body;
+        public ForInStmt(String varName, Expression iterable, Statement body) {
+            this.varName = varName;
+            this.iterable = iterable;
+            this.body = body;
+        }
+        @Override public String toString() {
+            return "for (var " + varName + " in " + iterable + ") " + body;
         }
     }
 
