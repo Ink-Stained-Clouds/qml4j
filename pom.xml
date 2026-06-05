@@ -23,7 +23,7 @@
         <r8.version>8.13.17</r8.version>
         <junit.version>5.10.3</junit.version>
         <lwjgl.version>3.3.3</lwjgl.version>
-        <lwjgl.natives>natives-linux-arm64</lwjgl.natives>
+        <lwjgl.natives>natives-linux</lwjgl.natives>
     </properties>
 
     <modules>
@@ -79,7 +79,7 @@
             </dependency>
             <dependency>
                 <groupId>io.github.humbleui</groupId>
-                <artifactId>skija-linux-arm64</artifactId>
+                <artifactId>skija-linux-x64</artifactId>
                 <version>${skija.version}</version>
             </dependency>
 

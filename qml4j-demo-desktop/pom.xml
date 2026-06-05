@@ -21,7 +21,7 @@
         </dependency>
         <dependency>
             <groupId>io.github.humbleui</groupId>
-            <artifactId>skija-linux-arm64</artifactId>
+            <artifactId>skija-linux-x64</artifactId>
             <scope>runtime</scope>
         </dependency>
 
