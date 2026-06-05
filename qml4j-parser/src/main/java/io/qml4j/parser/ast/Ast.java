@@ -114,10 +114,17 @@ public final class Ast {
         public final String name;
         public final List<String> paramNames;
         public final Block body;
+        // Raw `{ ... }` JS source of the body (fed to the Rhino backend); null if the
+        // parser couldn't capture it, in which case the ASM backend handles it.
+        public final String source;
         public FunctionDeclaration(String name, List<String> paramNames, Block body) {
+            this(name, paramNames, body, null);
+        }
+        public FunctionDeclaration(String name, List<String> paramNames, Block body, String source) {
             this.name = name;
             this.paramNames = Collections.unmodifiableList(paramNames);
             this.body = body;
+            this.source = source;
         }
         @Override public String toString() {
             return "function " + name + paramNames + " " + body;

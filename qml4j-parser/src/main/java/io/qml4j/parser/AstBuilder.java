@@ -7,6 +7,8 @@ import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.misc.Interval;
+import org.antlr.v4.runtime.tree.ParseTree;
+import org.antlr.v4.runtime.tree.TerminalNode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -74,7 +76,7 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
         for (QmlParser.StatementContext sc : ctx.statement()) {
             stmts.add(visitStatement(sc));
         }
-        return new Ast.FunctionDeclaration(name, params, new Ast.Block(stmts));
+        return new Ast.FunctionDeclaration(name, params, new Ast.Block(stmts), bracedBodySource(ctx));
     }
 
     @Override
@@ -155,6 +157,25 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
         }
         QmlParser.ExpressionContext ec = ctx.expression();
         return new Ast.ExpressionValue((Ast.Expression) visit(ec), rawSource(ec));
+    }
+
+    // The raw `{ ... }` body of a function declaration (the braces have no sub-rule,
+    // so capture from the opening brace token to the closing one). Fed to the Rhino
+    // backend; null if unavailable, which keeps the function on the ASM backend.
+    private static String bracedBodySource(QmlParser.FunctionDeclarationContext ctx) {
+        Token open = null;
+        for (int i = 0; i < ctx.getChildCount(); i++) {
+            ParseTree ch = ctx.getChild(i);
+            if (ch instanceof TerminalNode && "{".equals(ch.getText())) {
+                open = ((TerminalNode) ch).getSymbol();
+                break;
+            }
+        }
+        Token close = ctx.getStop();
+        if (open == null || close == null) return null;
+        CharStream cs = open.getInputStream();
+        if (cs == null || open.getStartIndex() < 0 || close.getStopIndex() < 0) return null;
+        return cs.getText(Interval.of(open.getStartIndex(), close.getStopIndex()));
     }
 
     // The original source substring of a rule (whitespace preserved), via the

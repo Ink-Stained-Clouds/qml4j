@@ -10,6 +10,7 @@ import io.qml4j.engine.SignalRelay;
 import io.qml4j.engine.binding.Property;
 import io.qml4j.engine.QObject;
 import io.qml4j.engine.js.JsRuntime;
+import io.qml4j.engine.js.RhinoClosure;
 import io.qml4j.parser.ast.Ast;
 import org.mozilla.javascript.RhinoException;
 import org.objectweb.asm.ClassWriter;
@@ -309,6 +310,10 @@ public final class QmlCompiler {
         ctor.visitEnd();
 
         for (Ast.FunctionDeclaration fd : rootFunctionDecls) {
+            // Eligible functions were registered as Rhino callables in the ctor; only
+            // the rest get an ASM reflective method.
+            if (rhinoFunctionEligible(fd, rootType, idTypes, rootDeclaredProps, rootFunctions,
+                                      rootSignalNames)) continue;
             emitRootFunctionMethod(cw, componentInternal, rootType, fd,
                                    idTypes, rootDeclaredProps, rootAliases, rootFunctions,
                                    componentBinaryName, bindingCounter, classes);
@@ -334,11 +339,22 @@ public final class QmlCompiler {
         for (Ast.ObjectMember m : obj.members) {
             if (m instanceof Ast.SignalDeclaration) continue;
             if (m instanceof Ast.FunctionDeclaration) {
-                if (outerLocal == 0) continue;
-                emitChildScopeFunction(ctor, outerType, outerLocal,
-                                       (Ast.FunctionDeclaration) m, componentBinaryName,
-                                       idTypes, declaredProps, aliases, rootFunctions,
-                                       bindingCounter, classes);
+                Ast.FunctionDeclaration fd = (Ast.FunctionDeclaration) m;
+                boolean rhino = rhinoFunctionEligible(fd, outerType, idTypes, declaredProps,
+                                                      rootFunctions, customSignals);
+                if (outerLocal == 0) {
+                    // Root function: a Rhino callable is registered here; the ASM
+                    // reflective method is emitted later only when not eligible.
+                    if (rhino) emitRhinoFunction(ctor, 0, fd);
+                    continue;
+                }
+                if (rhino) {
+                    emitRhinoFunction(ctor, outerLocal, fd);
+                } else {
+                    emitChildScopeFunction(ctor, outerType, outerLocal, fd, componentBinaryName,
+                                           idTypes, declaredProps, aliases, rootFunctions,
+                                           bindingCounter, classes);
+                }
                 continue;
             }
             if (isStateAssignment(m)) { deferred.add(m); continue; }
@@ -466,19 +482,19 @@ public final class QmlCompiler {
                                                 handlerCounter, bindingCounter, classes,
                                                 customSignalOwner, signalName, handlerBody, handlerSource, idTypes,
                                                 handlerParams, declaredProps, aliases,
-                                                rootFunctions);
+                                                rootFunctions, customSignals);
                     } else if (isRelay) {
                         emitRelaySignalHandler(ctor, outerType, outerLocal, componentBinaryName,
                                                handlerCounter, bindingCounter, classes, signalName, handlerBody, handlerSource, idTypes,
-                                               handlerParams, declaredProps, aliases, rootFunctions);
+                                               handlerParams, declaredProps, aliases, rootFunctions, customSignals);
                     } else if (changeProp != null) {
                         emitPropertyChangeHandler(ctor, outerType, outerLocal, componentBinaryName,
                                                   handlerCounter, bindingCounter, classes, changeProp, handlerBody, handlerSource,
-                                                  idTypes, declaredProps, aliases, rootFunctions);
+                                                  idTypes, declaredProps, aliases, rootFunctions, customSignals);
                     } else {
                         emitSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
                                           handlerCounter, bindingCounter, classes, signalField, handlerBody, handlerSource, idTypes,
-                                          handlerParams, declaredProps, aliases, rootFunctions);
+                                          handlerParams, declaredProps, aliases, rootFunctions, customSignals);
                     }
                     return;
                 }
@@ -508,7 +524,7 @@ public final class QmlCompiler {
                 Ast.Statement handlerBody = toStatement(b.value);
                 emitKeysHandler(ctor, outerType, outerLocal, componentBinaryName,
                                 handlerCounter, bindingCounter, classes, signalName, handlerBody, valueSource(b.value),
-                                idTypes, declaredProps, aliases, rootFunctions);
+                                idTypes, declaredProps, aliases, rootFunctions, customSignals);
                 return;
             }
             if (path.size() == 2) {
@@ -724,12 +740,13 @@ public final class QmlCompiler {
             Ast.ObjectNode delegateNode = null;
             List<Ast.ObjectMember> hostMembers = new ArrayList<>();
             for (Ast.ObjectMember m : child.members) {
-                if (m instanceof Ast.ChildObject) {
+                Ast.ObjectNode asDelegate = delegateObjectOf(m);
+                if (asDelegate != null) {
                     if (delegateNode != null) {
                         throw new IllegalArgumentException(
                             child.typeName + " must declare exactly one delegate child object");
                     }
-                    delegateNode = ((Ast.ChildObject) m).object;
+                    delegateNode = asDelegate;
                 } else {
                     hostMembers.add(m);
                 }
@@ -1519,7 +1536,8 @@ public final class QmlCompiler {
                                  Map<String, Class<? extends QObject>> idTypes,
                                  Map<String, String> declaredProps,
                                  Map<String, AliasRef> aliases,
-                                 Map<String, Integer> rootFunctions) {
+                                 Map<String, Integer> rootFunctions,
+                                 Set<String> customSignals) {
         Method keysMethod;
         try {
             keysMethod = outerType.getMethod("keys");
@@ -1543,7 +1561,7 @@ public final class QmlCompiler {
         ctor.visitFieldInsn(Opcodes.GETFIELD, keysTypeInternal, signalName, SIGNAL_DESC);
         emitHandlerInstance(ctor, outerType, outerInternal, componentInternal, componentBinaryName,
                             outerLocal, body, source, Collections.singletonList("event"),
-                            idTypes, declaredProps, aliases, rootFunctions,
+                            idTypes, declaredProps, aliases, rootFunctions, customSignals,
                             handlerCounter, bindingCounter, classes);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, SIGNAL_INTERNAL,
                              "connect", "(" + SIGNAL_HANDLER_DESC + ")V", false);
@@ -1563,6 +1581,23 @@ public final class QmlCompiler {
         } catch (NoSuchFieldException e) {
             return null;
         }
+    }
+
+    // A delegate declared either as the host's single child object (`Repeater { Foo {} }`)
+    // or via the `delegate:` property (`Repeater { delegate: Foo {} }`). Both forms map
+    // to the same delegate node; returns null for any other member.
+    private static Ast.ObjectNode delegateObjectOf(Ast.ObjectMember m) {
+        if (m instanceof Ast.ChildObject) {
+            return ((Ast.ChildObject) m).object;
+        }
+        if (m instanceof Ast.PropertyBinding) {
+            Ast.PropertyBinding pb = (Ast.PropertyBinding) m;
+            if (pb.path.size() == 1 && "delegate".equals(pb.path.get(0))
+                    && pb.value instanceof Ast.ObjectValue) {
+                return ((Ast.ObjectValue) pb.value).object;
+            }
+        }
+        return null;
     }
 
     private static Ast.Statement toStatement(Ast.Value v) {
@@ -1604,7 +1639,8 @@ public final class QmlCompiler {
                                          List<String> signalParams,
                                          Map<String, String> declaredProps,
                                          Map<String, AliasRef> aliases,
-                                         Map<String, Integer> rootFunctions) {
+                                         Map<String, Integer> rootFunctions,
+                                         Set<String> customSignals) {
         String outerInternal = Type.getInternalName(outerType);
         String componentInternal = componentBinaryName.replace('.', '/');
 
@@ -1612,7 +1648,7 @@ public final class QmlCompiler {
         ctor.visitFieldInsn(Opcodes.GETFIELD, signalOwnerInternal, signalName, SIGNAL_DESC);
         emitHandlerInstance(ctor, outerType, outerInternal, componentInternal, componentBinaryName,
                             outerLocal, body, source, signalParams, idTypes, declaredProps, aliases,
-                            rootFunctions, handlerCounter, bindingCounter, classes);
+                            rootFunctions, customSignals, handlerCounter, bindingCounter, classes);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, SIGNAL_INTERNAL,
                              "connect", "(" + SIGNAL_HANDLER_DESC + ")V", false);
     }
@@ -1625,7 +1661,8 @@ public final class QmlCompiler {
                                    List<String> signalParams,
                                    Map<String, String> declaredProps,
                                    Map<String, AliasRef> aliases,
-                                   Map<String, Integer> rootFunctions) {
+                                   Map<String, Integer> rootFunctions,
+                                   Set<String> customSignals) {
         String declOwner = Type.getInternalName(signalField.getDeclaringClass());
         String outerInternal = Type.getInternalName(outerType);
         String componentInternal = componentBinaryName.replace('.', '/');
@@ -1634,7 +1671,7 @@ public final class QmlCompiler {
         ctor.visitFieldInsn(Opcodes.GETFIELD, declOwner, signalField.getName(), SIGNAL_DESC);
         emitHandlerInstance(ctor, outerType, outerInternal, componentInternal, componentBinaryName,
                             outerLocal, body, source, signalParams, idTypes, declaredProps, aliases,
-                            rootFunctions, handlerCounter, bindingCounter, classes);
+                            rootFunctions, customSignals, handlerCounter, bindingCounter, classes);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, SIGNAL_INTERNAL,
                              "connect", "(" + SIGNAL_HANDLER_DESC + ")V", false);
     }
@@ -1648,7 +1685,8 @@ public final class QmlCompiler {
                                            Map<String, Class<? extends QObject>> idTypes,
                                            Map<String, String> declaredProps,
                                            Map<String, AliasRef> aliases,
-                                           Map<String, Integer> rootFunctions) {
+                                           Map<String, Integer> rootFunctions,
+                                           Set<String> customSignals) {
         String outerInternal = Type.getInternalName(outerType);
         String componentInternal = componentBinaryName.replace('.', '/');
         String fieldOwner;
@@ -1663,7 +1701,7 @@ public final class QmlCompiler {
         ctor.visitFieldInsn(Opcodes.GETFIELD, fieldOwner, propName, PROPERTY_DESC);
         emitHandlerInstance(ctor, outerType, outerInternal, componentInternal, componentBinaryName,
                             outerLocal, body, source, null, idTypes, declaredProps, aliases,
-                            rootFunctions, handlerCounter, bindingCounter, classes);
+                            rootFunctions, customSignals, handlerCounter, bindingCounter, classes);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
                              "addChangeHandler", "(" + SIGNAL_HANDLER_DESC + ")V", false);
     }
@@ -1676,7 +1714,8 @@ public final class QmlCompiler {
                                         List<String> signalParams,
                                         Map<String, String> declaredProps,
                                         Map<String, AliasRef> aliases,
-                                        Map<String, Integer> rootFunctions) {
+                                        Map<String, Integer> rootFunctions,
+                                        Set<String> customSignals) {
         String outerInternal = Type.getInternalName(outerType);
         String componentInternal = componentBinaryName.replace('.', '/');
 
@@ -1684,7 +1723,7 @@ public final class QmlCompiler {
         ctor.visitLdcInsn(signalName);
         emitHandlerInstance(ctor, outerType, outerInternal, componentInternal, componentBinaryName,
                             outerLocal, body, source, signalParams, idTypes, declaredProps, aliases,
-                            rootFunctions, handlerCounter, bindingCounter, classes);
+                            rootFunctions, customSignals, handlerCounter, bindingCounter, classes);
         ctor.visitMethodInsn(Opcodes.INVOKEINTERFACE, SIGNAL_RELAY_INTERNAL,
                              "connectSignal",
                              "(Ljava/lang/String;" + SIGNAL_HANDLER_DESC + ")V", true);
@@ -1756,6 +1795,41 @@ public final class QmlCompiler {
     }
 
     private static final String RHINO_HANDLER_INTERNAL = "io/qml4j/engine/js/RhinoHandler";
+    private static final String RHINO_FUNCTION_INTERNAL = "io/qml4j/engine/js/RhinoFunction";
+
+    // A QML function runs on Rhino only when the ASM codegen genuinely cannot compile
+    // its body -- i.e. it contains a for-in -- and it is otherwise eligible (source
+    // captured, not in a delegate scope, every free name resolvable, no deferred Qt
+    // helper). Plain functions stay ASM reflective methods, which keeps their Java
+    // identity for callers that invoke them as methods. Later phases widen this.
+    private boolean rhinoFunctionEligible(Ast.FunctionDeclaration fd, Class<?> contextType,
+                                          Map<String, Class<? extends QObject>> idTypes,
+                                          Map<String, String> declaredProps,
+                                          Map<String, Integer> rootFunctions,
+                                          Set<String> customSignals) {
+        return fd.source != null && !inDelegateScope()
+            && AstScan.containsForIn(fd.body)
+            && handlerCanHandle(fd.body, contextType, idTypes, declaredProps, fd.paramNames,
+                                rootFunctions, customSignals);
+    }
+
+    // Registers `name` on the QObject at outerLocal as a RhinoFunction callable
+    // (__putFunction), reached by both bare and member calls through callQml/callMethod.
+    private void emitRhinoFunction(MethodVisitor ctor, int outerLocal, Ast.FunctionDeclaration fd) {
+        validateRhinoSource(fd.source, fd.paramNames);
+        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+        ctor.visitLdcInsn(fd.name);
+        ctor.visitTypeInsn(Opcodes.NEW, RHINO_FUNCTION_INTERNAL);
+        ctor.visitInsn(Opcodes.DUP);
+        ctor.visitLdcInsn(fd.source);
+        pushStringArray(ctor, fd.paramNames);
+        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+        ctor.visitVarInsn(Opcodes.ALOAD, 0);
+        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_FUNCTION_INTERNAL, "<init>",
+            "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V", false);
+        ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, QOBJECT_INTERNAL, "__putFunction",
+                             "(Ljava/lang/String;Lio/qml4j/engine/Callable;)V", false);
+    }
 
     // Pushes a SignalHandler instance onto the stack: a RhinoHandler when the body's
     // raw JS source is available and every bare name it touches resolves at runtime
@@ -1768,12 +1842,13 @@ public final class QmlCompiler {
                                      Map<String, String> declaredProps,
                                      Map<String, AliasRef> aliases,
                                      Map<String, Integer> rootFunctions,
+                                     Set<String> customSignals,
                                      int[] handlerCounter, int[] bindingCounter,
                                      Map<String, byte[]> classes) {
         List<String> params = signalParams != null ? signalParams : Collections.<String>emptyList();
         if (source != null && !inDelegateScope()
-                && handlerCanHandle(body, outerType, idTypes, declaredProps, params, rootFunctions)) {
-            validateRhinoSource(source);
+                && handlerCanHandle(body, outerType, idTypes, declaredProps, params, rootFunctions, customSignals)) {
+            validateRhinoSource(source, params);
             ctor.visitTypeInsn(Opcodes.NEW, RHINO_HANDLER_INTERNAL);
             ctor.visitInsn(Opcodes.DUP);
             ctor.visitLdcInsn(source);
@@ -1800,12 +1875,14 @@ public final class QmlCompiler {
                              "(L" + outerInternal + ";L" + componentInternal + ";)V", false);
     }
 
-    // Compile the body's JS eagerly so a syntax error (a stray break, a malformed
+    // Compile the wrapped JS eagerly so a syntax error (a stray break, a malformed
     // expression) surfaces at QML-compile time -- parity with the ASM backend's
-    // early diagnostics -- and warms the shared Script cache the runtime reuses.
-    private static void validateRhinoSource(String source) {
+    // early diagnostics -- and warms the shared Script cache the runtime reuses. The
+    // wrapper must match RhinoClosure exactly, or a body with a top-level return
+    // would falsely fail validation.
+    private static void validateRhinoSource(String source, List<String> params) {
         try {
-            JsRuntime.compile(source);
+            JsRuntime.compile(RhinoClosure.wrap(source, params));
         } catch (RhinoException e) {
             throw new IllegalArgumentException("invalid JS: " + e.getMessage(), e);
         }
@@ -1831,10 +1908,13 @@ public final class QmlCompiler {
                                      Map<String, Class<? extends QObject>> idTypes,
                                      Map<String, String> declaredProps,
                                      List<String> signalParams,
-                                     Map<String, Integer> rootFunctions) {
+                                     Map<String, Integer> rootFunctions,
+                                     Set<String> customSignals) {
+        // Qt.binding / Qt.callLater are not bridged into the Rhino globals yet.
+        if (AstScan.usesDeferredQtHelper(body)) return false;
         Set<String> bound = new java.util.HashSet<>(signalParams);
         for (String name : FreeIdentifiers.collect(body, bound)) {
-            if (!resolvableByRhino(name, outerType, idTypes, declaredProps, rootFunctions)) {
+            if (!resolvableByRhino(name, outerType, idTypes, declaredProps, rootFunctions, customSignals)) {
                 return false;
             }
         }
@@ -1844,9 +1924,11 @@ public final class QmlCompiler {
     private boolean resolvableByRhino(String name, Class<?> outerType,
                                       Map<String, Class<? extends QObject>> idTypes,
                                       Map<String, String> declaredProps,
-                                      Map<String, Integer> rootFunctions) {
+                                      Map<String, Integer> rootFunctions,
+                                      Set<String> customSignals) {
         if (idTypes.containsKey(name) || declaredProps.containsKey(name)
-                || rootFunctions.containsKey(name) || JS_GLOBALS.contains(name)) {
+                || rootFunctions.containsKey(name) || customSignals.contains(name)
+                || JS_GLOBALS.contains(name)) {
             return true;
         }
         try {

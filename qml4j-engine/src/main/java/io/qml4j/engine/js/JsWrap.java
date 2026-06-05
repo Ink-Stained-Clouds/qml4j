@@ -82,7 +82,7 @@ public final class JsWrap {
         @Override public Object unwrap() { return target; }
 
         @Override public Object get(String name, Scriptable start) {
-            if (RuntimeHelpers.hasMember(target, name) || isVirtual(name)) {
+            if (resolves(name)) {
                 return toJs(RuntimeHelpers.readMember(target, name), parent);
             }
             if (isCallable(target, name)) {
@@ -111,10 +111,19 @@ public final class JsWrap {
         }
 
         @Override public boolean has(String name, Scriptable start) {
-            return RuntimeHelpers.hasMember(target, name) || isVirtual(name) || isCallable(target, name);
+            return resolves(name) || isCallable(target, name);
         }
 
         @Override public boolean has(int index, Scriptable start) { return true; }
+
+        // Whether `name` reads as a data member -- a map key, or a reflective/virtual
+        // member RuntimeHelpers.readMember resolves. Map keys are not reflective
+        // fields, so they must be checked against the map directly or for-in / `in`
+        // would miss them.
+        private boolean resolves(String name) {
+            if (target instanceof Map) return ((Map<?, ?>) target).containsKey(name);
+            return RuntimeHelpers.hasMember(target, name) || isVirtual(name);
+        }
 
         // length/r/g/b/a aren't reflective fields but RuntimeHelpers.readMember resolves them.
         private boolean isVirtual(String name) {
