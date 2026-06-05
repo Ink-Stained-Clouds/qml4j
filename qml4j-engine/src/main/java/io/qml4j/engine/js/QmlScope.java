@@ -4,6 +4,8 @@ import io.qml4j.engine.RuntimeHelpers;
 import io.qml4j.engine.Signal;
 import org.mozilla.javascript.Scriptable;
 
+import java.util.Set;
+
 // The top scope a binding's JS runs in. Bare identifiers resolve against the QML
 // scope: first the this-object's members, then the component root's (ids + declared
 // props). Member reads route through RuntimeHelpers.readMember, so Property reads
@@ -18,16 +20,24 @@ public final class QmlScope implements Scriptable {
 
     private final Object outer;
     private final Object root;
+    private final Set<String> sceneIds;
     private Scriptable parent;
     private Scriptable prototype;
 
-    public QmlScope(Object outer, Object root, Scriptable globals) {
+    public QmlScope(Object outer, Object root, Scriptable globals, Set<String> sceneIds) {
         this.outer = outer;
         this.root = root;
+        this.sceneIds = sceneIds;
         this.parent = globals;
     }
 
     private Object owner(String name) {
+        // Scene ids are lexically scoped to the enclosing component and live as fields
+        // on its root, matching ExpressionCodegen.emitIdentifier's idTypes step. They
+        // must win over outer's reflective members: a compound child (e.g. an MD3 Card
+        // whose own `id: root` leaks as a field) would otherwise shadow the enclosing
+        // component's same-named id, turning `root.width` into a self-reference.
+        if (sceneIds.contains(name)) return root;
         if (RuntimeHelpers.hasMember(outer, name)) return outer;
         if (root != outer && RuntimeHelpers.hasMember(root, name)) return root;
         return null;

@@ -5,6 +5,8 @@ import org.mozilla.javascript.EcmaError;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.Script;
 
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 
 // Shared runtime for the Rhino-backed handler and function: a QML handler/function
@@ -24,9 +26,10 @@ public final class RhinoClosure {
     private final QmlScope scope;
     private Function fn;
 
-    public RhinoClosure(String body, List<String> params, Object outer, Object root) {
+    public RhinoClosure(String body, List<String> params, Object outer, Object root, String[] ids) {
         this.script = JsRuntime.compile(wrap(body, params));
-        this.scope = new QmlScope(outer, root, JsRuntime.globals());
+        this.scope = new QmlScope(outer, root, JsRuntime.globals(),
+                                  new HashSet<>(Arrays.asList(ids)));
     }
 
     // The function-expression form fed to Rhino. Shared with the compiler so its

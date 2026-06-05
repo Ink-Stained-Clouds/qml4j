@@ -13,9 +13,10 @@ public final class RhinoBinding extends Binding {
     private final Script script;
     private final QmlScope scope;
 
-    public RhinoBinding(String source, Object outer, Object root) {
+    public RhinoBinding(String source, Object outer, Object root, String[] ids) {
         this.script = JsRuntime.compile(source);
-        this.scope = new QmlScope(outer, root, JsRuntime.globals());
+        this.scope = new QmlScope(outer, root, JsRuntime.globals(),
+                                  new java.util.HashSet<>(java.util.Arrays.asList(ids)));
     }
 
     @Override

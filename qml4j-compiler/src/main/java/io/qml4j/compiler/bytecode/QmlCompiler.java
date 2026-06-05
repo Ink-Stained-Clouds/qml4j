@@ -345,11 +345,11 @@ public final class QmlCompiler {
                 if (outerLocal == 0) {
                     // Root function: a Rhino callable is registered here; the ASM
                     // reflective method is emitted later only when not eligible.
-                    if (rhino) emitRhinoFunction(ctor, 0, fd);
+                    if (rhino) emitRhinoFunction(ctor, 0, fd, idTypes);
                     continue;
                 }
                 if (rhino) {
-                    emitRhinoFunction(ctor, outerLocal, fd);
+                    emitRhinoFunction(ctor, outerLocal, fd, idTypes);
                 } else {
                     emitChildScopeFunction(ctor, outerType, outerLocal, fd, componentBinaryName,
                                            idTypes, declaredProps, aliases, rootFunctions,
@@ -1377,8 +1377,9 @@ public final class QmlCompiler {
             ctor.visitLdcInsn(source);
             ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
             ctor.visitVarInsn(Opcodes.ALOAD, 0);
+            pushStringArray(ctor, new ArrayList<>(idTypes.keySet()));
             ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_BINDING_INTERNAL, "<init>",
-                                 "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V", false);
+                                 "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;)V", false);
             ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
                                  "bind", "(L" + BINDING_INTERNAL + ";)V", false);
             return;
@@ -1815,7 +1816,8 @@ public final class QmlCompiler {
 
     // Registers `name` on the QObject at outerLocal as a RhinoFunction callable
     // (__putFunction), reached by both bare and member calls through callQml/callMethod.
-    private void emitRhinoFunction(MethodVisitor ctor, int outerLocal, Ast.FunctionDeclaration fd) {
+    private void emitRhinoFunction(MethodVisitor ctor, int outerLocal, Ast.FunctionDeclaration fd,
+                                   Map<String, Class<? extends QObject>> idTypes) {
         validateRhinoSource(fd.source, fd.paramNames);
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitLdcInsn(fd.name);
@@ -1825,8 +1827,9 @@ public final class QmlCompiler {
         pushStringArray(ctor, fd.paramNames);
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitVarInsn(Opcodes.ALOAD, 0);
+        pushStringArray(ctor, new ArrayList<>(idTypes.keySet()));
         ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_FUNCTION_INTERNAL, "<init>",
-            "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V", false);
+            "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;)V", false);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, QOBJECT_INTERNAL, "__putFunction",
                              "(Ljava/lang/String;Lio/qml4j/engine/Callable;)V", false);
     }
@@ -1855,8 +1858,9 @@ public final class QmlCompiler {
             pushStringArray(ctor, params);
             ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
             ctor.visitVarInsn(Opcodes.ALOAD, 0);
+            pushStringArray(ctor, new ArrayList<>(idTypes.keySet()));
             ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_HANDLER_INTERNAL, "<init>",
-                "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V", false);
+                "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;)V", false);
             return;
         }
         int n = handlerCounter[0]++;

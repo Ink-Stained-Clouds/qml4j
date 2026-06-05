@@ -12,8 +12,8 @@ public final class RhinoHandler implements SignalHandler {
 
     private final RhinoClosure closure;
 
-    public RhinoHandler(String body, String[] params, Object outer, Object root) {
-        this.closure = new RhinoClosure(body, Arrays.asList(params), outer, root);
+    public RhinoHandler(String body, String[] params, Object outer, Object root, String[] ids) {
+        this.closure = new RhinoClosure(body, Arrays.asList(params), outer, root, ids);
     }
 
     @Override

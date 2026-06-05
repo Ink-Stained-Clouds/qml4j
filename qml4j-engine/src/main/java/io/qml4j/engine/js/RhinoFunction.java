@@ -13,8 +13,8 @@ public final class RhinoFunction implements Callable {
 
     private final RhinoClosure closure;
 
-    public RhinoFunction(String body, String[] params, Object outer, Object root) {
-        this.closure = new RhinoClosure(body, Arrays.asList(params), outer, root);
+    public RhinoFunction(String body, String[] params, Object outer, Object root, String[] ids) {
+        this.closure = new RhinoClosure(body, Arrays.asList(params), outer, root, ids);
     }
 
     @Override
