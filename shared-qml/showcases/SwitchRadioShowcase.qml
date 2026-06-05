@@ -7,12 +7,15 @@ Rectangle {
     id: root
     x: 0
     y: 0
-    color: "#1c1c28"
+    // MD3 components ship a light theme (Theme.color.surface is light), so their
+    // unselected state-layer ripple uses onSurface (near-black). On a dark page
+    // that ripple -- and the component labels -- vanish; match the theme surface.
+    color: Theme.color.surface
 
     Text {
         x: 16; y: 12
         text: "MD3 Switch + RadioButton (real components):"
-        color: "#ffffff"; fontSize: 24; width: parent.width - 32; height: 32
+        color: Theme.color.onSurfaceColor; fontSize: 24; width: parent.width - 32; height: 32
     }
 
     Column {
