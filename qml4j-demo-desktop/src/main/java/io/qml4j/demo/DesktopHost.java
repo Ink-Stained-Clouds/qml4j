@@ -90,6 +90,11 @@ final class DesktopHost {
 
     private void sizeRoot() {
         if (view.root() == null) return;
+        // Pin the root to the viewport origin: several showcases were sliced out of a
+        // long scrolling demo page and kept their original y offset (e.g. y: 9240),
+        // which would otherwise paint their content far off-screen.
+        view.root().x.set(0);
+        view.root().y.set(0);
         view.root().width.set(fbW);
         view.root().height.set(fbH);
     }
