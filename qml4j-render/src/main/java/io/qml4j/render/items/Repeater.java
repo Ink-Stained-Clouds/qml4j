@@ -63,13 +63,14 @@ public class Repeater extends Item implements DelegateHost {
         int desired = sizeOf(m);
         for (int i = 0; i < desired; i++) {
             Object data = dataAt(m, i);
-            QObject created = factory.create(i, data);
+            QObject created = factory.create(i, data, visualParent);
             if (!(created instanceof Item)) {
                 throw new IllegalStateException("Repeater delegate must produce an Item, got "
                     + (created == null ? "null" : created.getClass().getName()));
             }
             Item item = (Item) created;
-            item.parent.set(visualParent);
+            // parent was already set inside create() (before the delegate's bindings
+            // were flushed, so outer-scope names resolve); just attach to the scene.
             visualParent.children.add(item);
             instances.add(item);
         }

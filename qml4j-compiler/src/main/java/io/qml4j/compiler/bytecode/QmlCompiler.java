@@ -980,11 +980,11 @@ public final class QmlCompiler {
                                     Map<String, Integer> rootFunctions) {
         MethodVisitor mv = activeComponentCw.visitMethod(Opcodes.ACC_PUBLIC,
             "_delegate$" + n,
-            "(ILjava/lang/Object;)L" + QOBJECT_INTERNAL + ";", null, null);
+            "(ILjava/lang/Object;Ljava/lang/Object;)L" + QOBJECT_INTERNAL + ";", null, null);
         mv.visitCode();
 
-        int delegateLocal = 3;
-        int[] localCounter = {4};
+        int delegateLocal = 4;
+        int[] localCounter = {5};
 
         mv.visitMethodInsn(Opcodes.INVOKESTATIC, PROPERTY_INTERNAL,
                            "pushDeferred", "()V", false);
@@ -1045,6 +1045,17 @@ public final class QmlCompiler {
             exitDelegateScope();
         }
 
+        // Set parent before flushing deferred bindings, so a delegate binding's first
+        // evaluation can resolve outer-scope names by walking up the parent chain.
+        Field parentField = findPropertyField(delType, "parent");
+        mv.visitVarInsn(Opcodes.ALOAD, delegateLocal);
+        mv.visitFieldInsn(Opcodes.GETFIELD,
+                          Type.getInternalName(parentField.getDeclaringClass()),
+                          "parent", PROPERTY_DESC);
+        mv.visitVarInsn(Opcodes.ALOAD, 3);
+        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
+                           "set", "(Ljava/lang/Object;)V", false);
+
         mv.visitMethodInsn(Opcodes.INVOKESTATIC, PROPERTY_INTERNAL,
                            "flushDeferred", "()V", false);
         mv.visitVarInsn(Opcodes.ALOAD, delegateLocal);
@@ -1077,15 +1088,16 @@ public final class QmlCompiler {
         ctor.visitEnd();
 
         MethodVisitor create = cw.visitMethod(Opcodes.ACC_PUBLIC, "create",
-            "(ILjava/lang/Object;)L" + QOBJECT_INTERNAL + ";", null, null);
+            "(ILjava/lang/Object;Ljava/lang/Object;)L" + QOBJECT_INTERNAL + ";", null, null);
         create.visitCode();
         create.visitVarInsn(Opcodes.ALOAD, 0);
         create.visitFieldInsn(Opcodes.GETFIELD, factoryInternal, "root",
                               "L" + componentInternal + ";");
         create.visitVarInsn(Opcodes.ILOAD, 1);
         create.visitVarInsn(Opcodes.ALOAD, 2);
+        create.visitVarInsn(Opcodes.ALOAD, 3);
         create.visitMethodInsn(Opcodes.INVOKEVIRTUAL, componentInternal, "_delegate$" + n,
-                               "(ILjava/lang/Object;)L" + QOBJECT_INTERNAL + ";", false);
+                               "(ILjava/lang/Object;Ljava/lang/Object;)L" + QOBJECT_INTERNAL + ";", false);
         create.visitInsn(Opcodes.ARETURN);
         create.visitMaxs(0, 0);
         create.visitEnd();

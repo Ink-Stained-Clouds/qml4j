@@ -988,7 +988,7 @@ class QmlViewTest {
         assertEquals(1, root.children.size());
         Component c = (Component) root.children.get(0);
         assertNotNull(c.factory());
-        Item made = (Item) c.factory().create(0, null);
+        Item made = (Item) c.factory().create(0, null, null);
         assertTrue(made instanceof Rectangle);
         assertEquals(30L, made.width.peek().longValue());
         assertEquals("#112233", ((Rectangle) made).color.peek());

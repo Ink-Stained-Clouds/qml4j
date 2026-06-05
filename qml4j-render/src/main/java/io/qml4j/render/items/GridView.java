@@ -66,12 +66,11 @@ public class GridView extends Flickable implements DelegateHost {
         int n = sizeOf(m);
         for (int i = 0; i < n; i++) {
             Object data = dataAt(m, i);
-            QObject created = factory.create(i, data);
+            QObject created = factory.create(i, data, this);
             if (!(created instanceof Item)) {
                 throw new IllegalStateException("GridView delegate must produce an Item");
             }
             Item item = (Item) created;
-            item.parent.set(this);
             children.add(item);
             instances.add(item);
         }

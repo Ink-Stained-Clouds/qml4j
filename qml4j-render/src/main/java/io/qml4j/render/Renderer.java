@@ -1309,7 +1309,7 @@ public final class Renderer {
         if (sc == node.loadedComponent && node.loadedItem != null) return;
         DelegateFactory df = sc.factory();
         if (df == null) return;
-        QObject created = df.create(0, null);
+        QObject created = df.create(0, null, node);
         if (!(created instanceof Item)) {
             throw new IllegalStateException("Loader sourceComponent must produce an Item, got "
                 + (created == null ? "null" : created.getClass().getName()));

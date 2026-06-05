@@ -282,14 +282,37 @@ public final class RuntimeHelpers {
 
     public static Object delegateContext(Object start, String name) {
         Object cur = start;
+        Object delegateRoot = null;
         while (cur != null) {
             if (cur instanceof DelegateRoot) {
-                return readMember(cur, name);
+                delegateRoot = cur;
+                // index / modelData / delegate-local ids live on the delegate root.
+                if (hasMember(cur, name)) return readMember(cur, name);
+                break;
             }
             cur = parentOf(cur);
         }
+        // Not delegate-local: resolve against the enclosing scene -- the component
+        // that declared the Repeater -- by walking up from above the delegate root
+        // to the first item exposing the member (e.g. a Slider tick delegate reading
+        // the Slider's `_colors`).
+        Object outer = parentOf(delegateRoot != null ? delegateRoot : start);
+        while (outer != null) {
+            if (hasMember(outer, name)) return readMember(outer, name);
+            outer = parentOf(outer);
+        }
         throw new IllegalStateException(
             "delegate context '" + name + "' not found in parent chain");
+    }
+
+    private static boolean hasMember(Object o, String name) {
+        if (o == null) return false;
+        try {
+            o.getClass().getField(name);
+            return true;
+        } catch (NoSuchFieldException e) {
+            return false;
+        }
     }
 
     private static Object parentOf(Object node) {

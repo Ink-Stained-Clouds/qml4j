@@ -23,11 +23,9 @@ public class Component extends Item implements DelegateHost {
     // parent it into the scene, and apply the optional property map.
     public QObject createObject(Object parentObj, Object props) {
         if (factory == null) return null;
-        QObject created = factory.create(0, null);
+        QObject created = factory.create(0, null, parentObj);
         if (created instanceof Item && parentObj instanceof Item) {
-            Item child = (Item) created;
-            child.parent.set((Item) parentObj);
-            ((Item) parentObj).children.add(child);
+            ((Item) parentObj).children.add((Item) created);
         }
         if (props instanceof Map) {
             for (Map.Entry<?, ?> e : ((Map<?, ?>) props).entrySet()) {

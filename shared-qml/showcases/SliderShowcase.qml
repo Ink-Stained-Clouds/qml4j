@@ -21,7 +21,7 @@ Rectangle {
         spacing: 36
 
         Slider { width: 360; from: 0; to: 100; value: 40 }
-        Slider { width: 360; from: 0; to: 10; stepSize: 1; value: 3; snapMode: true }
+        Slider { width: 360; from: 0; to: 10; stepSize: 1; value: 3; snapMode: true; tickMarksEnabled: true }
         Slider { width: 360; rangeMode: true; from: 0; to: 100; firstValue: 25; secondValue: 75 }
         Slider { width: 360; from: 0; to: 1; value: 0.5; valueLabelEnabled: true }
     }

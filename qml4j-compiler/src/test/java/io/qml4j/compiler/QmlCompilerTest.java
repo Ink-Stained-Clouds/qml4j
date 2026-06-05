@@ -62,9 +62,8 @@ class QmlCompilerTest {
             }
             for (int i = instances.size(); i < desired; i++) {
                 Object data = dataAt(m, i);
-                QObject created = factory.create(i, data);
+                QObject created = factory.create(i, data, visualParent);
                 TestItem item = (TestItem) created;
-                item.parent.set(visualParent);
                 visualParent.children.add(item);
                 instances.add(item);
             }
