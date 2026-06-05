@@ -412,12 +412,32 @@ final class ExpressionCodegen {
                                "(Ljava/lang/Object;Ljava/lang/String;)Ljava/lang/Object;", false);
             return;
         }
+        // A value-type group field (font, anchors, childrenRect, ...) referenced
+        // bare: load the object itself so a following .member reads its sub-prop.
+        Field group = findPlainObjectField(outerType, id.name);
+        if (group != null) {
+            loadOuter(mv);
+            mv.visitFieldInsn(Opcodes.GETFIELD, Type.getInternalName(group.getDeclaringClass()),
+                              id.name, Type.getDescriptor(group.getType()));
+            return;
+        }
         Field f = findPropertyField(outerType, id.name);
         String declOwner = Type.getInternalName(f.getDeclaringClass());
         loadOuter(mv);
         mv.visitFieldInsn(Opcodes.GETFIELD, declOwner, id.name, "L" + PROPERTY_INTERNAL + ";");
         mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
                            "get", "()Ljava/lang/Object;", false);
+    }
+
+    private static Field findPlainObjectField(Class<?> type, String name) {
+        try {
+            Field f = type.getField(name);
+            if (Property.class.isAssignableFrom(f.getType())) return null;
+            if (io.qml4j.engine.Signal.class.isAssignableFrom(f.getType())) return null;
+            return f.getType().isPrimitive() ? null : f;
+        } catch (NoSuchFieldException e) {
+            return null;
+        }
     }
 
     private static boolean hasPropertyField(Class<?> outerType, String name) {

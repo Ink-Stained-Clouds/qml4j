@@ -300,6 +300,27 @@ public final class Renderer {
         for (Item child : node.children) measure(child);
         runLayout(node);
         applyAnchors(node);
+        updateChildrenRect(node);
+    }
+
+    private static void updateChildrenRect(Item node) {
+        if (node.children.isEmpty()) return;
+        float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE;
+        float maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE;
+        boolean any = false;
+        for (Item c : node.children) {
+            if (!c.visible.peek()) continue;
+            float cx = c.x.peek().floatValue(), cy = c.y.peek().floatValue();
+            float cw = c.width.peek().floatValue(), ch = c.height.peek().floatValue();
+            minX = Math.min(minX, cx); minY = Math.min(minY, cy);
+            maxX = Math.max(maxX, cx + cw); maxY = Math.max(maxY, cy + ch);
+            any = true;
+        }
+        if (!any) return;
+        node.childrenRect.x.set(minX);
+        node.childrenRect.y.set(minY);
+        node.childrenRect.width.set(maxX - minX);
+        node.childrenRect.height.set(maxY - minY);
     }
 
     private static void runLayout(Item node) {

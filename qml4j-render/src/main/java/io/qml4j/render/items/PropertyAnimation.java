@@ -63,6 +63,7 @@ public class PropertyAnimation extends AbstractAnimation {
         if (durMs <= 0) {
             RuntimeHelpers.writeMember(t, prop, preparedTo);
             stop();
+            finished.emit();
             return;
         }
         double frac = (nowNanos - startNanos) / 1_000_000.0 / durMs;
@@ -70,7 +71,7 @@ public class PropertyAnimation extends AbstractAnimation {
         if (done) frac = 1.0;
         double eased = Easings.apply(easing.type.peek().intValue(), frac);
         RuntimeHelpers.writeMember(t, prop, interpolate(preparedFrom, preparedTo, eased));
-        if (done) stop();
+        if (done) { stop(); finished.emit(); }
     }
 
     protected String effectiveProperty() {

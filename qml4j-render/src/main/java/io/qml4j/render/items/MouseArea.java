@@ -14,6 +14,8 @@ public class MouseArea extends Item {
     public final Signal entered = new Signal();
     public final Signal exited = new Signal();
     public final Signal canceled = new Signal();
+    // No wheel events on a touch surface; accepted so onWheel handlers compile.
+    public final Signal wheel = new Signal();
 
     public final Property<Boolean> pressed = new Property<>(Boolean.FALSE);
     public final Property<Boolean> hoverEnabled = new Property<>(Boolean.FALSE);

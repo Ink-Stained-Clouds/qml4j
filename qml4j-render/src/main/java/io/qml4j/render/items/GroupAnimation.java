@@ -15,6 +15,7 @@ public abstract class GroupAnimation extends AbstractAnimation {
             stopAllChildren();
             running.set(Boolean.FALSE);
             wasRunning = false;
+            finished.emit();
         }
     }
 
