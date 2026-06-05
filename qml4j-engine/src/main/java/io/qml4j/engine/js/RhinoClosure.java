@@ -33,9 +33,11 @@ public final class RhinoClosure {
     }
 
     // The function-expression form fed to Rhino. Shared with the compiler so its
-    // eager parity check validates exactly what runs.
+    // eager parity check validates exactly what runs. The body is always braced: a
+    // statement-block body (`{ ... }`) becomes a harmless inner block, while a bare
+    // body (`if (x) y`, `foo()`) needs the braces to be a legal function body.
     public static String wrap(String body, List<String> params) {
-        return "(function(" + String.join(",", params) + ")" + body + ")";
+        return "(function(" + String.join(",", params) + "){" + body + "})";
     }
 
     public Object invoke(Object[] args) {

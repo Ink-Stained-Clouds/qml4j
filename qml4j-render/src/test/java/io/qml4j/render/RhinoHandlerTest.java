@@ -44,6 +44,29 @@ class RhinoHandlerTest {
         return (Boolean) p.peek();
     }
 
+    // A bare control-flow handler body (no braces) must produce legal wrapped JS --
+    // `(function(){ if (...) ... })`, not `(function()if (...) ...)`.
+    @Test
+    void bareControlFlowHandlerRunsOnRhino() throws Exception {
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        Item root = v.load(
+            "import QtQuick\n" +
+            "Rectangle {\n" +
+            "  property int n: 0\n" +
+            "  property bool gate: true\n" +
+            "  signal go()\n" +
+            "  onGo: if (gate) n = n + 5\n" +
+            "}");
+        flush(v);
+
+        Signal go = (Signal) root.getClass().getField("go").get(root);
+        assertTrue(handlersOf(go).get(0) instanceof RhinoHandler);
+
+        go.emit();
+        flush(v);
+        assertEquals(5, propLong(root, "n"));
+    }
+
     // Regression: a handler on a child object that emits the component's signal via a
     // member call (control.clicked()) and writes a component property -- the exact
     // shape of MD3 RadioButton's Ripple.onClicked. The member-form signal emit must
