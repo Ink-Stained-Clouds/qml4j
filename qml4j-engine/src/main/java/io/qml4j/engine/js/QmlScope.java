@@ -45,10 +45,9 @@ public final class QmlScope implements Scriptable {
         Object o = owner(name);
         if (o != null) {
             Object v = RuntimeHelpers.readMember(o, name);
-            // A signal field read as a bare identifier is only ever emitted as a
-            // call (`clicked(i)`); hand back a callable that routes to callMethod's
-            // signal-emit branch rather than the bare Signal object.
-            if (v instanceof Signal) return new JsWrap.BoundMethod(o, name, this);
+            // A signal read as a bare identifier supports both a direct emit
+            // (`clicked(i)`) and an explicit `.emit(...)` / `.connect(...)`.
+            if (v instanceof Signal) return new JsWrap.SignalRef((Signal) v, this);
             return JsWrap.toJs(v, this);
         }
         Object c = callableOwner(name);

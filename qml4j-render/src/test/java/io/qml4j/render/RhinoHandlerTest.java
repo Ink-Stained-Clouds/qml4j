@@ -39,6 +39,48 @@ class RhinoHandlerTest {
         return ((Number) p.peek()).longValue();
     }
 
+    private static boolean propBool(Item o, String name) throws Exception {
+        Property<?> p = (Property<?>) o.getClass().getField(name).get(o);
+        return (Boolean) p.peek();
+    }
+
+    // Regression: a handler on a child object that emits the component's signal via a
+    // member call (control.clicked()) and writes a component property -- the exact
+    // shape of MD3 RadioButton's Ripple.onClicked. The member-form signal emit must
+    // resolve to a callable, or the call throws, the handler aborts, and the click is
+    // silently lost (the checked write never runs).
+    @Test
+    void memberSignalEmitFromHandler() throws Exception {
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        Item root = v.load(
+            "import QtQuick\n" +
+            "Rectangle {\n" +
+            "  id: control\n" +
+            "  property bool checked: false\n" +
+            "  property int clicks: 0\n" +
+            "  signal clicked()\n" +
+            "  onClicked: clicks = clicks + 1\n" +
+            "  Item {\n" +
+            "    id: inner\n" +
+            "    signal tapped()\n" +
+            "    onTapped: {\n" +
+            "      control.clicked()\n" +
+            "      if (!control.checked) control.checked = true\n" +
+            "    }\n" +
+            "  }\n" +
+            "}");
+        flush(v);
+
+        Item inner = root.children.get(0);
+        Signal tapped = (Signal) inner.getClass().getField("tapped").get(inner);
+        assertTrue(handlersOf(tapped).get(0) instanceof RhinoHandler);
+
+        tapped.emit();
+        flush(v);
+        assertTrue(propBool(root, "checked"), "checked should flip true on tap");
+        assertEquals(1, propLong(root, "clicks"), "control.clicked() should have emitted");
+    }
+
     @Test
     void signalHandlerBodyRunsOnRhino() throws Exception {
         QmlView v = QmlView.withStockTypes(new QmlEngine());

@@ -2,6 +2,7 @@ package io.qml4j.engine.js;
 
 import io.qml4j.engine.QObject;
 import io.qml4j.engine.RuntimeHelpers;
+import io.qml4j.engine.Signal;
 import org.mozilla.javascript.BaseFunction;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.NativeArray;
@@ -83,7 +84,11 @@ public final class JsWrap {
 
         @Override public Object get(String name, Scriptable start) {
             if (resolves(name)) {
-                return toJs(RuntimeHelpers.readMember(target, name), parent);
+                Object v = RuntimeHelpers.readMember(target, name);
+                // A signal member supports both forms QML uses: a direct emit
+                // (`control.clicked()`) and an explicit `.emit(...)` / `.connect(...)`.
+                if (v instanceof Signal) return new SignalRef((Signal) v, parent);
+                return toJs(v, parent);
             }
             if (isCallable(target, name)) {
                 return new BoundMethod(target, name, parent);
@@ -170,6 +175,37 @@ public final class JsWrap {
             Object[] ja = new Object[args.length];
             for (int i = 0; i < args.length; i++) ja[i] = toJava(args[i]);
             return toJs(RuntimeHelpers.callMethod(target, name, ja), parent);
+        }
+    }
+
+    // A QML signal exposed to JS so both forms work: calling it emits
+    // (`control.clicked(args)`), and its `.emit`/`.connect`/... members resolve to the
+    // Signal's Java methods (`r.pinged.emit(args)`).
+    static final class SignalRef extends BaseFunction implements Wrapper {
+        private final Signal signal;
+        private final Scriptable parent;
+
+        SignalRef(Signal signal, Scriptable parent) {
+            this.signal = signal;
+            this.parent = parent;
+        }
+
+        @Override public Object unwrap() { return signal; }
+
+        @Override public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+            Object[] ja = new Object[args.length];
+            for (int i = 0; i < args.length; i++) ja[i] = toJava(args[i]);
+            signal.emit(ja);
+            return Undefined.instance;
+        }
+
+        @Override public Object get(String name, Scriptable start) {
+            if (isCallable(signal, name)) return new BoundMethod(signal, name, parent);
+            return super.get(name, start);
+        }
+
+        @Override public boolean has(String name, Scriptable start) {
+            return isCallable(signal, name) || super.has(name, start);
         }
     }
 }
