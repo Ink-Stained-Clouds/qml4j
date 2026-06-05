@@ -73,4 +73,26 @@ class RhinoBackendTest {
         flush(v);
         assertEquals(250, root.width.peek().intValue());  // max(250, 100)
     }
+
+    @Test
+    void objectMethodCallBindingRunsOnRhino() throws Exception {
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        Item root = v.load(
+            "import QtQuick\n" +
+            "Rectangle {\n" +
+            "  id: root\n" +
+            "  function dbl(x) { return x * 2 }\n" +
+            "  height: 15\n" +
+            "  width: root.dbl(height)\n" +
+            "}");
+        flush(v);
+
+        // root.dbl(height): Rhino resolves the id, calls the QML function via JavaMember.
+        assertTrue(bindingOf(root.width) instanceof RhinoBinding);
+        assertEquals(30, root.width.peek().intValue());   // dbl(15)
+
+        root.height.set(21);
+        flush(v);
+        assertEquals(42, root.width.peek().intValue());   // dbl(21)
+    }
 }

@@ -1425,17 +1425,19 @@ public final class QmlCompiler {
                 && rhinoCanHandle(c.elseBranch, outerType, idTypes, declaredProps, aliases);
         }
         if (e instanceof Ast.CallExpr) {
-            // Only namespace functions (Math.*, Qt.rgba/hsla/color); calling a method
-            // on an object needs JavaMember call support, and Qt.binding/callLater need
-            // scope capture -- those stay on ASM for now.
+            // A call with a receiver (namespace fn like Math.max / Qt.rgba, or a method
+            // on an id/property object) whose receiver and args all resolve. Bare calls
+            // (no receiver) and Qt.binding/callLater (need scope capture) stay on ASM.
             Ast.CallExpr call = (Ast.CallExpr) e;
             if (!(call.callee instanceof Ast.MemberExpr)) return false;
             Ast.MemberExpr m = (Ast.MemberExpr) call.callee;
-            if (!(m.target instanceof Ast.IdentifierExpr)) return false;
-            String ns = ((Ast.IdentifierExpr) m.target).name;
-            boolean ok = "Math".equals(ns)
-                || ("Qt".equals(ns) && !"binding".equals(m.property) && !"callLater".equals(m.property));
-            if (!ok) return false;
+            if (m.target instanceof Ast.IdentifierExpr) {
+                String ns = ((Ast.IdentifierExpr) m.target).name;
+                if ("Qt".equals(ns) && ("binding".equals(m.property) || "callLater".equals(m.property))) {
+                    return false;
+                }
+            }
+            if (!rhinoCanHandle(m.target, outerType, idTypes, declaredProps, aliases)) return false;
             for (Ast.Expression arg : call.args) {
                 if (!rhinoCanHandle(arg, outerType, idTypes, declaredProps, aliases)) return false;
             }

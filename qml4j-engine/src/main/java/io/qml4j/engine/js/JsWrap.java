@@ -1,12 +1,16 @@
 package io.qml4j.engine.js;
 
+import io.qml4j.engine.QObject;
 import io.qml4j.engine.RuntimeHelpers;
+import org.mozilla.javascript.BaseFunction;
+import org.mozilla.javascript.Context;
 import org.mozilla.javascript.NativeArray;
 import org.mozilla.javascript.NativeObject;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.Undefined;
 import org.mozilla.javascript.Wrapper;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -78,8 +82,13 @@ public final class JsWrap {
         @Override public Object unwrap() { return target; }
 
         @Override public Object get(String name, Scriptable start) {
-            if (!RuntimeHelpers.hasMember(target, name) && !isVirtual(name)) return NOT_FOUND;
-            return toJs(RuntimeHelpers.readMember(target, name), parent);
+            if (RuntimeHelpers.hasMember(target, name) || isVirtual(name)) {
+                return toJs(RuntimeHelpers.readMember(target, name), parent);
+            }
+            if (isCallable(target, name)) {
+                return new BoundMethod(target, name, parent);
+            }
+            return NOT_FOUND;
         }
 
         @Override public Object get(int index, Scriptable start) {
@@ -91,7 +100,15 @@ public final class JsWrap {
         }
 
         @Override public boolean has(String name, Scriptable start) {
-            return RuntimeHelpers.hasMember(target, name) || isVirtual(name);
+            return RuntimeHelpers.hasMember(target, name) || isVirtual(name) || isCallable(target, name);
+        }
+
+        private static boolean isCallable(Object target, String name) {
+            if (target instanceof QObject && ((QObject) target).__getFunction(name) != null) return true;
+            for (Method m : target.getClass().getMethods()) {
+                if (m.getName().equals(name)) return true;
+            }
+            return false;
         }
 
         @Override public boolean has(int index, Scriptable start) { return true; }
@@ -112,5 +129,25 @@ public final class JsWrap {
         @Override public void delete(int index) {}
         @Override public Object[] getIds() { return new Object[0]; }
         @Override public boolean hasInstance(Scriptable instance) { return false; }
+    }
+
+    // A method reference obtained from a JavaMember (obj.method); calling it routes to
+    // RuntimeHelpers.callMethod, which dispatches to a Java method or a QML function.
+    static final class BoundMethod extends BaseFunction {
+        private final Object target;
+        private final String name;
+        private final Scriptable parent;
+
+        BoundMethod(Object target, String name, Scriptable parent) {
+            this.target = target;
+            this.name = name;
+            this.parent = parent;
+        }
+
+        @Override public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+            Object[] ja = new Object[args.length];
+            for (int i = 0; i < args.length; i++) ja[i] = toJava(args[i]);
+            return toJs(RuntimeHelpers.callMethod(target, name, ja), parent);
+        }
     }
 }
