@@ -17,6 +17,28 @@ final class StateController {
         this.owner = owner;
     }
 
+    // Wire each state's `when` binding so the owner's active state tracks the first
+    // state whose `when` is true. Only engages once some state actually declares a
+    // when clause, so explicit `state:`-driven items are left untouched.
+    void initWhen() {
+        for (State s : owner.states) {
+            s.when.addChangeHandler(args -> evaluateWhen());
+        }
+        evaluateWhen();
+    }
+
+    private void evaluateWhen() {
+        boolean declared = false;
+        State match = null;
+        for (State s : owner.states) {
+            Object w = s.when.peek();
+            if (w != null) declared = true;
+            if (match == null && Boolean.TRUE.equals(w)) match = s;
+        }
+        if (!declared) return;
+        owner.state.set(match != null ? match.name.peek() : null);
+    }
+
     void apply(String stateName) {
         State next = findState(stateName);
         if (next == active) return;

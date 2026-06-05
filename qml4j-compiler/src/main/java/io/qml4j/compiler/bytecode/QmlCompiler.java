@@ -1138,6 +1138,15 @@ public final class QmlCompiler {
                                            String propName,
                                            Map<String, String> declaredProps,
                                            Map<String, Integer> rootFunctions) {
+        // A single object assigned to a List member (`transitions: Transition{}`) is
+        // sugar for a one-element list -- append it, like `states: [State{}]` does.
+        if (findListFieldOrNull(outerType, propName) != null) {
+            emitChildObjectInto(ctor, outerType, outerLocal, node, registry,
+                                localCounter, bindingCounter, handlerCounter, classes,
+                                componentBinaryName, idTypes, customSignalParams, propName,
+                                declaredProps, rootFunctions);
+            return;
+        }
         Field propField = findPropertyField(outerType, propName);
         String propOwner = Type.getInternalName(propField.getDeclaringClass());
         int childLocal = localCounter[0];

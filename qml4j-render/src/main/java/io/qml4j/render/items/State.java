@@ -4,6 +4,9 @@ import io.qml4j.engine.binding.Property;
 
 public class State extends Item {
     public final Property<String> name = new Property<>(null);
+    // Declarative activation: when this binds to true the owner switches to this
+    // state (Qt's State.when). null = no when clause (explicit `state:` mode).
+    public final Property<Boolean> when = new Property<>(null);
 
     public State() {
         visible.set(Boolean.FALSE);

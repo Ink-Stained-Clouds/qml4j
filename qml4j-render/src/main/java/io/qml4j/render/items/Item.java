@@ -7,7 +7,9 @@ import io.qml4j.engine.QObject;
 import io.qml4j.engine.binding.Property;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 public class Item extends QObject {
@@ -71,6 +73,32 @@ public class Item extends QObject {
 
     public void installFocusHook(Consumer<Item> hook) {
         focusHook = hook;
+    }
+
+    // Activate declarative State.when bindings once the tree is built.
+    public void initStateBindings() {
+        if (!states.isEmpty()) stateController.initWhen();
+    }
+
+    // QML Item.mapFromItem(source, x, y): map a point from source's coordinate
+    // system into this item's. Returns a point ({x, y}); positions only (no
+    // rotation/scale), which is what hit-math like Slider's drag needs.
+    public Map<String, Object> mapFromItem(Object source, double x, double y) {
+        double[] from = source instanceof Item ? ((Item) source).scenePosition() : new double[]{0, 0};
+        double[] self = scenePosition();
+        Map<String, Object> p = new LinkedHashMap<>();
+        p.put("x", from[0] + x - self[0]);
+        p.put("y", from[1] + y - self[1]);
+        return p;
+    }
+
+    private double[] scenePosition() {
+        double sx = 0, sy = 0;
+        for (Item it = this; it != null; it = it.parent.peek()) {
+            sx += it.x.peek().doubleValue();
+            sy += it.y.peek().doubleValue();
+        }
+        return new double[]{sx, sy};
     }
 
     public void forceActiveFocus() {

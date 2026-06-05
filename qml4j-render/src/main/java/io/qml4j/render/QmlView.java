@@ -77,8 +77,14 @@ public final class QmlView {
     public Item load(String qml) {
         root = instantiate(qml);
         root.installFocusHook(this::setFocus);
+        initStateBindings(root);
         initialFocusScan(root);
         return root;
+    }
+
+    private void initStateBindings(Item node) {
+        node.initStateBindings();
+        for (Item c : node.children) initStateBindings(c);
     }
 
     private void initialFocusScan(Item node) {
