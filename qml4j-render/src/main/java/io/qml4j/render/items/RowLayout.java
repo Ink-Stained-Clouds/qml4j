@@ -66,6 +66,11 @@ public class RowLayout extends Item {
                 c.height.set(boxH - top - bottom);
             } else {
                 double ch = LayoutSizing.crossSize(la.preferredHeight, c.implicitHeight, c.height);
+                // Apply the cross size to the child, not just position it: a child
+                // with only Layout.preferredHeight (e.g. a bare Item holding a
+                // centred icon) would otherwise keep its 0 height and its centred
+                // content would collapse to the top edge.
+                c.height.set(ch);
                 c.y.set(LayoutSizing.crossPos(la.alignment.peek().intValue(), boxH, ch, top, bottom, false));
             }
             x += w[i] + right[i] + s;
