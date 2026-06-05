@@ -1,6 +1,7 @@
 package io.qml4j.demo;
 
 import io.qml4j.render.QmlView;
+import org.lwjgl.glfw.Callbacks;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWCharCallback;
 import org.lwjgl.glfw.GLFWCursorPosCallback;
@@ -9,6 +10,8 @@ import org.lwjgl.glfw.GLFWFramebufferSizeCallback;
 import org.lwjgl.glfw.GLFWKeyCallback;
 import org.lwjgl.glfw.GLFWMouseButtonCallback;
 import org.lwjgl.system.MemoryUtil;
+
+import java.io.IOException;
 
 public final class DesktopMain {
 
@@ -152,9 +155,31 @@ public final class DesktopMain {
     private void shutdown() {
         host.dispose();
         backend.dispose();
+        // Unbind the context before tearing GLFW down so the NVIDIA EGL driver
+        // isn't mid-flight on the window surface during eglTerminate.
+        GLFW.glfwMakeContextCurrent(MemoryUtil.NULL);
+        Callbacks.glfwFreeCallbacks(window);
         GLFW.glfwDestroyWindow(window);
         GLFW.glfwTerminate();
         GLFWErrorCallback cb = GLFW.glfwSetErrorCallback(null);
         if (cb != null) cb.free();
+        killSelf();
+    }
+
+    // The NVIDIA EGL driver spins a worker thread that SIGSEGVs the instant this
+    // process begins to exit. Every in-process exit path reproduces it -- return,
+    // System.exit, Runtime.halt -- even with zero GL teardown, so it cannot be fixed
+    // by ordering the cleanup above. SIGKILL terminates the whole process atomically
+    // in the kernel, before the worker can fault, so there is no JVM fatal-error log
+    // or core dump. (It also sidesteps AwtClipboard's non-daemon AWT EDT, which would
+    // otherwise keep the JVM alive past main().) Last resort for this driver bug.
+    private static void killSelf() {
+        long pid = ProcessHandle.current().pid();
+        try {
+            new ProcessBuilder("kill", "-9", Long.toString(pid)).start();
+            Thread.sleep(10_000);
+        } catch (IOException | InterruptedException e) {
+            Runtime.getRuntime().halt(0);
+        }
     }
 }
