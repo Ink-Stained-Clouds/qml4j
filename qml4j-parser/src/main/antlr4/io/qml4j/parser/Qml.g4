@@ -243,7 +243,11 @@ unaryOp
     ;
 
 postfixExpr
-    : primaryExpr postfixSuffix*
+    : primaryExpr postfixSuffix* incDecOp?
+    ;
+
+incDecOp
+    : '++' | '--'
     ;
 
 postfixSuffix

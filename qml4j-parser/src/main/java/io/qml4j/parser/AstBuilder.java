@@ -393,6 +393,13 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
                 cur = new Ast.CallExpr(cur, args);
             }
         }
+        if (ctx.incDecOp() != null) {
+            // i++ / i-- desugars to `i = i +/- 1`. Statement-context semantics (the
+            // common for-loop update); the postfix old-value result isn't preserved.
+            String bin = ctx.incDecOp().getText().equals("++") ? "+" : "-";
+            Ast.Expression one = new Ast.LiteralExpr(Ast.LiteralKind.INT, 1L);
+            cur = new Ast.AssignmentExpr(cur, new Ast.BinaryExpr(bin, cur, one));
+        }
         return cur;
     }
 
