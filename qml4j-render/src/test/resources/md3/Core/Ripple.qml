@@ -128,7 +128,9 @@ MouseArea {
         ripple.startX = mouse.x
         ripple.startY = mouse.y
         ripple.size = 0
-        ripple.opacity = 0
+        // Keep current opacity (don't snap to 0): when tapping again before the
+        // previous ripple has faded, the fade-in resumes from where it was so the
+        // old wave doesn't blink out -- the new wave just re-centres at the touch.
 
         fadeInAnim.start()
         expandAnim.start()

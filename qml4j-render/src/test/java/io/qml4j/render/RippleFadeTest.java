@@ -55,6 +55,30 @@ class RippleFadeTest {
     }
 
     @Test
+    void retapWhileFadingDoesNotBlinkOut() {
+        // Tapping again before the previous ripple has faded must not snap opacity
+        // to 0 (old wave blinking out); the new press resumes from current opacity.
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        Item ripple = rippleOf(v);
+        tick(v, 1);
+        v.dispatchPointerDown(40, 40);
+        tick(v, 1);
+        tick(v, 250);                // first ripple at peak
+        v.dispatchPointerUp(40, 40);
+        tick(v, 1);
+        tick(v, 95);                 // hold-to-peak done, fade leg running
+        tick(v, 150);                // mid fade-out
+        double fading = ripple.opacity.peek().doubleValue();
+        assertTrue(fading > 0.02 && fading < 0.12, "first ripple mid-fade, was " + fading);
+        v.dispatchPointerDown(20, 20); // re-tap elsewhere while fading
+        tick(v, 1);
+        double afterRetap = ripple.opacity.peek().doubleValue();
+        System.out.println("RETAP fading=" + fading + " afterRetap=" + afterRetap);
+        assertTrue(afterRetap >= fading - 1e-6,
+            "re-tap keeps (or raises) opacity, did not blink to 0; was " + afterRetap);
+    }
+
+    @Test
     void quickTapStillReachesPeak() {
         // MD3 "minimum visible ripple": a fast tap (release before fade-in ramps)
         // must still rise to full opacity before fading, not stay faint.
