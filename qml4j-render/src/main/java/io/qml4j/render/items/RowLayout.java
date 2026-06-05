@@ -30,10 +30,10 @@ public class RowLayout extends Item {
         for (int i = 0; i < n; i++) {
             Item c = vis.get(i);
             LayoutAttached la = c.Layout;
-            w[i] = LayoutSizing.mainSize(c.Layout.preferredWidth, c.implicitWidth, c.width, la);
+            fill[i] = Boolean.TRUE.equals(la.fillWidth.peek());
+            w[i] = LayoutSizing.mainSize(c.Layout.preferredWidth, c.implicitWidth, c.width, fill[i]);
             left[i] = LayoutSizing.margin(la.leftMargin, la.margins);
             right[i] = LayoutSizing.margin(la.rightMargin, la.margins);
-            fill[i] = Boolean.TRUE.equals(la.fillWidth.peek());
             if (fill[i]) fillCount++;
             sumMain += left[i] + w[i] + right[i];
             double cross = LayoutSizing.margin(la.topMargin, la.margins)

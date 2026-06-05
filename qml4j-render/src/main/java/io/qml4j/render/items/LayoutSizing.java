@@ -6,11 +6,18 @@ import io.qml4j.engine.binding.Property;
 final class LayoutSizing {
     private LayoutSizing() {}
 
-    // A child's size along an axis: Layout.preferred* if set (>=0), else its
-    // implicit size, else its explicit size.
+    // A child's intrinsic size along the MAIN axis: Layout.preferred* if set
+    // (>=0), else its implicit size, else its explicit size. A fill child has NO
+    // intrinsic main size -- its main size is an OUTPUT of the layout, so it must
+    // never fall back to its (already-filled) explicit size, or the fill would
+    // accumulate pass over pass (a spacer ratchets wider every frame).
     static double mainSize(Property<Number> preferred, Property<Number> implicit,
-                           Property<Number> explicit, LayoutAttached la) {
-        return sizeFor(preferred, implicit, explicit);
+                           Property<Number> explicit, boolean isFill) {
+        double pref = preferred.peek().doubleValue();
+        if (pref >= 0) return pref;
+        double iw = implicit.peek().doubleValue();
+        if (iw > 0) return iw;
+        return isFill ? 0 : explicit.peek().doubleValue();
     }
 
     static double crossSize(Property<Number> preferred, Property<Number> implicit,

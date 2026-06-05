@@ -276,6 +276,11 @@ public final class Renderer {
         draw(canvas, root, 1f);
     }
 
+    // Diagnostic/test hook: run the layout pre-pass without painting.
+    public void layoutOnly(Item root) {
+        if (root != null) settleLayout(root);
+    }
+
     // Run the layout pre-pass and flush size-driven bindings until the tree
     // stops changing (or the cap is hit), so first-appearance layout is correct
     // on the very frame a node becomes visible instead of flashing for one frame.

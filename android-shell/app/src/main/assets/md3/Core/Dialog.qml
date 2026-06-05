@@ -231,9 +231,9 @@ Item {
                         Layout.topMargin: 8
                         spacing: 8
                         Layout.alignment: Qt.AlignRight
-                        
+
                         Item { Layout.fillWidth: true } // Spacer
-                        
+
                         Button {
                             visible: control.showRejectButton
                             text: control.rejectText
@@ -243,7 +243,7 @@ Item {
                                 control.close()
                             }
                         }
-                        
+
                         Button {
                             visible: control.showAcceptButton
                             text: control.acceptText

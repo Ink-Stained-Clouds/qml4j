@@ -29,10 +29,10 @@ public class ColumnLayout extends Item {
         for (int i = 0; i < n; i++) {
             Item c = vis.get(i);
             LayoutAttached la = c.Layout;
-            h[i] = LayoutSizing.mainSize(la.preferredHeight, c.implicitHeight, c.height, la);
+            fill[i] = Boolean.TRUE.equals(la.fillHeight.peek());
+            h[i] = LayoutSizing.mainSize(la.preferredHeight, c.implicitHeight, c.height, fill[i]);
             top[i] = LayoutSizing.margin(la.topMargin, la.margins);
             bottom[i] = LayoutSizing.margin(la.bottomMargin, la.margins);
-            fill[i] = Boolean.TRUE.equals(la.fillHeight.peek());
             if (fill[i]) fillCount++;
             sumMain += top[i] + h[i] + bottom[i];
             double cross = LayoutSizing.margin(la.leftMargin, la.margins)
