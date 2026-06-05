@@ -25,7 +25,7 @@ class NavigationBarLoadTest {
 
     private static Item load(String body) {
         Map<String, byte[]> files = new HashMap<>();
-        for (String f : new String[]{"qmldir", "Theme.qml", "NavigationBar.qml"}) {
+        for (String f : new String[]{"qmldir", "Theme.qml", "Ripple.qml", "NavigationBar.qml"}) {
             files.put("md3/Core/" + f, res("md3/Core/" + f));
         }
         QmlView v = QmlView.withStockTypes(new QmlEngine());

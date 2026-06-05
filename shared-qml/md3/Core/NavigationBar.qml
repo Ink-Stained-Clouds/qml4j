@@ -89,7 +89,16 @@ Item {
                                     NumberAnimation { property: "width"; duration: 150; easing.type: Easing.OutQuad }
                                 }
                             }
-                            
+
+                            // qml4j divergence: upstream only comments about a ripple
+                            // but never adds one; give the pill its MD3 state layer.
+                            Ripple {
+                                anchors.fill: parent
+                                clipRadius: 16
+                                rippleColor: navItem.selected ? Theme.color.onSecondaryContainerColor : Theme.color.onSurfaceVariantColor
+                                onClicked: root.currentIndex = index
+                            }
+
                             Text {
                                 anchors.centerIn: parent
                                 text: itemData.icon || ""
