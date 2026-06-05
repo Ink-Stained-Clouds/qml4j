@@ -145,6 +145,13 @@ public final class RuntimeHelpers {
         try {
             Object cur = f.get(target);
             if (cur instanceof Property) {
+                // Imperative reparenting (item.parent = x) must move the node
+                // between children lists, not just flip the property -- the scene
+                // is drawn via children. Construction sets parent via bytecode,
+                // not this path, so it's unaffected.
+                if ("parent".equals(name)) {
+                    reparent(target, ((Property) cur).peek(), value);
+                }
                 ((Property) cur).set(value);
             } else {
                 f.set(target, value);
@@ -153,6 +160,26 @@ public final class RuntimeHelpers {
             throw new RuntimeException(e);
         }
         return value;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void reparent(Object child, Object oldParent, Object newParent) {
+        List<Object> oldKids = childrenOf(oldParent);
+        if (oldKids != null) oldKids.remove(child);
+        List<Object> newKids = childrenOf(newParent);
+        if (newKids != null && !newKids.contains(child)) newKids.add(child);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Object> childrenOf(Object item) {
+        if (item == null) return null;
+        try {
+            Field cf = item.getClass().getField("children");
+            Object v = cf.get(item);
+            return v instanceof List ? (List<Object>) v : null;
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            return null;
+        }
     }
 
     public static Object readMember(Object target, String name) {

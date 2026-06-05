@@ -42,6 +42,11 @@ class DialogLoadTest {
         try { io.qml4j.engine.RuntimeHelpers.callMethod(dlg, "open", new Object[0]); dq.flush(); }
         finally { dq.uninstall(); }
         assertTrue(Boolean.TRUE.equals(overlay.visible.peek()), "overlay shown after open()");
+        // open() reparents the overlay out of the invisible Dialog onto the page
+        // root, else it would never render (its parent control is visible:false).
+        assertSame(root, overlay.parent.peek(), "overlay reparented to page root");
+        assertTrue(root.children.contains(overlay), "overlay added to root.children");
+        assertFalse(dlg.children.contains(overlay), "overlay removed from the Dialog's children");
         for (int i = 0; i < 14; i++) { clock += 16_000_000L; dq.install();
             try { v.tickAnimations(clock); dq.flush(); } finally { dq.uninstall(); } }
         assertTrue(scrim.opacity.peek().doubleValue() > 0.2, "scrim faded in, was " + scrim.opacity.peek());
