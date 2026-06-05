@@ -3,7 +3,7 @@ import QtQuick.Effects
 import md3.Core
 MouseArea {
     id: root
-    
+
     property color rippleColor: Theme.color.onSurfaceColor
     property real rippleOpacity: 0.12
     property real clipRadius: 0
@@ -11,16 +11,16 @@ MouseArea {
     property alias clipTopRightRadius: maskRect.topRightRadius
     property alias clipBottomLeftRadius: maskRect.bottomLeftRadius
     property alias clipBottomRightRadius: maskRect.bottomRightRadius
-    
+
     hoverEnabled: true
-    
+
     // Mask for clipping (defines the shape)
     Item {
         id: mask
         anchors.fill: parent
         layer.enabled: true
         visible: false
-        
+
         Rectangle {
             id: maskRect
             anchors.fill: parent
@@ -28,35 +28,14 @@ MouseArea {
             color: "black"
         }
     }
-    
-    // Content containing the ripple
+
+    // Container that holds the live ripple waves (masked to the shape above).
     Item {
         id: rippleContent
         anchors.fill: parent
-        visible: false 
-        
-        Rectangle {
-            id: ripple
-            property real targetSize: Math.max(root.width, root.height) * 2.5
-            
-            width: size
-            height: size
-            radius: size / 2
-            color: root.rippleColor
-            opacity: 0
-            
-            property real size: 0
-            
-            // Center point
-            x: startX - width / 2
-            y: startY - height / 2
-            
-            property real startX: 0
-            property real startY: 0
-        }
+        visible: false
     }
-    
-    // Apply the mask
+
     MultiEffect {
         source: rippleContent
         anchors.fill: parent
@@ -64,80 +43,45 @@ MouseArea {
         maskSource: mask
     }
 
-    ParallelAnimation {
-        id: anim
-        
-        NumberAnimation {
-            target: ripple
-            property: "size"
-            from: 0
-            to: ripple.targetSize
-            duration: 400
-            easing.type: Easing.OutQuart
+    // qml4j divergence from upstream md3 Ripple.qml: upstream reuses a single
+    // ripple rectangle, so a new tap restarts the one wave. Material allows
+    // overlapping ripples -- each touch is its own wave. We spawn an independent
+    // wave per press (Component.createObject) that expands, fades, and destroys
+    // itself, so concurrent taps coexist without disturbing each other.
+    Component {
+        id: waveComponent
+        Rectangle {
+            id: wave
+            property real startX: 0
+            property real startY: 0
+            property real targetSize: Math.max(root.width, root.height) * 2.5
+            property real size: 0
+
+            width: size
+            height: size
+            radius: size / 2
+            x: startX - size / 2
+            y: startY - size / 2
+            color: root.rippleColor
+            opacity: 0
+
+            NumberAnimation {
+                target: wave; property: "size"
+                from: 0; to: wave.targetSize
+                duration: 450; easing.type: Easing.OutQuart
+                running: true
+            }
+            SequentialAnimation {
+                running: true
+                NumberAnimation { target: wave; property: "opacity"; from: 0; to: root.rippleOpacity; duration: 90 }
+                NumberAnimation { target: wave; property: "opacity"; to: 0; duration: 360; easing.type: Easing.InQuad }
+            }
+            // Self-destruct just after the longest leg (size 450ms / fade 450ms).
+            Timer { interval: 470; running: true; repeat: false; onTriggered: wave.destroy() }
         }
-        
-        NumberAnimation {
-            target: ripple
-            property: "opacity"
-            from: root.rippleOpacity
-            to: 0
-            duration: 400
-            easing.type: Easing.InQuad
-        }
-    }
-    
-    // Separate opacity animation for press vs release? 
-    // Material ripple: 
-    // 1. Press: Expands to fill, opacity stays.
-    // 2. Release: Fades out.
-    
-    // Let's implement a better state-based or signal-based animation
-    
-    PropertyAnimation {
-        id: expandAnim
-        target: ripple
-        property: "size"
-        to: ripple.targetSize
-        duration: 450
-        easing.type: Easing.OutQuart
-    }
-    
-    NumberAnimation {
-        id: fadeInAnim
-        target: ripple
-        property: "opacity"
-        to: root.rippleOpacity
-        duration: 200
-    }
-    
-    // qml4j divergence: MD3 "minimum visible ripple". Upstream fades straight to 0
-    // from the current opacity, so a fast tap (released before the 200ms fade-in
-    // ramps) barely shows. Sequence it: first finish rising to full opacity, then
-    // fade out -- a quick tap still produces a full, visible wave.
-    SequentialAnimation {
-        id: fadeOutAnim
-        NumberAnimation { target: ripple; property: "opacity"; to: root.rippleOpacity; duration: 90 }
-        NumberAnimation { target: ripple; property: "opacity"; to: 0; duration: 300 }
     }
 
     onPressed: (mouse) => {
-        expandAnim.stop()
-        fadeOutAnim.stop()
-        fadeInAnim.stop()
-
-        ripple.startX = mouse.x
-        ripple.startY = mouse.y
-        ripple.size = 0
-        // Keep current opacity (don't snap to 0): when tapping again before the
-        // previous ripple has faded, the fade-in resumes from where it was so the
-        // old wave doesn't blink out -- the new wave just re-centres at the touch.
-
-        fadeInAnim.start()
-        expandAnim.start()
+        waveComponent.createObject(rippleContent, { startX: mouse.x, startY: mouse.y })
     }
-
-    onReleased: { fadeInAnim.stop(); fadeOutAnim.start() }
-    onCanceled: { fadeInAnim.stop(); fadeOutAnim.start() }
-    onExited: if (!pressed) { fadeInAnim.stop(); fadeOutAnim.start() }
 }
-

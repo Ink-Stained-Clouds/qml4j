@@ -114,6 +114,11 @@ public final class QmlCompiler {
             ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
             cw.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
                      componentInternal, null, rootInternal, null);
+            // Save/restore: a compile can nest (resolving a compound type mid-emit
+            // triggers another compile of that type). A bare null-reset here would
+            // clobber the enclosing compile's writer/counter.
+            ClassWriter prevCw = this.activeComponentCw;
+            int prevFactoryCounter = this.factoryCounter;
             this.activeComponentCw = cw;
             this.factoryCounter = 0;
             try {
@@ -123,7 +128,8 @@ public final class QmlCompiler {
                 return compileBody(doc, registry, rootType, componentBinaryName,
                                    componentInternal, rootInternal, idTypes, classes, cw);
             } finally {
-                this.activeComponentCw = null;
+                this.activeComponentCw = prevCw;
+                this.factoryCounter = prevFactoryCounter;
             }
         } finally {
             REGISTRY_STACK.get().pop();
@@ -971,6 +977,19 @@ public final class QmlCompiler {
         mv.visitInsn(Opcodes.DUP);
         mv.visitMethodInsn(Opcodes.INVOKESPECIAL, delegateInternal, "<init>", "()V", false);
         mv.visitVarInsn(Opcodes.ASTORE, delegateLocal);
+
+        // The delegate root's own id (e.g. `id: wave`) must point at the instance,
+        // like the top-level root id; otherwise bindings inside the delegate that
+        // reference it (target: wave) resolve to null.
+        String selfId = idOf(delegateNode);
+        boolean selfIdIsField = selfId != null;
+        for (DeclaredProp dp : fullDecls) if (dp.name.equals(selfId)) selfIdIsField = false;
+        if (selfIdIsField) {
+            mv.visitVarInsn(Opcodes.ALOAD, delegateLocal);
+            mv.visitVarInsn(Opcodes.ALOAD, delegateLocal);
+            mv.visitFieldInsn(Opcodes.PUTFIELD, delegateInternal, selfId,
+                              "L" + Type.getInternalName(delType) + ";");
+        }
 
         for (String sig : delSignals) {
             mv.visitVarInsn(Opcodes.ALOAD, delegateLocal);

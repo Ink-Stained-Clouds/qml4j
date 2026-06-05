@@ -21,7 +21,9 @@ class RippleFadeTest {
         DirtyQueue dq = v.dirtyQueue(); dq.install();
         try { v.tickAnimations(clock); dq.flush(); } finally { dq.uninstall(); }
     }
-    private Item rippleOf(QmlView v) {
+    private Item content; // rippleContent: parent of live waves
+    private QmlView load() {
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
         Map<String, byte[]> files = new HashMap<>();
         for (String f : new String[]{"qmldir","Theme.qml","Ripple.qml"})
             files.put("md3/Core/" + f, res("md3/Core/" + f));
@@ -29,74 +31,47 @@ class RippleFadeTest {
         Item root = v.load(
             "import QtQuick\nimport md3.Core\n" +
             "Item { width: 80; height: 80\n  Ripple { id: r; width: 80; height: 80; clipRadius: 20 }\n}");
-        return root.children.get(0).children.get(1).children.get(0); // root>Ripple>rippleContent>ripple
+        content = root.children.get(0).children.get(1); // root>Ripple>rippleContent
+        return v;
     }
+    private static double opacityOf(Item wave) { return wave.opacity.peek().doubleValue(); }
 
     @Test
-    void rippleFadesOutAfterRelease() {
-        QmlView v = QmlView.withStockTypes(new QmlEngine());
-        Item ripple = rippleOf(v);
+    void tapSpawnsAVisibleWaveThatFadesAndDestroysItself() {
+        QmlView v = load();
         tick(v, 1);
+        assertEquals(0, content.children.size(), "no waves before any tap");
         v.dispatchPointerDown(40, 40);
-        tick(v, 1);   // establish fade-in start time
-        tick(v, 250); // fade-in (200ms) completes -> at peak
-        double pressed = ripple.opacity.peek().doubleValue();
+        tick(v, 1);
+        assertEquals(1, content.children.size(), "one wave spawned on press");
+        tick(v, 120);
+        double peak = opacityOf(content.children.get(0));
+        assertTrue(peak > 0.10, "wave rises to near-full opacity, was " + peak);
         v.dispatchPointerUp(40, 40);
-        tick(v, 1);   // hold-to-peak leg starts (frac 0)
-        tick(v, 95);  // hold leg (90ms, no-op at peak) done -> fade leg starts
-        tick(v, 120); // 120ms into the 300ms fade
-        double mid = ripple.opacity.peek().doubleValue();
-        tick(v, 350);
-        double after = ripple.opacity.peek().doubleValue();
-        System.out.println("FULLPRESS pressed=" + pressed + " mid=" + mid + " after=" + after);
-        assertTrue(pressed > 0.10, "ripple at peak during press, was " + pressed);
-        assertTrue(mid > 0.0 && mid < pressed, "ripple fading, was " + mid);
-        assertEquals(0.0, after, 1e-6, "ripple gone after fade");
+        tick(v, 600); // past the 470ms self-destruct timer
+        assertEquals(0, content.children.size(), "wave destroyed itself after fading");
     }
 
     @Test
-    void retapWhileFadingDoesNotBlinkOut() {
-        // Tapping again before the previous ripple has faded must not snap opacity
-        // to 0 (old wave blinking out); the new press resumes from current opacity.
-        QmlView v = QmlView.withStockTypes(new QmlEngine());
-        Item ripple = rippleOf(v);
+    void concurrentTapsCoexistAsSeparateWaves() {
+        QmlView v = load();
         tick(v, 1);
-        v.dispatchPointerDown(40, 40);
+        v.dispatchPointerDown(20, 20);  // first wave
         tick(v, 1);
-        tick(v, 250);                // first ripple at peak
-        v.dispatchPointerUp(40, 40);
+        tick(v, 150);                   // let the first wave ramp + expand
+        v.dispatchPointerUp(20, 20);
+        v.dispatchPointerDown(60, 60);  // second wave, while first still alive
         tick(v, 1);
-        tick(v, 95);                 // hold-to-peak done, fade leg running
-        tick(v, 150);                // mid fade-out
-        double fading = ripple.opacity.peek().doubleValue();
-        assertTrue(fading > 0.02 && fading < 0.12, "first ripple mid-fade, was " + fading);
-        v.dispatchPointerDown(20, 20); // re-tap elsewhere while fading
-        tick(v, 1);
-        double afterRetap = ripple.opacity.peek().doubleValue();
-        System.out.println("RETAP fading=" + fading + " afterRetap=" + afterRetap);
-        assertTrue(afterRetap >= fading - 1e-6,
-            "re-tap keeps (or raises) opacity, did not blink to 0; was " + afterRetap);
-    }
-
-    @Test
-    void quickTapStillReachesPeak() {
-        // MD3 "minimum visible ripple": a fast tap (release before fade-in ramps)
-        // must still rise to full opacity before fading, not stay faint.
-        QmlView v = QmlView.withStockTypes(new QmlEngine());
-        Item ripple = rippleOf(v);
-        tick(v, 1);
-        v.dispatchPointerDown(40, 40);
-        tick(v, 1);   // fade-in barely started: opacity ~ 0
-        double atPress = ripple.opacity.peek().doubleValue();
-        v.dispatchPointerUp(40, 40); // release almost immediately
-        tick(v, 1);
-        tick(v, 95);  // hold-to-peak leg (~90ms) completes
-        double peak = ripple.opacity.peek().doubleValue();
-        tick(v, 350); // fade-out completes
-        double after = ripple.opacity.peek().doubleValue();
-        System.out.println("QUICKTAP atPress=" + atPress + " peak=" + peak + " after=" + after);
-        assertTrue(atPress < 0.02, "fade-in had barely begun, was " + atPress);
-        assertTrue(peak > 0.10, "quick tap still reaches near-full opacity, was " + peak);
-        assertEquals(0.0, after, 1e-6, "ripple gone after fade");
+        assertEquals(2, content.children.size(), "both waves coexist");
+        Item w1 = content.children.get(0), w2 = content.children.get(1);
+        tick(v, 30);
+        // First wave is older/bigger; both are independently visible.
+        assertTrue(opacityOf(w1) > 0.0, "first wave still visible, was " + opacityOf(w1));
+        assertTrue(opacityOf(w2) > 0.0, "second wave visible, was " + opacityOf(w2));
+        assertTrue(w1.width.peek().doubleValue() > w2.width.peek().doubleValue(),
+            "older wave has expanded further");
+        v.dispatchPointerUp(60, 60);
+        tick(v, 800);
+        assertEquals(0, content.children.size(), "both waves eventually destroyed");
     }
 }

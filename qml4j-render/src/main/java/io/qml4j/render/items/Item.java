@@ -77,4 +77,12 @@ public class Item extends QObject {
         while (r.parent.peek() != null) r = r.parent.peek();
         if (r.focusHook != null) r.focusHook.accept(this);
     }
+
+    // QML Object.destroy(): detach from the scene. Safe to call from inside an
+    // animation tick because the tick walk iterates children in reverse by index.
+    public void destroy() {
+        Item p = parent.peek();
+        if (p != null) p.children.remove(this);
+        parent.set(null);
+    }
 }
