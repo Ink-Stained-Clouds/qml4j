@@ -407,11 +407,11 @@ public final class Renderer {
 
         String ig = iconGlyph(t);
         if (ig != null) {
-            float w;
+            float w, h;
             try (Font f = new Font(iconTypeface(), size)) {
                 w = ig.isEmpty() ? 0f : f.measureTextWidth(ig);
+                h = lineHeight(f);
             }
-            float h = size;
             if (!t.implicitWidth.isBound()) t.implicitWidth.set(w);
             if (!t.implicitHeight.isBound()) t.implicitHeight.set(h);
             if (canMeasureW) { t.width.set(w); t.lastSetWidth = w; }
@@ -428,7 +428,7 @@ public final class Renderer {
                 float lw = font.measureTextWidth(line);
                 if (lw > w) w = lw;
             }
-            float h = size * lines.length;
+            float h = lineHeight(font) * lines.length;
             // Natural content size always feeds implicitWidth/Height (Qt), even
             // when width/height are bound externally (e.g. a tooltip background
             // binds to label.implicitWidth).
@@ -453,18 +453,15 @@ public final class Renderer {
             Button b = (Button) c;
             float size = b.fontSize.peek().floatValue();
             String label = b.text.peek();
-            float tw;
-            if (label == null || label.isEmpty()) {
-                tw = 0f;
-            } else {
-                try (Font font = fontFor(size, label)) {
-                    tw = font.measureTextWidth(label);
-                }
+            float tw, textH;
+            try (Font font = fontFor(size, label == null ? "" : label)) {
+                tw = (label == null || label.isEmpty()) ? 0f : font.measureTextWidth(label);
+                textH = lineHeight(font);
             }
             float hp = horizontalPad(c, 16f);
             float vp = verticalPad(c, 10f);
             iw = tw + 2f * hp;
-            ih = size + 2f * vp;
+            ih = textH + 2f * vp;
         } else {
             return;
         }
@@ -670,10 +667,12 @@ public final class Renderer {
             String[] lines = splitLines(s);
             boolean elideRight = t.elide.peek().intValue() == 3; // Text.ElideRight
             try (Font font = fontFor(size, s)) {
+                float lineH = lineHeight(font);
+                float baseline0 = baselineInLine(font);
                 for (int i = 0; i < lines.length; i++) {
                     if (lines[i].isEmpty()) continue;
                     String line = elideRight ? elideToWidth(lines[i], font, w) : lines[i];
-                    canvas.drawString(line, 0, size * (i + 1), font, paint);
+                    canvas.drawString(line, 0, baseline0 + i * lineH, font, paint);
                 }
             }
         } else if (node instanceof MultiEffect) {
@@ -779,7 +778,7 @@ public final class Renderer {
         try (Font font = fontFor(size, label)) {
             float tw = font.measureTextWidth(label);
             float tx = (w - tw) / 2f;
-            float ty = (h + size * 0.7f) / 2f;
+            float ty = centeredBaseline(font, h);
             p.setColor(applyAlpha(parseColor(b.textColor.peek()), a));
             canvas.drawString(label, tx, ty, font, p);
         }
@@ -814,18 +813,17 @@ public final class Renderer {
             p.setMode(PaintMode.FILL);
         }
         float size = tf.fontSize.peek().floatValue();
-        float vcenter = (h + size * 0.7f) / 2f - size;
         float pad = tf.padding.peek().floatValue();
         int tfSave = canvas.save();
         try {
-            canvas.translate(pad, vcenter);
+            canvas.translate(pad, 0);
             String s = tf.text.peek();
             if (s == null || s.isEmpty()) {
                 String ph = tf.placeholderText.peek();
                 if (ph != null && !ph.isEmpty()) {
                     try (Font font = fontFor(size, ph)) {
                         p.setColor(applyAlpha(parseColor(tf.placeholderTextColor.peek()), alpha));
-                        canvas.drawString(ph, 0, size, font, p);
+                        canvas.drawString(ph, 0, centeredBaseline(font, h), font, p);
                     }
                 }
             }
@@ -891,7 +889,7 @@ public final class Renderer {
         if (s == null) s = "";
         float size = ti.fontSize.peek().floatValue();
         try (Font font = fontFor(size, s)) {
-            float baseline = size;
+            float baseline = centeredBaseline(font, h);
             float glyphTop = baseline + glyphTopOffset(font);
             float glyphHeight = glyphExtent(font);
             paintSelectionRect(canvas, ti, s, font, glyphTop, glyphHeight, alpha);
@@ -946,6 +944,11 @@ public final class Renderer {
     }
     private static float baselineInLine(Font font) {     // line-top -> baseline distance
         return -font.getMetrics().getAscent();
+    }
+    // Baseline that vertically centres a single line of glyphs in a box of height boxH.
+    private static float centeredBaseline(Font font, float boxH) {
+        FontMetrics m = font.getMetrics();
+        return boxH / 2f - (m.getAscent() + m.getDescent()) / 2f;
     }
 
     private void paintTextEdit(Canvas canvas, TextEdit te, float w, float h, float alpha) {
