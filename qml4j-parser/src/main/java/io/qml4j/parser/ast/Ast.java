@@ -436,10 +436,17 @@ public final class Ast {
         public final List<String> paramNames;
         public final Expression bodyExpr;
         public final Block bodyBlock;
+        // Raw JS source of the arrow body (the `{ ... }` block or the bare expression);
+        // null if not captured (e.g. arrows synthesized by the compiler).
+        public final String source;
         public ArrowFunctionExpr(List<String> paramNames, Expression bodyExpr, Block bodyBlock) {
+            this(paramNames, bodyExpr, bodyBlock, null);
+        }
+        public ArrowFunctionExpr(List<String> paramNames, Expression bodyExpr, Block bodyBlock, String source) {
             this.paramNames = Collections.unmodifiableList(paramNames);
             this.bodyExpr = bodyExpr;
             this.bodyBlock = bodyBlock;
+            this.source = source;
         }
         @Override public String toString() {
             return "(" + String.join(",", paramNames) + ") => "

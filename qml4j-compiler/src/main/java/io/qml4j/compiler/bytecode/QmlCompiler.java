@@ -474,9 +474,9 @@ public final class QmlCompiler {
                     List<String> handlerParams = arrow != null ? arrow.paramNames
                         : (isCustomHandler ? customSignalParams.get(signalName) : null);
                     Ast.Statement handlerBody = arrow != null ? arrowBody(arrow) : toStatement(b.value);
-                    // Arrow-form handlers keep their own param scope and aren't span-
-                    // captured yet, so they stay on ASM (source == null).
-                    String handlerSource = arrow != null ? null : valueSource(b.value);
+                    // Arrow-form handlers bind their params as the signal args; the
+                    // captured arrow body source runs as `(function(params){ body })`.
+                    String handlerSource = arrow != null ? arrow.source : valueSource(b.value);
                     if (isCustomHandler) {
                         emitCustomSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
                                                 handlerCounter, bindingCounter, classes,

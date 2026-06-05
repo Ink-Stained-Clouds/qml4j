@@ -326,15 +326,16 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
             params.add(id.getText());
         }
         QmlParser.ArrowBodyContext body = ctx.arrowBody();
+        String src = rawSource(body);
         if (body.assignmentExpr() != null) {
             Ast.Expression expr = (Ast.Expression) visit(body.assignmentExpr());
-            return new Ast.ArrowFunctionExpr(params, expr, null);
+            return new Ast.ArrowFunctionExpr(params, expr, null, src);
         }
         List<Ast.Statement> stmts = new ArrayList<>();
         for (QmlParser.StatementContext sc : body.statement()) {
             stmts.add(visitStatement(sc));
         }
-        return new Ast.ArrowFunctionExpr(params, null, new Ast.Block(stmts));
+        return new Ast.ArrowFunctionExpr(params, null, new Ast.Block(stmts), src);
     }
 
     @Override

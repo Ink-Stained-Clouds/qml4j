@@ -44,6 +44,30 @@ class RhinoHandlerTest {
         return (Boolean) p.peek();
     }
 
+    // Phase 4a: an arrow-form handler `onPressed: (v) => ...` runs on Rhino, with the
+    // arrow's params bound to the signal arguments.
+    @Test
+    void arrowHandlerRunsOnRhino() throws Exception {
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        Item root = v.load(
+            "import QtQuick\n" +
+            "Rectangle {\n" +
+            "  id: control\n" +
+            "  property int got: 0\n" +
+            "  signal pressed(int v)\n" +
+            "  onPressed: (v) => { control.got = v * 2 }\n" +
+            "}");
+        flush(v);
+
+        Signal pressed = (Signal) root.getClass().getField("pressed").get(root);
+        assertTrue(handlersOf(pressed).get(0) instanceof RhinoHandler,
+            "arrow handler should be a RhinoHandler");
+
+        pressed.emit(21);
+        flush(v);
+        assertEquals(42, propLong(root, "got"));   // v * 2, v bound to the signal arg
+    }
+
     // A bare control-flow handler body (no braces) must produce legal wrapped JS --
     // `(function(){ if (...) ... })`, not `(function()if (...) ...)`.
     @Test
