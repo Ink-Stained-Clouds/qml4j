@@ -305,7 +305,7 @@ public final class RuntimeHelpers {
             "delegate context '" + name + "' not found in parent chain");
     }
 
-    private static boolean hasMember(Object o, String name) {
+    public static boolean hasMember(Object o, String name) {
         if (o == null) return false;
         try {
             o.getClass().getField(name);

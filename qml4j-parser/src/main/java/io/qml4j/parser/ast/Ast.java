@@ -156,7 +156,11 @@ public final class Ast {
 
     public static final class ExpressionValue extends Value {
         public final Expression expr;
-        public ExpressionValue(Expression expr) { this.expr = expr; }
+        // Raw JS source substring of the expression (fed to the Rhino backend); null
+        // if the parser couldn't capture it, in which case the ASM backend handles it.
+        public final String source;
+        public ExpressionValue(Expression expr) { this(expr, null); }
+        public ExpressionValue(Expression expr, String source) { this.expr = expr; this.source = source; }
         @Override public String toString() { return expr.toString(); }
     }
 

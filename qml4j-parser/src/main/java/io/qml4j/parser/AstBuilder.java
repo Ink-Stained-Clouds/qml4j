@@ -1,8 +1,12 @@
 package io.qml4j.parser;
 
 import io.qml4j.parser.ast.Ast;
+import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.misc.Interval;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -146,7 +150,19 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
         if (ctx.whileStatement() != null) {
             return new Ast.StatementBlockValue(oneStatement(visitWhileStatement(ctx.whileStatement())));
         }
-        return new Ast.ExpressionValue((Ast.Expression) visit(ctx.expression()));
+        QmlParser.ExpressionContext ec = ctx.expression();
+        return new Ast.ExpressionValue((Ast.Expression) visit(ec), rawSource(ec));
+    }
+
+    // The original source substring of a rule (whitespace preserved), via the
+    // CharStream the tokens came from. Null if unavailable (e.g. synthesized nodes).
+    private static String rawSource(ParserRuleContext ctx) {
+        Token start = ctx.getStart();
+        Token stop = ctx.getStop();
+        if (start == null || stop == null) return null;
+        CharStream cs = start.getInputStream();
+        if (cs == null || start.getStartIndex() < 0 || stop.getStopIndex() < 0) return null;
+        return cs.getText(Interval.of(start.getStartIndex(), stop.getStopIndex()));
     }
 
     private static Ast.Block oneStatement(Ast.Statement s) {

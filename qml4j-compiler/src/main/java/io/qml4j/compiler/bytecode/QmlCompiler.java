@@ -447,7 +447,7 @@ public final class QmlCompiler {
                         Collections.<String>emptyList(), null, block);
                     Ast.Expression iife = new Ast.CallExpr(fn, Collections.<Ast.Expression>emptyList());
                     emitExpressionBinding(ctor, outerType, outerLocal, componentBinaryName,
-                                          bindingCounter, classes, key, iife, idTypes,
+                                          bindingCounter, classes, key, iife, null, idTypes,
                                           declaredProps, aliases, rootFunctions);
                     return;
                 }
@@ -488,7 +488,8 @@ public final class QmlCompiler {
                     emitLiteralAssignment(ctor, outerType, outerLocal, key, (Ast.LiteralExpr) e);
                 } else {
                     emitExpressionBinding(ctor, outerType, outerLocal, componentBinaryName,
-                                          bindingCounter, classes, key, e, idTypes,
+                                          bindingCounter, classes, key, e,
+                                          ((Ast.ExpressionValue) b.value).source, idTypes,
                                           declaredProps, aliases, rootFunctions);
                 }
                 return;
@@ -586,7 +587,7 @@ public final class QmlCompiler {
                 emitLiteralAssignment(ctor, outerType, outerLocal, pd.name, (Ast.LiteralExpr) e);
             } else {
                 emitExpressionBinding(ctor, outerType, outerLocal, componentBinaryName,
-                                      bindingCounter, classes, pd.name, e, idTypes,
+                                      bindingCounter, classes, pd.name, e, null, idTypes,
                                       declaredProps, aliases, rootFunctions);
             }
             return;
@@ -1333,13 +1334,34 @@ public final class QmlCompiler {
     private void emitExpressionBinding(MethodVisitor ctor, Class<? extends QObject> outerType,
                                        int outerLocal, String componentBinaryName,
                                        int[] bindingCounter, Map<String, byte[]> classes,
-                                       String propName, Ast.Expression expr,
+                                       String propName, Ast.Expression expr, String source,
                                        Map<String, Class<? extends QObject>> idTypes,
                                        Map<String, String> declaredProps,
                                        Map<String, AliasRef> aliases,
                                        Map<String, Integer> rootFunctions) {
         Field f = findPropertyField(outerType, propName);
         String declOwner = Type.getInternalName(f.getDeclaringClass());
+
+        // Strangler-fig: route the JS subset Rhino can handle today (pure expression
+        // over ids / this-object / inherited properties) onto a RhinoBinding; the ASM
+        // backend still handles everything else (calls, Qt, enums, singletons, arrows,
+        // delegate scope) until later phases widen rhinoCanHandle.
+        if (source != null && !inDelegateScope()
+                && rhinoCanHandle(expr, outerType, idTypes, declaredProps, aliases)) {
+            ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+            ctor.visitFieldInsn(Opcodes.GETFIELD, declOwner, propName, PROPERTY_DESC);
+            ctor.visitTypeInsn(Opcodes.NEW, RHINO_BINDING_INTERNAL);
+            ctor.visitInsn(Opcodes.DUP);
+            ctor.visitLdcInsn(source);
+            ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+            ctor.visitVarInsn(Opcodes.ALOAD, 0);
+            ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_BINDING_INTERNAL, "<init>",
+                                 "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V", false);
+            ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
+                                 "bind", "(L" + BINDING_INTERNAL + ";)V", false);
+            return;
+        }
+
         String outerInternal = Type.getInternalName(outerType);
         String componentInternal = componentBinaryName.replace('.', '/');
 
@@ -1357,6 +1379,51 @@ public final class QmlCompiler {
                              "(L" + outerInternal + ";L" + componentInternal + ";)V", false);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
                              "bind", "(L" + BINDING_INTERNAL + ";)V", false);
+    }
+
+    private static final String RHINO_BINDING_INTERNAL = "io/qml4j/engine/js/RhinoBinding";
+
+    // Conservative predicate for the Rhino backend's first phase: a pure expression
+    // whose every bare identifier is a scene id, a this-object property, or an
+    // inherited property (so QmlScope can resolve it at runtime). Rejects calls,
+    // arrows, spreads, templates, array/object literals, aliases, and namespace/
+    // singleton members (Qt/Math/Theme/enums) -- those stay on the ASM backend.
+    private boolean rhinoCanHandle(Ast.Expression e, Class<? extends QObject> outerType,
+                                   Map<String, Class<? extends QObject>> idTypes,
+                                   Map<String, String> declaredProps,
+                                   Map<String, AliasRef> aliases) {
+        if (e instanceof Ast.LiteralExpr) {
+            return ((Ast.LiteralExpr) e).kind != Ast.LiteralKind.UNDEFINED;
+        }
+        if (e instanceof Ast.IdentifierExpr) {
+            String n = ((Ast.IdentifierExpr) e).name;
+            if (aliases.containsKey(n)) return false;
+            return declaredProps.containsKey(n) || idTypes.containsKey(n)
+                || findPropertyFieldOrNull(outerType, n) != null;
+        }
+        if (e instanceof Ast.MemberExpr) {
+            return rhinoCanHandle(((Ast.MemberExpr) e).target, outerType, idTypes, declaredProps, aliases);
+        }
+        if (e instanceof Ast.IndexExpr) {
+            Ast.IndexExpr ix = (Ast.IndexExpr) e;
+            return rhinoCanHandle(ix.target, outerType, idTypes, declaredProps, aliases)
+                && rhinoCanHandle(ix.index, outerType, idTypes, declaredProps, aliases);
+        }
+        if (e instanceof Ast.BinaryExpr) {
+            Ast.BinaryExpr b = (Ast.BinaryExpr) e;
+            return rhinoCanHandle(b.left, outerType, idTypes, declaredProps, aliases)
+                && rhinoCanHandle(b.right, outerType, idTypes, declaredProps, aliases);
+        }
+        if (e instanceof Ast.UnaryExpr) {
+            return rhinoCanHandle(((Ast.UnaryExpr) e).operand, outerType, idTypes, declaredProps, aliases);
+        }
+        if (e instanceof Ast.CondExpr) {
+            Ast.CondExpr c = (Ast.CondExpr) e;
+            return rhinoCanHandle(c.cond, outerType, idTypes, declaredProps, aliases)
+                && rhinoCanHandle(c.thenBranch, outerType, idTypes, declaredProps, aliases)
+                && rhinoCanHandle(c.elseBranch, outerType, idTypes, declaredProps, aliases);
+        }
+        return false;
     }
 
     private void emitGroupedBinding(MethodVisitor ctor, Class<? extends QObject> outerType,
