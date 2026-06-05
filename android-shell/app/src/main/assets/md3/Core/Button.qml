@@ -153,6 +153,10 @@ Item {
                     if (focused) return _state.focusStateLayerOpacity
                     return 0
                 }
+                // qml4j divergence: upstream Button omits this Behavior (unlike
+                // Chip/Checkbox), so the state layer popped instantly on press.
+                // Animate it to match the rest of MD3.
+                Behavior on opacity { NumberAnimation { duration: 100 } }
             }
             
             // Ripple Effect
