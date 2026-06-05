@@ -458,11 +458,16 @@ public final class QmlCompiler {
                 }
                 boolean isHandler = isCustomHandler || signalField != null || isRelay || changeProp != null;
                 if (isStmtBlock && !isHandler) {
+                    Ast.StatementBlockValue sb = (Ast.StatementBlockValue) b.value;
+                    String declOwner = propFieldOwnerOrNull(outerType, key, declaredProps);
+                    if (declOwner != null && tryEmitRhinoIifeBinding(ctor, outerType, outerLocal,
+                            declOwner, key, sb, idTypes, declaredProps, customSignals, rootFunctions)) {
+                        return;
+                    }
                     // A function-style binding `prop: { ...; return x }` becomes an
-                    // immediately-invoked arrow so the normal binding path applies.
-                    Ast.Block block = ((Ast.StatementBlockValue) b.value).block;
+                    // immediately-invoked arrow so the normal ASM binding path applies.
                     Ast.ArrowFunctionExpr fn = new Ast.ArrowFunctionExpr(
-                        Collections.<String>emptyList(), null, block);
+                        Collections.<String>emptyList(), null, sb.block);
                     Ast.Expression iife = new Ast.CallExpr(fn, Collections.<Ast.Expression>emptyList());
                     emitExpressionBinding(ctor, outerType, outerLocal, componentBinaryName,
                                           bindingCounter, classes, key, iife, null, idTypes,
@@ -592,6 +597,14 @@ public final class QmlCompiler {
         // as a binding/literal to the inherited Property field.
         if (declaredProps.get(pd.name) == null
             && findPropertyFieldOrNull(outerType, pd.name) != null) {
+            String overrideOwner = Type.getInternalName(
+                findPropertyFieldOrNull(outerType, pd.name).getDeclaringClass());
+            if (pd.initializer instanceof Ast.StatementBlockValue
+                    && tryEmitRhinoIifeBinding(ctor, outerType, outerLocal, overrideOwner, pd.name,
+                        (Ast.StatementBlockValue) pd.initializer, idTypes, declaredProps,
+                        customSignalParams.keySet(), rootFunctions)) {
+                return;
+            }
             Ast.Expression e;
             if (pd.initializer instanceof Ast.ExpressionValue) {
                 e = ((Ast.ExpressionValue) pd.initializer).expr;
@@ -634,6 +647,12 @@ public final class QmlCompiler {
         String ownerInternal = declaredProps.get(pd.name);
         if (ownerInternal == null) {
             throw new IllegalStateException("declared property not registered: " + pd.name);
+        }
+        if (pd.initializer instanceof Ast.StatementBlockValue
+                && tryEmitRhinoIifeBinding(ctor, outerType, outerLocal, ownerInternal, pd.name,
+                    (Ast.StatementBlockValue) pd.initializer, idTypes, declaredProps,
+                    customSignalParams.keySet(), rootFunctions)) {
+            return;
         }
         Ast.Expression e;
         if (pd.initializer instanceof Ast.ExpressionValue) {
@@ -1306,6 +1325,16 @@ public final class QmlCompiler {
         return f;
     }
 
+    // Internal name of the class owning `propName`'s Property field -- a declared
+    // property's registered owner, or the declaring class of an inherited field. Null
+    // if the property has no field (so the Rhino IIFE path is skipped).
+    private static String propFieldOwnerOrNull(Class<?> type, String propName,
+                                               Map<String, String> declaredProps) {
+        if (declaredProps.containsKey(propName)) return declaredProps.get(propName);
+        Field f = findPropertyFieldOrNull(type, propName);
+        return f == null ? null : Type.getInternalName(f.getDeclaringClass());
+    }
+
     private static Field findPropertyFieldOrNull(Class<?> type, String name) {
         try {
             Field f = type.getField(name);
@@ -1370,18 +1399,7 @@ public final class QmlCompiler {
         // delegate scope) until later phases widen rhinoCanHandle.
         if (source != null && !inDelegateScope()
                 && rhinoCanHandle(expr, outerType, idTypes, declaredProps, aliases)) {
-            ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
-            ctor.visitFieldInsn(Opcodes.GETFIELD, declOwner, propName, PROPERTY_DESC);
-            ctor.visitTypeInsn(Opcodes.NEW, RHINO_BINDING_INTERNAL);
-            ctor.visitInsn(Opcodes.DUP);
-            ctor.visitLdcInsn(source);
-            ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
-            ctor.visitVarInsn(Opcodes.ALOAD, 0);
-            pushStringArray(ctor, new ArrayList<>(idTypes.keySet()));
-            ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_BINDING_INTERNAL, "<init>",
-                                 "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;)V", false);
-            ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
-                                 "bind", "(L" + BINDING_INTERNAL + ";)V", false);
+            emitRhinoBindingBind(ctor, declOwner, propName, source, outerLocal, idTypes);
             return;
         }
 
@@ -1405,6 +1423,25 @@ public final class QmlCompiler {
     }
 
     private static final String RHINO_BINDING_INTERNAL = "io/qml4j/engine/js/RhinoBinding";
+
+    // Binds the property to `new RhinoBinding(source, outer, root, ids)`. The property
+    // field is loaded from declOwner; source is the JS the binding evaluates.
+    private void emitRhinoBindingBind(MethodVisitor ctor, String declOwner, String propName,
+                                      String source, int outerLocal,
+                                      Map<String, Class<? extends QObject>> idTypes) {
+        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+        ctor.visitFieldInsn(Opcodes.GETFIELD, declOwner, propName, PROPERTY_DESC);
+        ctor.visitTypeInsn(Opcodes.NEW, RHINO_BINDING_INTERNAL);
+        ctor.visitInsn(Opcodes.DUP);
+        ctor.visitLdcInsn(source);
+        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+        ctor.visitVarInsn(Opcodes.ALOAD, 0);
+        pushStringArray(ctor, new ArrayList<>(idTypes.keySet()));
+        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_BINDING_INTERNAL, "<init>",
+                             "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;)V", false);
+        ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
+                             "bind", "(L" + BINDING_INTERNAL + ";)V", false);
+    }
 
     // Conservative predicate for the Rhino backend's first phase: a pure expression
     // whose every bare identifier is a scene id, a this-object property, or an
@@ -1885,11 +1922,37 @@ public final class QmlCompiler {
     // wrapper must match RhinoClosure exactly, or a body with a top-level return
     // would falsely fail validation.
     private static void validateRhinoSource(String source, List<String> params) {
+        validateRhinoCompiles(RhinoClosure.wrap(source, params));
+    }
+
+    private static void validateRhinoCompiles(String js) {
         try {
-            JsRuntime.compile(RhinoClosure.wrap(source, params));
+            JsRuntime.compile(js);
         } catch (RhinoException e) {
             throw new IllegalArgumentException("invalid JS: " + e.getMessage(), e);
         }
+    }
+
+    // A function-style property binding (`prop: { ...; return x }`) runs on Rhino as an
+    // immediately-invoked function, when the body is eligible (every free name resolves,
+    // no Qt.binding, not in a delegate scope). Returns false to leave it on the ASM IIFE
+    // path. declOwner is the internal name of the class owning the property field.
+    private boolean tryEmitRhinoIifeBinding(MethodVisitor ctor, Class<?> outerType, int outerLocal,
+                                            String declOwner, String propName,
+                                            Ast.StatementBlockValue blockValue,
+                                            Map<String, Class<? extends QObject>> idTypes,
+                                            Map<String, String> declaredProps,
+                                            Set<String> customSignals,
+                                            Map<String, Integer> rootFunctions) {
+        if (blockValue.source == null || inDelegateScope()) return false;
+        if (!handlerCanHandle(blockValue.block, outerType, idTypes, declaredProps,
+                              Collections.<String>emptyList(), rootFunctions, customSignals)) {
+            return false;
+        }
+        String iife = "(function(){" + blockValue.source + "})()";
+        validateRhinoCompiles(iife);
+        emitRhinoBindingBind(ctor, declOwner, propName, iife, outerLocal, idTypes);
+        return true;
     }
 
     private static void pushStringArray(MethodVisitor mv, List<String> items) {

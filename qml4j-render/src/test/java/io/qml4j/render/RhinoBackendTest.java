@@ -95,4 +95,27 @@ class RhinoBackendTest {
         flush(v);
         assertEquals(42, root.width.peek().intValue());   // dbl(21)
     }
+
+    // Phase 4c: a function-style (IIFE) binding `prop: { ...; return x }` runs on Rhino
+    // as an immediately-invoked function and stays reactive.
+    @Test
+    void iifeBindingRunsOnRhino() throws Exception {
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        Item root = v.load(
+            "import QtQuick\n" +
+            "Rectangle {\n" +
+            "  id: root\n" +
+            "  height: 1\n" +
+            "  width: { var base = height * 10; return base + 5 }\n" +
+            "}");
+        flush(v);
+
+        assertTrue(bindingOf(root.width) instanceof RhinoBinding,
+            "function-style binding should be a RhinoBinding");
+        assertEquals(15, root.width.peek().intValue());   // 1*10 + 5
+
+        root.height.set(4);
+        flush(v);
+        assertEquals(45, root.width.peek().intValue());   // 4*10 + 5
+    }
 }
