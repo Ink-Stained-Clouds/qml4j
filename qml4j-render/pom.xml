@@ -33,4 +33,17 @@
             <artifactId>junit-jupiter</artifactId>
         </dependency>
     </dependencies>
+
+    <build>
+        <testResources>
+            <testResource>
+                <directory>src/test/resources</directory>
+            </testResource>
+            <!-- Canonical, shared QML (md3/Core + showcases) used by both the
+                 tests here and the qml4j-demo-desktop host. Single source of truth. -->
+            <testResource>
+                <directory>${project.basedir}/../shared-qml</directory>
+            </testResource>
+        </testResources>
+    </build>
 </project>

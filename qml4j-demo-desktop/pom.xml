@@ -59,6 +59,16 @@
     </dependencies>
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <!-- Shared QML on the classpath: /md3/Core/* and /showcases/*.
+                 Same canonical source the qml4j-render tests use. -->
+            <resource>
+                <directory>${project.basedir}/../shared-qml</directory>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
