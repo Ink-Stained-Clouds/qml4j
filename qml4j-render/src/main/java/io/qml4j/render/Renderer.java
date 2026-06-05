@@ -441,15 +441,25 @@ public final class Renderer {
         }
 
         String s = displayText(t);
-        if (s.equals(t.lastMeasuredText) && size == t.lastMeasuredSize) return;
         String[] lines = splitLines(s);
+        String wrapMode = wrapModeString(t.wrapMode.peek().intValue());
+        // When wrapping is on and the width is externally constrained (a layout,
+        // anchor, or explicit width set it -- i.e. we don't own it), the natural
+        // line count grows; report the wrapped height so containers size to it.
+        float wrapW = (wrapMode != null && (t.width.isBound() || !ownsWidth(t)))
+            ? t.width.peek().floatValue() : 0f;
         try (Font font = fontFor(size, s)) {
             float w = 0f;
             for (String line : lines) {
                 float lw = font.measureTextWidth(line);
                 if (lw > w) w = lw;
             }
-            float h = lineHeight(font) * lines.length;
+            int lineCount = lines.length;
+            if (wrapW > 0f && w > wrapW) {
+                lineCount = TextWrap.wrap(s, wrapMode, wrapW,
+                    seg -> font.measureTextWidth(seg)).lines.size();
+            }
+            float h = lineHeight(font) * lineCount;
             // Natural content size always feeds implicitWidth/Height (Qt), even
             // when width/height are bound externally (e.g. a tooltip background
             // binds to label.implicitWidth).
@@ -464,8 +474,16 @@ public final class Renderer {
                 t.lastSetHeight = h;
             }
         }
-        t.lastMeasuredText = s;
-        t.lastMeasuredSize = size;
+    }
+
+    // Text.wrapMode enum -> TextWrap mode string; null when wrapping is off.
+    private static String wrapModeString(int mode) {
+        switch (mode) {
+            case 1: return "WordWrap";
+            case 3: return "WrapAnywhere";
+            case 4: return "Wrap";
+            default: return null; // NoWrap
+        }
     }
 
     private void measureControl(Control c) {
@@ -685,9 +703,13 @@ public final class Renderer {
             }
             String s = displayText(t);
             if (s.isEmpty()) return;
-            String[] lines = splitLines(s);
             boolean elideRight = t.elide.peek().intValue() == 3; // Text.ElideRight
+            String wrapMode = wrapModeString(t.wrapMode.peek().intValue());
             try (Font font = fontFor(size, s)) {
+                String[] lines = (wrapMode != null && w > 0f)
+                    ? TextWrap.wrap(s, wrapMode, w, seg -> font.measureTextWidth(seg))
+                          .lines.toArray(new String[0])
+                    : splitLines(s);
                 float lineH = lineHeight(font);
                 float baseline0 = baselineInLine(font);
                 for (int i = 0; i < lines.length; i++) {

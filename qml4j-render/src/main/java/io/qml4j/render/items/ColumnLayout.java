@@ -44,7 +44,12 @@ public class ColumnLayout extends Item {
         implicitWidth.set(maxCross);
         implicitHeight.set(sumMain);
 
-        double boxW = Math.max(width.peek().doubleValue(), maxCross);
+        // When the layout's own width is constrained (anchored/explicit), fill and
+        // alignment must use THAT width, not the widest child's natural size --
+        // else a long unwrapped label balloons the box and pushes aligned items
+        // (centred icon, right-aligned actions) off the real bounds.
+        double ownW = width.peek().doubleValue();
+        double boxW = ownW > 0 ? ownW : maxCross;
         double boxH = Math.max(height.peek().doubleValue(), sumMain);
         if (fillCount > 0 && boxH > sumMain) {
             double extra = (boxH - sumMain) / fillCount;
