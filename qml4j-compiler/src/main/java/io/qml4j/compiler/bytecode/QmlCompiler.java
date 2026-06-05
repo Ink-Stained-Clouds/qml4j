@@ -9,7 +9,9 @@ import io.qml4j.engine.QmlDefaultList;
 import io.qml4j.engine.SignalRelay;
 import io.qml4j.engine.binding.Property;
 import io.qml4j.engine.QObject;
+import io.qml4j.engine.js.JsRuntime;
 import io.qml4j.parser.ast.Ast;
+import org.mozilla.javascript.RhinoException;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
@@ -456,23 +458,26 @@ public final class QmlCompiler {
                     List<String> handlerParams = arrow != null ? arrow.paramNames
                         : (isCustomHandler ? customSignalParams.get(signalName) : null);
                     Ast.Statement handlerBody = arrow != null ? arrowBody(arrow) : toStatement(b.value);
+                    // Arrow-form handlers keep their own param scope and aren't span-
+                    // captured yet, so they stay on ASM (source == null).
+                    String handlerSource = arrow != null ? null : valueSource(b.value);
                     if (isCustomHandler) {
                         emitCustomSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
                                                 handlerCounter, bindingCounter, classes,
-                                                customSignalOwner, signalName, handlerBody, idTypes,
+                                                customSignalOwner, signalName, handlerBody, handlerSource, idTypes,
                                                 handlerParams, declaredProps, aliases,
                                                 rootFunctions);
                     } else if (isRelay) {
                         emitRelaySignalHandler(ctor, outerType, outerLocal, componentBinaryName,
-                                               handlerCounter, bindingCounter, classes, signalName, handlerBody, idTypes,
+                                               handlerCounter, bindingCounter, classes, signalName, handlerBody, handlerSource, idTypes,
                                                handlerParams, declaredProps, aliases, rootFunctions);
                     } else if (changeProp != null) {
                         emitPropertyChangeHandler(ctor, outerType, outerLocal, componentBinaryName,
-                                                  handlerCounter, bindingCounter, classes, changeProp, handlerBody,
+                                                  handlerCounter, bindingCounter, classes, changeProp, handlerBody, handlerSource,
                                                   idTypes, declaredProps, aliases, rootFunctions);
                     } else {
                         emitSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
-                                          handlerCounter, bindingCounter, classes, signalField, handlerBody, idTypes,
+                                          handlerCounter, bindingCounter, classes, signalField, handlerBody, handlerSource, idTypes,
                                           handlerParams, declaredProps, aliases, rootFunctions);
                     }
                     return;
@@ -502,7 +507,7 @@ public final class QmlCompiler {
                 }
                 Ast.Statement handlerBody = toStatement(b.value);
                 emitKeysHandler(ctor, outerType, outerLocal, componentBinaryName,
-                                handlerCounter, bindingCounter, classes, signalName, handlerBody,
+                                handlerCounter, bindingCounter, classes, signalName, handlerBody, valueSource(b.value),
                                 idTypes, declaredProps, aliases, rootFunctions);
                 return;
             }
@@ -1510,7 +1515,7 @@ public final class QmlCompiler {
     private void emitKeysHandler(MethodVisitor ctor, Class<? extends QObject> outerType,
                                  int outerLocal, String componentBinaryName,
                                  int[] handlerCounter, int[] bindingCounter, Map<String, byte[]> classes,
-                                 String signalName, Ast.Statement body,
+                                 String signalName, Ast.Statement body, String source,
                                  Map<String, Class<? extends QObject>> idTypes,
                                  Map<String, String> declaredProps,
                                  Map<String, AliasRef> aliases,
@@ -1532,26 +1537,14 @@ public final class QmlCompiler {
         String keysOwnerInternal = Type.getInternalName(keysMethod.getDeclaringClass());
         String keysTypeInternal = Type.getInternalName(keysType);
 
-        int n = handlerCounter[0]++;
-        String handlerBinaryName = componentBinaryName + "$Handler$" + n;
-        String handlerInternal = handlerBinaryName.replace('.', '/');
-        byte[] handlerBytes = emitHandlerClass(handlerInternal, outerInternal, outerType, body,
-                                               componentInternal, componentBinaryName, idTypes,
-                                               Collections.singletonList("event"),
-                                               declaredProps, aliases, rootFunctions,
-                                               bindingCounter, classes);
-        classes.put(handlerBinaryName, handlerBytes);
-
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, keysOwnerInternal, "keys",
                              "()L" + keysTypeInternal + ";", false);
         ctor.visitFieldInsn(Opcodes.GETFIELD, keysTypeInternal, signalName, SIGNAL_DESC);
-        ctor.visitTypeInsn(Opcodes.NEW, handlerInternal);
-        ctor.visitInsn(Opcodes.DUP);
-        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
-        ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, handlerInternal, "<init>",
-                             "(L" + outerInternal + ";L" + componentInternal + ";)V", false);
+        emitHandlerInstance(ctor, outerType, outerInternal, componentInternal, componentBinaryName,
+                            outerLocal, body, source, Collections.singletonList("event"),
+                            idTypes, declaredProps, aliases, rootFunctions,
+                            handlerCounter, bindingCounter, classes);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, SIGNAL_INTERNAL,
                              "connect", "(" + SIGNAL_HANDLER_DESC + ")V", false);
     }
@@ -1580,6 +1573,15 @@ public final class QmlCompiler {
         return new Ast.Block(Collections.<Ast.Statement>singletonList(new Ast.ExprStmt(expr)));
     }
 
+    // The raw JS source captured for a handler body, whether a statement block
+    // (`{ ... }`) or a single expression (`onClicked: foo()`). Null when the parser
+    // could not capture it, which routes the handler to the ASM backend.
+    private static String valueSource(Ast.Value v) {
+        if (v instanceof Ast.StatementBlockValue) return ((Ast.StatementBlockValue) v).source;
+        if (v instanceof Ast.ExpressionValue) return ((Ast.ExpressionValue) v).source;
+        return null;
+    }
+
     // `onPressed: (mouse) => {...}` — Qt's typed handler form. The arrow's params
     // bind to the signal args; its body becomes the handler body.
     private static Ast.ArrowFunctionExpr arrowHandler(Ast.Value v) {
@@ -1597,7 +1599,7 @@ public final class QmlCompiler {
                                          int outerLocal, String componentBinaryName,
                                          int[] handlerCounter, int[] bindingCounter, Map<String, byte[]> classes,
                                          String signalOwnerInternal, String signalName,
-                                         Ast.Statement body,
+                                         Ast.Statement body, String source,
                                          Map<String, Class<? extends QObject>> idTypes,
                                          List<String> signalParams,
                                          Map<String, String> declaredProps,
@@ -1605,24 +1607,12 @@ public final class QmlCompiler {
                                          Map<String, Integer> rootFunctions) {
         String outerInternal = Type.getInternalName(outerType);
         String componentInternal = componentBinaryName.replace('.', '/');
-        int n = handlerCounter[0]++;
-        String handlerBinaryName = componentBinaryName + "$Handler$" + n;
-        String handlerInternal = handlerBinaryName.replace('.', '/');
-        byte[] handlerBytes = emitHandlerClass(handlerInternal, outerInternal, outerType, body,
-                                               componentInternal, componentBinaryName, idTypes,
-                                               signalParams != null ? signalParams : Collections.<String>emptyList(),
-                                               declaredProps, aliases, rootFunctions,
-                                               bindingCounter, classes);
-        classes.put(handlerBinaryName, handlerBytes);
 
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitFieldInsn(Opcodes.GETFIELD, signalOwnerInternal, signalName, SIGNAL_DESC);
-        ctor.visitTypeInsn(Opcodes.NEW, handlerInternal);
-        ctor.visitInsn(Opcodes.DUP);
-        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
-        ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, handlerInternal, "<init>",
-                             "(L" + outerInternal + ";L" + componentInternal + ";)V", false);
+        emitHandlerInstance(ctor, outerType, outerInternal, componentInternal, componentBinaryName,
+                            outerLocal, body, source, signalParams, idTypes, declaredProps, aliases,
+                            rootFunctions, handlerCounter, bindingCounter, classes);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, SIGNAL_INTERNAL,
                              "connect", "(" + SIGNAL_HANDLER_DESC + ")V", false);
     }
@@ -1630,7 +1620,7 @@ public final class QmlCompiler {
     private void emitSignalHandler(MethodVisitor ctor, Class<? extends QObject> outerType,
                                    int outerLocal, String componentBinaryName,
                                    int[] handlerCounter, int[] bindingCounter, Map<String, byte[]> classes,
-                                   Field signalField, Ast.Statement body,
+                                   Field signalField, Ast.Statement body, String source,
                                    Map<String, Class<? extends QObject>> idTypes,
                                    List<String> signalParams,
                                    Map<String, String> declaredProps,
@@ -1640,25 +1630,11 @@ public final class QmlCompiler {
         String outerInternal = Type.getInternalName(outerType);
         String componentInternal = componentBinaryName.replace('.', '/');
 
-        int n = handlerCounter[0]++;
-        String handlerBinaryName = componentBinaryName + "$Handler$" + n;
-        String handlerInternal = handlerBinaryName.replace('.', '/');
-
-        byte[] handlerBytes = emitHandlerClass(handlerInternal, outerInternal, outerType, body,
-                                               componentInternal, componentBinaryName, idTypes,
-                                               signalParams != null ? signalParams : Collections.<String>emptyList(),
-                                               declaredProps, aliases, rootFunctions,
-                                               bindingCounter, classes);
-        classes.put(handlerBinaryName, handlerBytes);
-
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitFieldInsn(Opcodes.GETFIELD, declOwner, signalField.getName(), SIGNAL_DESC);
-        ctor.visitTypeInsn(Opcodes.NEW, handlerInternal);
-        ctor.visitInsn(Opcodes.DUP);
-        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
-        ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, handlerInternal, "<init>",
-                             "(L" + outerInternal + ";L" + componentInternal + ";)V", false);
+        emitHandlerInstance(ctor, outerType, outerInternal, componentInternal, componentBinaryName,
+                            outerLocal, body, source, signalParams, idTypes, declaredProps, aliases,
+                            rootFunctions, handlerCounter, bindingCounter, classes);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, SIGNAL_INTERNAL,
                              "connect", "(" + SIGNAL_HANDLER_DESC + ")V", false);
     }
@@ -1668,7 +1644,7 @@ public final class QmlCompiler {
                                            int outerLocal, String componentBinaryName,
                                            int[] handlerCounter, int[] bindingCounter,
                                            Map<String, byte[]> classes, String propName,
-                                           Ast.Statement body,
+                                           Ast.Statement body, String source,
                                            Map<String, Class<? extends QObject>> idTypes,
                                            Map<String, String> declaredProps,
                                            Map<String, AliasRef> aliases,
@@ -1683,24 +1659,11 @@ public final class QmlCompiler {
                 findPropertyField(outerType, propName).getDeclaringClass());
         }
 
-        int n = handlerCounter[0]++;
-        String handlerBinaryName = componentBinaryName + "$Handler$" + n;
-        String handlerInternal = handlerBinaryName.replace('.', '/');
-        byte[] handlerBytes = emitHandlerClass(handlerInternal, outerInternal, outerType, body,
-                                               componentInternal, componentBinaryName, idTypes,
-                                               Collections.<String>emptyList(),
-                                               declaredProps, aliases, rootFunctions,
-                                               bindingCounter, classes);
-        classes.put(handlerBinaryName, handlerBytes);
-
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitFieldInsn(Opcodes.GETFIELD, fieldOwner, propName, PROPERTY_DESC);
-        ctor.visitTypeInsn(Opcodes.NEW, handlerInternal);
-        ctor.visitInsn(Opcodes.DUP);
-        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
-        ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, handlerInternal, "<init>",
-                             "(L" + outerInternal + ";L" + componentInternal + ";)V", false);
+        emitHandlerInstance(ctor, outerType, outerInternal, componentInternal, componentBinaryName,
+                            outerLocal, body, source, null, idTypes, declaredProps, aliases,
+                            rootFunctions, handlerCounter, bindingCounter, classes);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
                              "addChangeHandler", "(" + SIGNAL_HANDLER_DESC + ")V", false);
     }
@@ -1708,7 +1671,7 @@ public final class QmlCompiler {
     private void emitRelaySignalHandler(MethodVisitor ctor, Class<? extends QObject> outerType,
                                         int outerLocal, String componentBinaryName,
                                         int[] handlerCounter, int[] bindingCounter, Map<String, byte[]> classes,
-                                        String signalName, Ast.Statement body,
+                                        String signalName, Ast.Statement body, String source,
                                         Map<String, Class<? extends QObject>> idTypes,
                                         List<String> signalParams,
                                         Map<String, String> declaredProps,
@@ -1717,25 +1680,11 @@ public final class QmlCompiler {
         String outerInternal = Type.getInternalName(outerType);
         String componentInternal = componentBinaryName.replace('.', '/');
 
-        int n = handlerCounter[0]++;
-        String handlerBinaryName = componentBinaryName + "$Handler$" + n;
-        String handlerInternal = handlerBinaryName.replace('.', '/');
-
-        byte[] handlerBytes = emitHandlerClass(handlerInternal, outerInternal, outerType, body,
-                                               componentInternal, componentBinaryName, idTypes,
-                                               signalParams != null ? signalParams : Collections.<String>emptyList(),
-                                               declaredProps, aliases, rootFunctions,
-                                               bindingCounter, classes);
-        classes.put(handlerBinaryName, handlerBytes);
-
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitLdcInsn(signalName);
-        ctor.visitTypeInsn(Opcodes.NEW, handlerInternal);
-        ctor.visitInsn(Opcodes.DUP);
-        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
-        ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, handlerInternal, "<init>",
-                             "(L" + outerInternal + ";L" + componentInternal + ";)V", false);
+        emitHandlerInstance(ctor, outerType, outerInternal, componentInternal, componentBinaryName,
+                            outerLocal, body, source, signalParams, idTypes, declaredProps, aliases,
+                            rootFunctions, handlerCounter, bindingCounter, classes);
         ctor.visitMethodInsn(Opcodes.INVOKEINTERFACE, SIGNAL_RELAY_INTERNAL,
                              "connectSignal",
                              "(Ljava/lang/String;" + SIGNAL_HANDLER_DESC + ")V", true);
@@ -1805,6 +1754,116 @@ public final class QmlCompiler {
         cw.visitEnd();
         return cw.toByteArray();
     }
+
+    private static final String RHINO_HANDLER_INTERNAL = "io/qml4j/engine/js/RhinoHandler";
+
+    // Pushes a SignalHandler instance onto the stack: a RhinoHandler when the body's
+    // raw JS source is available and every bare name it touches resolves at runtime
+    // (handlerCanHandle), otherwise the ASM-emitted handler class. The signal target
+    // is expected to already be on the stack below; callers connect afterwards.
+    private void emitHandlerInstance(MethodVisitor ctor, Class<?> outerType, String outerInternal,
+                                     String componentInternal, String componentBinaryName, int outerLocal,
+                                     Ast.Statement body, String source, List<String> signalParams,
+                                     Map<String, Class<? extends QObject>> idTypes,
+                                     Map<String, String> declaredProps,
+                                     Map<String, AliasRef> aliases,
+                                     Map<String, Integer> rootFunctions,
+                                     int[] handlerCounter, int[] bindingCounter,
+                                     Map<String, byte[]> classes) {
+        List<String> params = signalParams != null ? signalParams : Collections.<String>emptyList();
+        if (source != null && !inDelegateScope()
+                && handlerCanHandle(body, outerType, idTypes, declaredProps, params, rootFunctions)) {
+            validateRhinoSource(source);
+            ctor.visitTypeInsn(Opcodes.NEW, RHINO_HANDLER_INTERNAL);
+            ctor.visitInsn(Opcodes.DUP);
+            ctor.visitLdcInsn(source);
+            pushStringArray(ctor, params);
+            ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+            ctor.visitVarInsn(Opcodes.ALOAD, 0);
+            ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_HANDLER_INTERNAL, "<init>",
+                "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V", false);
+            return;
+        }
+        int n = handlerCounter[0]++;
+        String handlerBinaryName = componentBinaryName + "$Handler$" + n;
+        String handlerInternal = handlerBinaryName.replace('.', '/');
+        byte[] handlerBytes = emitHandlerClass(handlerInternal, outerInternal, outerType, body,
+                                               componentInternal, componentBinaryName, idTypes,
+                                               params, declaredProps, aliases, rootFunctions,
+                                               bindingCounter, classes);
+        classes.put(handlerBinaryName, handlerBytes);
+        ctor.visitTypeInsn(Opcodes.NEW, handlerInternal);
+        ctor.visitInsn(Opcodes.DUP);
+        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+        ctor.visitVarInsn(Opcodes.ALOAD, 0);
+        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, handlerInternal, "<init>",
+                             "(L" + outerInternal + ";L" + componentInternal + ";)V", false);
+    }
+
+    // Compile the body's JS eagerly so a syntax error (a stray break, a malformed
+    // expression) surfaces at QML-compile time -- parity with the ASM backend's
+    // early diagnostics -- and warms the shared Script cache the runtime reuses.
+    private static void validateRhinoSource(String source) {
+        try {
+            JsRuntime.compile(source);
+        } catch (RhinoException e) {
+            throw new IllegalArgumentException("invalid JS: " + e.getMessage(), e);
+        }
+    }
+
+    private static void pushStringArray(MethodVisitor mv, List<String> items) {
+        mv.visitLdcInsn(items.size());
+        mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/String");
+        for (int i = 0; i < items.size(); i++) {
+            mv.visitInsn(Opcodes.DUP);
+            mv.visitLdcInsn(i);
+            mv.visitLdcInsn(items.get(i));
+            mv.visitInsn(Opcodes.AASTORE);
+        }
+    }
+
+    // Conservative predicate for the Rhino handler/function backend: every free name
+    // the body reads or writes must be one the runtime QmlScope can resolve -- a
+    // scene id, a declared/inherited property field, a root function, a Java method,
+    // or a shared global. Aliases, singletons and value-type group fields fall into
+    // none of these and so keep the body on the ASM backend (no silent no-op).
+    private boolean handlerCanHandle(Ast.Statement body, Class<?> outerType,
+                                     Map<String, Class<? extends QObject>> idTypes,
+                                     Map<String, String> declaredProps,
+                                     List<String> signalParams,
+                                     Map<String, Integer> rootFunctions) {
+        Set<String> bound = new java.util.HashSet<>(signalParams);
+        for (String name : FreeIdentifiers.collect(body, bound)) {
+            if (!resolvableByRhino(name, outerType, idTypes, declaredProps, rootFunctions)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean resolvableByRhino(String name, Class<?> outerType,
+                                      Map<String, Class<? extends QObject>> idTypes,
+                                      Map<String, String> declaredProps,
+                                      Map<String, Integer> rootFunctions) {
+        if (idTypes.containsKey(name) || declaredProps.containsKey(name)
+                || rootFunctions.containsKey(name) || JS_GLOBALS.contains(name)) {
+            return true;
+        }
+        try {
+            outerType.getField(name);
+            return true;
+        } catch (NoSuchFieldException ignore) {
+        }
+        for (Method m : outerType.getMethods()) {
+            if (m.getName().equals(name)) return true;
+        }
+        return false;
+    }
+
+    private static final Set<String> JS_GLOBALS = new java.util.HashSet<>(java.util.Arrays.asList(
+        "Qt", "Math", "JSON", "console", "Easing", "Text", "Font",
+        "Object", "Array", "String", "Number", "Boolean", "Date", "RegExp",
+        "parseInt", "parseFloat", "isNaN", "isFinite", "NaN", "Infinity", "undefined"));
 
     private String emitBindingClass(String outerInternal,
                                     Class<?> outerType, Ast.Expression expr,

@@ -91,6 +91,17 @@ public final class JsWrap {
             return NOT_FOUND;
         }
 
+        @Override public Object[] getIds() {
+            if (target instanceof Map) return ((Map<?, ?>) target).keySet().toArray();
+            if (target instanceof List) {
+                int n = ((List<?>) target).size();
+                Object[] ids = new Object[n];
+                for (int i = 0; i < n; i++) ids[i] = i;
+                return ids;
+            }
+            return new Object[0];
+        }
+
         @Override public Object get(int index, Scriptable start) {
             return toJs(RuntimeHelpers.readIndex(target, (long) index), parent);
         }
@@ -101,14 +112,6 @@ public final class JsWrap {
 
         @Override public boolean has(String name, Scriptable start) {
             return RuntimeHelpers.hasMember(target, name) || isVirtual(name) || isCallable(target, name);
-        }
-
-        private static boolean isCallable(Object target, String name) {
-            if (target instanceof QObject && ((QObject) target).__getFunction(name) != null) return true;
-            for (Method m : target.getClass().getMethods()) {
-                if (m.getName().equals(name)) return true;
-            }
-            return false;
         }
 
         @Override public boolean has(int index, Scriptable start) { return true; }
@@ -127,8 +130,18 @@ public final class JsWrap {
         @Override public void put(int index, Scriptable start, Object value) {}
         @Override public void delete(String name) {}
         @Override public void delete(int index) {}
-        @Override public Object[] getIds() { return new Object[0]; }
         @Override public boolean hasInstance(Scriptable instance) { return false; }
+    }
+
+    // Whether `target.name` is invokable: a QML function on a QObject, or a public
+    // Java method. Used by both the JavaMember member-access path and QmlScope's
+    // bare-call resolution.
+    static boolean isCallable(Object target, String name) {
+        if (target instanceof QObject && ((QObject) target).__getFunction(name) != null) return true;
+        for (Method m : target.getClass().getMethods()) {
+            if (m.getName().equals(name)) return true;
+        }
+        return false;
     }
 
     // A method reference obtained from a JavaMember (obj.method); calling it routes to

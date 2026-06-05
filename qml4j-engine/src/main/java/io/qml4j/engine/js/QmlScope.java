@@ -1,6 +1,7 @@
 package io.qml4j.engine.js;
 
 import io.qml4j.engine.RuntimeHelpers;
+import io.qml4j.engine.Signal;
 import org.mozilla.javascript.Scriptable;
 
 // The top scope a binding's JS runs in. Bare identifiers resolve against the QML
@@ -32,14 +33,31 @@ public final class QmlScope implements Scriptable {
         return null;
     }
 
+    // A bare callable identifier resolves to a root/outer QML function or method
+    // (handler bodies invoke them directly: `foo()`, not `this.foo()`).
+    private Object callableOwner(String name) {
+        if (JsWrap.isCallable(outer, name)) return outer;
+        if (root != outer && JsWrap.isCallable(root, name)) return root;
+        return null;
+    }
+
     @Override public Object get(String name, Scriptable start) {
         Object o = owner(name);
-        if (o == null) return NOT_FOUND;
-        return JsWrap.toJs(RuntimeHelpers.readMember(o, name), this);
+        if (o != null) {
+            Object v = RuntimeHelpers.readMember(o, name);
+            // A signal field read as a bare identifier is only ever emitted as a
+            // call (`clicked(i)`); hand back a callable that routes to callMethod's
+            // signal-emit branch rather than the bare Signal object.
+            if (v instanceof Signal) return new JsWrap.BoundMethod(o, name, this);
+            return JsWrap.toJs(v, this);
+        }
+        Object c = callableOwner(name);
+        if (c != null) return new JsWrap.BoundMethod(c, name, this);
+        return NOT_FOUND;
     }
 
     @Override public boolean has(String name, Scriptable start) {
-        return owner(name) != null;
+        return owner(name) != null || callableOwner(name) != null;
     }
 
     @Override public void put(String name, Scriptable start, Object value) {
