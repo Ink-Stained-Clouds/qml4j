@@ -1964,7 +1964,7 @@ public final class QmlCompiler {
                                             Map<String, String> declaredProps,
                                             Set<String> customSignals,
                                             Map<String, Integer> rootFunctions) {
-        if (blockValue.source == null || inDelegateScope()) return false;
+        if (blockValue.source == null) return false;
         if (!handlerCanHandle(blockValue.block, outerType, idTypes, declaredProps,
                               Collections.<String>emptyList(), rootFunctions, customSignals)) {
             return false;
@@ -1987,7 +1987,6 @@ public final class QmlCompiler {
                                                Map<String, AliasRef> aliases,
                                                Set<String> customSignals,
                                                Map<String, Integer> rootFunctions) {
-        if (inDelegateScope()) return false;
         Field groupField;
         try {
             groupField = outerType.getField(groupName);
@@ -2068,6 +2067,13 @@ public final class QmlCompiler {
                                       Map<String, String> declaredProps,
                                       Map<String, Integer> rootFunctions,
                                       Set<String> customSignals) {
+        if (inDelegateScope()) {
+            // In a delegate, index/modelData/local-id/enclosing-scope names resolve at
+            // runtime via RuntimeHelpers.delegateLookup (matching rhinoCanHandle's
+            // delegate branch); only a singleton (Theme) can't, so keep those on ASM.
+            tryResolveType(name);
+            return currentSingletonClass(name) == null;
+        }
         if (idTypes.containsKey(name) || declaredProps.containsKey(name)
                 || rootFunctions.containsKey(name) || customSignals.contains(name)
                 || JS_GLOBALS.contains(name)) {

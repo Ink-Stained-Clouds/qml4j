@@ -54,4 +54,41 @@ class RhinoDelegateTest {
         assertEquals(42, rows.get(1).width.peek().intValue());   // 20*2 + 1 + 1
         assertEquals(63, rows.get(2).width.peek().intValue());   // 30*2 + 2 + 1
     }
+
+    // Phase 5b: a function-style (IIFE) binding and a grouped binding inside a delegate
+    // also run on Rhino, resolving modelData/index through delegateLookup.
+    @Test
+    void delegateIifeAndGroupedBindingsRunOnRhino() throws Exception {
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        Item root = v.load(
+            "import QtQuick\n" +
+            "Rectangle {\n" +
+            "  id: root\n" +
+            "  property var items: [{ v: 10 }, { v: 20 }]\n" +
+            "  Repeater {\n" +
+            "    model: root.items\n" +
+            "    Rectangle {\n" +
+            "      width: { var base = modelData.v; if (index === 0) return base; return base + 100 }\n" +
+            "      border.width: index === 0 ? 3 : 1\n" +
+            "    }\n" +
+            "  }\n" +
+            "}");
+        DirtyQueue dq = v.dirtyQueue();
+        dq.install();
+        try { dq.flush(); } finally { dq.uninstall(); }
+
+        List<io.qml4j.render.items.Rectangle> rects = new ArrayList<>();
+        for (Item c : root.children) {
+            if (c instanceof io.qml4j.render.items.Rectangle) rects.add((io.qml4j.render.items.Rectangle) c);
+        }
+        assertEquals(2, rects.size());
+
+        assertTrue(bindingOf(rects.get(0).width) instanceof RhinoBinding, "delegate IIFE binding");
+        assertEquals(10, rects.get(0).width.peek().intValue());    // base, index 0
+        assertEquals(120, rects.get(1).width.peek().intValue());   // base + 100, index 1
+
+        assertTrue(bindingOf(rects.get(0).border.width) instanceof RhinoBinding, "delegate grouped binding");
+        assertEquals(3, rects.get(0).border.width.peek().intValue());
+        assertEquals(1, rects.get(1).border.width.peek().intValue());
+    }
 }
