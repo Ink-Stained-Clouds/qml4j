@@ -45,7 +45,9 @@ public final class QmlScope implements Scriptable {
     // modelData/local ids, then the enclosing scene). An absent name falls through to
     // the globals, and an unresolved reference yields undefined -- QML-tolerant.
     private Object getDelegate(String name) {
-        if (RuntimeHelpers.hasMember(outer, name)) {
+        // Own *property* only -- an own id field (a compound child's leaked `id: root`)
+        // must not shadow the enclosing component's id; that resolves via delegateLookup.
+        if (RuntimeHelpers.hasProperty(outer, name)) {
             return wrap(RuntimeHelpers.readMember(outer, name));
         }
         Object v = RuntimeHelpers.delegateLookup(outer, name);
@@ -85,7 +87,7 @@ public final class QmlScope implements Scriptable {
 
     @Override public boolean has(String name, Scriptable start) {
         if (delegate) {
-            return RuntimeHelpers.hasMember(outer, name)
+            return RuntimeHelpers.hasProperty(outer, name)
                 || RuntimeHelpers.delegateLookup(outer, name) != RuntimeHelpers.DELEGATE_ABSENT
                 || JsWrap.isCallable(outer, name);
         }
@@ -94,7 +96,7 @@ public final class QmlScope implements Scriptable {
 
     @Override public void put(String name, Scriptable start, Object value) {
         if (delegate) {
-            if (RuntimeHelpers.hasMember(outer, name)) {
+            if (RuntimeHelpers.hasProperty(outer, name)) {
                 RuntimeHelpers.writeMember(outer, name, JsWrap.toJava(value));
             }
             return;

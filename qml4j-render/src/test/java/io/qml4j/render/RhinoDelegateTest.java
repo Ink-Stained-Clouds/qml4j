@@ -10,7 +10,9 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -140,5 +142,56 @@ class RhinoDelegateTest {
         io.qml4j.engine.binding.Property<?> total =
             (io.qml4j.engine.binding.Property<?>) root.getClass().getField("total").get(root);
         assertEquals(13, ((Number) total.peek()).intValue());   // (5+0) + (7+1)
+    }
+
+    // Regression (NavigationBar crash): a delegate handler ON a compound child whose
+    // own internal `id: root` leaks as a field must still resolve a bare `root` to the
+    // ENCLOSING component (here the test root), not the child -- otherwise
+    // `root.picked = index` writes to the child and throws "no member 'picked'".
+    @Test
+    void delegateHandlerResolvesEnclosingIdNotChildLeakedId() throws Exception {
+        Map<String, byte[]> files = new HashMap<>();
+        files.put("probe/qmldir", "Inner 1.0 Inner.qml".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        files.put("probe/Inner.qml",
+            ("import QtQuick\nItem { id: root; signal poke() }\n")
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        v.resources(files::get);
+        Item root = v.load(
+            "import QtQuick\n" +
+            "import probe\n" +
+            "Rectangle {\n" +
+            "  id: root\n" +
+            "  property int picked: -1\n" +
+            "  Repeater {\n" +
+            "    model: 2\n" +
+            "    Item {\n" +
+            "      id: navItem\n" +
+            "      Inner { onPoke: root.picked = index }\n" +
+            "    }\n" +
+            "  }\n" +
+            "}");
+        DirtyQueue dq = v.dirtyQueue();
+        dq.install();
+        try { dq.flush(); } finally { dq.uninstall(); }
+
+        // navItem delegates -> their Inner child -> emit poke (index 1 last).
+        for (Item navItem : root.children) {
+            for (Item inner : navItem.children) {
+                Field pokeField;
+                try { pokeField = inner.getClass().getField("poke"); }
+                catch (NoSuchFieldException e) { continue; }
+                io.qml4j.engine.Signal poke = (io.qml4j.engine.Signal) pokeField.get(inner);
+                assertTrue(handlersOf(poke).get(0) instanceof io.qml4j.engine.js.RhinoHandler);
+                poke.emit();
+            }
+        }
+        dq.install();
+        try { dq.flush(); } finally { dq.uninstall(); }
+
+        io.qml4j.engine.binding.Property<?> picked =
+            (io.qml4j.engine.binding.Property<?>) root.getClass().getField("picked").get(root);
+        assertEquals(1, ((Number) picked.peek()).intValue());   // resolved enclosing root, not Inner
     }
 }

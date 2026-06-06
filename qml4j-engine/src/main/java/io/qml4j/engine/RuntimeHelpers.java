@@ -325,6 +325,20 @@ public final class RuntimeHelpers {
         }
     }
 
+    // Whether `name` is a Property field on `o` (not an id/signal/group field). The
+    // delegate scope resolves a name to the binding's own item only when it's a real
+    // property -- matching ExpressionCodegen's `!hasPropertyField` delegate guard -- so
+    // a compound child's leaked internal id (Ripple's `id: root`) does not shadow the
+    // enclosing component's same-named id.
+    public static boolean hasProperty(Object o, String name) {
+        if (o == null) return false;
+        try {
+            return Property.class.isAssignableFrom(o.getClass().getField(name).getType());
+        } catch (NoSuchFieldException e) {
+            return false;
+        }
+    }
+
     private static Object parentOf(Object node) {
         Field f;
         try {
