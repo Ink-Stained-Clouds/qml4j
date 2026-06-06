@@ -59,6 +59,14 @@ public final class QmlCompiler {
     }
     private final java.util.Deque<IdSink> idSinks = new java.util.ArrayDeque<>();
 
+    private final Map<Class<?>, MemberEmitter> memberEmitters = Map.of(
+        Ast.PropertyBinding.class, this::emitPropertyBinding,
+        Ast.ChildObject.class, this::emitChildObjectMember,
+        Ast.BehaviorMember.class, this::emitBehaviorMemberMember,
+        Ast.PropertyDeclaration.class, this::emitPropertyDeclarationMember,
+        Ast.SignalDeclaration.class, this::rejectSignalDeclaration,
+        Ast.FunctionDeclaration.class, this::rejectFunctionDeclaration);
+
     private static final ThreadLocal<java.util.Deque<TypeRegistry>> REGISTRY_STACK =
         ThreadLocal.withInitial(java.util.ArrayDeque::new);
 
@@ -345,6 +353,11 @@ public final class QmlCompiler {
                 }
             }
         }
+        EmitContext ctx = new EmitContext(ctor, outerType, outerLocal, registry,
+                                          localCounter, bindingCounter, handlerCounter, classes,
+                                          componentBinaryName, customSignalOwner, customSignals,
+                                          customSignalParams, idTypes, declaredProps, aliases,
+                                          scopeFunctions);
         List<Ast.ObjectMember> deferred = new ArrayList<>();
         for (Ast.ObjectMember m : obj.members) {
             if (m instanceof Ast.SignalDeclaration) continue;
@@ -362,18 +375,12 @@ public final class QmlCompiler {
                 continue;
             }
             if (isStateAssignment(m)) { deferred.add(m); continue; }
-            emitMember(ctor, outerType, outerLocal, m, registry,
-                       localCounter, bindingCounter, handlerCounter, classes, componentBinaryName,
-                       customSignalOwner, customSignals, customSignalParams,
-                       idTypes, declaredProps, aliases, scopeFunctions);
+            emitMember(m, ctx);
         }
         for (Ast.ObjectMember m : deferred) {
             ctor.visitMethodInsn(Opcodes.INVOKESTATIC, PROPERTY_INTERNAL,
                                  "drainDeferred", "()V", false);
-            emitMember(ctor, outerType, outerLocal, m, registry,
-                       localCounter, bindingCounter, handlerCounter, classes, componentBinaryName,
-                       customSignalOwner, customSignals, customSignalParams,
-                       idTypes, declaredProps, aliases, scopeFunctions);
+            emitMember(m, ctx);
         }
     }
 
@@ -383,194 +390,208 @@ public final class QmlCompiler {
         return b.path.size() == 1 && "state".equals(b.path.get(0));
     }
 
-    private void emitMember(MethodVisitor ctor, Class<? extends QObject> outerType,
-                            int outerLocal, Ast.ObjectMember m, TypeRegistry registry,
-                            int[] localCounter, int[] bindingCounter, int[] handlerCounter,
-                            Map<String, byte[]> classes, String componentBinaryName,
-                            String customSignalOwner, Set<String> customSignals,
-                            Map<String, List<String>> customSignalParams,
-                            Map<String, Class<? extends QObject>> idTypes,
-                            Map<String, String> declaredProps,
-                            Map<String, AliasRef> aliases,
-                            Map<String, Integer> rootFunctions) {
-        if (m instanceof Ast.PropertyBinding) {
-            Ast.PropertyBinding b = (Ast.PropertyBinding) m;
-            List<String> path = b.path;
-            if (path.size() == 1 && "id".equals(path.get(0))) return;
-            if (b.value instanceof Ast.ObjectListValue) {
-                if (path.size() != 1) {
-                    throw new UnsupportedOperationException(
-                        "object list assignment to nested path not supported: " + path);
-                }
-                emitObjectListAssignment(ctor, outerType, outerLocal,
-                                         (Ast.ObjectListValue) b.value, registry,
-                                         localCounter, bindingCounter, handlerCounter,
-                                         classes, componentBinaryName, idTypes,
-                                         customSignalParams, path.get(0), declaredProps, rootFunctions);
-                return;
+    private void emitMember(Ast.ObjectMember m, EmitContext ctx) {
+        MemberEmitter emitter = memberEmitters.get(m.getClass());
+        if (emitter == null) {
+            throw new IllegalStateException("unknown member: " + m.getClass());
+        }
+        emitter.emit(m, ctx);
+    }
+
+    private void emitPropertyBinding(Ast.ObjectMember m, EmitContext ctx) {
+        MethodVisitor ctor = ctx.ctor;
+        Class<? extends QObject> outerType = ctx.outerType;
+        int outerLocal = ctx.outerLocal;
+        TypeRegistry registry = ctx.registry;
+        int[] localCounter = ctx.localCounter;
+        int[] bindingCounter = ctx.bindingCounter;
+        int[] handlerCounter = ctx.handlerCounter;
+        Map<String, byte[]> classes = ctx.classes;
+        String componentBinaryName = ctx.componentBinaryName;
+        String customSignalOwner = ctx.customSignalOwner;
+        Set<String> customSignals = ctx.customSignals;
+        Map<String, List<String>> customSignalParams = ctx.customSignalParams;
+        Map<String, Class<? extends QObject>> idTypes = ctx.idTypes;
+        Map<String, String> declaredProps = ctx.declaredProps;
+        Map<String, AliasRef> aliases = ctx.aliases;
+        Map<String, Integer> rootFunctions = ctx.rootFunctions;
+        Ast.PropertyBinding b = (Ast.PropertyBinding) m;
+        List<String> path = b.path;
+        if (path.size() == 1 && "id".equals(path.get(0))) return;
+        if (b.value instanceof Ast.ObjectListValue) {
+            if (path.size() != 1) {
+                throw new UnsupportedOperationException(
+                    "object list assignment to nested path not supported: " + path);
             }
-            if (b.value instanceof Ast.ObjectValue) {
-                if (path.size() == 2) {
-                    emitGroupedObjectAssignment(ctor, outerType, outerLocal,
-                                                ((Ast.ObjectValue) b.value).object, registry,
-                                                localCounter, bindingCounter, handlerCounter,
-                                                classes, componentBinaryName, idTypes,
-                                                customSignalParams, path.get(0), path.get(1),
-                                                declaredProps, rootFunctions);
-                    return;
-                }
-                if (path.size() != 1) {
-                    throw new UnsupportedOperationException(
-                        "object assignment to nested path not supported: " + path);
-                }
-                emitObjectValueAssignment(ctor, outerType, outerLocal,
-                                          ((Ast.ObjectValue) b.value).object, registry,
-                                          localCounter, bindingCounter, handlerCounter,
-                                          classes, componentBinaryName, idTypes,
-                                          customSignalParams, path.get(0), declaredProps, rootFunctions);
-                return;
-            }
-            boolean isExprVal = b.value instanceof Ast.ExpressionValue;
-            boolean isStmtBlock = b.value instanceof Ast.StatementBlockValue;
-            if (!isExprVal && !isStmtBlock) {
-                throw new UnsupportedOperationException("only expression/statement bindings supported");
-            }
-            if (path.size() == 1) {
-                String key = path.get(0);
-                String signalName = signalNameFromHandler(key);
-                boolean isCustomHandler = signalName != null && customSignals.contains(signalName);
-                Field signalField = (signalName != null && !isCustomHandler)
-                    ? findSignalFieldOrNull(outerType, signalName) : null;
-                // A signal whose name collides with a same-named property (Qt's
-                // MouseArea.pressed) is declared as <name>Signal; fall back to it.
-                if (signalField == null && signalName != null && !isCustomHandler) {
-                    signalField = findSignalFieldOrNull(outerType, signalName + "Signal");
-                }
-                boolean isRelay = signalName != null && !isCustomHandler && signalField == null
-                    && SignalRelay.class.isAssignableFrom(outerType);
-                // on<Prop>Changed handler: not a signal, but the named property
-                // exists -> connect to its change notification.
-                String changeProp = null;
-                if (signalName != null && !isCustomHandler && signalField == null && !isRelay
-                        && signalName.endsWith("Changed")) {
-                    String base = signalName.substring(0, signalName.length() - "Changed".length());
-                    if (!base.isEmpty()
-                            && (declaredProps.containsKey(base)
-                                || findPropertyFieldOrNull(outerType, base) != null)) {
-                        changeProp = base;
-                    }
-                }
-                boolean isHandler = isCustomHandler || signalField != null || isRelay || changeProp != null;
-                if (isStmtBlock && !isHandler) {
-                    Ast.StatementBlockValue sb = (Ast.StatementBlockValue) b.value;
-                    String declOwner = propFieldOwnerOrNull(outerType, key, declaredProps);
-                    if (declOwner == null) {
-                        throw new IllegalArgumentException(
-                            "no property field '" + key + "' on " + outerType.getName());
-                    }
-                    if (tryEmitRhinoIifeBinding(ctor, outerType, outerLocal,
-                            declOwner, key, sb, idTypes, declaredProps, customSignals, rootFunctions, aliases)) {
-                        return;
-                    }
-                    // Ineligible only when a free name does not resolve; surface that.
-                    requireRhinoCanHandle(sb.block, outerType, idTypes, declaredProps,
-                                          Collections.<String>emptyList(), rootFunctions, customSignals, aliases);
-                    throw new IllegalArgumentException(
-                        "statement-block binding for '" + key + "' could not be compiled");
-                }
-                if (isHandler) {
-                    Ast.ArrowFunctionExpr arrow = arrowHandler(b.value);
-                    List<String> handlerParams = arrow != null ? arrow.paramNames
-                        : (isCustomHandler ? customSignalParams.get(signalName) : null);
-                    Ast.Statement handlerBody = arrow != null ? arrowBody(arrow) : toStatement(b.value);
-                    // Arrow-form handlers bind their params as the signal args; the
-                    // captured arrow body source runs as `(function(params){ body })`.
-                    String handlerSource = arrow != null ? arrow.source : valueSource(b.value);
-                    if (isCustomHandler) {
-                        emitCustomSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
-                                                handlerCounter, bindingCounter, classes,
-                                                customSignalOwner, signalName, handlerBody, handlerSource, idTypes,
-                                                handlerParams, declaredProps, aliases,
-                                                rootFunctions, customSignals);
-                    } else if (isRelay) {
-                        emitRelaySignalHandler(ctor, outerType, outerLocal, componentBinaryName,
-                                               handlerCounter, bindingCounter, classes, signalName, handlerBody, handlerSource, idTypes,
-                                               handlerParams, declaredProps, aliases, rootFunctions, customSignals);
-                    } else if (changeProp != null) {
-                        emitPropertyChangeHandler(ctor, outerType, outerLocal, componentBinaryName,
-                                                  handlerCounter, bindingCounter, classes, changeProp, handlerBody, handlerSource,
-                                                  idTypes, declaredProps, aliases, rootFunctions, customSignals);
-                    } else {
-                        emitSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
-                                          handlerCounter, bindingCounter, classes, signalField, handlerBody, handlerSource, idTypes,
-                                          handlerParams, declaredProps, aliases, rootFunctions, customSignals);
-                    }
-                    return;
-                }
-                Ast.Expression e = ((Ast.ExpressionValue) b.value).expr;
-                if (PropertyChangeSink.class.isAssignableFrom(outerType) && !"target".equals(key)) {
-                    emitChangeSinkAssignment(ctor, outerType, outerLocal, key, e,
-                                             ((Ast.ExpressionValue) b.value).source, idTypes,
-                                             declaredProps, aliases, rootFunctions, customSignals);
-                    return;
-                }
-                if (e instanceof Ast.LiteralExpr) {
-                    emitLiteralAssignment(ctor, outerType, outerLocal, key, (Ast.LiteralExpr) e);
-                } else {
-                    emitExpressionBinding(ctor, outerType, outerLocal, componentBinaryName,
-                                          bindingCounter, classes, key, e,
-                                          ((Ast.ExpressionValue) b.value).source, idTypes,
-                                          declaredProps, aliases, rootFunctions, customSignals);
-                }
-                return;
-            }
-            if (path.size() == 2 && "Keys".equals(path.get(0))) {
-                String signalName = signalNameFromHandler(path.get(1));
-                if (signalName == null) {
-                    throw new UnsupportedOperationException(
-                        "Keys attached property supports only on<Signal> handlers: " + path);
-                }
-                Ast.Statement handlerBody = toStatement(b.value);
-                emitKeysHandler(ctor, outerType, outerLocal, componentBinaryName,
-                                handlerCounter, bindingCounter, classes, signalName, handlerBody, valueSource(b.value),
-                                idTypes, declaredProps, aliases, rootFunctions, customSignals);
-                return;
-            }
+            emitObjectListAssignment(ctor, outerType, outerLocal,
+                                     (Ast.ObjectListValue) b.value, registry,
+                                     localCounter, bindingCounter, handlerCounter,
+                                     classes, componentBinaryName, idTypes,
+                                     customSignalParams, path.get(0), declaredProps, rootFunctions);
+            return;
+        }
+        if (b.value instanceof Ast.ObjectValue) {
             if (path.size() == 2) {
-                emitGroupedBinding(ctor, outerType, outerLocal, path.get(0), path.get(1),
-                                   b.value, idTypes, declaredProps, aliases, customSignals, rootFunctions);
+                emitGroupedObjectAssignment(ctor, outerType, outerLocal,
+                                            ((Ast.ObjectValue) b.value).object, registry,
+                                            localCounter, bindingCounter, handlerCounter,
+                                            classes, componentBinaryName, idTypes,
+                                            customSignalParams, path.get(0), path.get(1),
+                                            declaredProps, rootFunctions);
                 return;
             }
-            throw new UnsupportedOperationException("nested grouped property path not supported: " + path);
-        }
-        if (m instanceof Ast.ChildObject) {
-            emitChildObject(ctor, outerType, outerLocal, ((Ast.ChildObject) m).object, registry,
-                            localCounter, bindingCounter, handlerCounter, classes, componentBinaryName,
-                            idTypes, customSignalParams, declaredProps, rootFunctions);
+            if (path.size() != 1) {
+                throw new UnsupportedOperationException(
+                    "object assignment to nested path not supported: " + path);
+            }
+            emitObjectValueAssignment(ctor, outerType, outerLocal,
+                                      ((Ast.ObjectValue) b.value).object, registry,
+                                      localCounter, bindingCounter, handlerCounter,
+                                      classes, componentBinaryName, idTypes,
+                                      customSignalParams, path.get(0), declaredProps, rootFunctions);
             return;
         }
-        if (m instanceof Ast.BehaviorMember) {
-            emitBehaviorMember(ctor, outerType, outerLocal, (Ast.BehaviorMember) m, registry,
-                               localCounter, bindingCounter, handlerCounter, classes,
-                               componentBinaryName, idTypes, customSignalParams, declaredProps, rootFunctions);
+        boolean isExprVal = b.value instanceof Ast.ExpressionValue;
+        boolean isStmtBlock = b.value instanceof Ast.StatementBlockValue;
+        if (!isExprVal && !isStmtBlock) {
+            throw new UnsupportedOperationException("only expression/statement bindings supported");
+        }
+        if (path.size() == 1) {
+            String key = path.get(0);
+            String signalName = signalNameFromHandler(key);
+            boolean isCustomHandler = signalName != null && customSignals.contains(signalName);
+            Field signalField = (signalName != null && !isCustomHandler)
+                ? findSignalFieldOrNull(outerType, signalName) : null;
+            // A signal whose name collides with a same-named property (Qt's
+            // MouseArea.pressed) is declared as <name>Signal; fall back to it.
+            if (signalField == null && signalName != null && !isCustomHandler) {
+                signalField = findSignalFieldOrNull(outerType, signalName + "Signal");
+            }
+            boolean isRelay = signalName != null && !isCustomHandler && signalField == null
+                && SignalRelay.class.isAssignableFrom(outerType);
+            // on<Prop>Changed handler: not a signal, but the named property
+            // exists -> connect to its change notification.
+            String changeProp = null;
+            if (signalName != null && !isCustomHandler && signalField == null && !isRelay
+                    && signalName.endsWith("Changed")) {
+                String base = signalName.substring(0, signalName.length() - "Changed".length());
+                if (!base.isEmpty()
+                        && (declaredProps.containsKey(base)
+                            || findPropertyFieldOrNull(outerType, base) != null)) {
+                    changeProp = base;
+                }
+            }
+            boolean isHandler = isCustomHandler || signalField != null || isRelay || changeProp != null;
+            if (isStmtBlock && !isHandler) {
+                Ast.StatementBlockValue sb = (Ast.StatementBlockValue) b.value;
+                String declOwner = propFieldOwnerOrNull(outerType, key, declaredProps);
+                if (declOwner == null) {
+                    throw new IllegalArgumentException(
+                        "no property field '" + key + "' on " + outerType.getName());
+                }
+                if (tryEmitRhinoIifeBinding(ctor, outerType, outerLocal,
+                        declOwner, key, sb, idTypes, declaredProps, customSignals, rootFunctions, aliases)) {
+                    return;
+                }
+                // Ineligible only when a free name does not resolve; surface that.
+                requireRhinoCanHandle(sb.block, outerType, idTypes, declaredProps,
+                                      Collections.<String>emptyList(), rootFunctions, customSignals, aliases);
+                throw new IllegalArgumentException(
+                    "statement-block binding for '" + key + "' could not be compiled");
+            }
+            if (isHandler) {
+                Ast.ArrowFunctionExpr arrow = arrowHandler(b.value);
+                List<String> handlerParams = arrow != null ? arrow.paramNames
+                    : (isCustomHandler ? customSignalParams.get(signalName) : null);
+                Ast.Statement handlerBody = arrow != null ? arrowBody(arrow) : toStatement(b.value);
+                // Arrow-form handlers bind their params as the signal args; the
+                // captured arrow body source runs as `(function(params){ body })`.
+                String handlerSource = arrow != null ? arrow.source : valueSource(b.value);
+                if (isCustomHandler) {
+                    emitCustomSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
+                                            handlerCounter, bindingCounter, classes,
+                                            customSignalOwner, signalName, handlerBody, handlerSource, idTypes,
+                                            handlerParams, declaredProps, aliases,
+                                            rootFunctions, customSignals);
+                } else if (isRelay) {
+                    emitRelaySignalHandler(ctor, outerType, outerLocal, componentBinaryName,
+                                           handlerCounter, bindingCounter, classes, signalName, handlerBody, handlerSource, idTypes,
+                                           handlerParams, declaredProps, aliases, rootFunctions, customSignals);
+                } else if (changeProp != null) {
+                    emitPropertyChangeHandler(ctor, outerType, outerLocal, componentBinaryName,
+                                              handlerCounter, bindingCounter, classes, changeProp, handlerBody, handlerSource,
+                                              idTypes, declaredProps, aliases, rootFunctions, customSignals);
+                } else {
+                    emitSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
+                                      handlerCounter, bindingCounter, classes, signalField, handlerBody, handlerSource, idTypes,
+                                      handlerParams, declaredProps, aliases, rootFunctions, customSignals);
+                }
+                return;
+            }
+            Ast.Expression e = ((Ast.ExpressionValue) b.value).expr;
+            if (PropertyChangeSink.class.isAssignableFrom(outerType) && !"target".equals(key)) {
+                emitChangeSinkAssignment(ctor, outerType, outerLocal, key, e,
+                                         ((Ast.ExpressionValue) b.value).source, idTypes,
+                                         declaredProps, aliases, rootFunctions, customSignals);
+                return;
+            }
+            if (e instanceof Ast.LiteralExpr) {
+                emitLiteralAssignment(ctor, outerType, outerLocal, key, (Ast.LiteralExpr) e);
+            } else {
+                emitExpressionBinding(ctor, outerType, outerLocal, componentBinaryName,
+                                      bindingCounter, classes, key, e,
+                                      ((Ast.ExpressionValue) b.value).source, idTypes,
+                                      declaredProps, aliases, rootFunctions, customSignals);
+            }
             return;
         }
-        if (m instanceof Ast.SignalDeclaration) {
-            throw new IllegalStateException("signal declaration should be handled at object scope");
-        }
-        if (m instanceof Ast.PropertyDeclaration) {
-            emitPropertyDeclarationInitializer(ctor, outerType, outerLocal, componentBinaryName,
-                                               bindingCounter, classes, (Ast.PropertyDeclaration) m,
-                                               idTypes, declaredProps, aliases, rootFunctions,
-                                               registry, localCounter, handlerCounter,
-                                               customSignalParams);
+        if (path.size() == 2 && "Keys".equals(path.get(0))) {
+            String signalName = signalNameFromHandler(path.get(1));
+            if (signalName == null) {
+                throw new UnsupportedOperationException(
+                    "Keys attached property supports only on<Signal> handlers: " + path);
+            }
+            Ast.Statement handlerBody = toStatement(b.value);
+            emitKeysHandler(ctor, outerType, outerLocal, componentBinaryName,
+                            handlerCounter, bindingCounter, classes, signalName, handlerBody, valueSource(b.value),
+                            idTypes, declaredProps, aliases, rootFunctions, customSignals);
             return;
         }
-        if (m instanceof Ast.FunctionDeclaration) {
-            throw new IllegalStateException(
-                "function declaration should have been handled by emitObjectBody");
+        if (path.size() == 2) {
+            emitGroupedBinding(ctor, outerType, outerLocal, path.get(0), path.get(1),
+                               b.value, idTypes, declaredProps, aliases, customSignals, rootFunctions);
+            return;
         }
-        throw new IllegalStateException("unknown member: " + m.getClass());
+        throw new UnsupportedOperationException("nested grouped property path not supported: " + path);
+    }
+
+    private void emitChildObjectMember(Ast.ObjectMember m, EmitContext ctx) {
+        emitChildObject(ctx.ctor, ctx.outerType, ctx.outerLocal, ((Ast.ChildObject) m).object, ctx.registry,
+                        ctx.localCounter, ctx.bindingCounter, ctx.handlerCounter, ctx.classes, ctx.componentBinaryName,
+                        ctx.idTypes, ctx.customSignalParams, ctx.declaredProps, ctx.rootFunctions);
+    }
+
+    private void emitBehaviorMemberMember(Ast.ObjectMember m, EmitContext ctx) {
+        emitBehaviorMember(ctx.ctor, ctx.outerType, ctx.outerLocal, (Ast.BehaviorMember) m, ctx.registry,
+                           ctx.localCounter, ctx.bindingCounter, ctx.handlerCounter, ctx.classes,
+                           ctx.componentBinaryName, ctx.idTypes, ctx.customSignalParams, ctx.declaredProps, ctx.rootFunctions);
+    }
+
+    private void emitPropertyDeclarationMember(Ast.ObjectMember m, EmitContext ctx) {
+        emitPropertyDeclarationInitializer(ctx.ctor, ctx.outerType, ctx.outerLocal, ctx.componentBinaryName,
+                                           ctx.bindingCounter, ctx.classes, (Ast.PropertyDeclaration) m,
+                                           ctx.idTypes, ctx.declaredProps, ctx.aliases, ctx.rootFunctions,
+                                           ctx.registry, ctx.localCounter, ctx.handlerCounter,
+                                           ctx.customSignalParams);
+    }
+
+    private void rejectSignalDeclaration(Ast.ObjectMember m, EmitContext ctx) {
+        throw new IllegalStateException("signal declaration should be handled at object scope");
+    }
+
+    private void rejectFunctionDeclaration(Ast.ObjectMember m, EmitContext ctx) {
+        throw new IllegalStateException(
+            "function declaration should have been handled by emitObjectBody");
     }
 
     private void emitPropertyDeclarationInitializer(MethodVisitor ctor, Class<? extends QObject> outerType,
