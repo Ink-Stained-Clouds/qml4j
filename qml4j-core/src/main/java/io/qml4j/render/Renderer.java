@@ -66,6 +66,7 @@ public final class Renderer {
     private ComponentFactory factory;
     private final FontResolver fonts = new FontResolver();
     private final IconResolver icons = new IconResolver(fonts);
+    private final TextLayout text = new TextLayout(fonts, icons);
 
     public void setResourceLoader(ResourceLoader loader) {
         this.resources = loader;
@@ -113,8 +114,8 @@ public final class Renderer {
     // tree so size-driven bindings can settle BEFORE painting.
     private void measure(Item node) {
         if (node == null || !node.visible.peek()) return;
-        if (node instanceof Text) measureText((Text) node);
-        if (node instanceof Control) measureControl((Control) node);
+        if (node instanceof Text) text.measureText((Text) node);
+        if (node instanceof Control) text.measureControl((Control) node);
         followImplicitSize(node);
         // Children first so a container can size itself from their measured sizes.
         for (Item child : node.children) measure(child);
@@ -155,8 +156,8 @@ public final class Renderer {
     // Draw a node ignoring its own `visible` flag (used to render a MultiEffect
     // source, which is normally an invisible sibling rendered only via the effect).
     private void drawForced(Canvas canvas, Item node, float inheritedAlpha) {
-        if (node instanceof Text) measureText((Text) node);
-        if (node instanceof Control) measureControl((Control) node);
+        if (node instanceof Text) text.measureText((Text) node);
+        if (node instanceof Control) text.measureControl((Control) node);
         followImplicitSize(node);
         applyAnchors(node);
         if (node instanceof Loader) {
@@ -238,95 +239,6 @@ public final class Renderer {
         return copy;
     }
 
-    private void measureText(Text t) {
-        float size = t.effectiveFontSize();
-        boolean canMeasureW = !t.width.isBound() && ownsWidth(t);
-        boolean canMeasureH = !t.height.isBound() && ownsHeight(t);
-
-        String ig = icons.iconGlyph(t);
-        if (ig != null) {
-            float w, h;
-            try (Font f = new Font(fonts.iconTypeface(), size)) {
-                w = ig.isEmpty() ? 0f : f.measureTextWidth(ig);
-                h = lineHeight(f);
-            }
-            if (!t.implicitWidth.isBound()) t.implicitWidth.set(w);
-            if (!t.implicitHeight.isBound()) t.implicitHeight.set(h);
-            if (canMeasureW) { t.width.set(w); t.lastSetWidth = w; }
-            if (canMeasureH) { t.height.set(h); t.lastSetHeight = h; }
-            return;
-        }
-
-        String s = icons.displayText(t);
-        String[] lines = splitLines(s);
-        String wrapMode = wrapModeString(t.wrapMode.peek().intValue());
-        // When wrapping is on and the width is externally constrained (a layout,
-        // anchor, or explicit width set it -- i.e. we don't own it), the natural
-        // line count grows; report the wrapped height so containers size to it.
-        float wrapW = (wrapMode != null && (t.width.isBound() || !ownsWidth(t)))
-            ? t.width.peek().floatValue() : 0f;
-        try (Font font = fonts.fontFor(size, s)) {
-            float w = 0f;
-            for (String line : lines) {
-                float lw = font.measureTextWidth(line);
-                if (lw > w) w = lw;
-            }
-            int lineCount = lines.length;
-            if (wrapW > 0f && w > wrapW) {
-                lineCount = TextWrap.wrap(s, wrapMode, wrapW,
-                    seg -> font.measureTextWidth(seg)).lines.size();
-            }
-            float h = lineHeight(font) * lineCount;
-            // Natural content size always feeds implicitWidth/Height (Qt), even
-            // when width/height are bound externally (e.g. a tooltip background
-            // binds to label.implicitWidth).
-            if (!t.implicitWidth.isBound()) t.implicitWidth.set(w);
-            if (!t.implicitHeight.isBound()) t.implicitHeight.set(h);
-            if (canMeasureW) {
-                t.width.set(w);
-                t.lastSetWidth = w;
-            }
-            if (canMeasureH) {
-                t.height.set(h);
-                t.lastSetHeight = h;
-            }
-        }
-    }
-
-    // Text.wrapMode enum -> TextWrap mode string; null when wrapping is off.
-    private static String wrapModeString(int mode) {
-        switch (mode) {
-            case 1: return "WordWrap";
-            case 3: return "WrapAnywhere";
-            case 4: return "Wrap";
-            default: return null; // NoWrap
-        }
-    }
-
-    private void measureControl(Control c) {
-        float iw, ih;
-        if (c instanceof Button) {
-            Button b = (Button) c;
-            float size = b.fontSize.peek().floatValue();
-            String label = b.text.peek();
-            float tw, textH;
-            try (Font font = fonts.fontFor(size, label == null ? "" : label)) {
-                tw = (label == null || label.isEmpty()) ? 0f : font.measureTextWidth(label);
-                textH = lineHeight(font);
-            }
-            float hp = horizontalPad(c, 16f);
-            float vp = verticalPad(c, 10f);
-            iw = tw + 2f * hp;
-            ih = textH + 2f * vp;
-        } else {
-            return;
-        }
-        // Controls publish their measured content size as implicitWidth/Height;
-        // followImplicitSize then copies it into width/height when unset.
-        if (!c.implicitWidth.isBound()) c.implicitWidth.set(iw);
-        if (!c.implicitHeight.isBound()) c.implicitHeight.set(ih);
-    }
-
     // Qt: an Item's width follows implicitWidth until width is explicitly set.
     // We approximate "explicitly set" with an owns-check (current value equals
     // the last implicit value we wrote, or 0 if never written) plus the binding
@@ -345,16 +257,6 @@ public final class Renderer {
         }
     }
 
-    private static float horizontalPad(Control c, float fallback) {
-        float p = c.padding.peek().floatValue();
-        return p > 0f ? p : fallback;
-    }
-
-    private static float verticalPad(Control c, float fallback) {
-        float p = c.padding.peek().floatValue();
-        return p > 0f ? p : fallback;
-    }
-
     private static boolean ownsImplicitWidth(Item c) {
         if (Double.isNaN(c.lastImplicitWidth)) return c.width.peek().doubleValue() == 0.0;
         return c.width.peek().doubleValue() == c.lastImplicitWidth;
@@ -363,21 +265,6 @@ public final class Renderer {
     private static boolean ownsImplicitHeight(Item c) {
         if (Double.isNaN(c.lastImplicitHeight)) return c.height.peek().doubleValue() == 0.0;
         return c.height.peek().doubleValue() == c.lastImplicitHeight;
-    }
-
-    private static String[] splitLines(String s) {
-        if (s == null || s.isEmpty()) return new String[]{""};
-        return s.split("\n", -1);
-    }
-
-    private static boolean ownsWidth(Text t) {
-        if (Double.isNaN(t.lastSetWidth)) return t.width.peek().doubleValue() == 0.0;
-        return t.width.peek().doubleValue() == t.lastSetWidth;
-    }
-
-    private static boolean ownsHeight(Text t) {
-        if (Double.isNaN(t.lastSetHeight)) return t.height.peek().doubleValue() == 0.0;
-        return t.height.peek().doubleValue() == t.lastSetHeight;
     }
 
     static void applyAnchors(Item node) {
@@ -521,17 +408,17 @@ public final class Renderer {
             String s = icons.displayText(t);
             if (s.isEmpty()) return;
             boolean elideRight = t.elide.peek().intValue() == 3; // Text.ElideRight
-            String wrapMode = wrapModeString(t.wrapMode.peek().intValue());
+            String wrapMode = text.wrapModeString(t.wrapMode.peek().intValue());
             try (Font font = fonts.fontFor(size, s)) {
                 String[] lines = (wrapMode != null && w > 0f)
                     ? TextWrap.wrap(s, wrapMode, w, seg -> font.measureTextWidth(seg))
                           .lines.toArray(new String[0])
-                    : splitLines(s);
-                float lineH = lineHeight(font);
-                float baseline0 = baselineInLine(font);
+                    : text.splitLines(s);
+                float lineH = text.lineHeight(font);
+                float baseline0 = text.baselineInLine(font);
                 for (int i = 0; i < lines.length; i++) {
                     if (lines[i].isEmpty()) continue;
-                    String line = elideRight ? elideToWidth(lines[i], font, w) : lines[i];
+                    String line = elideRight ? text.elideToWidth(lines[i], font, w) : lines[i];
                     canvas.drawString(line, 0, baseline0 + i * lineH, font, paint);
                 }
             }
@@ -596,16 +483,6 @@ public final class Renderer {
         return null;
     }
 
-    // Truncate with a trailing ellipsis so the line fits within maxWidth (Text.ElideRight).
-    private static String elideToWidth(String line, Font font, float maxWidth) {
-        if (maxWidth <= 0 || font.measureTextWidth(line) <= maxWidth) return line;
-        String ell = "…";
-        float ellW = font.measureTextWidth(ell);
-        int end = line.length();
-        while (end > 0 && font.measureTextWidth(line.substring(0, end)) + ellW > maxWidth) end--;
-        return line.substring(0, end) + ell;
-    }
-
     private void paintWindow(Canvas canvas, Window win, float w, float h, float alpha) {
         String c = win.color.peek();
         if (c == null || "transparent".equals(c)) return;
@@ -647,7 +524,7 @@ public final class Renderer {
         try (Font font = fonts.fontFor(size, label)) {
             float tw = font.measureTextWidth(label);
             float tx = (w - tw) / 2f;
-            float ty = centeredBaseline(font, h);
+            float ty = text.centeredBaseline(font, h);
             p.setColor(applyAlpha(parseColor(b.textColor.peek()), a));
             canvas.drawString(label, tx, ty, font, p);
         }
@@ -692,7 +569,7 @@ public final class Renderer {
                 if (ph != null && !ph.isEmpty()) {
                     try (Font font = fonts.fontFor(size, ph)) {
                         p.setColor(applyAlpha(parseColor(tf.placeholderTextColor.peek()), alpha));
-                        canvas.drawString(ph, 0, centeredBaseline(font, h), font, p);
+                        canvas.drawString(ph, 0, text.centeredBaseline(font, h), font, p);
                     }
                 }
             }
@@ -758,9 +635,9 @@ public final class Renderer {
         if (s == null) s = "";
         float size = ti.fontSize.peek().floatValue();
         try (Font font = fonts.fontFor(size, s)) {
-            float baseline = centeredBaseline(font, h);
-            float glyphTop = baseline + glyphTopOffset(font);
-            float glyphHeight = glyphExtent(font);
+            float baseline = text.centeredBaseline(font, h);
+            float glyphTop = baseline + text.glyphTopOffset(font);
+            float glyphHeight = text.glyphExtent(font);
             paintSelectionRect(canvas, ti, s, font, glyphTop, glyphHeight, alpha);
             if (!s.isEmpty()) {
                 paint().setColor(applyAlpha(parseColor(ti.color.peek()), alpha));
@@ -798,44 +675,22 @@ public final class Renderer {
 
     private static final long CARET_BLINK_MS = 500;
 
-    // Real font-metric helpers (Skija native metrics work now that
-    // Library._nAfterLoad() runs — see MainActivity). Replace the old hardcoded
-    // ascent/descent ratios used for caret/selection rects and line height.
-    private static float glyphTopOffset(Font font) {     // <= 0, relative to baseline
-        return font.getMetrics().getAscent();
-    }
-    private static float glyphExtent(Font font) {        // ascent..descent height
-        FontMetrics m = font.getMetrics();
-        return m.getDescent() - m.getAscent();
-    }
-    private static float lineHeight(Font font) {
-        return font.getMetrics().getHeight();
-    }
-    private static float baselineInLine(Font font) {     // line-top -> baseline distance
-        return -font.getMetrics().getAscent();
-    }
-    // Baseline that vertically centres a single line of glyphs in a box of height boxH.
-    private static float centeredBaseline(Font font, float boxH) {
-        FontMetrics m = font.getMetrics();
-        return boxH / 2f - (m.getAscent() + m.getDescent()) / 2f;
-    }
-
     private void paintTextEdit(Canvas canvas, TextEdit te, float w, float h, float alpha) {
         String s = te.text.peek();
         if (s == null) s = "";
         float size = te.fontSize.peek().floatValue();
         try (Font font = fonts.fontFor(size, s)) {
-            TextWrap.Result wrapped = wrapFor(te, s, w, size, font);
+            TextWrap.Result wrapped = text.wrapFor(te, s, w, size, font);
             te.lineCount.set(wrapped.lines.size());
-            float lineH = lineHeight(font);
+            float lineH = text.lineHeight(font);
             float total = lineH * wrapped.lines.size();
-            float yOffset = topOffset(te.verticalAlignment.peek(), h, total);
+            float yOffset = text.topOffset(te.verticalAlignment.peek(), h, total);
             paintSelectionMultiline(canvas, te, wrapped, font, yOffset, lineH, size, alpha);
             paint().setColor(applyAlpha(parseColor(te.color.peek()), alpha));
             for (int i = 0; i < wrapped.lines.size(); i++) {
                 String line = wrapped.lines.get(i);
                 if (!line.isEmpty()) {
-                    float baseline = yOffset + i * lineH + baselineInLine(font);
+                    float baseline = yOffset + i * lineH + text.baselineInLine(font);
                     canvas.drawString(line, 0, baseline, font, paint);
                 }
             }
@@ -843,30 +698,6 @@ public final class Renderer {
                 drawCaretMultiline(canvas, te, wrapped, font, yOffset, lineH, size, alpha);
             }
         }
-    }
-
-    private TextWrap.Result wrapFor(TextEdit te, String s, float width, float size, Font font) {
-        String mode = te.wrapMode.peek();
-        if (te.cachedLines != null && s.equals(te.cachedText)
-            && (mode == null ? te.cachedWrap == null : mode.equals(te.cachedWrap))
-            && te.cachedWidth == width && te.cachedFontSize == size) {
-            return new TextWrap.Result(te.cachedLines, te.cachedStarts);
-        }
-        TextWrap.Result r = TextWrap.wrap(s, mode, width,
-            seg -> font.measureTextWidth(seg));
-        te.cachedLines = r.lines;
-        te.cachedStarts = r.starts;
-        te.cachedText = s;
-        te.cachedWrap = mode;
-        te.cachedWidth = width;
-        te.cachedFontSize = size;
-        return r;
-    }
-
-    private float topOffset(String align, float h, float total) {
-        if ("AlignVCenter".equals(align)) return Math.max(0, (h - total) / 2f);
-        if ("AlignBottom".equals(align)) return Math.max(0, h - total);
-        return 0;
     }
 
     private void paintSelectionMultiline(Canvas canvas, TextEdit te, TextWrap.Result wrapped,
@@ -878,8 +709,8 @@ public final class Renderer {
         Paint p = paint();
         p.setMode(PaintMode.FILL);
         p.setColor(applyAlpha(parseColor(te.selectionColor.peek()), alpha));
-        float glyphTop = baselineInLine(font) + glyphTopOffset(font);
-        float glyphHeight = glyphExtent(font);
+        float glyphTop = text.baselineInLine(font) + text.glyphTopOffset(font);
+        float glyphHeight = text.glyphExtent(font);
         for (int i = 0; i < wrapped.lines.size(); i++) {
             int ls = wrapped.starts[i];
             String line = wrapped.lines.get(i);
@@ -902,8 +733,8 @@ public final class Renderer {
         String line = wrapped.lines.get(lineIdx);
         int col = Math.max(0, Math.min(pos - wrapped.starts[lineIdx], line.length()));
         float cx = col == 0 ? 0 : font.measureTextWidth(line.substring(0, col));
-        float glyphTop = baselineInLine(font) + glyphTopOffset(font);
-        float glyphHeight = glyphExtent(font);
+        float glyphTop = text.baselineInLine(font) + text.glyphTopOffset(font);
+        float glyphHeight = text.glyphExtent(font);
         Paint p = paint();
         p.setMode(PaintMode.FILL);
         p.setColor(applyAlpha(parseColor(te.color.peek()), alpha));
@@ -917,7 +748,7 @@ public final class Renderer {
         float size = te.fontSize.peek().floatValue();
         try (Font font = fonts.fontFor(size, s)) {
             float w = te.width.peek().floatValue();
-            TextWrap.Result wrapped = wrapFor(te, s, w, size, font);
+            TextWrap.Result wrapped = text.wrapFor(te, s, w, size, font);
             return TextWrap.moveCaretVertical(wrapped, caret, delta,
                 seg -> font.measureTextWidth(seg));
         } catch (Throwable ignored) {
@@ -932,10 +763,10 @@ public final class Renderer {
         try (Font font = fonts.fontFor(size, s)) {
             float w = te.width.peek().floatValue();
             float h = te.height.peek().floatValue();
-            TextWrap.Result wrapped = wrapFor(te, s, w, size, font);
-            float lineH = lineHeight(font);
+            TextWrap.Result wrapped = text.wrapFor(te, s, w, size, font);
+            float lineH = text.lineHeight(font);
             float total = lineH * wrapped.lines.size();
-            float yOffset = topOffset(te.verticalAlignment.peek(), h, total);
+            float yOffset = text.topOffset(te.verticalAlignment.peek(), h, total);
             int lineIdx = (int) Math.floor((localY - yOffset) / lineH);
             if (lineIdx < 0) lineIdx = 0;
             if (lineIdx >= wrapped.lines.size()) lineIdx = wrapped.lines.size() - 1;
