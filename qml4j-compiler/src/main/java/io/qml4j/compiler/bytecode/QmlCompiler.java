@@ -310,10 +310,14 @@ public final class QmlCompiler {
         ctor.visitEnd();
 
         for (Ast.FunctionDeclaration fd : rootFunctionDecls) {
-            // Eligible functions were registered as Rhino callables in the ctor; only
-            // the rest get an ASM reflective method.
+            // Eligible functions were registered as Rhino callables in the ctor; they get
+            // a thin reflective method that forwards to that callable (preserving getMethod
+            // identity). The rest get a full ASM reflective method.
             if (rhinoFunctionEligible(fd, rootType, idTypes, rootDeclaredProps, rootFunctions,
-                                      rootSignalNames)) continue;
+                                      rootSignalNames)) {
+                emitThinRootFunctionMethod(cw, fd);
+                continue;
+            }
             emitRootFunctionMethod(cw, componentInternal, rootType, fd,
                                    idTypes, rootDeclaredProps, rootAliases, rootFunctions,
                                    componentBinaryName, bindingCounter, classes);
@@ -1858,18 +1862,17 @@ public final class QmlCompiler {
     private static final String RHINO_HANDLER_INTERNAL = "io/qml4j/engine/js/RhinoHandler";
     private static final String RHINO_FUNCTION_INTERNAL = "io/qml4j/engine/js/RhinoFunction";
 
-    // A QML function runs on Rhino only when the ASM codegen genuinely cannot compile
-    // its body -- i.e. it contains a for-in -- and it is otherwise eligible (source
-    // captured, not in a delegate scope, every free name resolvable, no deferred Qt
-    // helper). Plain functions stay ASM reflective methods, which keeps their Java
-    // identity for callers that invoke them as methods. Later phases widen this.
+    // A QML function runs on Rhino when its source is captured, it is not in a delegate
+    // scope, and every free name resolves at runtime (no alias / deferred Qt helper). A
+    // root function additionally keeps a thin reflective method that forwards to its
+    // RhinoFunction (emitThinRootFunctionMethod), so callers invoking it via getMethod
+    // still find it.
     private boolean rhinoFunctionEligible(Ast.FunctionDeclaration fd, Class<?> contextType,
                                           Map<String, Class<? extends QObject>> idTypes,
                                           Map<String, String> declaredProps,
                                           Map<String, Integer> rootFunctions,
                                           Set<String> customSignals) {
         return fd.source != null && !inDelegateScope()
-            && AstScan.containsForIn(fd.body)
             && handlerCanHandle(fd.body, contextType, idTypes, declaredProps, fd.paramNames,
                                 rootFunctions, customSignals);
     }
@@ -2328,6 +2331,36 @@ public final class QmlCompiler {
         if (v >= 0 && v <= 5) mv.visitInsn(Opcodes.ICONST_0 + v);
         else if (v <= Byte.MAX_VALUE) mv.visitIntInsn(Opcodes.BIPUSH, v);
         else mv.visitIntInsn(Opcodes.SIPUSH, v);
+    }
+
+    // A reflective method `name(Object...)` that forwards to the function's RhinoFunction
+    // (registered via __putFunction in the ctor). Keeps the Java-method identity that
+    // callers using getClass().getMethod(name) rely on, while the body runs on Rhino.
+    private void emitThinRootFunctionMethod(ClassWriter cw, Ast.FunctionDeclaration fd) {
+        int n = fd.paramNames.size();
+        StringBuilder desc = new StringBuilder("(");
+        for (int i = 0; i < n; i++) desc.append("Ljava/lang/Object;");
+        desc.append(")Ljava/lang/Object;");
+
+        MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PUBLIC, fd.name, desc.toString(), null, null);
+        mv.visitCode();
+        mv.visitVarInsn(Opcodes.ALOAD, 0);
+        mv.visitLdcInsn(fd.name);
+        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, QOBJECT_INTERNAL, "__getFunction",
+                           "(Ljava/lang/String;)Lio/qml4j/engine/Callable;", false);
+        mv.visitLdcInsn(n);
+        mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");
+        for (int i = 0; i < n; i++) {
+            mv.visitInsn(Opcodes.DUP);
+            mv.visitLdcInsn(i);
+            mv.visitVarInsn(Opcodes.ALOAD, i + 1);
+            mv.visitInsn(Opcodes.AASTORE);
+        }
+        mv.visitMethodInsn(Opcodes.INVOKEINTERFACE, "io/qml4j/engine/Callable", "call",
+                           "([Ljava/lang/Object;)Ljava/lang/Object;", true);
+        mv.visitInsn(Opcodes.ARETURN);
+        mv.visitMaxs(0, 0);
+        mv.visitEnd();
     }
 
     private void emitRootFunctionMethod(ClassWriter cw, String componentInternal,

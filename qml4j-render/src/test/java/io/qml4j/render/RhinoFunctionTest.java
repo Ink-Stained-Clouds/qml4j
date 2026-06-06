@@ -51,4 +51,28 @@ class RhinoFunctionTest {
         obj.put("c", 3L);
         assertEquals(6L, fn.call(new Object[]{obj}));   // for-in over a Java map
     }
+
+    // A plain (non-for-in) function now runs on Rhino too, while a thin reflective
+    // method preserves its getMethod identity.
+    @Test
+    void plainFunctionRunsOnRhinoAndStaysReflectivelyInvokable() throws Exception {
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        Item root = v.load(
+            "import QtQuick\n" +
+            "Rectangle {\n" +
+            "  id: root\n" +
+            "  function add(a, b) { return a + b }\n" +
+            "}");
+        flush(v);
+
+        Callable fn = root.__getFunction("add");
+        assertNotNull(fn);
+        assertTrue(fn instanceof RhinoFunction,
+            "add should be a RhinoFunction, was " + fn.getClass().getName());
+        assertEquals(7L, fn.call(new Object[]{3L, 4L}));
+
+        // Reflective invocation (getMethod) still works -- via the thin forwarder.
+        java.lang.reflect.Method m = root.getClass().getMethod("add", Object.class, Object.class);
+        assertEquals(7L, m.invoke(root, 3L, 4L));
+    }
 }
