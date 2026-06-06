@@ -18,9 +18,7 @@ ToolTip/TopAppBar;另含 Theme + Ripple 基础件)。
 - **G6** 枚举体系(`Easing` 等枚举类 + 编译器枚举解析)
 - **G10** MultiEffect(已注册;Painter.drawMultiEffect 经 Skija ImageFilter)
 - **G11** MouseArea hover 真实 dispatch(`EventDispatcher.updateHover` 驱动 hoverEnabled/containsMouse/entered/exited)
-
-**◐ 部分**:
-- **G9** QtQuick.Layouts —— RowLayout / ColumnLayout / StackLayout + `Layout.*` 附加属性(LayoutAttached/LayoutSizing)已实现;**GridLayout、Flow 仍缺**。
+- **G9** QtQuick.Layouts —— RowLayout / ColumnLayout / StackLayout / **GridLayout** + `Layout.*` 附加属性(含 row/column/rowSpan/columnSpan)全部实现;QtQuick 定位器 Row/Column/**Flow** 也已注册。GridLayout 支持显式/自动单元格放置、跨行列 span、rowSpacing/columnSpacing、fillWidth/fillHeight 与单元格内对齐;Flow 支持 LeftToRight/TopToBottom 换行。
 
 **⬜ 仍开**:
 - **G13** 动态种子配色 —— 静态主题靠 Theme.qml 的 `defaultScheme` 直接生效(无需 StyleManager);把 material-color-utilities 移植到 Java 做动态配色未做。

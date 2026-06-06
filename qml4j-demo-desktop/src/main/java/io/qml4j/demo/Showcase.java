@@ -40,6 +40,7 @@ final class Showcase {
             of("Controls", "ControlsShowcase"),
             of("Composite", "CompositeShowcase"),
             of("Layouts", "LayoutShowcase"),
+            of("GridLayout / Flow", "GridFlowShowcase"),
             of("Shapes", "ShapeShowcase"),
             of("Qt.color", "ColorShowcase"),
             of("LayerEffect", "LayerEffectShowcase"),

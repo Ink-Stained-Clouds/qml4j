@@ -68,9 +68,11 @@ The build runs offline-friendly; iteration commonly uses `mvn -o install -DskipT
 ### Run the desktop showcases
 
 ```sh
-mvn -q -pl qml4j-demo-desktop exec:java                              # launcher
-mvn -q -pl qml4j-demo-desktop exec:java -Dexec.args=ButtonShowcase   # one showcase
+./run.sh                    # launcher
+./run.sh ButtonShowcase     # one showcase
 ```
+
+`run.sh` recompiles `qml4j-core` + the desktop module from source (`-am`) and launches `java` directly with the freshly-built `target/classes` ahead of any `~/.m2` jar on the classpath — no `mvn install` after editing the engine, and a stale `~/.m2/qml4j-core` can't shadow your changes. (Plain `mvn -pl qml4j-demo-desktop exec:java` resolves `qml4j-core` from `~/.m2` and silently runs a stale engine, e.g. "unknown QML type" for a freshly-registered item.)
 
 Exit code 137 on close is expected (NVIDIA libEGL teardown SIGSEGV, worked around by SIGKILL-self).
 
@@ -103,6 +105,7 @@ The engine hosts enough QML to run real component libraries. Supported (inventor
 - `States` / `PropertyChanges` / `Transition`; `Behavior`; the full animation set (`Number/Color/Rotation/Opacity/Parallel/Sequential/Pause/ScriptAction`)
 - `pragma Singleton`, `qmldir`, import aliases, `import "dir"`
 - `Repeater` / `ListModel` / `ListElement` / `ListView` / `GridView` / `Component` / `Loader` / `Flickable`
+- Positioners `Row` / `Column` / `Flow` and QtQuick.Layouts `RowLayout` / `ColumnLayout` / `StackLayout` / `GridLayout` with `Layout.*` attached (`fillWidth/Height`, `preferred/minimum/maximum*`, margins, `alignment`, `row/column/rowSpan/columnSpan`)
 - `Keys` attached + `FocusScope`; `Window` / `ApplicationWindow`
 - `Shape` / `ShapePath` / `Path*`; layer effects (`DropShadow` / `Glow` / `ColorOverlay`) and `MultiEffect`
 - `Rectangle` (radius/border/linear gradient), `Text` (font group, wrap/align/elide, icon glyphs), `Image` (fill modes), `TextInput` / `TextEdit` / `TextField` (caret/selection/clipboard via a `Clipboard` SPI), `Control` / `AbstractButton` / `Button` / `Label`

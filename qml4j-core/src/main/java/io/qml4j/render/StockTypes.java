@@ -9,6 +9,8 @@ import io.qml4j.render.items.input.FocusScope;
 import io.qml4j.render.items.core.Gradient;
 import io.qml4j.render.items.effect.ColorOverlay;
 import io.qml4j.render.items.effect.DropShadow;
+import io.qml4j.render.items.layout.Flow;
+import io.qml4j.render.items.layout.GridLayout;
 import io.qml4j.render.items.effect.Glow;
 import io.qml4j.render.items.shape.PathArc;
 import io.qml4j.render.items.shape.PathCubic;
@@ -74,6 +76,8 @@ public final class StockTypes {
             .register("RowLayout", RowLayout.class)
             .register("ColumnLayout", ColumnLayout.class)
             .register("StackLayout", StackLayout.class)
+            .register("GridLayout", GridLayout.class)
+            .register("Flow", Flow.class)
             .register("MultiEffect", MultiEffect.class)
             .register("Timer", Timer.class)
             .register("MouseArea", MouseArea.class)
