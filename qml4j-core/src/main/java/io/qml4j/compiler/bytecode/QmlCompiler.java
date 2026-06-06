@@ -908,12 +908,10 @@ public final class QmlCompiler {
 
         List<DeclaredProp> userDecls = collectPropertyDecls(delegateNode, delType);
         userDecls.removeIf(dp -> dp.isOverride);
-        for (DeclaredProp dp : userDecls) {
-            if ("index".equals(dp.name) || "modelData".equals(dp.name)) {
-                throw new IllegalArgumentException(
-                    "delegate cannot redeclare reserved property: " + dp.name);
-            }
-        }
+        // `index` / `modelData` are provided implicitly to every delegate; a delegate
+        // may also declare them explicitly (Qt 6 `required property var modelData`),
+        // which just binds to the implicit one -- drop the redeclaration, don't reject.
+        userDecls.removeIf(dp -> "index".equals(dp.name) || "modelData".equals(dp.name));
         List<DeclaredProp> fullDecls = new ArrayList<>();
         fullDecls.add(new DeclaredProp("index", "int", null));
         fullDecls.add(new DeclaredProp("modelData", "var", null));

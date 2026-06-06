@@ -10,4 +10,5 @@ public class Flickable extends Item {
     public final Property<String> flickableDirection = new Property<>("AutoFlickDirection");
     public final Property<Boolean> interactive = new Property<>(Boolean.TRUE);
     public final Property<Boolean> moving = new Property<>(Boolean.FALSE);
+    public final Property<Number> boundsBehavior = new Property<>(3); // DragAndOvershootBounds
 }

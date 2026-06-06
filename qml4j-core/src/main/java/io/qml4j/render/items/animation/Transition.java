@@ -4,6 +4,7 @@ import io.qml4j.render.items.core.Item;
 import io.qml4j.engine.binding.Property;
 
 public class Transition extends Item {
+    public final Property<Boolean> running = new Property<>(Boolean.FALSE);
     public final Property<String> from = new Property<>("*");
     public final Property<String> to = new Property<>("*");
 

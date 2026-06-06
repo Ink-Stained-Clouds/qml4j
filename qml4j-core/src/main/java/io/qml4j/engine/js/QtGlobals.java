@@ -36,8 +36,12 @@ public final class QtGlobals {
         scope.put("Qt", scope, qt);
 
         scope.put("Text", scope, enumObject(TEXT));
+        scope.put("TextInput", scope, enumObject(TEXT_INPUT));
+        scope.put("TextEdit", scope, enumObject(TEXT_INPUT));
         scope.put("Font", scope, enumObject(FONT));
         scope.put("Easing", scope, enumObject(EASING));
+        scope.put("Item", scope, enumObject(ITEM));
+        scope.put("Flickable", scope, enumObject(FLICKABLE));
 
         NativeObject console = new NativeObject();
         console.put("log", console, fn("log", 1, a -> { System.out.println(join(a)); return null; }));
@@ -147,6 +151,23 @@ public final class QtGlobals {
         "Thin", 0L, "ExtraLight", 12L, "Light", 25L, "Normal", 50L, "Medium", 57L,
         "DemiBold", 63L, "Bold", 75L, "ExtraBold", 81L, "Black", 87L,
         "MixedCase", 0L, "AllUppercase", 1L, "AllLowercase", 2L, "SmallCaps", 3L, "Capitalize", 4L);
+
+    // TextInput/TextEdit: alignment (shared with Text) + EchoMode + WrapMode.
+    private static final Map<String, Long> TEXT_INPUT = map(
+        "AlignLeft", 1L, "AlignRight", 2L, "AlignHCenter", 4L, "AlignJustify", 8L,
+        "AlignTop", 32L, "AlignBottom", 64L, "AlignVCenter", 128L,
+        "NoWrap", 0L, "WordWrap", 1L, "WrapAnywhere", 3L, "Wrap", 4L,
+        "Normal", 0L, "NoEcho", 1L, "Password", 2L, "PasswordEchoOnEdit", 3L);
+
+    // Item.TransformOrigin: pivot for scale/rotation.
+    private static final Map<String, Long> ITEM = map(
+        "TopLeft", 0L, "Top", 1L, "TopRight", 2L, "Left", 3L, "Center", 4L,
+        "Right", 5L, "BottomLeft", 6L, "Bottom", 7L, "BottomRight", 8L);
+
+    // Flickable.BoundsBehavior.
+    private static final Map<String, Long> FLICKABLE = map(
+        "StopAtBounds", 0L, "DragOverBounds", 1L, "OvershootBounds", 2L,
+        "DragAndOvershootBounds", 3L);
 
     private static final Map<String, Long> EASING = map(
         "Linear", 0L, "InQuad", 1L, "OutQuad", 2L, "InOutQuad", 3L, "OutInQuad", 4L,

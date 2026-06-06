@@ -34,6 +34,8 @@ public class Item extends QObject {
     public final Property<Number> opacity = new Property<>(1.0);
     public final Property<Number> rotation = new Property<>(0);
     public final Property<Number> scale = new Property<>(1.0);
+    // Item.TransformOrigin: which point scale/rotation pivot around (default Center).
+    public final Property<Number> transformOrigin = new Property<>(4);
     public final Property<Number> z = new Property<>(0);
     public final Property<Boolean> clip = new Property<>(Boolean.FALSE);
     public final Property<Item> parent = new Property<>(null);

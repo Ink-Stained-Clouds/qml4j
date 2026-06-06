@@ -1,5 +1,6 @@
 package io.qml4j.render.items.input;
 import io.qml4j.render.items.core.Item;
+import io.qml4j.render.items.core.Font;
 
 import io.qml4j.engine.Signal;
 import io.qml4j.engine.binding.Property;
@@ -14,11 +15,18 @@ public class TextInput extends Item implements TextEditable {
     public final Property<Number> selectionStart = new Property<>(0);
     public final Property<Number> selectionEnd = new Property<>(0);
     public final Property<String> selectionColor = new Property<>("#308cff");
+    public final Property<String> selectedTextColor = new Property<>("#ffffff");
     public final Property<Number> maximumLength = new Property<>(Integer.MAX_VALUE);
     public final Property<Boolean> readOnly = new Property<>(Boolean.FALSE);
+    public final Property<Number> echoMode = new Property<>(0); // TextInput.Normal
+    public final Property<String> passwordCharacter = new Property<>("•");
+    public final Property<Number> horizontalAlignment = new Property<>(1); // TextInput.AlignLeft
+    public final Property<Number> verticalAlignment = new Property<>(32);   // TextInput.AlignTop
+    public final Font font = new Font();
 
     public final Signal textChanged = new Signal();
     public final Signal accepted = new Signal();
+    public final Signal editingFinished = new Signal();
 
     public int selectionAnchor = -1;
 
