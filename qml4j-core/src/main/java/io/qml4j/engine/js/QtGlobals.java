@@ -44,6 +44,9 @@ public final class QtGlobals {
         scope.put("Flickable", scope, enumObject(FLICKABLE));
         scope.put("Animation", scope, enumObject(ANIMATION));
         scope.put("Canvas", scope, enumObject(CANVAS));
+        scope.put("ListView", scope, enumObject(LISTVIEW));
+        scope.put("GridView", scope, enumObject(LISTVIEW));
+        scope.put("RotationAnimation", scope, enumObject(ROTATION_ANIMATION));
 
         NativeObject console = new NativeObject();
         console.put("log", console, fn("log", 1, a -> { System.out.println(join(a)); return null; }));
@@ -168,6 +171,15 @@ public final class QtGlobals {
 
     // Animation.loops sentinel.
     private static final Map<String, Long> ANIMATION = map("Infinite", -1L);
+
+    // ListView/GridView.positionViewAtIndex PositionMode + snapMode.
+    private static final Map<String, Long> LISTVIEW = map(
+        "Beginning", 0L, "Center", 1L, "End", 2L, "Visible", 3L, "Contain", 4L, "SnapPosition", 5L,
+        "NoSnap", 0L, "SnapToItem", 1L, "SnapOneItem", 2L);
+
+    // RotationAnimation.direction.
+    private static final Map<String, Long> ROTATION_ANIMATION = map(
+        "Numerical", 0L, "Shortest", 1L, "Clockwise", 2L, "Counterclockwise", 3L);
 
     // Canvas.renderTarget / renderStrategy.
     private static final Map<String, Long> CANVAS = map(

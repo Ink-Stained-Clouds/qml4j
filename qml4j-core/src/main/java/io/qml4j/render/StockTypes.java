@@ -4,6 +4,7 @@ import io.qml4j.render.items.animation.Behavior;
 import io.qml4j.render.items.layout.Column;
 import io.qml4j.render.items.view.Component;
 import io.qml4j.render.items.view.Connections;
+import io.qml4j.render.items.core.Binding;
 import io.qml4j.render.items.core.Canvas;
 import io.qml4j.render.items.core.Flickable;
 import io.qml4j.render.items.input.FocusScope;
@@ -106,6 +107,7 @@ public final class StockTypes {
             .register("Connections", Connections.class)
             .register("Flickable", Flickable.class)
             .register("Canvas", Canvas.class)
+            .register("Binding", Binding.class)
             .register("FocusScope", FocusScope.class)
             .register("Shape", Shape.class)
             .register("ShapePath", ShapePath.class)

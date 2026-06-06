@@ -20,7 +20,7 @@ class Md3NewComponentsLoadTest {
 
     private static final String[] COMPONENTS = {
         "Breadcrumb", "ComboBox", "Menu", "DataTable", "NavigationRail", "SideSheet", "Tabs",
-        "TextField"
+        "TextField", "NavigationDrawer", "DatePicker", "TimePicker"
     };
 
     private static byte[] res(String path) {

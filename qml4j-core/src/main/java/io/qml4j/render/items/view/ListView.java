@@ -44,6 +44,13 @@ public class ListView extends Flickable implements DelegateHost {
         return instances;
     }
 
+    // Scroll so the delegate at `index` is at the top of the viewport. `mode` (Qt's
+    // PositionMode) is treated as Beginning for now.
+    public void positionViewAtIndex(int index, int mode) {
+        if (index < 0 || index >= instances.size()) return;
+        contentY.set(instances.get(index).y.peek());
+    }
+
     private void attachModelSignals(Object m) {
         if (boundModel != null && modelListener != null) {
             boundModel.rowsInserted.disconnect(modelListener);
