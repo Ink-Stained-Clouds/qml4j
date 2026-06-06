@@ -4,6 +4,8 @@ import io.qml4j.compiler.CompiledUnit;
 import io.qml4j.compiler.TypeRegistry;
 import io.qml4j.compiler.bytecode.decl.AliasDecl;
 import io.qml4j.compiler.bytecode.decl.DeclaredProp;
+import io.qml4j.compiler.bytecode.member.EmitContext;
+import io.qml4j.compiler.bytecode.member.MemberEmitter;
 import io.qml4j.engine.DelegateHost;
 import io.qml4j.engine.PropertyChangeSink;
 import io.qml4j.engine.SignalRelay;
