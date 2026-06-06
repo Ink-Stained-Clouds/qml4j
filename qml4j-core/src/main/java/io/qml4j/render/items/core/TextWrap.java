@@ -28,7 +28,6 @@ public final class TextWrap {
         boolean wrap = "Wrap".equals(mode) || "WordWrap".equals(mode) || wrapAny;
         int start = 0;
         int n = text.length();
-        boolean lastWasNewline = false;
         while (start <= n) {
             int hardBreak = text.indexOf('\n', start);
             int segEnd = hardBreak < 0 ? n : hardBreak;
@@ -39,14 +38,12 @@ public final class TextWrap {
             } else {
                 wrapSegment(seg, start, maxWidth, m, wrapAny, lines, starts);
             }
-            lastWasNewline = hardBreak >= 0;
             if (hardBreak < 0) break;
             start = hardBreak + 1;
             if (start > n) break;
             if (start == n) {
                 starts.add(n);
                 lines.add("");
-                lastWasNewline = false;
                 break;
             }
         }

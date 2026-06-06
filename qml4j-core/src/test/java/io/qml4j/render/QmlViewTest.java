@@ -584,7 +584,6 @@ class QmlViewTest {
             "}");
         Rectangle r = (Rectangle) root;
         r.state.set("big");
-        int afterEnter = r.children.size();
         // Drain the enter animation so width settles at 300.
         for (Item c : r.children) {
             if (c instanceof io.qml4j.render.items.animation.NumberAnimation
