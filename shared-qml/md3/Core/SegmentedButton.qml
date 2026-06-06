@@ -64,8 +64,12 @@ Item {
                 delegate: Rectangle {
                     id: segment
                     Layout.fillHeight: true
+                    Layout.fillWidth: true
                     Layout.minimumWidth: 48
                     implicitWidth: Math.max(contentRow.implicitWidth + 24, 48)
+                    // Selecting swaps the icon for a wider checkmark; animate the
+                    // resulting width change instead of snapping.
+                    Behavior on implicitWidth { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     
                     property bool isSelected: modelData.selected === true
                     property bool isSegmentEnabled: (modelData.enabled !== undefined ? modelData.enabled : true) && control.enabled
@@ -114,7 +118,8 @@ Item {
                         anchors.centerIn: parent
                         spacing: 8
                         
-                        // Icon (Checkmark if selected, or provided icon)
+                        // Icon (Checkmark if selected, or provided icon). Content-sized;
+                        // the segment animates its width when this swaps in/out.
                         Text {
                             text: segment.isSelected ? "check" : (modelData.icon || "")
                             font.family: Theme.iconFont.name

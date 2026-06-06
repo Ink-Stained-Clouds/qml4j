@@ -27,7 +27,7 @@ Rectangle {
         id: dlg
         icon: "delete"
         title: "Delete file?"
-        text: "This will permanently remove the file. This action cannot be undone."
+        text: "This will permanently remove the file.  This action cannot be undone. This action cannot be undone. This action cannot be undone. This action cannot be undone."
         acceptText: "Delete"
         rejectText: "Cancel"
     }

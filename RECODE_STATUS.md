@@ -1,0 +1,89 @@
+# RECODE 执行进度 (session handoff)
+
+> **RECODE 重构全部完成(Phase 0–7)。** 分支 `phase0/merge-into-core` 待合并回 `main`。
+> 后续工作:恢复 `project_parked_md3_backlog` 的 4 项(icon ligature / probe / dark theme / 回 Android)。
+
+## 当前位置 — DONE
+- 分支 `phase0/merge-into-core`,HEAD = Phase 7.3 commit (`b19dcef`)
+- **Phase 0/1/2 + 3.1–3.7 + 4 + 5 + 6 + 7 全部完成**
+- **守护**:full reactor `mvn -o install` 绿 —— 481 测试 + checkstyle 0 违规(UnusedImports/RedundantImport/UnusedLocalVariable,绑 verify,fail-on-violation)
+- 真机(LWJGL desktop showcases)已验证至 3.5 渲染无退化;Phase 4/5 纯结构由测试守护
+
+## 已完成 commit(新→旧)
+```
+b19dcef Phase 7.3  checkstyle CI guard (dead/redundant declarations, bound to verify)
+62f2fde Phase 7.2  remove dead imports (5 main + 16 test) + unused constant
+78e3ac9 Phase 7.1  inline FQN -> import across core (legit clashes kept + commented)
+6529c14 Phase 6    audit switches (all legit, no conversion) + codify OOP rules in CLAUDE.md
+33e9138 Phase 5    polymorphic member emit via MemberEmitter strategy map + EmitContext
+a24f16e Phase 4.3  extract EventDispatcher; QmlView is now a facade (993->185)
+9d7ee91 Phase 4.2  extract FocusManager from QmlView
+27fb6eb Phase 4.1  extract Loader from QmlView
+(3.7)   Phase 3.7  measure polymorphic: Item.measure(TextLayout) + Text/Button override; paintNode inlined
+28e869e Phase 3.6  text input paint polymorphic; paintNode fully empty
+5de4295 Phase 3.5  Button + Text paint polymorphic
+c1673b9 Phase 3.4d MultiEffect paint via Painter.drawMultiEffect
+cb24e82 Phase 3.4c Shape paint via Painter.drawShape
+bc5c5c7 Phase 3.4b Image paint via Painter.drawImage
+26433bc Phase 3.4a Painter skeleton + Window/Rectangle paint
+323ca4e Phase 3.3  extract TextLayout
+e08b13f Phase 3.2  extract FontResolver + IconResolver
+862d5ba Phase 3.1  runLayout polymorphic (Item.layout)
+fbb1315 Phase 2    split RuntimeHelpers into runtime/ + drop 33 dead methods
+2f6b86e Phase 1    split items/ into 8 feature subpackages
+b80cdc6 Phase 0    merge 4 modules into qml4j-core
+```
+
+## 架构现状
+- **模块**:`qml4j-core`(合并 parser/engine/compiler/render)+ `qml4j-demo-desktop`(host)。`m0-smoke` 删除;`android-shell` frozen 不动。
+- **items/**:按 feature 8 子包 `core/shape/layout/animation/effect/view/input/window`。
+- **runtime/**:`member/`(MemberAccess, DelegateScope)、`invoke/`(MethodInvocation, Scheduler)、`convert/`(Coercion)、`qt/`(QColor 值对象, QtColorFactory)。RuntimeHelpers 已删;字节码**从不**调用它(Rhino 迁移后),33 个死方法已删。
+- **render/ 协作者**:`FontResolver`(146)、`IconResolver`(111)、`TextLayout`(193)、`Painter`(603,public,封装 skija 原语)。
+- **Renderer 1571 → ~600 行**。paint/measure 分派**全部多态化**:所有可绘制 item `@Override Item.paint(Painter,...)`,有内容尺寸的 item(Text/Button)`@Override Item.measure(TextLayout)`。`paintNode` 已内联进 `drawForced`(canvas 参数本就 unused)。Renderer 再无 per-item instanceof 绘制/测量分派。
+- **TextLayout 现为 public**(item 子类经 `measure(TextLayout)` 调它,镜像 Painter);`measureText`/`measureButton` public;`measureControl` 已删(Button 测量抽成 `measureButton`,彻底多态)。
+
+## render/ 拆分现状(Phase 4 完成)
+- **QmlView 993 → 185 行**,纯 facade,组合三协作者(constructor injection),public API/KEY_*/FocusListener 全保留:
+  - `Loader`(编译+实例化:parse→bytecode→compound/singleton 解析+qmldir),注入 `(QmlEngine, TypeRegistry)`,`setResources` setter;`loader::instantiate` 作 renderer 的 ComponentFactory。
+  - `FocusManager`(焦点/Tab:setFocus/clearFocus/focused/moveFocusByTab/scanInitialFocus),`setRoot` setter;失焦清选区内联(不依赖 text-edit statics)。
+  - `EventDispatcher`(pointer/key/文本编辑/clipboard + 全部 hitTest*),注入 `(FocusManager, Renderer)`,`setRoot`/`setClipboard` setter;`KEY_*` 留 QmlView,内部引用 `QmlView.KEY_*`。
+
+## compiler emit 现状(Phase 5 完成)
+- **QmlCompiler.emitMember 的 instanceof 链已消除**:`Map<Class<?>, MemberEmitter> memberEmitters`(keyed on `m.getClass()`)分派 —— PropertyBinding/ChildObject/BehaviorMember/PropertyDeclaration → emit;Signal/Function → reject(保留原 defensive 消息)。
+- **EmitContext**(bytecode 包,不可变参数对象)封装 emitObjectBody→emitMember 间线程的 16 个状态;emitObjectBody 每个 object body 构建一次。
+- PropertyBinding 内联块抽成 `emitPropertyBinding(m,ctx)`(体逐字、ctx 解构前导桥接);ChildObject/Behavior/PropertyDeclaration 为 thin adapter,解构 ctx 调原深层 helper(**helper 签名未动**,有界风险)。
+- **务实偏离**:未拆成 `compiler/emit/` 下独立 Emitter 类(需暴露约 30 个私有 helper,对一次性编译路径不成比例);emitter 用 QmlCompiler 方法引用。emitMember 之外仍有 value/expr 形状的 instanceof(ExpressionValue/StatementBlockValue/LiteralExpr 等)—— 属 Phase 6 范畴或合理保留。
+
+## Phase 6 结论(switch 审计)
+- **真正的类型分派反模式(Item 子类 / Ast.Member instanceof 链)已在 Phase 3、5 消除。残余 switch 全部合理,零转换。** 这正是 3/5 做到位的证据。
+- 保留类别:解析器 token 分派(ANTLR visitor,plan §5 明确保留)、字节码发射(typeName→opcode、lit.kind enum switch)、值/序数/字符串→值映射(keycode→Signal、wrapMode、line.edge、plan.op、hex.length、QColor 通道)、纯无状态 framework 数学表(Easings)。
+- plan §6 文档交付:已把已确立的 OOP 规约写进 `CLAUDE.md`(新 "Dispatch & polymorphism" 节)—— 类型分派走多态、skija 隔离在 Painter 后、参数对象代替长参列表、facade + constructor injection、合理 switch 政策。
+
+## Phase 7 结论(全工程清理 + 守护)
+- **7.1 inline FQN → import**:26 处惰性 FQN 转 import(Property/RhinoBinding/QmlScope/JsWrap/Renderer/QmlCompiler);4 处真同名冲突保留 FQN + 注释(rhino Function vs java.util.function.Function、java.lang.reflect.Type vs asm Type、skija Image vs QML Image 项)。
+- **7.2 死代码**:删 5 main + 16 test unused import、QmlCompiler 死常量 RUNNABLE_INTERNAL;启发式扫描确认无残余死 private 方法/字段。
+- **7.3 CI 守护**:`maven-checkstyle-plugin` 绑 verify、fail-on-violation,`config/checkstyle/checkstyle.xml` 查 UnusedImports/RedundantImport/UnusedLocalVariable(main+test,排除 ANTLR 生成源)。修了它发现的 3 处(TextWrap 只写局部、Es6/QmlViewTest)。AvoidStarImport 未启用(JUnit `Assertions.*` 是测试惯例,非 plan 要求)。
+
+## 历史剩余工作(已全部完成,留作参考)
+- ~~Phase 7~~:全工程清理 —— 删死代码、inline FQN → import、装 CI 守护(checkstyle/error-prone)。注意 Phase 1/2 注入的 import 紧贴 package 行的小格式瑕疵在此统一整理。
+
+## 关键约定(必守)
+- **每步**:`mvn -o install -DskipTests`(编译+demo)EXIT 0 + `mvn -o -pl qml4j-core test` **481 全绿**才 commit。纯结构重构,测试数与行为不变。红条不提交。
+- commit footer:`Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`。每个 PR/阶段前先输出 ASCII 目录树蓝图(用户强制)。
+- **Painter 模式**:`Item.paint(Painter)` double-dispatch。Painter(public, render 包)封装 skija;**item 子类不 import skija**(唯一例外 `Image.skiaImage` 字段)。复杂/font-heavy 的绘制(Image/Shape/MultiEffect/文字输入控件)整体作为 `Painter.drawXxx(item,...)` 原语,item.paint 委托;简单几何(Window/Rectangle)用低层原语 + 逻辑在 item;Text/Button 用中层文字原语 + 分支逻辑在 item。
+- Painter 经 `renderer.fonts()/icons()/textLayout()/paint()/resources()`(package-private accessor)拿协作者。`Renderer.parseColor`(public static)、`applyAlpha`/`sigma`/`drawForced`(package-private)给 Painter 用。
+- TextLayout:度量/wrap/elide helper 多为 **static**;`wrapFor`/`topOffset`/`measureText`/`measureControl` 是实例(用 fonts/icons 或 te 缓存)。
+- `items → render` 依赖**已存在**(TextEditable 的 `caretIndexAt(...,Renderer)` 回调 + `Item.paint(Painter)`),所以 item 类 import render 包类型 OK。
+- 公开 API 不能改签名:`Renderer.parseColor`、`resolveLoader`、`caretIndexFor`/`caretIndexForTextEdit`/`moveCaretVerticalForTextEdit`、`render`/`layoutOnly`/`setResourceLoader`/`setComponentFactory`/`dispose`。
+- **机械操作手法**:大批量搬迁用 python 脚本(string-marker cut + replace);跨子包/跨类 import 缺失用「编译器驱动注入」(循环 `mvn compile` → 解析中文「找不到符号 类/变量 X」→ 注入 import);每步顺手删本批 unused import。注意 linter 会自动清 Renderer 的 unused import(其改动是 intentional,别 revert)。
+
+## 真机测试
+```bash
+mvn -q -pl qml4j-demo-desktop exec:java                          # launcher
+mvn -q -pl qml4j-demo-desktop exec:java -Dexec.args=ButtonShowcase
+```
+退出 exit code 137 是正常的(NVIDIA libEGL teardown SIGSEGV,已 SIGKILL 绕过)。
+broken showcases(DefaultProp/M45/QtObject)launcher 已排除。
+
+## 接续 prompt(贴给新 session)
+> 继续 qml4j 的 RECODE 架构重构。先读 `RECODE_STATUS.md`(当前进度)、`RECODE_PLAN.md`(总蓝图)、`CLAUDE.md`(房规),recall memory `project_recode_progress`。确认 `mvn -o -pl qml4j-core test` 481 全绿,然后执行 **Phase 3.7**(measure 多态化:Item.measure(TextLayout) + Text/Control/Button override,消除 measure/drawForced 的 instanceof),按既有小步节奏:每步 full reactor 绿 + 独立 commit。
