@@ -58,6 +58,9 @@ import static io.qml4j.compiler.bytecode.decl.PropertyDecls.emitInitDeclaredProp
 import static io.qml4j.compiler.bytecode.decl.PropertyDecls.parseAlias;
 import static io.qml4j.compiler.bytecode.emit.BindingEmitter.emitRhinoBindingBind;
 import static io.qml4j.compiler.bytecode.emit.BindingEmitter.emitRhinoBindingFor;
+import static io.qml4j.compiler.bytecode.emit.ChildObjectEmitter.emitChildSubclass;
+import static io.qml4j.compiler.bytecode.emit.ChildObjectEmitter.verifyAttachable;
+import static io.qml4j.compiler.bytecode.emit.DelegateEmitter.emitDelegateFactoryClass;
 import static io.qml4j.compiler.bytecode.emit.HandlerEmitter.emitHandlerInstance;
 import static io.qml4j.compiler.bytecode.emit.HandlerEmitter.emitKeysHandler;
 import static io.qml4j.compiler.bytecode.emit.HandlerEmitter.emitPropertyChangeHandler;
@@ -912,42 +915,6 @@ public final class QmlCompiler {
         }
     }
 
-    private byte[] emitChildSubclass(String subInternal, String parentInternal,
-                                     Set<String> signalNames, List<DeclaredProp> propDecls) {
-        return emitChildSubclass(subInternal, parentInternal, signalNames, propDecls, null, null);
-    }
-
-    private byte[] emitChildSubclass(String subInternal, String parentInternal,
-                                     Set<String> signalNames, List<DeclaredProp> propDecls,
-                                     String[] extraInterfaces,
-                                     Map<String, Class<? extends QObject>> idFields) {
-        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
-        cw.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
-                 subInternal, null, parentInternal, extraInterfaces);
-        for (String sig : signalNames) {
-            cw.visitField(Opcodes.ACC_PUBLIC, sig, SIGNAL_DESC, null, null).visitEnd();
-        }
-        for (DeclaredProp dp : propDecls) {
-            cw.visitField(Opcodes.ACC_PUBLIC, dp.name, PROPERTY_DESC, null, null).visitEnd();
-        }
-        // Object fields for delegate-local ids (assigned to the delegate root).
-        if (idFields != null) {
-            for (Map.Entry<String, Class<? extends QObject>> e : idFields.entrySet()) {
-                cw.visitField(Opcodes.ACC_PUBLIC, e.getKey(),
-                              "L" + Type.getInternalName(e.getValue()) + ";", null, null).visitEnd();
-            }
-        }
-        MethodVisitor ctor = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
-        ctor.visitCode();
-        ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, parentInternal, "<init>", "()V", false);
-        ctor.visitInsn(Opcodes.RETURN);
-        ctor.visitMaxs(0, 0);
-        ctor.visitEnd();
-        cw.visitEnd();
-        return cw.toByteArray();
-    }
-
     private String emitDelegateFactory(Ast.ObjectNode delegateNode, TypeRegistry registry,
                                        int[] bindingCounter, int[] handlerCounter,
                                        Map<String, byte[]> classes, String componentBinaryName,
@@ -1111,48 +1078,6 @@ public final class QmlCompiler {
         mv.visitEnd();
     }
 
-    private byte[] emitDelegateFactoryClass(String factoryBinaryName, String componentInternal,
-                                            int n) {
-        String factoryInternal = factoryBinaryName.replace('.', '/');
-        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
-        cw.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
-                 factoryInternal, null, "java/lang/Object",
-                 new String[]{DELEGATE_FACTORY_INTERNAL});
-        cw.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL,
-                      "root", "L" + componentInternal + ";", null, null).visitEnd();
-
-        MethodVisitor ctor = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>",
-                                            "(L" + componentInternal + ";)V", null, null);
-        ctor.visitCode();
-        ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
-        ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        ctor.visitVarInsn(Opcodes.ALOAD, 1);
-        ctor.visitFieldInsn(Opcodes.PUTFIELD, factoryInternal, "root",
-                            "L" + componentInternal + ";");
-        ctor.visitInsn(Opcodes.RETURN);
-        ctor.visitMaxs(0, 0);
-        ctor.visitEnd();
-
-        MethodVisitor create = cw.visitMethod(Opcodes.ACC_PUBLIC, "create",
-            "(ILjava/lang/Object;Ljava/lang/Object;)L" + QOBJECT_INTERNAL + ";", null, null);
-        create.visitCode();
-        create.visitVarInsn(Opcodes.ALOAD, 0);
-        create.visitFieldInsn(Opcodes.GETFIELD, factoryInternal, "root",
-                              "L" + componentInternal + ";");
-        create.visitVarInsn(Opcodes.ILOAD, 1);
-        create.visitVarInsn(Opcodes.ALOAD, 2);
-        create.visitVarInsn(Opcodes.ALOAD, 3);
-        create.visitMethodInsn(Opcodes.INVOKEVIRTUAL, componentInternal, "_delegate$" + n,
-                               "(ILjava/lang/Object;Ljava/lang/Object;)L" + QOBJECT_INTERNAL + ";", false);
-        create.visitInsn(Opcodes.ARETURN);
-        create.visitMaxs(0, 0);
-        create.visitEnd();
-
-        cw.visitEnd();
-        return cw.toByteArray();
-    }
-
     private void emitBehaviorMember(MethodVisitor ctor, Class<? extends QObject> outerType,
                                     int outerLocal, Ast.BehaviorMember bm, TypeRegistry registry,
                                     int[] localCounter, int[] bindingCounter, int[] handlerCounter,
@@ -1175,16 +1100,6 @@ public final class QmlCompiler {
         ctor.visitLdcInsn(bm.propertyName);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, behaviorInternal,
                              "attach", "(Ljava/lang/Object;Ljava/lang/String;)V", false);
-    }
-
-    private static void verifyAttachable(Class<?> type) {
-        try {
-            type.getMethod("attach", Object.class, String.class);
-        } catch (NoSuchMethodException e) {
-            throw new IllegalArgumentException(
-                "type '" + type.getName() + "' used as Behavior must have "
-                + "attach(Object, String) method");
-        }
     }
 
     private void emitObjectValueAssignment(MethodVisitor ctor, Class<? extends QObject> outerType,
