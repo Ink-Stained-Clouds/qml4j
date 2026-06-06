@@ -1,17 +1,19 @@
 # RECODE 执行进度 (session handoff)
 
-> **新 session 接续步骤**:① 读本文件 → ② 读 `RECODE_PLAN.md`(总蓝图/角色/约束)
-> → ③ 读 `CLAUDE.md`(房规)→ ④ recall memory `project_recode_progress`。
-> 然后 `mvn -o -pl qml4j-core test` 确认 481 全绿(基线),再继续 Phase 7。
+> **RECODE 重构全部完成(Phase 0–7)。** 分支 `phase0/merge-into-core` 待合并回 `main`。
+> 后续工作:恢复 `project_parked_md3_backlog` 的 4 项(icon ligature / probe / dark theme / 回 Android)。
 
-## 当前位置
-- 分支 `phase0/merge-into-core`,HEAD = Phase 6 commit (`6529c14`)
-- **Phase 0/1/2 + 3.1–3.7 + 4 + 5 + 6 全部完成**,481 测试全绿,full reactor(core + demo)绿
-- 真机(LWJGL desktop showcases)已验证至 3.5 渲染无退化;Phase 4/5 纯结构,测试守护
-- **下一步:Phase 7**(全工程清理:删死代码、inline FQN → import、装 CI 守护)
+## 当前位置 — DONE
+- 分支 `phase0/merge-into-core`,HEAD = Phase 7.3 commit (`b19dcef`)
+- **Phase 0/1/2 + 3.1–3.7 + 4 + 5 + 6 + 7 全部完成**
+- **守护**:full reactor `mvn -o install` 绿 —— 481 测试 + checkstyle 0 违规(UnusedImports/RedundantImport/UnusedLocalVariable,绑 verify,fail-on-violation)
+- 真机(LWJGL desktop showcases)已验证至 3.5 渲染无退化;Phase 4/5 纯结构由测试守护
 
 ## 已完成 commit(新→旧)
 ```
+b19dcef Phase 7.3  checkstyle CI guard (dead/redundant declarations, bound to verify)
+62f2fde Phase 7.2  remove dead imports (5 main + 16 test) + unused constant
+78e3ac9 Phase 7.1  inline FQN -> import across core (legit clashes kept + commented)
 6529c14 Phase 6    audit switches (all legit, no conversion) + codify OOP rules in CLAUDE.md
 33e9138 Phase 5    polymorphic member emit via MemberEmitter strategy map + EmitContext
 a24f16e Phase 4.3  extract EventDispatcher; QmlView is now a facade (993->185)
@@ -57,8 +59,13 @@ b80cdc6 Phase 0    merge 4 modules into qml4j-core
 - 保留类别:解析器 token 分派(ANTLR visitor,plan §5 明确保留)、字节码发射(typeName→opcode、lit.kind enum switch)、值/序数/字符串→值映射(keycode→Signal、wrapMode、line.edge、plan.op、hex.length、QColor 通道)、纯无状态 framework 数学表(Easings)。
 - plan §6 文档交付:已把已确立的 OOP 规约写进 `CLAUDE.md`(新 "Dispatch & polymorphism" 节)—— 类型分派走多态、skija 隔离在 Painter 后、参数对象代替长参列表、facade + constructor injection、合理 switch 政策。
 
-## 剩余工作
-- **Phase 7**:全工程清理 —— 删死代码、inline FQN → import、装 CI 守护(checkstyle/error-prone)。注意 Phase 1/2 注入的 import 紧贴 package 行的小格式瑕疵在此统一整理。
+## Phase 7 结论(全工程清理 + 守护)
+- **7.1 inline FQN → import**:26 处惰性 FQN 转 import(Property/RhinoBinding/QmlScope/JsWrap/Renderer/QmlCompiler);4 处真同名冲突保留 FQN + 注释(rhino Function vs java.util.function.Function、java.lang.reflect.Type vs asm Type、skija Image vs QML Image 项)。
+- **7.2 死代码**:删 5 main + 16 test unused import、QmlCompiler 死常量 RUNNABLE_INTERNAL;启发式扫描确认无残余死 private 方法/字段。
+- **7.3 CI 守护**:`maven-checkstyle-plugin` 绑 verify、fail-on-violation,`config/checkstyle/checkstyle.xml` 查 UnusedImports/RedundantImport/UnusedLocalVariable(main+test,排除 ANTLR 生成源)。修了它发现的 3 处(TextWrap 只写局部、Es6/QmlViewTest)。AvoidStarImport 未启用(JUnit `Assertions.*` 是测试惯例,非 plan 要求)。
+
+## 历史剩余工作(已全部完成,留作参考)
+- ~~Phase 7~~:全工程清理 —— 删死代码、inline FQN → import、装 CI 守护(checkstyle/error-prone)。注意 Phase 1/2 注入的 import 紧贴 package 行的小格式瑕疵在此统一整理。
 
 ## 关键约定(必守)
 - **每步**:`mvn -o install -DskipTests`(编译+demo)EXIT 0 + `mvn -o -pl qml4j-core test` **481 全绿**才 commit。纯结构重构,测试数与行为不变。红条不提交。
