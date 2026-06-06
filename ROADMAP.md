@@ -2,13 +2,31 @@
 
 Living document. Updated whenever a milestone lands or the plan shifts.
 
-> **Current state (2026-06-06).** The engine grew well past the snapshots below:
-> 12+ unmodified MD3 components run, JS bindings/expressions moved to embedded
-> Rhino (the ASM JS codegen was removed), and the whole project was refactored to
-> polymorphic dispatch + single-responsibility modules (the four `qml4j-*` engine
-> modules merged into one `qml4j-core`). 481 tests + a checkstyle CI guard.
-> `README.md` is the current source of truth for capabilities and layout; the
-> dated entries below are kept as milestone history.
+> **Current state (2026-06-06).** The engine grew well past the snapshots below.
+> `README.md` is the source of truth for capabilities/layout; `COMPAT_REPORT.md` §0
+> for gap status; the dated entries below are milestone history.
+>
+> Landed since the dated sections:
+> - **JS backend = embedded Rhino only** (ASM JS codegen deleted). Bindings/handlers
+>   execute from captured raw source.
+> - **RECODE** whole-project refactor: 4 `qml4j-*` modules → one `qml4j-core`,
+>   polymorphic dispatch, single-responsibility modules.
+> - **QtQuick.Layouts complete**: RowLayout/ColumnLayout/StackLayout/**GridLayout** +
+>   positioners Row/Column/**Flow** (closes G9 / M53′).
+> - **MD3 set: 25 bundled components** run unmodified (was 18). Of the upstream
+>   ~39 Core controls, **24 load** on the current engine. See `COMPAT_REPORT.md` §0
+>   and memory `project_md3_probe_gapmap`.
+> - **Raw-capture parser (in progress).** Free-identifier analysis + literal /
+>   arrow-handler / id / alias all driven off the captured raw source via Rhino's
+>   parser, not a hand-rolled JS AST (Stages 1–2 done). Stage 3 (drop the JS grammar
+>   entirely, capture binding/handler bodies raw) pending. See memory
+>   `project_raw_capture_parser`.
+> - **501 tests + checkstyle CI guard.**
+>
+> Remaining MD3 gaps (to load the other 15 upstream controls): Canvas 2D subsystem
+> (M55′ — ~8 components), whole-group assignment `font: parent.font` (TextField
+> family), `Translate` transform, `Binding {}` element, `ShaderEffectSource`,
+> `StyleManager`/dynamic color (M57′).
 
 ## Direction reset (2026-05-31, post-M50)
 
@@ -278,7 +296,7 @@ Acceptance ladder: after each milestone, a hand-written minimal QML that
 exercises only that feature must run on-device; once enough land, target
 real MD3 components in increasing order of dependency weight.
 
-### M51′ — QtObject + nested-object properties + multi-dot bindings  🔜 NEXT
+### M51′ — QtObject + nested-object properties + multi-dot bindings  ✅ DONE
 - Register `QtObject` as a constructible base type.
 - Support a property whose value is a nested object literal:
   `property QtObject color: QtObject { property color primary: "#6750A4" }`.
@@ -290,7 +308,7 @@ real MD3 components in increasing order of dependency weight.
 - Acceptance: a `pragma Singleton QtObject` theme with nested groups,
   read via `Theme.group.prop` from another component, on-device.
 
-### M52′ — implicitWidth/implicitHeight + font group + enums
+### M52′ — implicitWidth/implicitHeight + font group + enums  ✅ DONE (font whole-group assign still open)
 - `implicitWidth`/`implicitHeight` as first-class Item properties:
   writable bound expressions, readable off children (drives all
   content-sized layout). Generalises the M50 Control measure hack.
@@ -301,31 +319,30 @@ real MD3 components in increasing order of dependency weight.
 - Real enums: `Font.*`, `Text.*` (AlignVCenter/ElideRight/Wrap…),
   `Easing.*`, `Qt.Align*` — resolved as typed values, not string guesses.
 
-### M53′ — QtQuick.Layouts
-- `RowLayout` / `ColumnLayout` / `GridLayout` (+ `Flow`, `StackLayout`)
-  with the `Layout.*` attached properties (fillWidth/fillHeight/
-  preferredWidth/Height/alignment/margins/row/column/columnSpan).
-- Pure layout logic in Java over implicitWidth (needs M52′). Used by
-  ~59 MD3 files — biggest single subsystem gap.
+### M53′ — QtQuick.Layouts  ✅ DONE
+- `RowLayout` / `ColumnLayout` / `GridLayout` / `StackLayout` + positioners
+  `Row` / `Column` / `Flow`, with the `Layout.*` attached properties (fillWidth/
+  fillHeight/preferred*/minimum*/maximum*/alignment/margins/row/column/rowSpan/
+  columnSpan). GridLayout: explicit/auto cell placement, spans, row/columnSpacing,
+  per-cell alignment. Flow: LeftToRight/TopToBottom wrapping.
+- Pure layout logic in Java via polymorphic `Item.layout()`.
 
-### M54′ — Cross-cutting language gaps
-- `property alias` to a child's grouped sub-property
-  (`property alias font: label.font`); `default property [alias]` for
-  content forwarding.
-- `switch` statements in binding bodies; `required property`;
-  imperative writes to grouped props (`obj.parent = x`,
-  `obj.anchors.centerIn = y`); `Component.onCompleted`.
-- `Qt.lighter/darker/color/point/size/rect`, `Qt.formatDate`.
-- `Binding {}` element; `Connections { function onX(){} }` form;
-  `import "file.js" as M` JS resources.
+### M54′ — Cross-cutting language gaps  ◐ PARTIAL
+- DONE: `property alias` (incl. grouped), `default property`, `switch`/`required`/
+  all JS (Rhino executes raw source — the whole language subset is covered now),
+  `Component.onCompleted`, `Qt.rgba/hsla/color/lighter/darker/binding/callLater`,
+  delegate `required property var modelData`.
+- STILL OPEN: `Binding {}` element (blocks NavigationDrawer); whole-group assignment
+  `font: parent.font` (blocks TextField family); `Translate` transform (FabMenu);
+  `import "file.js" as M` JS resources; `Connections { function onX(){} }` form.
 
-### M55′ — Canvas (HTML5 2D context)
+### M55′ — Canvas (HTML5 2D context)  🔜 NEXT (biggest remaining MD3 unblock, ~8 components)
 - `Canvas { onPaint: { var ctx = getContext('2d'); … } }` mapping the
   2D context (beginPath/moveTo/lineTo/arc/arcTo/bezier/rect/fill/stroke/
   fillText/clip/save/restore/gradients/setLineDash/transform) onto Skija
   Canvas — near 1:1. Unblocks chart/custom-draw components (×11 in MD3).
 
-### M56′ — QtQuick.Effects MultiEffect + hover + contentItem
+### M56′ — QtQuick.Effects MultiEffect + hover + contentItem  ✅ DONE (contentItem partial)
 - `MultiEffect` (shadowEnabled/shadowColor/shadowBlur/
   shadowVerticalOffset/shadowOpacity/blurMax/blur/brightness/
   saturation/colorization/maskSource) over Skija ImageFilter (M48 base).
@@ -333,7 +350,7 @@ real MD3 components in increasing order of dependency weight.
   dispatch (ripples & hover states depend on it).
 - `contentItem` delegation + imperative reparent (needs M54′).
 
-### M57′ — StyleManager + dynamic color (Java port)
+### M57′ — StyleManager + dynamic color (Java port)  ⬜ OPEN (blocks ColorPicker; MD3 dynamic theming)
 - Java reimplementation of MD3's `StyleManager` QML singleton API
   (isDarkTheme/seedColor/currentScheme/lightScheme/darkScheme +
   setSeedColorHct/setSourceImage), backed by a Java port of
@@ -356,12 +373,12 @@ real MD3 components in increasing order of dependency weight.
 | ID | Item | Why it matters |
 |---|---|---|
 | T1 | `LineNumberTable` in generated `.class` files mapping back to `.qml` source lines | Stack traces from binding evaluation currently point at synthetic line 0 |
-| T2 | Type inference / numeric specialization in codegen | Drop universal `Object` boxing for trivially-typed bindings; faster, less GC |
-| T3 | Hot reload — `QmlEngine.reload(String)` rebuilds the tree in-place | Iteration speed during demo dev |
+| T2 | ~~Type inference / numeric specialization in codegen~~ MOOT | The ASM expression codegen this targeted was deleted in the Rhino migration; bindings now run on Rhino. Perf direction is instead enabling Rhino's JS→bytecode compile on desktop (see T3) |
+| T3 | Hot reload — `QmlEngine.reload(String)` rebuilds the tree in-place. Direction (user): per-component classloader isolation (already one `DynamicClassLoader` per engine) so a changed doc swaps its CL + recompiles; pairs with enabling Rhino's JS→bytecode compile on desktop. See memory `project_rhino_bytecode_hotreload_direction` | Iteration speed during demo dev |
 | T4 | Audit / shim more Skija `_n*` APIs that crash on Android | `Paint.setAlphaf`, `Image.getImageInfo`, `Font.getMetrics` already shimmed; expect more |
 | T5 | Release-mode dexing with R8 + keep rules for Skija reflection | Required before any public APK release |
-| T6 | Move `id:` to a real grammar production (not a normal property binding) | The current "ignored property" hack leaks into error messages |
-| T7 | Disambiguate `property` keyword from a property named `property` | Blocks `NumberAnimation { property: "width" }` syntax |
+| T6 | Move `id:` to a real grammar production (not a normal property binding) | The current "ignored property" hack leaks into error messages. Partly mooted by the raw-capture parser (Stage 3): `id:` value is read from the trimmed raw source as an identifier |
+| T7 | Disambiguate `property` keyword from a property named `property` | Blocks `NumberAnimation { property: "width" }` syntax. Subsumed by the raw-capture parser (Stage 3) once the JS grammar is gone |
 | T8 | TextInput: IME composition span (M32 reverted), touch selection handles, desktop key bridge | Tracked in `project_textinput_todo` memory; revisit when a real text-heavy consumer needs it |
 | T9 | M50 control divergences from Qt Quick Controls (D3/D5/D7/D10/D11/D13/D15) | Tracked in `project_m50_controls` memory; only matters where a target library subclasses our controls — most libs roll their own off Item, so low priority |
 | T10 | C++ QML module loading (`import Foo` registered from C++) | Unsupported by design — pure-QML/Java engine. Per-library workaround: load its QML dir via qmldir + reimplement its C++ backend in Java (see Phase S / M57′) |
@@ -385,12 +402,7 @@ keyboard (M46) before vector graphics (M47–M48) before window layer
 ## Out of scope for now
 
 - QML profiler / debugger
-- Layouts module (`RowLayout`, `ColumnLayout`, `GridLayout`) — the
-  positioners (`Row`, `Column`, `Grid`) cover most cases for v0
 - WebView, Particles, 3D
 - Multi-window choreography beyond a single root `Window`
 - Loading C++-registered QML modules / plugins directly — unsupported by
   design; reimplement a library's C++ backend in Java instead (Phase S)
-
-(Note: `QtQuick.Layouts`, previously out of scope, is now IN scope as
-M53′ — real libraries depend on it heavily.)
