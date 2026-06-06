@@ -4,19 +4,26 @@ import io.qml4j.render.items.core.Item;
 public abstract class GroupAnimation extends AbstractAnimation {
 
     private boolean wasRunning;
+    private int loopsDone;
 
     @Override
     public final void tick(long nowNanos) {
         boolean r = Boolean.TRUE.equals(running.peek());
-        if (r && !wasRunning) onStart(nowNanos);
+        if (r && !wasRunning) { onStart(nowNanos); loopsDone = 0; }
         wasRunning = r;
         if (!r) return;
         onTick(nowNanos);
         if (isFinished()) {
+            int total = loops.peekInt(); // Animation.Infinite (-1) loops forever
+            loopsDone++;
             stopAllChildren();
-            running.set(Boolean.FALSE);
-            wasRunning = false;
-            finished.emit();
+            if (total >= 0 && loopsDone >= total) {
+                running.set(Boolean.FALSE);
+                wasRunning = false;
+                finished.emit();
+            } else {
+                onStart(nowNanos); // replay the group
+            }
         }
     }
 
@@ -24,6 +31,7 @@ public abstract class GroupAnimation extends AbstractAnimation {
     public void stop() {
         running.set(Boolean.FALSE);
         wasRunning = false;
+        loopsDone = 0;
         stopAllChildren();
     }
 

@@ -17,6 +17,7 @@ public class PropertyAnimation extends AbstractAnimation {
 
     private long startNanos = -1L;
     private boolean prepared;
+    private int loopsDone;
     protected Object preparedFrom;
     protected Object preparedTo;
 
@@ -80,7 +81,16 @@ public class PropertyAnimation extends AbstractAnimation {
         if (done) frac = 1.0;
         double eased = Easings.apply(easing.type.peekInt(), frac);
         MemberAccess.writeMember(t, prop, interpolate(preparedFrom, preparedTo, eased));
-        if (done) { stop(); finished.emit(); }
+        if (done) {
+            int total = loops.peekInt(); // Animation.Infinite (-1) loops forever
+            loopsDone++;
+            if (total >= 0 && loopsDone >= total) {
+                stop();
+                finished.emit();
+            } else {
+                startNanos = -1L; // replay from the start on the next tick (from/to kept)
+            }
+        }
     }
 
     protected String effectiveProperty() {
@@ -100,6 +110,7 @@ public class PropertyAnimation extends AbstractAnimation {
     private void reset() {
         startNanos = -1L;
         prepared = false;
+        loopsDone = 0;
     }
 
     @Override
