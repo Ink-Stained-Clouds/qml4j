@@ -2,7 +2,7 @@
 
 A pure-Java QML engine: parse `.qml` → JIT-compile the object tree to JVM bytecode (ASM) → evaluate bindings/expressions on embedded Rhino → render with Skia (Skija). Targets x86-64 desktop today; Android (D8 → DEX → `InMemoryDexClassLoader`) remains a milestone.
 
-> Status: pre-alpha, but capable. **12+ unmodified third-party MD3 (Material Design 3) QML components run** (ScrollBar, ToolTip, Checkbox, Switch, RadioButton, IconButton, TopAppBar, Card, FAB, Chip, Button, Dialog, Slider, …). 481 tests green; checkstyle CI guard. The whole engine was refactored to polymorphic dispatch + single-responsibility modules (the long-term conventions are in `CLAUDE.md` § *Dispatch & polymorphism*).
+> Status: pre-alpha, but capable. **12+ unmodified third-party MD3 (Material Design 3) QML components run** (ScrollBar, ToolTip, Checkbox, Switch, RadioButton, IconButton, TopAppBar, Card, FAB, Chip, Button, Dialog, Slider, …). 489 tests green; checkstyle CI guard. The whole engine was refactored to polymorphic dispatch + single-responsibility modules (the long-term conventions are in `CLAUDE.md` § *Dispatch & polymorphism*).
 
 ## Why
 
@@ -55,7 +55,7 @@ The four original `qml4j-{parser,engine,compiler,render}` modules were merged in
 Requires JDK 8+ (built with a JDK 21 toolchain), Maven 3.9+.
 
 ```sh
-mvn verify      # compile + 481 tests + checkstyle guard, all modules
+mvn verify      # compile + 489 tests + checkstyle guard, all modules
 ```
 
 ```sh
