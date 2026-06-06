@@ -30,6 +30,7 @@ final class Showcase {
             of("Switch / RadioButton", "SwitchRadioShowcase"),
             of("IconButton", "IconButtonShowcase"),
             of("Card", "CardShowcase"),
+            of("SegmentedButton", "SegmentedButtonShowcase"),
             of("FAB", "FabShowcase"),
             of("Slider", "SliderShowcase"),
             of("Snackbar", "SnackbarShowcase"),
