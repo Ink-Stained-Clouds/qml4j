@@ -80,6 +80,38 @@ class QtNamespaceTest {
         assertEquals(70L, readProp(root, "derived"));
     }
 
+    // Arrow forms (the standard QML, and what the QtNamespace showcase now uses): the
+    // function runs on Rhino and Qt.binding(() => ...) / Qt.callLater(() => ...) work.
+    @Test
+    void qtBindingArrowInFunctionRunsOnRhino() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Rectangle {\n" +
+            "  id: r\n" +
+            "  property int factor: 2\n" +
+            "  property int derived: 0\n" +
+            "  property int hits: 0\n" +
+            "  function rebind() { r.derived = Qt.binding(() => r.factor * 10); }\n" +
+            "  function bump() { Qt.callLater(() => { r.hits = r.hits + 1 }); }\n" +
+            "}");
+        v.dirtyQueue().install();
+        try {
+            invoke(root, "rebind");
+            v.dirtyQueue().flush();
+            assertEquals(20L, readProp(root, "derived"));
+            callSetProp(root, "factor", 7L);
+            v.dirtyQueue().flush();
+            assertEquals(70L, readProp(root, "derived"));   // arrow Qt.binding stays reactive
+
+            invoke(root, "bump");
+            assertEquals(0L, readProp(root, "hits"));        // deferred
+            v.dirtyQueue().flush();
+            assertEquals(1L, readProp(root, "hits"));        // Qt.callLater fires on flush
+        } finally {
+            v.dirtyQueue().uninstall();
+        }
+    }
+
     @Test
     void callLaterDefersWorkUntilFlush() {
         QmlView v = newView();

@@ -13,13 +13,13 @@ Rectangle {
     property int laterHits: 0
 
     function rebindDerived() {
-        qtNamespaceShowcase.derived = Qt.binding(qtNamespaceShowcase.factor * qtNamespaceShowcase.multiplier);
+        qtNamespaceShowcase.derived = Qt.binding(() => qtNamespaceShowcase.factor * qtNamespaceShowcase.multiplier);
     }
     function imperativeOverride() {
         qtNamespaceShowcase.derived = 999;
     }
     function defer() {
-        Qt.callLater(Qt.binding(qtNamespaceShowcase.laterHits = qtNamespaceShowcase.laterHits + 1));
+        Qt.callLater(() => { qtNamespaceShowcase.laterHits = qtNamespaceShowcase.laterHits + 1 });
     }
 
     Text {
