@@ -3,6 +3,7 @@ package io.qml4j.render.items;
 import io.qml4j.engine.DelegateFactory;
 import io.qml4j.engine.DelegateHost;
 import io.qml4j.engine.QObject;
+import io.qml4j.engine.RuntimeHelpers;
 import io.qml4j.engine.SignalHandler;
 import io.qml4j.engine.binding.Property;
 
@@ -56,11 +57,23 @@ public class Repeater extends Item implements DelegateHost {
         Item visualParent = parent.peek();
         if (visualParent == null) return;
         Object m = model.peek();
-        // ListModel rows can mutate per-index (set/swap), so tear down
-        // and recreate from scratch. v0 cost is acceptable for small models.
+        int desired = sizeOf(m);
+
+        // Same count: update each delegate's index/modelData in place instead of
+        // recreating it. Bindings depending on modelData recompute, but the delegate
+        // (and any live state like an animating Ripple) survives. This is what makes a
+        // SegmentedButton/NavigationBar keep its ripple when the selection model swaps.
+        if (desired == instances.size() && desired > 0) {
+            for (int i = 0; i < desired; i++) {
+                Item d = instances.get(i);
+                RuntimeHelpers.writeMember(d, "index", (long) i);
+                RuntimeHelpers.writeMember(d, "modelData", dataAt(m, i));
+            }
+            return;
+        }
+
         for (Item it : instances) visualParent.children.remove(it);
         instances.clear();
-        int desired = sizeOf(m);
         for (int i = 0; i < desired; i++) {
             Object data = dataAt(m, i);
             QObject created = factory.create(i, data, visualParent);
