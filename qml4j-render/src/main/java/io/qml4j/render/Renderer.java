@@ -771,24 +771,33 @@ public final class Renderer {
         // Mask: clip the source to the mask's rounded-rect shape (v0 approximation).
         int save = canvas.save();
         if (Boolean.TRUE.equals(me.maskEnabled.peek())) {
-            float r = maskRadius(me.maskSource.peek());
-            if (r > 0) canvas.clipRRect(RRect.makeXYWH(0, 0, w, h, r));
-            else canvas.clipRect(Rect.makeXYWH(0, 0, w, h));
+            Rectangle mr = maskRect(me.maskSource.peek());
+            float tl = mr == null ? 0f : mr.cornerRadius(mr.topLeftRadius.peek().floatValue());
+            float tr = mr == null ? 0f : mr.cornerRadius(mr.topRightRadius.peek().floatValue());
+            float br = mr == null ? 0f : mr.cornerRadius(mr.bottomRightRadius.peek().floatValue());
+            float bl = mr == null ? 0f : mr.cornerRadius(mr.bottomLeftRadius.peek().floatValue());
+            if (tl > 0 || tr > 0 || br > 0 || bl > 0) {
+                // Per-corner: a first/last SegmentedButton segment is round on one side,
+                // square on the other -- a single radius clipped the ripple as a rect.
+                canvas.clipRRect(RRect.makeComplexXYWH(0, 0, w, h, new float[]{tl, tr, br, bl}));
+            } else {
+                canvas.clipRect(Rect.makeXYWH(0, 0, w, h));
+            }
         }
         try { drawForced(canvas, source, alpha); }
         finally { canvas.restoreToCount(save); }
     }
 
-    // Effective corner radius of the mask: the first Rectangle in the mask subtree.
-    private static float maskRadius(Object maskSource) {
-        if (!(maskSource instanceof Item)) return 0f;
-        for (Item n : (((Item) maskSource).children)) {
-            if (n instanceof Rectangle) return ((Rectangle) n).radius.peek().floatValue();
-            float r = maskRadius(n);
-            if (r > 0) return r;
+    // The first Rectangle in the mask subtree -- its effective per-corner radii define
+    // the clip shape.
+    private static Rectangle maskRect(Object maskSource) {
+        if (!(maskSource instanceof Item)) return null;
+        if (maskSource instanceof Rectangle) return (Rectangle) maskSource;
+        for (Item n : ((Item) maskSource).children) {
+            Rectangle r = maskRect(n);
+            if (r != null) return r;
         }
-        if (maskSource instanceof Rectangle) return ((Rectangle) maskSource).radius.peek().floatValue();
-        return 0f;
+        return null;
     }
 
     // Truncate with a trailing ellipsis so the line fits within maxWidth (Text.ElideRight).
