@@ -115,9 +115,13 @@ Item {
                         anchors.centerIn: parent
                         spacing: 8
                         
-                        // Icon (Checkmark if selected, or provided icon)
+                        // Icon (Checkmark if selected, or provided icon). Fixed-width
+                        // reserved slot with the glyph centred, so swapping icon<->check
+                        // on selection doesn't change content width (segment + label stay put).
                         Text {
                             text: segment.isSelected ? "check" : (modelData.icon || "")
+                            width: 20
+                            horizontalAlignment: Text.AlignHCenter
                             font.family: Theme.iconFont.name
                             font.pixelSize: 18
                             color: {
