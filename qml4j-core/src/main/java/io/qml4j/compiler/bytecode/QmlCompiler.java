@@ -534,6 +534,19 @@ public final class QmlCompiler {
                                          declaredProps, aliases, rootFunctions, customSignals);
                 return;
             }
+            // Whole-group assignment (`font: parent.font`): the target is a group
+            // object, not a Property. Bind each of its sub-properties to the source
+            // group's same-named sub-property, reusing the grouped-binding path.
+            Class<?> groupType = groupAssignTypeOrNull(outerType, key);
+            if (groupType != null) {
+                for (Field pf : groupType.getFields()) {
+                    if (!Property.class.isAssignableFrom(pf.getType())) continue;
+                    Ast.Value sub = new Ast.ExpressionValue(null, "(" + exprSource + ")." + pf.getName());
+                    emitGroupedBinding(ctor, outerType, outerLocal, key, pf.getName(), sub,
+                                       idTypes, declaredProps, aliases, customSignals, rootFunctions);
+                }
+                return;
+            }
             Ast.LiteralExpr lit = Literals.parse(exprSource);
             if (lit != null) {
                 emitLiteralAssignment(ctor, outerType, outerLocal, key, lit);
@@ -1171,6 +1184,19 @@ public final class QmlCompiler {
                     && pb.value instanceof Ast.ObjectValue) {
                 return ((Ast.ObjectValue) pb.value).object;
             }
+        }
+        return null;
+    }
+
+    // If `key` names a group object on outerType (a non-Property public field that
+    // itself exposes Property sub-fields, e.g. `font`/`anchors`/`border`), return its
+    // type so a whole-group assignment can be expanded into per-sub-property bindings.
+    private static Class<?> groupAssignTypeOrNull(Class<?> outerType, String key) {
+        Field f;
+        try { f = outerType.getField(key); } catch (NoSuchFieldException e) { return null; }
+        if (Property.class.isAssignableFrom(f.getType())) return null;
+        for (Field sub : f.getType().getFields()) {
+            if (Property.class.isAssignableFrom(sub.getType())) return f.getType();
         }
         return null;
     }

@@ -19,7 +19,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 class Md3NewComponentsLoadTest {
 
     private static final String[] COMPONENTS = {
-        "Breadcrumb", "ComboBox", "Menu", "DataTable", "NavigationRail", "SideSheet", "Tabs"
+        "Breadcrumb", "ComboBox", "Menu", "DataTable", "NavigationRail", "SideSheet", "Tabs",
+        "TextField"
     };
 
     private static byte[] res(String path) {
