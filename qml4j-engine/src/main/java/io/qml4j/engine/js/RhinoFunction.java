@@ -13,8 +13,9 @@ public final class RhinoFunction implements Callable {
 
     private final RhinoClosure closure;
 
-    public RhinoFunction(String body, String[] params, Object outer, Object root, String[] ids) {
-        this.closure = new RhinoClosure(body, Arrays.asList(params), outer, root, ids);
+    public RhinoFunction(String body, String[] params, Object outer, Object root,
+                         String[] ids, boolean delegate) {
+        this.closure = new RhinoClosure(body, Arrays.asList(params), outer, root, ids, delegate);
     }
 
     @Override

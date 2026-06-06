@@ -25,6 +25,14 @@ final class AstScan {
         return scan(body, AstScan::isUnsupportedQtBinding);
     }
 
+    // True if the body has a bare-identifier call `foo(...)` (not `obj.foo(...)`). In a
+    // delegate, such a call resolves to a delegate-local/root function via the parent
+    // chain, which the Rhino delegate scope doesn't yet walk -- so those stay on ASM.
+    static boolean hasBareCall(Ast.Statement body) {
+        return scan(body, n -> n instanceof Ast.CallExpr
+            && ((Ast.CallExpr) n).callee instanceof Ast.IdentifierExpr);
+    }
+
     private static boolean isUnsupportedQtBinding(Object n) {
         if (!(n instanceof Ast.CallExpr)) return false;
         Ast.CallExpr c = (Ast.CallExpr) n;

@@ -1885,8 +1885,9 @@ public final class QmlCompiler {
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitVarInsn(Opcodes.ALOAD, 0);
         pushStringArray(ctor, new ArrayList<>(idTypes.keySet()));
+        ctor.visitInsn(inDelegateScope() ? Opcodes.ICONST_1 : Opcodes.ICONST_0);
         ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_FUNCTION_INTERNAL, "<init>",
-            "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;)V", false);
+            "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;Z)V", false);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, QOBJECT_INTERNAL, "__putFunction",
                              "(Ljava/lang/String;Lio/qml4j/engine/Callable;)V", false);
     }
@@ -1906,7 +1907,11 @@ public final class QmlCompiler {
                                      int[] handlerCounter, int[] bindingCounter,
                                      Map<String, byte[]> classes) {
         List<String> params = signalParams != null ? signalParams : Collections.<String>emptyList();
-        if (source != null && !inDelegateScope()
+        boolean delegate = inDelegateScope();
+        // In a delegate, a bare-identifier call resolves through the parent chain, which
+        // the Rhino delegate scope doesn't walk yet -- keep those handlers on ASM.
+        boolean delegateOk = !delegate || !AstScan.hasBareCall(body);
+        if (source != null && delegateOk
                 && handlerCanHandle(body, outerType, idTypes, declaredProps, params, rootFunctions, customSignals)) {
             validateRhinoSource(source, params);
             ctor.visitTypeInsn(Opcodes.NEW, RHINO_HANDLER_INTERNAL);
@@ -1916,8 +1921,9 @@ public final class QmlCompiler {
             ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
             ctor.visitVarInsn(Opcodes.ALOAD, 0);
             pushStringArray(ctor, new ArrayList<>(idTypes.keySet()));
+            ctor.visitInsn(delegate ? Opcodes.ICONST_1 : Opcodes.ICONST_0);
             ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_HANDLER_INTERNAL, "<init>",
-                "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;)V", false);
+                "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;Z)V", false);
             return;
         }
         int n = handlerCounter[0]++;

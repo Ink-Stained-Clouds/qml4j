@@ -91,4 +91,54 @@ class RhinoDelegateTest {
         assertEquals(3, rects.get(0).border.width.peek().intValue());
         assertEquals(1, rects.get(1).border.width.peek().intValue());
     }
+
+    @SuppressWarnings("unchecked")
+    private static java.util.List<io.qml4j.engine.SignalHandler> handlersOf(io.qml4j.engine.Signal s) throws Exception {
+        Field f = io.qml4j.engine.Signal.class.getDeclaredField("handlers");
+        f.setAccessible(true);
+        return (java.util.List<io.qml4j.engine.SignalHandler>) f.get(s);
+    }
+
+    // Phase 5c: a signal handler inside a delegate runs on Rhino, resolving modelData /
+    // index / enclosing-id member access through delegateLookup.
+    @Test
+    void delegateHandlerRunsOnRhino() throws Exception {
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        Item root = v.load(
+            "import QtQuick\n" +
+            "Rectangle {\n" +
+            "  id: root\n" +
+            "  property int total: 0\n" +
+            "  property var items: [{ v: 5 }, { v: 7 }]\n" +
+            "  Repeater {\n" +
+            "    model: root.items\n" +
+            "    Rectangle {\n" +
+            "      signal tapped()\n" +
+            "      onTapped: root.total = root.total + modelData.v + index\n" +
+            "    }\n" +
+            "  }\n" +
+            "}");
+        DirtyQueue dq = v.dirtyQueue();
+        dq.install();
+        try { dq.flush(); } finally { dq.uninstall(); }
+
+        List<io.qml4j.render.items.Rectangle> rects = new ArrayList<>();
+        for (Item c : root.children) {
+            if (c instanceof io.qml4j.render.items.Rectangle) rects.add((io.qml4j.render.items.Rectangle) c);
+        }
+        assertEquals(2, rects.size());
+
+        for (io.qml4j.render.items.Rectangle r : rects) {
+            io.qml4j.engine.Signal tapped = (io.qml4j.engine.Signal) r.getClass().getField("tapped").get(r);
+            assertTrue(handlersOf(tapped).get(0) instanceof io.qml4j.engine.js.RhinoHandler,
+                "delegate handler should be a RhinoHandler");
+            tapped.emit();
+        }
+        dq.install();
+        try { dq.flush(); } finally { dq.uninstall(); }
+
+        io.qml4j.engine.binding.Property<?> total =
+            (io.qml4j.engine.binding.Property<?>) root.getClass().getField("total").get(root);
+        assertEquals(13, ((Number) total.peek()).intValue());   // (5+0) + (7+1)
+    }
 }
