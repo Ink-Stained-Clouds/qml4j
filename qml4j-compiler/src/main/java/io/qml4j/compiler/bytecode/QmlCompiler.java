@@ -1876,7 +1876,7 @@ public final class QmlCompiler {
                                           Map<String, Integer> rootFunctions,
                                           Set<String> customSignals,
                                           Map<String, AliasRef> aliases) {
-        return fd.source != null && !inDelegateScope()
+        return fd.source != null
             && handlerCanHandle(fd.body, contextType, idTypes, declaredProps, fd.paramNames,
                                 rootFunctions, customSignals, aliases);
     }
@@ -1921,10 +1921,7 @@ public final class QmlCompiler {
                                      Map<String, byte[]> classes) {
         List<String> params = signalParams != null ? signalParams : Collections.<String>emptyList();
         boolean delegate = inDelegateScope();
-        // In a delegate, a bare-identifier call resolves through the parent chain, which
-        // the Rhino delegate scope doesn't walk yet -- keep those handlers on ASM.
-        boolean delegateOk = !delegate || !AstScan.hasBareCall(body);
-        if (source != null && delegateOk
+        if (source != null
                 && handlerCanHandle(body, outerType, idTypes, declaredProps, params, rootFunctions,
                                     customSignals, aliases)) {
             validateRhinoSource(source, params);

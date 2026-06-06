@@ -65,7 +65,7 @@ class QtNamespaceTest {
             "  id: r\n" +
             "  property int factor: 2\n" +
             "  property int derived: factor * 10\n" +
-            "  function rebind() { r.derived = Qt.binding(r.factor * 10); }\n" +
+            "  function rebind() { r.derived = Qt.binding(() => r.factor * 10); }\n" +
             "}");
         assertEquals(20L, readProp(root, "derived"));
         callSetProp(root, "derived", 999L);
@@ -119,7 +119,7 @@ class QtNamespaceTest {
             "Rectangle {\n" +
             "  id: r\n" +
             "  property int hits: 0\n" +
-            "  function bump() { Qt.callLater(Qt.binding(r.hits = r.hits + 1)); }\n" +
+            "  function bump() { Qt.callLater(() => { r.hits = r.hits + 1 }); }\n" +
             "}");
         v.dirtyQueue().install();
         try {

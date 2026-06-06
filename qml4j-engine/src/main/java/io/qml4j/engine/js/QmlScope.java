@@ -114,7 +114,8 @@ public final class QmlScope implements Scriptable {
         }
         Object v = RuntimeHelpers.delegateLookup(outer, name);
         if (v != RuntimeHelpers.DELEGATE_ABSENT) return wrap(v);
-        if (JsWrap.isCallable(outer, name)) return new JsWrap.BoundMethod(outer, name, this);
+        Object co = RuntimeHelpers.delegateCallableOwner(outer, name);
+        if (co != null) return new JsWrap.BoundMethod(co, name, this);
         Object s = singleton(name);
         if (s != null) return JsWrap.toJs(s, this);
         return NOT_FOUND;
@@ -156,7 +157,7 @@ public final class QmlScope implements Scriptable {
         if (delegate) {
             return RuntimeHelpers.hasProperty(outer, name)
                 || RuntimeHelpers.delegateLookup(outer, name) != RuntimeHelpers.DELEGATE_ABSENT
-                || JsWrap.isCallable(outer, name)
+                || RuntimeHelpers.delegateCallableOwner(outer, name) != null
                 || singletonClasses.containsKey(name);
         }
         return aliases.containsKey(name) || owner(name) != null || callableOwner(name) != null

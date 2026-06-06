@@ -194,4 +194,45 @@ class RhinoDelegateTest {
             (io.qml4j.engine.binding.Property<?>) root.getClass().getField("picked").get(root);
         assertEquals(1, ((Number) picked.peek()).intValue());   // resolved enclosing root, not Inner
     }
+
+    // Phase 6: a delegate handler with a BARE call to an enclosing root function, and a
+    // call to a delegate-LOCAL function, both run on Rhino (delegateCallableOwner walks
+    // the parent chain for callables).
+    @Test
+    void delegateBareCallAndLocalFunctionRunOnRhino() throws Exception {
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        Item root = v.load(
+            "import QtQuick\n" +
+            "Rectangle {\n" +
+            "  id: root\n" +
+            "  property int sum: 0\n" +
+            "  function add(x) { root.sum = root.sum + x }\n" +   // enclosing root function
+            "  Repeater {\n" +
+            "    model: 2\n" +
+            "    Item {\n" +
+            "      function contribute(i) { return i * 10 + 1 }\n" + // delegate-local function
+            "      signal go()\n" +
+            "      onGo: add(contribute(index))\n" +                // bare calls: enclosing + local
+            "    }\n" +
+            "  }\n" +
+            "}");
+        DirtyQueue dq = v.dirtyQueue();
+        dq.install();
+        try { dq.flush(); } finally { dq.uninstall(); }
+
+        for (Item item : root.children) {
+            Field goField;
+            try { goField = item.getClass().getField("go"); }
+            catch (NoSuchFieldException e) { continue; }
+            io.qml4j.engine.Signal go = (io.qml4j.engine.Signal) goField.get(item);
+            assertTrue(handlersOf(go).get(0) instanceof io.qml4j.engine.js.RhinoHandler);
+            go.emit();
+        }
+        dq.install();
+        try { dq.flush(); } finally { dq.uninstall(); }
+
+        io.qml4j.engine.binding.Property<?> sum =
+            (io.qml4j.engine.binding.Property<?>) root.getClass().getField("sum").get(root);
+        assertEquals(12, ((Number) sum.peek()).intValue());   // (0*10+1) + (1*10+1) = 1 + 11
+    }
 }

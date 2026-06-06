@@ -283,6 +283,26 @@ public final class RuntimeHelpers {
     // Sentinel for delegateLookup when a name is nowhere in the delegate's chain.
     public static final Object DELEGATE_ABSENT = new Object();
 
+    // The first object up the delegate's parent chain on which `name` is callable -- a
+    // QML function or a Java method. Mirrors callQml's walk so a bare call `foo()` in a
+    // delegate resolves to a delegate-local or enclosing function. Null if none.
+    public static Object delegateCallableOwner(Object start, String name) {
+        Object cur = start;
+        while (cur != null) {
+            if (isCallableMember(cur, name)) return cur;
+            cur = parentOf(cur);
+        }
+        return null;
+    }
+
+    private static boolean isCallableMember(Object o, String name) {
+        if (o instanceof QObject && ((QObject) o).__getFunction(name) != null) return true;
+        for (java.lang.reflect.Method m : o.getClass().getMethods()) {
+            if (m.getName().equals(name)) return true;
+        }
+        return false;
+    }
+
     // The delegate-scope resolution shared by the ASM backend (delegateContext) and the
     // Rhino QmlScope: walk to the DelegateRoot for index/modelData/delegate-local ids,
     // then above it to the enclosing scene for outer-scope members (e.g. a Slider tick
