@@ -20,6 +20,9 @@ Item {
     // Layout
     implicitWidth: Math.max(container.implicitWidth, 48) // Minimum touch target usually, but chips can be smaller visually.
                                                          // However, implicitWidth is for layout.
+    // Selecting a filter chip reveals the checkmark, widening the content; animate
+    // the width change instead of snapping.
+    Behavior on implicitWidth { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
     implicitHeight: 32
 
     // Theme Colors Lookup

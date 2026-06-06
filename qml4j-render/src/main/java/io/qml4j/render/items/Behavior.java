@@ -18,6 +18,14 @@ public class Behavior extends Item implements Animatable, Property.WriteIntercep
     private Object preparedTo;
     private Object lastDisplayed;
     private boolean writing;
+    // Qt semantics: a Behavior does not animate the initial value assignment. Here
+    // that initial value can arrive across the first few frames as a layout-driven
+    // binding (implicitWidth) settles, so suppress animation during that startup
+    // window and only animate later changes (e.g. a real selection). Without this a
+    // Chip animates its width up from 0/min on load.
+    private boolean suppressStartup;
+    private int frames;
+    private static final int SETTLE_FRAMES = 3;
 
     public Behavior() {
         visible.set(Boolean.FALSE);
@@ -30,6 +38,10 @@ public class Behavior extends Item implements Animatable, Property.WriteIntercep
         Property<Object> raw = (Property) p;
         bound = raw;
         lastDisplayed = raw.peek();
+        // Only an implicit size is layout-driven and settles across the first frames;
+        // suppress its startup animation. Direct properties (color/opacity/width) keep
+        // the normal "animate from the value at change time" behaviour.
+        suppressStartup = "implicitWidth".equals(propName) || "implicitHeight".equals(propName);
         readTemplate();
         raw.setInterceptor(this);
     }
@@ -50,6 +62,10 @@ public class Behavior extends Item implements Animatable, Property.WriteIntercep
     public void write(Property<Object> property, Object newValue) {
         if (writing) {
             property.setBypassInterceptor(newValue);
+            return;
+        }
+        if (suppressStartup && frames < SETTLE_FRAMES) {
+            writeBack(newValue);
             return;
         }
         if (!canTween(lastDisplayed, newValue)) {
@@ -73,6 +89,7 @@ public class Behavior extends Item implements Animatable, Property.WriteIntercep
 
     @Override
     public void tick(long nowNanos) {
+        if (suppressStartup && frames < SETTLE_FRAMES) frames++;
         if (!running || bound == null) return;
         if (startNanos < 0L) startNanos = nowNanos;
         double frac = durationMs <= 0
