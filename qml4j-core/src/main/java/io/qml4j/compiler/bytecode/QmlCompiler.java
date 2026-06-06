@@ -4,8 +4,6 @@ import io.qml4j.compiler.CompiledUnit;
 import io.qml4j.compiler.TypeRegistry;
 import io.qml4j.engine.DelegateHost;
 import io.qml4j.engine.PropertyChangeSink;
-import io.qml4j.engine.QmlDefaultList;
-import io.qml4j.engine.Signal;
 import io.qml4j.engine.SignalRelay;
 import io.qml4j.engine.binding.Property;
 import io.qml4j.engine.QObject;
@@ -35,23 +33,36 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public final class QmlCompiler {
+import static io.qml4j.compiler.bytecode.asm.Bytecode.emitPropertyDefault;
+import static io.qml4j.compiler.bytecode.asm.Bytecode.loadLiteral;
+import static io.qml4j.compiler.bytecode.asm.Bytecode.pushStringArray;
+import static io.qml4j.compiler.bytecode.asm.Descriptors.BINDING_INTERNAL;
+import static io.qml4j.compiler.bytecode.asm.Descriptors.DELEGATE_FACTORY_INTERNAL;
+import static io.qml4j.compiler.bytecode.asm.Descriptors.DELEGATE_HOST_INTERNAL;
+import static io.qml4j.compiler.bytecode.asm.Descriptors.LIST_DESC;
+import static io.qml4j.compiler.bytecode.asm.Descriptors.LIST_INTERNAL;
+import static io.qml4j.compiler.bytecode.asm.Descriptors.PROPERTY_DESC;
+import static io.qml4j.compiler.bytecode.asm.Descriptors.PROPERTY_INTERNAL;
+import static io.qml4j.compiler.bytecode.asm.Descriptors.QOBJECT_DESC;
+import static io.qml4j.compiler.bytecode.asm.Descriptors.QOBJECT_INTERNAL;
+import static io.qml4j.compiler.bytecode.asm.Descriptors.SIGNAL_DESC;
+import static io.qml4j.compiler.bytecode.asm.Descriptors.SIGNAL_HANDLER_DESC;
+import static io.qml4j.compiler.bytecode.asm.Descriptors.SIGNAL_INTERNAL;
+import static io.qml4j.compiler.bytecode.asm.Descriptors.SIGNAL_RELAY_INTERNAL;
+import static io.qml4j.compiler.bytecode.asm.Descriptors.SINK_INTERNAL;
+import static io.qml4j.compiler.bytecode.asm.Fields.defaultListFieldFor;
+import static io.qml4j.compiler.bytecode.asm.Fields.defaultParentFieldFor;
+import static io.qml4j.compiler.bytecode.asm.Fields.findFieldOrNull;
+import static io.qml4j.compiler.bytecode.asm.Fields.findListFieldOrNull;
+import static io.qml4j.compiler.bytecode.asm.Fields.findPropertyField;
+import static io.qml4j.compiler.bytecode.asm.Fields.findPropertyFieldOrNull;
+import static io.qml4j.compiler.bytecode.asm.Fields.findSignalFieldOrNull;
+import static io.qml4j.compiler.bytecode.asm.Fields.listAcceptsElement;
+import static io.qml4j.compiler.bytecode.asm.Fields.propFieldOwnerOrNull;
+import static io.qml4j.compiler.bytecode.ast.Ids.collectIds;
+import static io.qml4j.compiler.bytecode.ast.Ids.idOf;
 
-    private static final String PROPERTY_INTERNAL = "io/qml4j/engine/binding/Property";
-    private static final String PROPERTY_DESC = "L" + PROPERTY_INTERNAL + ";";
-    private static final String BINDING_INTERNAL = "io/qml4j/engine/binding/Binding";
-    private static final String SIGNAL_INTERNAL = "io/qml4j/engine/Signal";
-    private static final String SIGNAL_DESC = "L" + SIGNAL_INTERNAL + ";";
-    private static final String SIGNAL_HANDLER_INTERNAL = "io/qml4j/engine/SignalHandler";
-    private static final String SIGNAL_HANDLER_DESC = "L" + SIGNAL_HANDLER_INTERNAL + ";";
-    private static final String LIST_INTERNAL = "java/util/List";
-    private static final String LIST_DESC = "L" + LIST_INTERNAL + ";";
-    private static final String SINK_INTERNAL = "io/qml4j/engine/PropertyChangeSink";
-    private static final String QOBJECT_INTERNAL = "io/qml4j/engine/QObject";
-    private static final String QOBJECT_DESC = "L" + QOBJECT_INTERNAL + ";";
-    private static final String DELEGATE_FACTORY_INTERNAL = "io/qml4j/engine/DelegateFactory";
-    private static final String DELEGATE_HOST_INTERNAL = "io/qml4j/engine/DelegateHost";
-    private static final String SIGNAL_RELAY_INTERNAL = "io/qml4j/engine/SignalRelay";
+public final class QmlCompiler {
 
     private static final ThreadLocal<int[]> DELEGATE_SCOPE_DEPTH =
         ThreadLocal.withInitial(() -> new int[]{0});
@@ -736,22 +747,6 @@ public final class QmlCompiler {
                             defaultListFieldFor(outerType), declaredProps, rootFunctions);
     }
 
-    private static String defaultListFieldFor(Class<?> type) {
-        QmlDefaultList ann = type.getAnnotation(QmlDefaultList.class);
-        return ann != null ? ann.value() : "children";
-    }
-
-    private static String defaultParentFieldFor(Class<?> type) {
-        QmlDefaultList ann = type.getAnnotation(QmlDefaultList.class);
-        if (ann == null || ann.parentField().isEmpty()) return null;
-        return ann.parentField();
-    }
-
-    private static Field findFieldOrNull(Class<?> type, String name) {
-        try { return type.getField(name); }
-        catch (NoSuchFieldException e) { return null; }
-    }
-
     private void emitChildObjectInto(MethodVisitor ctor, Class<? extends QObject> outerType,
                                      int outerLocal, Ast.ObjectNode child, TypeRegistry registry,
                                      int[] localCounter, int[] bindingCounter, int[] handlerCounter,
@@ -1320,69 +1315,6 @@ public final class QmlCompiler {
                              "(Ljava/lang/String;L" + BINDING_INTERNAL + ";)V", true);
     }
 
-    private static Field findPropertyField(Class<?> outerType, String name) {
-        Field f;
-        try {
-            f = outerType.getField(name);
-        } catch (NoSuchFieldException e) {
-            throw new IllegalArgumentException(
-                "no public field '" + name + "' on " + outerType.getName());
-        }
-        if (!Property.class.isAssignableFrom(f.getType())) {
-            throw new IllegalArgumentException(
-                "field '" + name + "' on " + outerType.getName() + " is not a Property");
-        }
-        return f;
-    }
-
-    // Internal name of the class owning `propName`'s Property field -- a declared
-    // property's registered owner, or the declaring class of an inherited field. Null
-    // if the property has no field (so the Rhino IIFE path is skipped).
-    private static String propFieldOwnerOrNull(Class<?> type, String propName,
-                                               Map<String, String> declaredProps) {
-        if (declaredProps.containsKey(propName)) return declaredProps.get(propName);
-        Field f = findPropertyFieldOrNull(type, propName);
-        return f == null ? null : Type.getInternalName(f.getDeclaringClass());
-    }
-
-    private static Field findPropertyFieldOrNull(Class<?> type, String name) {
-        try {
-            Field f = type.getField(name);
-            return Property.class.isAssignableFrom(f.getType()) ? f : null;
-        } catch (NoSuchFieldException e) {
-            return null;
-        }
-    }
-
-    private static Field findListFieldOrNull(Class<?> type, String name) {
-        try {
-            Field f = type.getField(name);
-            return List.class.isAssignableFrom(f.getType()) ? f : null;
-        } catch (NoSuchFieldException e) {
-            return null;
-        }
-    }
-
-    // java.lang.reflect.Type is FQN'd here: its simple name clashes with the
-    // imported org.objectweb.asm.Type used everywhere else for bytecode emission.
-    private static boolean listAcceptsElement(Field listField, Class<?> childType) {
-        java.lang.reflect.Type gt = listField.getGenericType();
-        if (!(gt instanceof java.lang.reflect.ParameterizedType)) return true;
-        java.lang.reflect.Type[] args = ((java.lang.reflect.ParameterizedType) gt).getActualTypeArguments();
-        if (args.length == 0) return true;
-        java.lang.reflect.Type arg = args[0];
-        Class<?> elemClass;
-        if (arg instanceof Class) {
-            elemClass = (Class<?>) arg;
-        } else if (arg instanceof java.lang.reflect.ParameterizedType) {
-            java.lang.reflect.Type raw = ((java.lang.reflect.ParameterizedType) arg).getRawType();
-            elemClass = (raw instanceof Class) ? (Class<?>) raw : Object.class;
-        } else {
-            return true;
-        }
-        return elemClass.isAssignableFrom(childType);
-    }
-
     private void emitLiteralAssignment(MethodVisitor ctor, Class<? extends QObject> outerType,
                                        int outerLocal, String propName, Ast.LiteralExpr lit) {
         Field f = findPropertyField(outerType, propName);
@@ -1502,15 +1434,6 @@ public final class QmlCompiler {
         char c = key.charAt(2);
         if (!Character.isUpperCase(c)) return null;
         return Character.toLowerCase(c) + key.substring(3);
-    }
-
-    private static Field findSignalFieldOrNull(Class<?> type, String name) {
-        try {
-            Field f = type.getField(name);
-            return Signal.class.isAssignableFrom(f.getType()) ? f : null;
-        } catch (NoSuchFieldException e) {
-            return null;
-        }
     }
 
     // A delegate declared either as the host's single child object (`Repeater { Foo {} }`)
@@ -1838,17 +1761,6 @@ public final class QmlCompiler {
         emitRhinoBindingFor(ctor, source, outerLocal, idTypes, singletons, usedAliases);
     }
 
-    private static void pushStringArray(MethodVisitor mv, List<String> items) {
-        mv.visitLdcInsn(items.size());
-        mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/String");
-        for (int i = 0; i < items.size(); i++) {
-            mv.visitInsn(Opcodes.DUP);
-            mv.visitLdcInsn(i);
-            mv.visitLdcInsn(items.get(i));
-            mv.visitInsn(Opcodes.AASTORE);
-        }
-    }
-
     // Conservative predicate for the Rhino handler/function backend: every free name
     // the body reads or writes must be one the runtime QmlScope can resolve -- a
     // scene id, a declared/inherited property field, a root function, a Java method,
@@ -2025,52 +1937,6 @@ public final class QmlCompiler {
         mv.visitInsn(Opcodes.ARETURN);
         mv.visitMaxs(0, 0);
         mv.visitEnd();
-    }
-
-    private static String idOf(Ast.ObjectNode obj) {
-        for (Ast.ObjectMember m : obj.members) {
-            if (m instanceof Ast.PropertyBinding) {
-                Ast.PropertyBinding b = (Ast.PropertyBinding) m;
-                if (b.path.size() == 1 && "id".equals(b.path.get(0))) {
-                    if (b.value instanceof Ast.ExpressionValue) {
-                        Ast.Expression e = ((Ast.ExpressionValue) b.value).expr;
-                        if (e instanceof Ast.IdentifierExpr) {
-                            return ((Ast.IdentifierExpr) e).name;
-                        }
-                    }
-                    throw new IllegalArgumentException("id value must be a simple identifier");
-                }
-            }
-        }
-        return null;
-    }
-
-    private static void collectIds(Ast.ObjectNode obj, TypeRegistry registry,
-                                   Map<String, Class<? extends QObject>> out,
-                                   boolean insideDelegate) {
-        String id = idOf(obj);
-        Class<? extends QObject> selfType = registry.resolve(obj.typeName);
-        if (id != null && !insideDelegate) {
-            if (out.put(id, selfType) != null) {
-                throw new IllegalArgumentException("duplicate id: " + id);
-            }
-        }
-        boolean childIsDelegate = DelegateHost.class.isAssignableFrom(selfType);
-        for (Ast.ObjectMember m : obj.members) {
-            if (m instanceof Ast.ChildObject) {
-                collectIds(((Ast.ChildObject) m).object, registry, out,
-                           insideDelegate || childIsDelegate);
-            } else if (m instanceof Ast.PropertyBinding) {
-                Ast.Value v = ((Ast.PropertyBinding) m).value;
-                if (v instanceof Ast.ObjectValue) {
-                    collectIds(((Ast.ObjectValue) v).object, registry, out, insideDelegate);
-                } else if (v instanceof Ast.ObjectListValue) {
-                    for (Ast.ObjectNode n : ((Ast.ObjectListValue) v).objects) {
-                        collectIds(n, registry, out, insideDelegate);
-                    }
-                }
-            }
-        }
     }
 
     private static final class DeclaredProp {
@@ -2252,60 +2118,4 @@ public final class QmlCompiler {
         ctor.visitFieldInsn(Opcodes.PUTFIELD, ownerInternal, dp.name, PROPERTY_DESC);
     }
 
-    private static void emitPropertyDefault(MethodVisitor mv, String typeName) {
-        switch (typeName) {
-            case "int":
-            case "integer":
-                mv.visitLdcInsn(0L);
-                mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Long",
-                                   "valueOf", "(J)Ljava/lang/Long;", false);
-                break;
-            case "real":
-            case "double":
-            case "float":
-                mv.visitLdcInsn(0.0d);
-                mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Double",
-                                   "valueOf", "(D)Ljava/lang/Double;", false);
-                break;
-            case "string":
-                mv.visitLdcInsn("");
-                break;
-            case "bool":
-            case "boolean":
-                mv.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/Boolean",
-                                  "FALSE", "Ljava/lang/Boolean;");
-                break;
-            default:
-                mv.visitInsn(Opcodes.ACONST_NULL);
-        }
-    }
-
-    private static void loadLiteral(MethodVisitor mv, Ast.LiteralExpr lit) {
-        switch (lit.kind) {
-            case INT:
-                mv.visitLdcInsn((Long) lit.value);
-                mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Long",
-                                   "valueOf", "(J)Ljava/lang/Long;", false);
-                break;
-            case FLOAT:
-                mv.visitLdcInsn((Double) lit.value);
-                mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Double",
-                                   "valueOf", "(D)Ljava/lang/Double;", false);
-                break;
-            case STRING:
-                mv.visitLdcInsn((String) lit.value);
-                break;
-            case BOOL:
-                mv.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/Boolean",
-                                  ((Boolean) lit.value) ? "TRUE" : "FALSE",
-                                  "Ljava/lang/Boolean;");
-                break;
-            case NULL:
-            case UNDEFINED:
-                mv.visitInsn(Opcodes.ACONST_NULL);
-                break;
-            default:
-                throw new IllegalStateException("literal kind: " + lit.kind);
-        }
-    }
 }
