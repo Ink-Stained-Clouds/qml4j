@@ -84,8 +84,16 @@ public final class Context2D {
         if (ccw && sweep > 0) sweep -= 360;
         if (!ccw && sweep < 0) sweep += 360;
         Rect oval = Rect.makeLTRB((float) (cx - r), (float) (cy - r), (float) (cx + r), (float) (cy + r));
+        if (Math.abs(sweep) >= 359.999f) {
+            // A full circle: Skija's arcTo treats a 360 sweep as empty, so add the oval.
+            ops.add(b -> b.addOval(oval));
+            return;
+        }
         float fa = a0, fsw = sweep;
-        ops.add(b -> b.arcTo(oval, fa, fsw, false));
+        // The first path op starts a fresh subpath -> move to the arc start; a later arc
+        // connects from the current point (HTML arc semantics).
+        boolean moveToStart = ops.isEmpty();
+        ops.add(b -> b.arcTo(oval, fa, fsw, moveToStart));
     }
 
     public void arc(double cx, double cy, double r, double start, double end) {
