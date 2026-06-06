@@ -29,7 +29,7 @@ public final class RhinoClosure {
     public RhinoClosure(String body, List<String> params, Object outer, Object root,
                         String[] ids, boolean delegate,
                         String[] singletonNames, Class<?>[] singletonClasses, String[] aliasSpecs) {
-        this.script = JsRuntime.compile(wrap(body, params));
+        this.script = JsRuntime.compile(wrap(body, params), JsRuntime.loaderOf(root, outer));
         this.scope = new QmlScope(outer, root, JsRuntime.globals(),
                                   new HashSet<>(Arrays.asList(ids)), delegate,
                                   QmlScope.singletonMap(singletonNames, singletonClasses),

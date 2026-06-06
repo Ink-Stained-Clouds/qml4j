@@ -1,15 +1,17 @@
 package io.qml4j.engine.js;
 
+import io.qml4j.engine.classloader.ScriptCache;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextFactory;
 import org.mozilla.javascript.Script;
 import org.mozilla.javascript.Scriptable;
 
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-// Shared Rhino plumbing for the embedded-JS backend: an interpreter-mode context
-// factory (optimizationLevel=-1 is mandatory on Android -- no runtime bytecode gen),
-// a compiled-script cache (each binding's source compiles once), and one shared,
+// Shared Rhino plumbing for the embedded-JS backend: a compiled-script cache (each
+// binding's source compiles once), per-document when the document's class loader
+// carries a ScriptCache (so its generated JS classes die with it), and one shared,
 // sealed standard-objects scope (Math, JSON, etc.) reached via the binding scope's
 // parent chain.
 public final class JsRuntime {
@@ -39,14 +41,56 @@ public final class JsRuntime {
     }
 
     public static Script compile(String source) {
-        return SCRIPTS.computeIfAbsent(source, s -> {
-            Context cx = enter();
-            try {
-                return cx.compileString(s, "qml-binding", 1, null);
-            } finally {
-                Context.exit();
-            }
-        });
+        return compile(source, null);
+    }
+
+    // Compile `source`, caching on the document's class loader when it carries a
+    // ScriptCache (so the compiled-JS class is a child of that loader and is freed
+    // with the document), else in the shared global cache. The loader is also set as
+    // the parent for Rhino's generated class so the JS can see the document's classes.
+    public static Script compile(String source, ClassLoader cl) {
+        Map<String, Object> cache = cl instanceof ScriptCache ? ((ScriptCache) cl).jsScriptCache() : null;
+        if (cache != null) {
+            Script cached = (Script) cache.get(source);
+            if (cached != null) return cached;
+            Script s = doCompile(source, cl);
+            cache.put(source, s);
+            return s;
+        }
+        return SCRIPTS.computeIfAbsent(source, s -> doCompile(s, cl));
+    }
+
+    // The document's class loader for a binding/handler: prefer the root component's
+    // (a ScriptCache-carrying DynamicClassLoader), else the binding owner's.
+    public static ClassLoader loaderOf(Object root, Object outer) {
+        ClassLoader cl = root != null ? root.getClass().getClassLoader() : null;
+        if (cl instanceof ScriptCache) return cl;
+        return outer != null ? outer.getClass().getClassLoader() : cl;
+    }
+
+    private static Script doCompile(String source, ClassLoader cl) {
+        Context cx = enter();
+        try {
+            if (cl != null) cx.setApplicationClassLoader(cl);
+            return cx.compileString(source, "qml-binding", 1, null);
+        } finally {
+            Context.exit();
+        }
+    }
+
+    // Syntax-validate `source` without generating a class: compiled mode would emit
+    // (and leak) a throwaway class per source, so validation runs interpreted. Throws
+    // RhinoException on a syntax error.
+    public static void validate(String source) {
+        Context cx = enter();
+        int prev = cx.getOptimizationLevel();
+        try {
+            cx.setOptimizationLevel(-1);
+            cx.compileString(source, "qml-validate", 1, null);
+        } finally {
+            cx.setOptimizationLevel(prev);
+            Context.exit();
+        }
     }
 
     public static Scriptable globals() {
