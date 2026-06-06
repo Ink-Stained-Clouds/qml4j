@@ -55,6 +55,12 @@ public final class Painter {
         this.canvas = canvas;
     }
 
+    // A 2D drawing context bound to the current canvas (already translated to the
+    // painting item's origin), for a Canvas item's onPaint handler.
+    public Context2D context2D() {
+        return new Context2D(canvas, renderer);
+    }
+
     public int alphaColor(String color, float alpha) {
         return Renderer.applyAlpha(Renderer.parseColor(color), alpha);
     }
