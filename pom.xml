@@ -27,10 +27,7 @@
     </properties>
 
     <modules>
-        <module>qml4j-parser</module>
-        <module>qml4j-engine</module>
-        <module>qml4j-compiler</module>
-        <module>qml4j-render</module>
+        <module>qml4j-core</module>
         <module>qml4j-demo-desktop</module>
     </modules>
 
@@ -38,22 +35,7 @@
         <dependencies>
             <dependency>
                 <groupId>io.qml4j</groupId>
-                <artifactId>qml4j-parser</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.qml4j</groupId>
-                <artifactId>qml4j-engine</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.qml4j</groupId>
-                <artifactId>qml4j-compiler</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.qml4j</groupId>
-                <artifactId>qml4j-render</artifactId>
+                <artifactId>qml4j-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

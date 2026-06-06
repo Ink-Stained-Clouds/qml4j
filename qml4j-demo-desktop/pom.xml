@@ -13,7 +13,7 @@
     <dependencies>
         <dependency>
             <groupId>io.qml4j</groupId>
-            <artifactId>qml4j-render</artifactId>
+            <artifactId>qml4j-core</artifactId>
         </dependency>
         <dependency>
             <groupId>io.github.humbleui</groupId>
