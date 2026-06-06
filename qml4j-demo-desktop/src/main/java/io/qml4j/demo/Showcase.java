@@ -39,6 +39,7 @@ final class Showcase {
             of("ToolTip", "ToolTipShowcase"),
             of("Controls", "ControlsShowcase"),
             of("Composite", "CompositeShowcase"),
+            of("MD3 gallery", "Md3GalleryShowcase"),
             of("Layouts", "LayoutShowcase"),
             of("GridLayout / Flow", "GridFlowShowcase"),
             of("Shapes", "ShapeShowcase"),

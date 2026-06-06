@@ -58,4 +58,16 @@ class Md3NewComponentsLoadTest {
             assertFalse(root.children.isEmpty(), name + " should instantiate");
         }
     }
+
+    @Test
+    void loadsMd3GalleryShowcase() {
+        Map<String, byte[]> files = md3Files();
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        v.resources(files::get);
+        Item root = v.load(new String(res("showcases/Md3GalleryShowcase.qml"), StandardCharsets.UTF_8));
+        DirtyQueue dq = v.dirtyQueue();
+        dq.install();
+        try { dq.flush(); } finally { dq.uninstall(); }
+        assertFalse(root.children.isEmpty(), "MD3 gallery showcase should instantiate");
+    }
 }
