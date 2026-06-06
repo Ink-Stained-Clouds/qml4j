@@ -2,6 +2,7 @@ package io.qml4j.render.items.core;
 
 import io.qml4j.engine.binding.Property;
 import io.qml4j.render.Painter;
+import io.qml4j.render.TextLayout;
 
 public class Text extends Item {
     public final Property<String> text = new Property<>("");
@@ -23,6 +24,11 @@ public class Text extends Item {
     public float lastMeasuredSize = -1f;
     public double lastSetWidth = Double.NaN;
     public double lastSetHeight = Double.NaN;
+
+    @Override
+    public void measure(TextLayout t) {
+        t.measureText(this);
+    }
 
     @Override
     public void paint(Painter p, float w, float h, float alpha) {

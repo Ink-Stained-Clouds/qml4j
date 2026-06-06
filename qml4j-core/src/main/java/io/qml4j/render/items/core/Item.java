@@ -9,6 +9,7 @@ import io.qml4j.render.items.animation.Transition;
 import io.qml4j.render.AnchorLine;
 import io.qml4j.render.Anchors;
 import io.qml4j.render.Painter;
+import io.qml4j.render.TextLayout;
 
 import io.qml4j.engine.QObject;
 import io.qml4j.engine.binding.Property;
@@ -95,6 +96,11 @@ public class Item extends QObject {
     // are set up. Default no-op; drawable items override to render themselves via
     // Painter primitives (so item subclasses never import skija directly).
     public void paint(Painter p, float w, float h, float alpha) {}
+
+    // Measure hook, invoked by the Renderer layout pre-pass. Default no-op; items
+    // with intrinsic content size (Text, Button) override to publish implicit size
+    // via TextLayout (so item subclasses never touch font metrics directly).
+    public void measure(TextLayout t) {}
 
     // QML Item.mapFromItem(source, x, y): map a point from source's coordinate
     // system into this item's. Returns a point ({x, y}); positions only (no

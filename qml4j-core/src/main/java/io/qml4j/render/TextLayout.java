@@ -11,7 +11,7 @@ import io.qml4j.render.items.window.Control;
 // Text and control measurement: implicit-size computation, line wrapping/elision
 // caching, and font line metrics. Shared by the layout pre-pass (measure) and
 // the paint pass.
-final class TextLayout {
+public final class TextLayout {
 
     private final FontResolver fonts;
     private final IconResolver icons;
@@ -21,7 +21,7 @@ final class TextLayout {
         this.icons = icons;
     }
 
-    void measureText(Text t) {
+    public void measureText(Text t) {
         float size = t.effectiveFontSize();
         boolean canMeasureW = !t.width.isBound() && ownsWidth(t);
         boolean canMeasureH = !t.height.isBound() && ownsHeight(t);
@@ -76,28 +76,20 @@ final class TextLayout {
         }
     }
 
-    void measureControl(Control c) {
-        float iw, ih;
-        if (c instanceof Button) {
-            Button b = (Button) c;
-            float size = b.fontSize.peek().floatValue();
-            String label = b.text.peek();
-            float tw, textH;
-            try (Font font = fonts.fontFor(size, label == null ? "" : label)) {
-                tw = (label == null || label.isEmpty()) ? 0f : font.measureTextWidth(label);
-                textH = lineHeight(font);
-            }
-            float hp = horizontalPad(c, 16f);
-            float vp = verticalPad(c, 10f);
-            iw = tw + 2f * hp;
-            ih = textH + 2f * vp;
-        } else {
-            return;
+    public void measureButton(Button b) {
+        float size = b.fontSize.peek().floatValue();
+        String label = b.text.peek();
+        float tw, textH;
+        try (Font font = fonts.fontFor(size, label == null ? "" : label)) {
+            tw = (label == null || label.isEmpty()) ? 0f : font.measureTextWidth(label);
+            textH = lineHeight(font);
         }
+        float iw = tw + 2f * horizontalPad(b, 16f);
+        float ih = textH + 2f * verticalPad(b, 10f);
         // Controls publish their measured content size as implicitWidth/Height;
         // followImplicitSize then copies it into width/height when unset.
-        if (!c.implicitWidth.isBound()) c.implicitWidth.set(iw);
-        if (!c.implicitHeight.isBound()) c.implicitHeight.set(ih);
+        if (!b.implicitWidth.isBound()) b.implicitWidth.set(iw);
+        if (!b.implicitHeight.isBound()) b.implicitHeight.set(ih);
     }
 
     // Text.wrapMode enum -> TextWrap mode string; null when wrapping is off.

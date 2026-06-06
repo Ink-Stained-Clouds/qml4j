@@ -12,10 +12,8 @@ import io.qml4j.render.items.effect.ColorOverlay;
 import io.qml4j.render.items.effect.DropShadow;
 import io.qml4j.render.items.effect.Glow;
 import io.qml4j.render.items.window.ApplicationWindow;
-import io.qml4j.render.items.window.Control;
 import io.qml4j.render.items.core.MouseArea;
 import io.qml4j.render.items.input.TextField;
-import io.qml4j.render.items.core.Text;
 import io.qml4j.render.items.input.TextEdit;
 import io.qml4j.render.items.input.TextInput;
 import io.qml4j.render.items.core.TextWrap;
@@ -106,8 +104,7 @@ public final class Renderer {
     // tree so size-driven bindings can settle BEFORE painting.
     private void measure(Item node) {
         if (node == null || !node.visible.peek()) return;
-        if (node instanceof Text) text.measureText((Text) node);
-        if (node instanceof Control) text.measureControl((Control) node);
+        node.measure(text);
         followImplicitSize(node);
         // Children first so a container can size itself from their measured sizes.
         for (Item child : node.children) measure(child);
@@ -148,8 +145,7 @@ public final class Renderer {
     // Draw a node ignoring its own `visible` flag (used to render a MultiEffect
     // source, which is normally an invisible sibling rendered only via the effect).
     void drawForced(Canvas canvas, Item node, float inheritedAlpha) {
-        if (node instanceof Text) text.measureText((Text) node);
-        if (node instanceof Control) text.measureControl((Control) node);
+        node.measure(text);
         followImplicitSize(node);
         applyAnchors(node);
         if (node instanceof Loader) {
@@ -176,7 +172,7 @@ public final class Renderer {
                 canvas.saveLayer(Rect.makeXYWH(-m, -m, w + 2 * m, h + 2 * m), layerPaint);
             }
             if (clip) canvas.clipRect(Rect.makeXYWH(0, 0, w, h));
-            paintNode(canvas, node, w, h, alpha);
+            node.paint(painter, w, h, alpha);
             if (node instanceof Flickable) {
                 Flickable f = (Flickable) node;
                 canvas.clipRect(Rect.makeXYWH(0, 0, w, h));
@@ -360,10 +356,6 @@ public final class Renderer {
         double d = margin.doubleValue();
         if (Double.isNaN(d)) return fallback;
         return (float) d;
-    }
-
-    private void paintNode(Canvas canvas, Item node, float w, float h, float alpha) {
-        node.paint(painter, w, h, alpha);
     }
 
     private void drawChrome(Canvas canvas, ApplicationWindow win, float w, float h, float alpha) {
