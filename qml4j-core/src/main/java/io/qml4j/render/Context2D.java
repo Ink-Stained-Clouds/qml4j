@@ -18,6 +18,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.function.Consumer;
 
 // The HTML5 2D drawing context handed to a Canvas item's onPaint handler. JS calls
 // its public methods/fields (bridged by JsWrap), which issue Skija draw commands to
@@ -32,7 +33,10 @@ public final class Context2D {
 
     private final Canvas canvas;
     private final Renderer renderer;
-    private final PathBuilder pb = new PathBuilder();
+    // The current path as replayable ops, NOT a live PathBuilder: in Skija 0.143
+    // a PathBuilder is unusable after build() (the next reset()/op segfaults), so
+    // each fill/stroke/clip builds a fresh single-use PathBuilder from these ops.
+    private final List<Consumer<PathBuilder>> ops = new ArrayList<>();
 
     // Drawing state (read/written from JS as `ctx.fillStyle = ...`, etc.).
     public Object fillStyle = "#000000";
@@ -58,12 +62,19 @@ public final class Context2D {
     }
 
     // ---- path ----
-    public void beginPath() { pb.reset(); }
-    public void closePath() { pb.closePath(); }
-    public void moveTo(double x, double y) { pb.moveTo((float) x, (float) y); }
-    public void lineTo(double x, double y) { pb.lineTo((float) x, (float) y); }
+    public void beginPath() { ops.clear(); }
+    public void closePath() { ops.add(PathBuilder::closePath); }
+    public void moveTo(double x, double y) {
+        float fx = (float) x, fy = (float) y;
+        ops.add(b -> b.moveTo(fx, fy));
+    }
+    public void lineTo(double x, double y) {
+        float fx = (float) x, fy = (float) y;
+        ops.add(b -> b.lineTo(fx, fy));
+    }
     public void rect(double x, double y, double w, double h) {
-        pb.addRect(Rect.makeXYWH((float) x, (float) y, (float) w, (float) h));
+        Rect r = Rect.makeXYWH((float) x, (float) y, (float) w, (float) h);
+        ops.add(b -> b.addRect(r));
     }
 
     // HTML arc(cx, cy, r, startRad, endRad, counterclockwise=false).
@@ -73,7 +84,8 @@ public final class Context2D {
         if (ccw && sweep > 0) sweep -= 360;
         if (!ccw && sweep < 0) sweep += 360;
         Rect oval = Rect.makeLTRB((float) (cx - r), (float) (cy - r), (float) (cx + r), (float) (cy + r));
-        pb.arcTo(oval, a0, sweep, false);
+        float fa = a0, fsw = sweep;
+        ops.add(b -> b.arcTo(oval, fa, fsw, false));
     }
 
     public void arc(double cx, double cy, double r, double start, double end) {
@@ -81,21 +93,32 @@ public final class Context2D {
     }
 
     public void arcTo(double x1, double y1, double x2, double y2, double r) {
-        pb.tangentArcTo((float) r, (float) x1, (float) y1, (float) x2, (float) y2);
+        float a = (float) x1, b1 = (float) y1, c = (float) x2, d = (float) y2, rr = (float) r;
+        ops.add(b -> b.tangentArcTo(rr, a, b1, c, d));
     }
 
     // ---- fills / strokes ----
     public void fill() {
-        pb.setFillMode(PathFillMode.WINDING);
-        try (Path pth = pb.build()) { fillWith(fillStyle, p -> canvas.drawPath(pth, p)); }
+        withPath(p -> fillWith(fillStyle, paint -> canvas.drawPath(p, paint)));
     }
 
     public void stroke() {
-        try (Path pth = pb.build()) { strokeWith(p -> canvas.drawPath(pth, p)); }
+        withPath(p -> strokeWith(paint -> canvas.drawPath(p, paint)));
     }
 
     public void clip() {
-        try (Path pth = pb.build()) { canvas.clipPath(pth, true); }
+        withPath(p -> canvas.clipPath(p, true));
+    }
+
+    // Build a fresh single-use PathBuilder from the accumulated ops, hand the built
+    // Path to `body`, and close both natives. (A PathBuilder cannot be reused after
+    // build() in this Skija version.)
+    private void withPath(Consumer<Path> body) {
+        try (PathBuilder b = new PathBuilder()) {
+            b.setFillMode(PathFillMode.WINDING);
+            for (Consumer<PathBuilder> op : ops) op.accept(b);
+            try (Path p = b.build()) { body.accept(p); }
+        }
     }
 
     public void fillRect(double x, double y, double w, double h) {
@@ -153,7 +176,7 @@ public final class Context2D {
 
     // Canvas/Context2D reset: clear the path + drawing state.
     public void reset() {
-        pb.reset();
+        ops.clear();
         stack.clear();
         fillStyle = "#000000"; strokeStyle = "#000000"; lineWidth = 1; globalAlpha = 1;
         lineCap = "butt"; lineJoin = "miter"; lineDash = null;
@@ -171,12 +194,6 @@ public final class Context2D {
     public RadialGradient createRadialGradient(double x0, double y0, double r0,
                                                double x1, double y1, double r1) {
         return new RadialGradient((float) x1, (float) y1, (float) r1);
-    }
-
-    // Release the accumulating PathBuilder's native memory; called once per frame
-    // after onPaint.
-    public void dispose() {
-        pb.close();
     }
 
     // ---- paint construction (every native handle closed) ----

@@ -39,7 +39,6 @@ public class Canvas extends Item {
         try {
             paint.emit();
         } finally {
-            ctx.dispose();
             ctx = null;
         }
     }
