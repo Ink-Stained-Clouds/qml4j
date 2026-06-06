@@ -104,6 +104,9 @@ public final class Renderer {
     // tree so size-driven bindings can settle BEFORE painting.
     private void measure(Item node) {
         if (node == null || !node.visible.peek()) return;
+        // Resolve a Loader before measuring its children so the loaded item is in the
+        // tree + measured, and the Loader can size to it in this same layout pass.
+        if (node instanceof Loader) resolveLoader((Loader) node);
         node.measure(text);
         followImplicitSize(node);
         // Children first so a container can size itself from their measured sizes.
