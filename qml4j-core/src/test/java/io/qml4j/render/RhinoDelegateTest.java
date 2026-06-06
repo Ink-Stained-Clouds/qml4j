@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 // Phase 5: a simple-expression binding inside a Repeater delegate runs on Rhino. The
 // delegate scope resolves index / modelData / enclosing-scene names through
-// RuntimeHelpers.delegateLookup, the same walk the ASM backend uses.
+// DelegateScope.delegateLookup, the same walk the ASM backend uses.
 class RhinoDelegateTest {
 
     private static Object bindingOf(Property<?> p) throws Exception {

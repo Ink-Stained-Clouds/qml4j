@@ -1877,7 +1877,7 @@ public final class QmlCompiler {
         if (isSingleton(name)) return true;
         if (inDelegateScope()) {
             // In a delegate, index/modelData/local-id/enclosing-scope names resolve at
-            // runtime via RuntimeHelpers.delegateLookup (matching rhinoCanHandle's
+            // runtime via DelegateScope.delegateLookup (matching rhinoCanHandle's
             // delegate branch).
             return true;
         }

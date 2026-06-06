@@ -1,8 +1,8 @@
 package io.qml4j.render.items.animation;
+import io.qml4j.runtime.member.MemberAccess;
 import io.qml4j.render.items.core.Item;
 
 import io.qml4j.engine.PropertyChangeSink;
-import io.qml4j.engine.RuntimeHelpers;
 import io.qml4j.engine.binding.Binding;
 import io.qml4j.engine.binding.Property;
 
@@ -34,11 +34,11 @@ public class PropertyChanges extends Item implements PropertyChangeSink {
         if (t == null) return;
         for (Map.Entry<String, Object> e : literals.entrySet()) {
             saveBaselineOnce(t, e.getKey());
-            RuntimeHelpers.writeMember(t, e.getKey(), e.getValue());
+            MemberAccess.writeMember(t, e.getKey(), e.getValue());
         }
         for (Map.Entry<String, Binding> e : bindings.entrySet()) {
             saveBaselineOnce(t, e.getKey());
-            RuntimeHelpers.writeMember(t, e.getKey(), e.getValue().evaluate());
+            MemberAccess.writeMember(t, e.getKey(), e.getValue().evaluate());
         }
     }
 
@@ -48,7 +48,7 @@ public class PropertyChanges extends Item implements PropertyChangeSink {
     // partway between states after rapid toggles.
     private void saveBaselineOnce(Object t, String name) {
         if (saved.containsKey(name)) return;
-        saved.put(name, RuntimeHelpers.readMember(t, name));
+        saved.put(name, MemberAccess.readMember(t, name));
     }
 
     public Object targetValue() {
@@ -65,7 +65,7 @@ public class PropertyChanges extends Item implements PropertyChangeSink {
         Object t = target.peek();
         if (t == null) return;
         for (Map.Entry<String, Object> e : saved.entrySet()) {
-            RuntimeHelpers.writeMember(t, e.getKey(), e.getValue());
+            MemberAccess.writeMember(t, e.getKey(), e.getValue());
         }
     }
 }

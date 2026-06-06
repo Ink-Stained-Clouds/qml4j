@@ -1,6 +1,7 @@
 package io.qml4j.engine.js;
 
-import io.qml4j.engine.RuntimeHelpers;
+import io.qml4j.runtime.member.DelegateScope;
+import io.qml4j.runtime.member.MemberAccess;
 import io.qml4j.engine.Signal;
 import org.mozilla.javascript.Scriptable;
 
@@ -10,7 +11,7 @@ import java.util.Set;
 
 // The top scope a binding's JS runs in. Bare identifiers resolve against the QML
 // scope: first the this-object's members, then the component root's (ids + declared
-// props). Member reads route through RuntimeHelpers.readMember, so Property reads
+// props). Member reads route through MemberAccess.readMember, so Property reads
 // register the reactive dependency just like the ASM backend. Names not found here
 // return NOT_FOUND, so Rhino falls through to the shared globals (Math, etc.) on the
 // parent scope.
@@ -75,9 +76,9 @@ public final class QmlScope implements Scriptable {
         String[] t = aliases.get(name);
         Object o = owner(t[0]);
         if (o == null) return null;
-        Object target = RuntimeHelpers.readMember(o, t[0]);
+        Object target = MemberAccess.readMember(o, t[0]);
         if (target == null) return null;
-        return RuntimeHelpers.readMember(target, t[1]);
+        return MemberAccess.readMember(target, t[1]);
     }
 
     private Object singleton(String name) {
@@ -103,18 +104,18 @@ public final class QmlScope implements Scriptable {
     }
 
     // Delegate-scope resolution mirrors ExpressionCodegen's delegate path: the binding's
-    // own item first, then RuntimeHelpers.delegateLookup (the DelegateRoot's index/
+    // own item first, then DelegateScope.delegateLookup (the DelegateRoot's index/
     // modelData/local ids, then the enclosing scene). An absent name falls through to
     // the globals, and an unresolved reference yields undefined -- QML-tolerant.
     private Object getDelegate(String name) {
         // Own *property* only -- an own id field (a compound child's leaked `id: root`)
         // must not shadow the enclosing component's id; that resolves via delegateLookup.
-        if (RuntimeHelpers.hasProperty(outer, name)) {
-            return wrap(RuntimeHelpers.readMember(outer, name));
+        if (MemberAccess.hasProperty(outer, name)) {
+            return wrap(MemberAccess.readMember(outer, name));
         }
-        Object v = RuntimeHelpers.delegateLookup(outer, name);
-        if (v != RuntimeHelpers.DELEGATE_ABSENT) return wrap(v);
-        Object co = RuntimeHelpers.delegateCallableOwner(outer, name);
+        Object v = DelegateScope.delegateLookup(outer, name);
+        if (v != DelegateScope.DELEGATE_ABSENT) return wrap(v);
+        Object co = DelegateScope.delegateCallableOwner(outer, name);
         if (co != null) return new JsWrap.BoundMethod(co, name, this);
         Object s = singleton(name);
         if (s != null) return JsWrap.toJs(s, this);
@@ -128,8 +129,8 @@ public final class QmlScope implements Scriptable {
         // whose own `id: root` leaks as a field) would otherwise shadow the enclosing
         // component's same-named id, turning `root.width` into a self-reference.
         if (sceneIds.contains(name)) return root;
-        if (RuntimeHelpers.hasMember(outer, name)) return outer;
-        if (root != outer && RuntimeHelpers.hasMember(root, name)) return root;
+        if (MemberAccess.hasMember(outer, name)) return outer;
+        if (root != outer && MemberAccess.hasMember(root, name)) return root;
         return null;
     }
 
@@ -145,7 +146,7 @@ public final class QmlScope implements Scriptable {
         if (delegate) return getDelegate(name);
         if (aliases.containsKey(name)) return wrap(aliasValue(name));
         Object o = owner(name);
-        if (o != null) return wrap(RuntimeHelpers.readMember(o, name));
+        if (o != null) return wrap(MemberAccess.readMember(o, name));
         Object c = callableOwner(name);
         if (c != null) return new JsWrap.BoundMethod(c, name, this);
         Object s = singleton(name);
@@ -155,9 +156,9 @@ public final class QmlScope implements Scriptable {
 
     @Override public boolean has(String name, Scriptable start) {
         if (delegate) {
-            return RuntimeHelpers.hasProperty(outer, name)
-                || RuntimeHelpers.delegateLookup(outer, name) != RuntimeHelpers.DELEGATE_ABSENT
-                || RuntimeHelpers.delegateCallableOwner(outer, name) != null
+            return MemberAccess.hasProperty(outer, name)
+                || DelegateScope.delegateLookup(outer, name) != DelegateScope.DELEGATE_ABSENT
+                || DelegateScope.delegateCallableOwner(outer, name) != null
                 || singletonClasses.containsKey(name);
         }
         return aliases.containsKey(name) || owner(name) != null || callableOwner(name) != null
@@ -166,8 +167,8 @@ public final class QmlScope implements Scriptable {
 
     @Override public void put(String name, Scriptable start, Object value) {
         if (delegate) {
-            if (RuntimeHelpers.hasProperty(outer, name)) {
-                RuntimeHelpers.writeMember(outer, name, JsWrap.toJava(value));
+            if (MemberAccess.hasProperty(outer, name)) {
+                MemberAccess.writeMember(outer, name, JsWrap.toJava(value));
             }
             return;
         }
@@ -175,13 +176,13 @@ public final class QmlScope implements Scriptable {
             String[] t = aliases.get(name);
             Object o = owner(t[0]);
             if (o != null) {
-                Object target = RuntimeHelpers.readMember(o, t[0]);
-                if (target != null) RuntimeHelpers.writeMember(target, t[1], JsWrap.toJava(value));
+                Object target = MemberAccess.readMember(o, t[0]);
+                if (target != null) MemberAccess.writeMember(target, t[1], JsWrap.toJava(value));
             }
             return;
         }
         Object o = owner(name);
-        if (o != null) RuntimeHelpers.writeMember(o, name, JsWrap.toJava(value));
+        if (o != null) MemberAccess.writeMember(o, name, JsWrap.toJava(value));
     }
 
     @Override public Object get(int index, Scriptable start) { return NOT_FOUND; }

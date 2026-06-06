@@ -1,7 +1,7 @@
 package io.qml4j.render.items.animation;
+import io.qml4j.runtime.member.MemberAccess;
 import io.qml4j.render.items.core.Item;
 
-import io.qml4j.engine.RuntimeHelpers;
 import io.qml4j.engine.binding.Property;
 
 public class PropertyAnimation extends AbstractAnimation {
@@ -62,7 +62,7 @@ public class PropertyAnimation extends AbstractAnimation {
         if (startNanos < 0L) startNanos = nowNanos;
         double durMs = duration.peek().doubleValue();
         if (durMs <= 0) {
-            RuntimeHelpers.writeMember(t, prop, preparedTo);
+            MemberAccess.writeMember(t, prop, preparedTo);
             stop();
             finished.emit();
             return;
@@ -71,7 +71,7 @@ public class PropertyAnimation extends AbstractAnimation {
         boolean done = frac >= 1.0;
         if (done) frac = 1.0;
         double eased = Easings.apply(easing.type.peek().intValue(), frac);
-        RuntimeHelpers.writeMember(t, prop, interpolate(preparedFrom, preparedTo, eased));
+        MemberAccess.writeMember(t, prop, interpolate(preparedFrom, preparedTo, eased));
         if (done) { stop(); finished.emit(); }
     }
 
@@ -82,7 +82,7 @@ public class PropertyAnimation extends AbstractAnimation {
     private void prepare(Object target, String prop) {
         // Qt: an omitted `from` defaults to the property's current value.
         Object rawFrom = from.peek();
-        if (rawFrom == null) rawFrom = RuntimeHelpers.readMember(target, prop);
+        if (rawFrom == null) rawFrom = MemberAccess.readMember(target, prop);
         preparedFrom = coerceFrom(rawFrom);
         preparedTo = coerceTo(to.peek());
         onPrepared();

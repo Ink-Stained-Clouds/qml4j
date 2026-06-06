@@ -6,7 +6,7 @@ import java.util.Arrays;
 
 // A QML function (`function f(a, b) { ... }`) whose body is JavaScript run by Rhino.
 // Registered on its QObject via __putFunction, so both bare calls (`f()`) and member
-// calls (`root.f()`) reach it through RuntimeHelpers.callQml/callMethod. The body
+// calls (`root.f()`) reach it through MethodInvocation.callMethod. The body
 // runs as a JS function (see RhinoClosure) and its `return` value is handed back to
 // the caller.
 public final class RhinoFunction implements Callable {

@@ -1,7 +1,8 @@
 package io.qml4j.engine.js;
 
+import io.qml4j.runtime.member.MemberAccess;
+import io.qml4j.runtime.invoke.MethodInvocation;
 import io.qml4j.engine.QObject;
-import io.qml4j.engine.RuntimeHelpers;
 import io.qml4j.engine.Signal;
 import org.mozilla.javascript.BaseFunction;
 import org.mozilla.javascript.Context;
@@ -22,7 +23,7 @@ import java.util.Map;
 
 // Bridges values across the Java <-> Rhino boundary for the embedded-JS backend.
 // Primitives pass through; Java objects (QObject/QColor/Map/List) are exposed to JS
-// as a JavaMember scriptable whose member/index access routes through RuntimeHelpers
+// as a JavaMember scriptable whose member/index access routes through MemberAccess
 // (so item.width reads the Property -- and records the dependency -- color.r resolves
 // a channel, list[0] indexes, etc.).
 public final class JsWrap {
@@ -118,7 +119,7 @@ public final class JsWrap {
     }
 
     // A Rhino view over an arbitrary Java object, delegating member/index reads and
-    // writes to RuntimeHelpers (same semantics as the ASM backend's readMember etc).
+    // writes to MemberAccess (same semantics as the ASM backend's readMember etc).
     static final class JavaMember implements Scriptable, SymbolScriptable, Wrapper {
         private final Object target;
         private final Scriptable parent;
@@ -134,7 +135,7 @@ public final class JsWrap {
 
         @Override public Object get(String name, Scriptable start) {
             if (resolves(name)) {
-                Object v = RuntimeHelpers.readMember(target, name);
+                Object v = MemberAccess.readMember(target, name);
                 // A signal member supports both forms QML uses: a direct emit
                 // (`control.clicked()`) and an explicit `.emit(...)` / `.connect(...)`.
                 if (v instanceof Signal) return new SignalRef((Signal) v, parent);
@@ -158,11 +159,11 @@ public final class JsWrap {
         }
 
         @Override public Object get(int index, Scriptable start) {
-            return toJs(RuntimeHelpers.readIndex(target, (long) index), parent);
+            return toJs(MemberAccess.readIndex(target, (long) index), parent);
         }
 
         @Override public void put(String name, Scriptable start, Object value) {
-            RuntimeHelpers.writeMember(target, name, toJava(value));
+            MemberAccess.writeMember(target, name, toJava(value));
         }
 
         @Override public boolean has(String name, Scriptable start) {
@@ -205,15 +206,15 @@ public final class JsWrap {
         @Override public void delete(Symbol key) {}
 
         // Whether `name` reads as a data member -- a map key, or a reflective/virtual
-        // member RuntimeHelpers.readMember resolves. Map keys are not reflective
+        // member MemberAccess.readMember resolves. Map keys are not reflective
         // fields, so they must be checked against the map directly or for-in / `in`
         // would miss them.
         private boolean resolves(String name) {
             if (target instanceof Map) return ((Map<?, ?>) target).containsKey(name);
-            return RuntimeHelpers.hasMember(target, name) || isVirtual(name);
+            return MemberAccess.hasMember(target, name) || isVirtual(name);
         }
 
-        // length/r/g/b/a aren't reflective fields but RuntimeHelpers.readMember resolves them.
+        // length/r/g/b/a aren't reflective fields but MemberAccess.readMember resolves them.
         private boolean isVirtual(String name) {
             return "length".equals(name) || (name.length() == 1 && "rgba".contains(name));
         }
@@ -243,7 +244,7 @@ public final class JsWrap {
 
         @Override public Object get(String name, Scriptable start) {
             if (name.length() == 1 && "rgba".contains(name)) {
-                return RuntimeHelpers.readMember(hex, name);
+                return MemberAccess.readMember(hex, name);
             }
             return NOT_FOUND;
         }
@@ -280,7 +281,7 @@ public final class JsWrap {
     }
 
     // A method reference obtained from a JavaMember (obj.method); calling it routes to
-    // RuntimeHelpers.callMethod, which dispatches to a Java method or a QML function.
+    // MethodInvocation.callMethod, which dispatches to a Java method or a QML function.
     static final class BoundMethod extends BaseFunction {
         private final Object target;
         private final String name;
@@ -295,7 +296,7 @@ public final class JsWrap {
         @Override public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
             Object[] ja = new Object[args.length];
             for (int i = 0; i < args.length; i++) ja[i] = toJava(args[i]);
-            return toJs(RuntimeHelpers.callMethod(target, name, ja), parent);
+            return toJs(MethodInvocation.callMethod(target, name, ja), parent);
         }
     }
 

@@ -1,10 +1,10 @@
 package io.qml4j.render.items.view;
+import io.qml4j.runtime.member.MemberAccess;
 import io.qml4j.render.items.core.Item;
 
 import io.qml4j.engine.DelegateFactory;
 import io.qml4j.engine.DelegateHost;
 import io.qml4j.engine.QObject;
-import io.qml4j.engine.RuntimeHelpers;
 import io.qml4j.engine.SignalHandler;
 import io.qml4j.engine.binding.Property;
 
@@ -67,8 +67,8 @@ public class Repeater extends Item implements DelegateHost {
         if (desired == instances.size() && desired > 0) {
             for (int i = 0; i < desired; i++) {
                 Item d = instances.get(i);
-                RuntimeHelpers.writeMember(d, "index", (long) i);
-                RuntimeHelpers.writeMember(d, "modelData", dataAt(m, i));
+                MemberAccess.writeMember(d, "index", (long) i);
+                MemberAccess.writeMember(d, "modelData", dataAt(m, i));
             }
             return;
         }

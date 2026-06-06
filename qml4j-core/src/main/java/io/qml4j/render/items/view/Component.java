@@ -1,10 +1,10 @@
 package io.qml4j.render.items.view;
+import io.qml4j.runtime.member.MemberAccess;
 import io.qml4j.render.items.core.Item;
 
 import io.qml4j.engine.DelegateFactory;
 import io.qml4j.engine.DelegateHost;
 import io.qml4j.engine.QObject;
-import io.qml4j.engine.RuntimeHelpers;
 
 import java.util.Map;
 
@@ -30,7 +30,7 @@ public class Component extends Item implements DelegateHost {
         }
         if (props instanceof Map) {
             for (Map.Entry<?, ?> e : ((Map<?, ?>) props).entrySet()) {
-                RuntimeHelpers.writeMember(created, String.valueOf(e.getKey()), e.getValue());
+                MemberAccess.writeMember(created, String.valueOf(e.getKey()), e.getValue());
             }
         }
         return created;

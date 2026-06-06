@@ -1,7 +1,7 @@
 package io.qml4j.render.items.animation;
+import io.qml4j.runtime.member.MemberAccess;
 import io.qml4j.render.items.core.Item;
 
-import io.qml4j.engine.RuntimeHelpers;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -116,7 +116,7 @@ public final class StateController {
     private static Map<TargetKey, Object> readAll(List<TargetKey> keys) {
         Map<TargetKey, Object> snap = new LinkedHashMap<>();
         for (TargetKey k : keys) {
-            snap.put(k, RuntimeHelpers.readMember(k.target, k.name));
+            snap.put(k, MemberAccess.readMember(k.target, k.name));
         }
         return snap;
     }
@@ -141,7 +141,7 @@ public final class StateController {
         if (!tpl.acceptsTransition(beforeVal, afterVal)) return;
         cancelEphemeralsFor(k);
         owner.children.add(buildEphemeral(tpl, k, beforeVal, afterVal));
-        RuntimeHelpers.writeMember(k.target, k.name, beforeVal);
+        MemberAccess.writeMember(k.target, k.name, beforeVal);
     }
 
     private void cancelEphemeralsFor(TargetKey k) {

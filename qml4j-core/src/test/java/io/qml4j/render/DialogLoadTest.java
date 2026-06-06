@@ -39,7 +39,7 @@ class DialogLoadTest {
         long clock = 1_000_000_000L;
         // open(): reparents the overlay, shows it, starts the enter animation.
         dq.install();
-        try { io.qml4j.engine.RuntimeHelpers.callMethod(dlg, "open", new Object[0]); dq.flush(); }
+        try { io.qml4j.runtime.invoke.MethodInvocation.callMethod(dlg, "open", new Object[0]); dq.flush(); }
         finally { dq.uninstall(); }
         assertTrue(Boolean.TRUE.equals(overlay.visible.peek()), "overlay shown after open()");
         // open() reparents the overlay out of the invisible Dialog onto the page
@@ -53,7 +53,7 @@ class DialogLoadTest {
 
         // close(): exit animation runs; onFinished hides the overlay.
         dq.install();
-        try { io.qml4j.engine.RuntimeHelpers.callMethod(dlg, "close", new Object[0]); dq.flush(); }
+        try { io.qml4j.runtime.invoke.MethodInvocation.callMethod(dlg, "close", new Object[0]); dq.flush(); }
         finally { dq.uninstall(); }
         for (int i = 0; i < 16; i++) { clock += 16_000_000L; dq.install();
             try { v.tickAnimations(clock); dq.flush(); } finally { dq.uninstall(); } }

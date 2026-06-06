@@ -1,6 +1,7 @@
 package io.qml4j.engine.js;
 
-import io.qml4j.engine.RuntimeHelpers;
+import io.qml4j.runtime.qt.QtColorFactory;
+import io.qml4j.runtime.invoke.Scheduler;
 import org.mozilla.javascript.BaseFunction;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.NativeObject;
@@ -14,7 +15,7 @@ import java.util.function.Function;
 
 // The shared JS global scope for the Rhino backend: standard objects (Math, JSON,
 // parseInt, ...) plus QML's Qt namespace (enum constants + Qt.rgba/hsla/color
-// factories bridged to RuntimeHelpers) and the Text/Font/Easing enum namespaces and
+// factories bridged to QtColorFactory) and the Text/Font/Easing enum namespaces and
 // console. Built once and shared as the parent scope of every QmlScope.
 //
 // Enum tables are duplicated from the compiler's ExpressionCodegen.ENUMS for now;
@@ -27,9 +28,9 @@ public final class QtGlobals {
         ScriptableObject scope = cx.initStandardObjects();
 
         NativeObject qt = enumObject(QT);
-        qt.put("rgba", qt, fn("rgba", 4, a -> RuntimeHelpers.qtRgba(arg(a, 0), arg(a, 1), arg(a, 2), arg(a, 3))));
-        qt.put("hsla", qt, fn("hsla", 4, a -> RuntimeHelpers.qtHsla(arg(a, 0), arg(a, 1), arg(a, 2), arg(a, 3))));
-        qt.put("color", qt, fn("color", 1, a -> RuntimeHelpers.qtColor(arg(a, 0))));
+        qt.put("rgba", qt, fn("rgba", 4, a -> QtColorFactory.qtRgba(arg(a, 0), arg(a, 1), arg(a, 2), arg(a, 3))));
+        qt.put("hsla", qt, fn("hsla", 4, a -> QtColorFactory.qtHsla(arg(a, 0), arg(a, 1), arg(a, 2), arg(a, 3))));
+        qt.put("color", qt, fn("color", 1, a -> QtColorFactory.qtColor(arg(a, 0))));
         qt.put("callLater", qt, callLater());
         qt.put("binding", qt, qtBinding());
         scope.put("Qt", scope, qt);
@@ -57,7 +58,7 @@ public final class QtGlobals {
                 if (f instanceof org.mozilla.javascript.Function) {
                     org.mozilla.javascript.Function jf = (org.mozilla.javascript.Function) f;
                     Scriptable home = jf.getParentScope() != null ? jf.getParentScope() : scope;
-                    RuntimeHelpers.qtCallLater((Runnable) () -> {
+                    Scheduler.qtCallLater((Runnable) () -> {
                         Context c = JsRuntime.enter();
                         try {
                             jf.call(c, home, home, ScriptRuntime.emptyArgs);
