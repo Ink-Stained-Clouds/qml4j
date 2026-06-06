@@ -132,16 +132,6 @@ public class Item extends QObject {
         if (r.focusHook != null) r.focusHook.accept(this);
     }
 
-    // Drop focus from this item (no-op if it isn't focused). A control that grabbed
-    // focus for a transient interaction -- e.g. ComboBox focuses itself while its popup
-    // is open -- releases it when the interaction ends so the focus styling clears.
-    public void clearActiveFocus() {
-        if (!Boolean.TRUE.equals(activeFocus.peek())) return;
-        Item r = this;
-        while (r.parent.peek() != null) r = r.parent.peek();
-        if (r.focusHook != null) r.focusHook.accept(null);
-    }
-
     // QML Object.destroy(): detach from the scene. Safe to call from inside an
     // animation tick because the tick walk iterates children in reverse by index.
     public void destroy() {

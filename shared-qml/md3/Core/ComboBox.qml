@@ -220,6 +220,6 @@ Item {
         id: menu
         model: control._menuModel
         width: control.width
-        onClosed: { control.menuOpen = false; control.clearActiveFocus() }
+        onClosed: control.menuOpen = false
     }
 }
