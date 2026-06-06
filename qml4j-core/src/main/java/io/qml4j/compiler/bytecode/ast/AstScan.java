@@ -1,4 +1,4 @@
-package io.qml4j.compiler.bytecode;
+package io.qml4j.compiler.bytecode.ast;
 
 import io.qml4j.parser.ast.Ast;
 
@@ -6,31 +6,17 @@ import java.util.function.Predicate;
 
 // A structural "does any node match?" walk over a handler/function body -- statements
 // and the expressions they contain, descending into nested arrow bodies. Used to spot
-// constructs that decide backend routing: a for-in the ASM codegen cannot lower, or a
-// Qt reactive helper the Rhino globals do not yet provide.
+// constructs that decide backend routing: a Qt reactive helper the Rhino globals do
+// not yet provide.
 public final class AstScan {
 
     private AstScan() {}
-
-    // True if the body contains a for-in. ASM has no for-in lowering, so such a body
-    // must run on Rhino.
-    static boolean containsForIn(Ast.Statement body) {
-        return scan(body, n -> n instanceof Ast.ForInStmt);
-    }
 
     // True if the body uses a Qt.binding form the Rhino backend can't take: only the
     // arrow form `Qt.binding(() => expr)` preserves laziness on Rhino, so the bare
     // expression form `Qt.binding(expr)` must stay on ASM.
     public static boolean usesDeferredQtHelper(Ast.Statement body) {
         return scan(body, AstScan::isUnsupportedQtBinding);
-    }
-
-    // True if the body has a bare-identifier call `foo(...)` (not `obj.foo(...)`). In a
-    // delegate, such a call resolves to a delegate-local/root function via the parent
-    // chain, which the Rhino delegate scope doesn't yet walk -- so those stay on ASM.
-    static boolean hasBareCall(Ast.Statement body) {
-        return scan(body, n -> n instanceof Ast.CallExpr
-            && ((Ast.CallExpr) n).callee instanceof Ast.IdentifierExpr);
     }
 
     private static boolean isUnsupportedQtBinding(Object n) {

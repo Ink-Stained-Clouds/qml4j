@@ -1,4 +1,4 @@
-package io.qml4j.compiler.bytecode;
+package io.qml4j.compiler.bytecode.ast;
 
 import io.qml4j.parser.ast.Ast;
 
