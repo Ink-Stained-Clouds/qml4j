@@ -1,6 +1,7 @@
 package io.qml4j.render.items.core;
 
 import io.qml4j.engine.binding.Property;
+import io.qml4j.render.Painter;
 
 public class Image extends Item {
     public final Property<String> source = new Property<>(null);
@@ -12,4 +13,9 @@ public class Image extends Item {
     public String loadedSource;
     public int intrinsicWidth;
     public int intrinsicHeight;
+
+    @Override
+    public void paint(Painter p, float w, float h, float alpha) {
+        p.drawImage(this, w, h);
+    }
 }

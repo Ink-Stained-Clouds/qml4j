@@ -6,8 +6,6 @@ import io.qml4j.engine.binding.DirtyQueue;
 import io.qml4j.engine.binding.Property;
 import io.qml4j.render.items.view.Component;
 import io.qml4j.render.items.core.Flickable;
-import io.qml4j.render.items.core.Image;
-import io.qml4j.render.items.shape.ImageFill;
 import io.qml4j.render.items.core.Item;
 import io.qml4j.render.items.view.Loader;
 import io.qml4j.render.items.effect.ColorOverlay;
@@ -72,6 +70,10 @@ public final class Renderer {
 
     public void setComponentFactory(ComponentFactory factory) {
         this.factory = factory;
+    }
+
+    ResourceLoader resources() {
+        return resources;
     }
 
     Paint paint() {
@@ -372,8 +374,6 @@ public final class Renderer {
         node.paint(painter, w, h, alpha);
         if (node instanceof Shape) {
             paintShape(canvas, (Shape) node, w, h, alpha);
-        } else if (node instanceof Image) {
-            paintImage(canvas, (Image) node, w, h, alpha);
         } else if (node instanceof Button) {
             paintButton(canvas, (Button) node, w, h, alpha);
         } else if (node instanceof TextField) {
@@ -734,110 +734,6 @@ public final class Renderer {
         } catch (Throwable ignored) {
             return s.length();
         }
-    }
-
-    private void paintImage(Canvas canvas, Image node, float w, float h, float alpha) {
-        String src = node.source.peek();
-        if (src == null || src.isEmpty()) return;
-        if (!src.equals(node.loadedSource)) {
-            if (node.skiaImage != null) {
-                node.skiaImage.close();
-                node.skiaImage = null;
-            }
-            node.loadedSource = src;
-            node.intrinsicWidth = 0;
-            node.intrinsicHeight = 0;
-            if (resources != null) {
-                byte[] bytes = resources.load(src);
-                if (bytes != null) {
-                    int[] dim = peekImageDimensions(bytes);
-                    node.intrinsicWidth = dim[0];
-                    node.intrinsicHeight = dim[1];
-                    try {
-                        node.skiaImage = io.github.humbleui.skija.Image.makeFromEncoded(bytes);
-                    } catch (Throwable t) {
-                        node.skiaImage = null;
-                    }
-                }
-            }
-        }
-        if (node.skiaImage == null) return;
-        int iw = node.intrinsicWidth;
-        int ih = node.intrinsicHeight;
-        if (iw <= 0 || ih <= 0) return;
-        if (w <= 0) w = iw;
-        if (h <= 0) h = ih;
-        ImageFill.Plan plan = ImageFill.compute(node.fillMode.peek(), iw, ih, w, h);
-        if (plan == null) return;
-        node.paintedWidth.set(plan.paintedWidth);
-        node.paintedHeight.set(plan.paintedHeight);
-        switch (plan.op) {
-            case DRAW_RECT:
-                drawImagePlan(canvas, node.skiaImage, plan);
-                break;
-            case TILE_X:
-            case TILE_Y:
-            case TILE_XY:
-                drawTilePlan(canvas, node.skiaImage, plan, w, h);
-                break;
-        }
-    }
-
-    private void drawImagePlan(Canvas canvas, io.github.humbleui.skija.Image img, ImageFill.Plan plan) {
-        Rect src = Rect.makeXYWH(plan.srcX, plan.srcY, plan.srcW, plan.srcH);
-        Rect dst = Rect.makeXYWH(plan.dstX, plan.dstY, plan.dstW, plan.dstH);
-        canvas.drawImageRect(img, src, dst);
-    }
-
-    private void drawTilePlan(Canvas canvas, io.github.humbleui.skija.Image img,
-                              ImageFill.Plan plan, float boundsW, float boundsH) {
-        int saved = canvas.save();
-        try {
-            canvas.clipRect(Rect.makeXYWH(plan.clipX, plan.clipY, plan.clipW, plan.clipH));
-            float stepX = plan.tileStepX > 0 ? plan.tileStepX : boundsW;
-            float stepY = plan.tileStepY > 0 ? plan.tileStepY : boundsH;
-            Rect src = Rect.makeXYWH(plan.srcX, plan.srcY, plan.srcW, plan.srcH);
-            for (float y = 0; y < boundsH; y += stepY) {
-                for (float x = 0; x < boundsW; x += stepX) {
-                    Rect dst = Rect.makeXYWH(x, y, plan.dstW, plan.dstH);
-                    canvas.drawImageRect(img, src, dst);
-                }
-            }
-        } finally {
-            canvas.restoreToCount(saved);
-        }
-    }
-
-    private static int[] peekImageDimensions(byte[] bytes) {
-        if (bytes.length >= 24
-                && (bytes[0] & 0xFF) == 0x89 && bytes[1] == 'P' && bytes[2] == 'N' && bytes[3] == 'G') {
-            int w = ((bytes[16] & 0xFF) << 24) | ((bytes[17] & 0xFF) << 16)
-                    | ((bytes[18] & 0xFF) << 8) | (bytes[19] & 0xFF);
-            int h = ((bytes[20] & 0xFF) << 24) | ((bytes[21] & 0xFF) << 16)
-                    | ((bytes[22] & 0xFF) << 8) | (bytes[23] & 0xFF);
-            return new int[]{w, h};
-        }
-        if (bytes.length >= 4
-                && (bytes[0] & 0xFF) == 0xFF && (bytes[1] & 0xFF) == 0xD8) {
-            int i = 2;
-            while (i + 9 < bytes.length) {
-                if ((bytes[i] & 0xFF) != 0xFF) break;
-                int marker = bytes[i + 1] & 0xFF;
-                i += 2;
-                if (marker == 0xD8 || marker == 0xD9) continue;
-                int segLen = ((bytes[i] & 0xFF) << 8) | (bytes[i + 1] & 0xFF);
-                if ((marker >= 0xC0 && marker <= 0xC3)
-                        || (marker >= 0xC5 && marker <= 0xC7)
-                        || (marker >= 0xC9 && marker <= 0xCB)
-                        || (marker >= 0xCD && marker <= 0xCF)) {
-                    int h = ((bytes[i + 3] & 0xFF) << 8) | (bytes[i + 4] & 0xFF);
-                    int w = ((bytes[i + 5] & 0xFF) << 8) | (bytes[i + 6] & 0xFF);
-                    return new int[]{w, h};
-                }
-                i += segLen;
-            }
-        }
-        return new int[]{0, 0};
     }
 
     void resolveLoader(Loader node) {
