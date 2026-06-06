@@ -1,7 +1,14 @@
 package io.qml4j.render.items.animation;
 import io.qml4j.render.items.core.Item;
 
+import java.util.List;
+
 public abstract class GroupAnimation extends AbstractAnimation {
+
+    // Qt's SequentialAnimation/ParallelAnimation.animations: the child animations. They
+    // are this group's children, so alias the list -- MD3 Tabs retargets a running move
+    // via `moveAnim.animations[0].to = x`.
+    public final List<Item> animations = children;
 
     private boolean wasRunning;
     private int loopsDone;
