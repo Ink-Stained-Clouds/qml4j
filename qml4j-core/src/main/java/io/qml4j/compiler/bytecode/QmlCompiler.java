@@ -2,6 +2,8 @@ package io.qml4j.compiler.bytecode;
 
 import io.qml4j.compiler.CompiledUnit;
 import io.qml4j.compiler.TypeRegistry;
+import io.qml4j.compiler.bytecode.decl.AliasDecl;
+import io.qml4j.compiler.bytecode.decl.DeclaredProp;
 import io.qml4j.engine.DelegateHost;
 import io.qml4j.engine.PropertyChangeSink;
 import io.qml4j.engine.SignalRelay;
@@ -28,7 +30,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static io.qml4j.compiler.bytecode.asm.Bytecode.emitPropertyDefault;
 import static io.qml4j.compiler.bytecode.asm.Bytecode.loadLiteral;
 import static io.qml4j.compiler.bytecode.asm.Bytecode.pushStringArray;
 import static io.qml4j.compiler.bytecode.asm.Descriptors.BINDING_INTERNAL;
@@ -56,6 +57,10 @@ import static io.qml4j.compiler.bytecode.asm.Fields.listAcceptsElement;
 import static io.qml4j.compiler.bytecode.asm.Fields.propFieldOwnerOrNull;
 import static io.qml4j.compiler.bytecode.ast.Ids.collectIds;
 import static io.qml4j.compiler.bytecode.ast.Ids.idOf;
+import static io.qml4j.compiler.bytecode.decl.PropertyDecls.collectPropertyDecls;
+import static io.qml4j.compiler.bytecode.decl.PropertyDecls.emitAliasLink;
+import static io.qml4j.compiler.bytecode.decl.PropertyDecls.emitInitDeclaredProperty;
+import static io.qml4j.compiler.bytecode.decl.PropertyDecls.parseAlias;
 import static io.qml4j.compiler.bytecode.rhino.RhinoScope.canHandle;
 import static io.qml4j.compiler.bytecode.rhino.RhinoScope.collectAliases;
 import static io.qml4j.compiler.bytecode.rhino.RhinoScope.collectSingletons;
@@ -1776,184 +1781,4 @@ public final class QmlCompiler {
         mv.visitMaxs(0, 0);
         mv.visitEnd();
     }
-
-    private static final class DeclaredProp {
-        final String name;
-        final String typeName;
-        final Ast.Value initializer;
-        final boolean isDefault;
-        final boolean isOverride;  // redeclares an inherited Property -> init it, no new field
-        DeclaredProp(String name, String typeName, Ast.Value initializer) {
-            this(name, typeName, initializer, false, false);
-        }
-        DeclaredProp(String name, String typeName, Ast.Value initializer, boolean isDefault) {
-            this(name, typeName, initializer, isDefault, false);
-        }
-        DeclaredProp(String name, String typeName, Ast.Value initializer, boolean isDefault, boolean isOverride) {
-            this.name = name;
-            this.typeName = typeName;
-            this.initializer = initializer;
-            this.isDefault = isDefault;
-            this.isOverride = isOverride;
-        }
-    }
-
-    private static final class AliasDecl {
-        final String name;
-        final String targetId;
-        final String targetProperty;
-        final boolean isList;     // alias to id.data / id.children (a List)
-        final boolean isDefault;  // default property alias -> the default child container
-        AliasDecl(String name, String targetId, String targetProperty) {
-            this(name, targetId, targetProperty, false, false);
-        }
-        AliasDecl(String name, String targetId, String targetProperty, boolean isList, boolean isDefault) {
-            this.name = name;
-            this.targetId = targetId;
-            this.targetProperty = targetProperty;
-            this.isList = isList;
-            this.isDefault = isDefault;
-        }
-    }
-
-    private static AliasDecl parseAlias(DeclaredProp dp) {
-        if (dp.initializer == null) {
-            throw new IllegalArgumentException(
-                "property alias '" + dp.name + "' requires initializer of form id.property");
-        }
-        if (!(dp.initializer instanceof Ast.ExpressionValue)) {
-            throw new IllegalArgumentException(
-                "property alias '" + dp.name + "' initializer must be expression id.property");
-        }
-        Ast.Expression e = ((Ast.ExpressionValue) dp.initializer).expr;
-        if (e instanceof Ast.IdentifierExpr) {
-            // Object alias: `property alias foo: someId` exposes the object itself.
-            return new AliasDecl(dp.name, ((Ast.IdentifierExpr) e).name, null, false, dp.isDefault);
-        }
-        if (!(e instanceof Ast.MemberExpr)) {
-            throw new IllegalArgumentException(
-                "property alias '" + dp.name + "' must reference id or id.property, got "
-                + e.getClass().getSimpleName());
-        }
-        Ast.MemberExpr m = (Ast.MemberExpr) e;
-        if (!(m.target instanceof Ast.IdentifierExpr)) {
-            throw new IllegalArgumentException(
-                "property alias '" + dp.name + "' must reference id.property (target must be id)");
-        }
-        boolean isList = "data".equals(m.property) || "children".equals(m.property);
-        return new AliasDecl(dp.name, ((Ast.IdentifierExpr) m.target).name, m.property, isList, dp.isDefault);
-    }
-
-    private static void emitAliasLink(MethodVisitor ctor, String componentInternal,
-                                      String rootId, Class<? extends QObject> rootType,
-                                      Map<String, Class<? extends QObject>> idTypes,
-                                      Map<String, String> rootDeclaredProps,
-                                      AliasDecl ad) {
-        Class<? extends QObject> targetType = idTypes.get(ad.targetId);
-        if (targetType == null) {
-            throw new IllegalArgumentException(
-                "property alias '" + ad.name + "' references unknown id: " + ad.targetId);
-        }
-        if (ad.isList) {
-            // this.NAME = this.targetId.children  (share the inner container's list)
-            Field childrenField;
-            try {
-                childrenField = targetType.getField("children");
-            } catch (NoSuchFieldException e) {
-                throw new IllegalArgumentException(
-                    "list alias '" + ad.name + "' target '" + ad.targetId + "' has no children list");
-            }
-            String childrenOwner = Type.getInternalName(childrenField.getDeclaringClass());
-            String targetInternal = Type.getInternalName(targetType);
-            ctor.visitVarInsn(Opcodes.ALOAD, 0);
-            ctor.visitVarInsn(Opcodes.ALOAD, 0);
-            ctor.visitFieldInsn(Opcodes.GETFIELD, componentInternal, ad.targetId,
-                                "L" + targetInternal + ";");
-            ctor.visitFieldInsn(Opcodes.GETFIELD, childrenOwner, "children", LIST_DESC);
-            ctor.visitFieldInsn(Opcodes.PUTFIELD, componentInternal, ad.name, LIST_DESC);
-            return;
-        }
-        if (ad.targetProperty == null) {
-            // Object alias: this.NAME = this.targetId
-            String targetInternal = Type.getInternalName(targetType);
-            ctor.visitVarInsn(Opcodes.ALOAD, 0);
-            ctor.visitVarInsn(Opcodes.ALOAD, 0);
-            ctor.visitFieldInsn(Opcodes.GETFIELD, componentInternal, ad.targetId,
-                                "L" + targetInternal + ";");
-            ctor.visitFieldInsn(Opcodes.PUTFIELD, componentInternal, ad.name, QOBJECT_DESC);
-            return;
-        }
-        String targetFieldOwner = resolveAliasTargetFieldOwner(
-            ad, targetType, rootId, componentInternal, rootDeclaredProps);
-        ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        if (targetFieldOwner.equals(componentInternal)) {
-            ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        } else {
-            String targetInternal = Type.getInternalName(targetType);
-            ctor.visitVarInsn(Opcodes.ALOAD, 0);
-            ctor.visitFieldInsn(Opcodes.GETFIELD, componentInternal, ad.targetId,
-                                "L" + targetInternal + ";");
-        }
-        ctor.visitFieldInsn(Opcodes.GETFIELD, targetFieldOwner, ad.targetProperty, PROPERTY_DESC);
-        ctor.visitFieldInsn(Opcodes.PUTFIELD, componentInternal, ad.name, PROPERTY_DESC);
-    }
-
-    private static String resolveAliasTargetFieldOwner(AliasDecl ad,
-                                                       Class<? extends QObject> targetType,
-                                                       String rootId, String componentInternal,
-                                                       Map<String, String> rootDeclaredProps) {
-        Field f = findPropertyFieldOrNull(targetType, ad.targetProperty);
-        if (f != null) {
-            return Type.getInternalName(f.getDeclaringClass());
-        }
-        if (rootId != null && rootId.equals(ad.targetId)
-            && rootDeclaredProps.containsKey(ad.targetProperty)) {
-            return componentInternal;
-        }
-        throw new IllegalArgumentException(
-            "property alias '" + ad.name + "' target '" + ad.targetId + "." + ad.targetProperty
-            + "' resolves to no Property field (v0 allows builtin or root-declared targets only)");
-    }
-
-    private static List<DeclaredProp> collectPropertyDecls(Ast.ObjectNode obj, Class<?> ownerType) {
-        List<DeclaredProp> out = new ArrayList<>();
-        Set<String> seen = new LinkedHashSet<>();
-        for (Ast.ObjectMember m : obj.members) {
-            if (!(m instanceof Ast.PropertyDeclaration)) continue;
-            Ast.PropertyDeclaration pd = (Ast.PropertyDeclaration) m;
-            // readonly/required are accepted as plain properties (v0 doesn't
-            // enforce immutability or instantiation-time requirement). `default`
-            // is only supported on a list alias (default property alias x: id.data).
-            if (pd.isDefault && !"alias".equals(pd.typeName)) {
-                throw new UnsupportedOperationException(
-                    "default property modifier supported only on a list alias: " + pd.name);
-            }
-            if (!seen.add(pd.name)) {
-                throw new IllegalArgumentException("duplicate property declaration: " + pd.name);
-            }
-            if (findSignalFieldOrNull(ownerType, pd.name) != null) {
-                throw new IllegalArgumentException(
-                    "property '" + pd.name + "' shadows existing signal on " + ownerType.getName());
-            }
-            // Redeclaring an inherited Property (Qt allows `property bool enabled`
-            // on a type that already has enabled) -> treat as an override: no new
-            // field, the initializer just sets the inherited one.
-            boolean isOverride = !"alias".equals(pd.typeName)
-                && findPropertyFieldOrNull(ownerType, pd.name) != null;
-            out.add(new DeclaredProp(pd.name, pd.typeName, pd.initializer, pd.isDefault, isOverride));
-        }
-        return out;
-    }
-
-    private static void emitInitDeclaredProperty(MethodVisitor ctor, int receiverLocal,
-                                                 String ownerInternal, DeclaredProp dp) {
-        ctor.visitVarInsn(Opcodes.ALOAD, receiverLocal);
-        ctor.visitTypeInsn(Opcodes.NEW, PROPERTY_INTERNAL);
-        ctor.visitInsn(Opcodes.DUP);
-        emitPropertyDefault(ctor, dp.typeName);
-        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, PROPERTY_INTERNAL,
-                             "<init>", "(Ljava/lang/Object;)V", false);
-        ctor.visitFieldInsn(Opcodes.PUTFIELD, ownerInternal, dp.name, PROPERTY_DESC);
-    }
-
 }
