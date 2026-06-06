@@ -4,7 +4,6 @@ import io.qml4j.render.items.window.AbstractButton;
 import io.qml4j.render.items.animation.Animatable;
 import io.qml4j.render.items.core.Drag;
 import io.qml4j.render.items.core.Flickable;
-import io.qml4j.render.items.input.FocusScope;
 import io.qml4j.render.items.animation.GroupAnimation;
 import io.qml4j.render.items.core.Item;
 import io.qml4j.render.items.input.KeyEvent;
@@ -21,7 +20,6 @@ import io.qml4j.engine.QmlEngine;
 import io.qml4j.engine.Signal;
 import io.qml4j.engine.binding.DirtyQueue;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import static io.qml4j.render.Renderer.zOrdered;
@@ -31,6 +29,7 @@ public final class QmlView {
     private final Renderer renderer = new Renderer();
     private final DirtyQueue dirty = new DirtyQueue();
     private final Loader loader;
+    private final FocusManager focus = new FocusManager();
     private Item root;
 
     public QmlView(QmlEngine engine, TypeRegistry types) {
@@ -50,27 +49,16 @@ public final class QmlView {
 
     public Item load(String qml) {
         root = loader.instantiate(qml);
-        root.installFocusHook(this::setFocus);
+        focus.setRoot(root);
+        root.installFocusHook(focus::setFocus);
         initStateBindings(root);
-        initialFocusScan(root);
+        focus.scanInitialFocus(root);
         return root;
     }
 
     private void initStateBindings(Item node) {
         node.initStateBindings();
         for (Item c : node.children) initStateBindings(c);
-    }
-
-    private void initialFocusScan(Item node) {
-        if (node == null) return;
-        if (Boolean.TRUE.equals(node.focus.peek())) {
-            setFocus(node);
-            return;
-        }
-        for (Item c : node.children) {
-            initialFocusScan(c);
-            if (focused != null) return;
-        }
     }
 
     public Item root() {
@@ -88,8 +76,6 @@ public final class QmlView {
     private Flickable scrolling;
     private float scrollStartContentX;
     private float scrollStartContentY;
-    private Item focused;
-    private FocusListener focusListener;
     private TextEditable textCapturing;
     private Clipboard clipboard;
 
@@ -98,20 +84,23 @@ public final class QmlView {
     }
 
     public boolean copy() {
-        if (!(focused instanceof TextEditable)) return false;
-        return copyFromSelection((TextEditable) focused, false);
+        Item f = focus.focused();
+        if (!(f instanceof TextEditable)) return false;
+        return copyFromSelection((TextEditable) f, false);
     }
 
     public boolean cut() {
-        if (!(focused instanceof TextEditable)) return false;
-        TextEditable ti = (TextEditable) focused;
+        Item f = focus.focused();
+        if (!(f instanceof TextEditable)) return false;
+        TextEditable ti = (TextEditable) f;
         if (ti.readOnly()) return false;
         return copyFromSelection(ti, true);
     }
 
     public boolean paste() {
-        if (!(focused instanceof TextEditable)) return false;
-        TextEditable ti = (TextEditable) focused;
+        Item f = focus.focused();
+        if (!(f instanceof TextEditable)) return false;
+        TextEditable ti = (TextEditable) f;
         if (ti.readOnly()) return false;
         if (clipboard == null) return false;
         String text = clipboard.getText();
@@ -135,89 +124,19 @@ public final class QmlView {
     }
 
     public void setFocusListener(FocusListener l) {
-        this.focusListener = l;
+        focus.setFocusListener(l);
     }
 
     public Item focused() {
-        return focused;
-    }
-
-    private boolean moveFocusByTab(boolean backward) {
-        Item scope = enclosingScope(focused);
-        List<Item> stops = new ArrayList<>();
-        collectTabStops(scope, stops);
-        if (stops.isEmpty()) return false;
-        int idx = stops.indexOf(focused);
-        int next;
-        if (idx < 0) {
-            next = backward ? stops.size() - 1 : 0;
-        } else {
-            next = backward ? (idx - 1 + stops.size()) % stops.size()
-                            : (idx + 1) % stops.size();
-        }
-        setFocus(stops.get(next));
-        return true;
-    }
-
-    private Item enclosingScope(Item it) {
-        for (Item n = it; n != null; n = n.parent.peek()) {
-            if (n instanceof FocusScope) return n;
-        }
-        return root;
-    }
-
-    private void collectTabStops(Item node, List<Item> out) {
-        if (node == null || !Boolean.TRUE.equals(node.visible.peek())) return;
-        if (Boolean.TRUE.equals(node.activeFocusOnTab.peek())) out.add(node);
-        for (Item c : node.children) collectTabStops(c, out);
+        return focus.focused();
     }
 
     public void setFocus(Item it) {
-        it = it == null ? null : focusTarget(it);
-        if (focused == it) return;
-        Item old = focused;
-        if (old != null) {
-            old.activeFocus.set(Boolean.FALSE);
-            old.focus.set(Boolean.FALSE);
-            if (old instanceof TextEditable) clearSelection((TextEditable) old);
-        }
-        focused = it;
-        if (it != null) {
-            it.focus.set(Boolean.TRUE);
-            it.activeFocus.set(Boolean.TRUE);
-        }
-        if (focusListener != null) focusListener.onFocusChanged(it, old);
+        focus.setFocus(it);
     }
 
     public void clearFocus() {
-        setFocus(null);
-    }
-
-    private Item focusTarget(Item it) {
-        while (it instanceof FocusScope) {
-            Item inner = scopeFocusChild(it);
-            if (inner == null || inner == it) break;
-            it = inner;
-        }
-        return it;
-    }
-
-    private Item scopeFocusChild(Item scope) {
-        for (Item c : scope.children) {
-            Item found = firstFocusInside(c);
-            if (found != null) return found;
-        }
-        return null;
-    }
-
-    private Item firstFocusInside(Item node) {
-        if (node == null || !Boolean.TRUE.equals(node.visible.peek())) return null;
-        if (Boolean.TRUE.equals(node.focus.peek())) return node;
-        for (Item c : node.children) {
-            Item found = firstFocusInside(c);
-            if (found != null) return found;
-        }
-        return null;
+        focus.clearFocus();
     }
 
     public boolean dispatchKey(int keyCode, String text, boolean down) {
@@ -225,14 +144,15 @@ public final class QmlView {
     }
 
     public boolean dispatchKey(int keyCode, String text, boolean down, boolean shift) {
-        if (focused != null && deliverToKeys(focused, keyCode, text, down, shift)) {
+        Item f = focus.focused();
+        if (f != null && deliverToKeys(f, keyCode, text, down, shift)) {
             return true;
         }
         if (down && (keyCode == KEY_TAB || keyCode == KEY_BACKTAB)) {
-            if (moveFocusByTab(keyCode == KEY_BACKTAB)) return true;
+            if (focus.moveFocusByTab(keyCode == KEY_BACKTAB)) return true;
         }
-        if (!(focused instanceof TextEditable)) return false;
-        TextEditable ti = (TextEditable) focused;
+        if (!(f instanceof TextEditable)) return false;
+        TextEditable ti = (TextEditable) f;
         if (ti.readOnly()) return false;
         if (!down) return true;
         if (keyCode == KEY_ENTER) {
@@ -414,7 +334,7 @@ public final class QmlView {
         if (root == null) return false;
         TextEditable ti = hitTestTextEditable(root, x, y);
         if (ti != null) {
-            setFocus((Item) ti);
+            focus.setFocus((Item) ti);
             float[] local = localCoords((Item) ti, x, y);
             int idx = ti.caretIndexAt(local[0], local[1], renderer);
             clearSelection(ti);
@@ -423,7 +343,7 @@ public final class QmlView {
             textCapturing = ti;
             return true;
         }
-        if (focused instanceof TextEditable) clearFocus();
+        if (focus.focused() instanceof TextEditable) focus.clearFocus();
         AbstractButton btn = hitTestButton(root, x, y);
         if (btn != null) {
             capturedButton = btn;
