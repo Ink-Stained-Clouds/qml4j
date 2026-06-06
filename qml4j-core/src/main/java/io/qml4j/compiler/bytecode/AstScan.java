@@ -8,7 +8,7 @@ import java.util.function.Predicate;
 // and the expressions they contain, descending into nested arrow bodies. Used to spot
 // constructs that decide backend routing: a for-in the ASM codegen cannot lower, or a
 // Qt reactive helper the Rhino globals do not yet provide.
-final class AstScan {
+public final class AstScan {
 
     private AstScan() {}
 
@@ -21,7 +21,7 @@ final class AstScan {
     // True if the body uses a Qt.binding form the Rhino backend can't take: only the
     // arrow form `Qt.binding(() => expr)` preserves laziness on Rhino, so the bare
     // expression form `Qt.binding(expr)` must stay on ASM.
-    static boolean usesDeferredQtHelper(Ast.Statement body) {
+    public static boolean usesDeferredQtHelper(Ast.Statement body) {
         return scan(body, AstScan::isUnsupportedQtBinding);
     }
 

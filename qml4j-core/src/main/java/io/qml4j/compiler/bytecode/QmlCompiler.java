@@ -7,10 +7,7 @@ import io.qml4j.engine.PropertyChangeSink;
 import io.qml4j.engine.SignalRelay;
 import io.qml4j.engine.binding.Property;
 import io.qml4j.engine.QObject;
-import io.qml4j.engine.js.JsRuntime;
-import io.qml4j.engine.js.RhinoClosure;
 import io.qml4j.parser.ast.Ast;
-import org.mozilla.javascript.RhinoException;
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;
@@ -22,10 +19,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -61,6 +56,14 @@ import static io.qml4j.compiler.bytecode.asm.Fields.listAcceptsElement;
 import static io.qml4j.compiler.bytecode.asm.Fields.propFieldOwnerOrNull;
 import static io.qml4j.compiler.bytecode.ast.Ids.collectIds;
 import static io.qml4j.compiler.bytecode.ast.Ids.idOf;
+import static io.qml4j.compiler.bytecode.rhino.RhinoScope.canHandle;
+import static io.qml4j.compiler.bytecode.rhino.RhinoScope.collectAliases;
+import static io.qml4j.compiler.bytecode.rhino.RhinoScope.collectSingletons;
+import static io.qml4j.compiler.bytecode.rhino.RhinoScope.pushAliases;
+import static io.qml4j.compiler.bytecode.rhino.RhinoScope.pushSingletons;
+import static io.qml4j.compiler.bytecode.rhino.RhinoScope.require;
+import static io.qml4j.compiler.bytecode.rhino.RhinoScope.validateCompiles;
+import static io.qml4j.compiler.bytecode.rhino.RhinoScope.validateSource;
 
 public final class QmlCompiler {
 
@@ -383,7 +386,7 @@ public final class QmlCompiler {
                 if (fd.source == null) {
                     throw new IllegalArgumentException("function '" + fd.name + "' has no captured source");
                 }
-                requireRhinoCanHandle(fd.body, outerType, idTypes, declaredProps, fd.paramNames,
+                require(fd.body, outerType, idTypes, declaredProps, fd.paramNames,
                                       scopeFunctions, customSignals, aliases);
                 // Registers the function as a Rhino callable on the object at outerLocal
                 // (this for a root function); a root function also gets a thin reflective
@@ -511,7 +514,7 @@ public final class QmlCompiler {
                     return;
                 }
                 // Ineligible only when a free name does not resolve; surface that.
-                requireRhinoCanHandle(sb.block, outerType, idTypes, declaredProps,
+                require(sb.block, outerType, idTypes, declaredProps,
                                       Collections.<String>emptyList(), rootFunctions, customSignals, aliases);
                 throw new IllegalArgumentException(
                     "statement-block binding for '" + key + "' could not be compiled");
@@ -650,7 +653,7 @@ public final class QmlCompiler {
             }
             if (pd.initializer instanceof Ast.StatementBlockValue) {
                 // tryEmitRhinoIifeBinding above returned false: a free name does not resolve.
-                requireRhinoCanHandle(((Ast.StatementBlockValue) pd.initializer).block, outerType,
+                require(((Ast.StatementBlockValue) pd.initializer).block, outerType,
                                       idTypes, declaredProps, Collections.<String>emptyList(),
                                       rootFunctions, customSignalParams.keySet(), aliases);
                 throw new IllegalArgumentException(
@@ -705,7 +708,7 @@ public final class QmlCompiler {
         }
         if (pd.initializer instanceof Ast.StatementBlockValue) {
             // tryEmitRhinoIifeBinding above returned false: a free name does not resolve.
-            requireRhinoCanHandle(((Ast.StatementBlockValue) pd.initializer).block, outerType,
+            require(((Ast.StatementBlockValue) pd.initializer).block, outerType,
                                   idTypes, declaredProps, Collections.<String>emptyList(),
                                   rootFunctions, customSignalParams.keySet(), aliases);
             throw new IllegalArgumentException(
@@ -727,7 +730,7 @@ public final class QmlCompiler {
         if (source == null) {
             throw new IllegalArgumentException("binding for '" + name + "' has no captured source");
         }
-        requireRhinoCanHandle(new Ast.ExprStmt(expr), outerType, idTypes, declaredProps,
+        require(new Ast.ExprStmt(expr), outerType, idTypes, declaredProps,
                               Collections.<String>emptyList(), rootFunctions, customSignals, aliases);
         emitRhinoBindingBind(ctor, ownerInternal, name, source, outerLocal, idTypes,
                              collectSingletons(expr), collectAliases(expr, aliases));
@@ -1304,7 +1307,7 @@ public final class QmlCompiler {
         if (source == null) {
             throw new IllegalArgumentException("change '" + name + "' has no captured source");
         }
-        requireRhinoCanHandle(new Ast.ExprStmt(expr), outerType, idTypes, declaredProps,
+        require(new Ast.ExprStmt(expr), outerType, idTypes, declaredProps,
                               Collections.<String>emptyList(), rootFunctions, customSignals, aliases);
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitLdcInsn(name);
@@ -1341,7 +1344,7 @@ public final class QmlCompiler {
         if (source == null) {
             throw new IllegalArgumentException("binding for '" + propName + "' has no captured source");
         }
-        requireRhinoCanHandle(new Ast.ExprStmt(expr), outerType, idTypes, declaredProps,
+        require(new Ast.ExprStmt(expr), outerType, idTypes, declaredProps,
                               Collections.<String>emptyList(), rootFunctions, customSignals, aliases);
         emitRhinoBindingBind(ctor, declOwner, propName, source, outerLocal, idTypes,
                              collectSingletons(expr), collectAliases(expr, aliases));
@@ -1590,7 +1593,7 @@ public final class QmlCompiler {
     private void emitRhinoFunction(MethodVisitor ctor, int outerLocal, Ast.FunctionDeclaration fd,
                                    Map<String, Class<? extends QObject>> idTypes,
                                    Map<String, AliasRef> aliases) {
-        validateRhinoSource(fd.source, fd.paramNames);
+        validateSource(fd.source, fd.paramNames);
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitLdcInsn(fd.name);
         ctor.visitTypeInsn(Opcodes.NEW, RHINO_FUNCTION_INTERNAL);
@@ -1611,7 +1614,7 @@ public final class QmlCompiler {
 
     // Pushes a SignalHandler instance onto the stack: a RhinoHandler when the body's
     // raw JS source is available and every bare name it touches resolves at runtime
-    // (handlerCanHandle), otherwise the ASM-emitted handler class. The signal target
+    // (canHandle), otherwise the ASM-emitted handler class. The signal target
     // is expected to already be on the stack below; callers connect afterwards.
     private void emitHandlerInstance(MethodVisitor ctor, Class<?> outerType, String outerInternal,
                                      String componentInternal, String componentBinaryName, int outerLocal,
@@ -1626,9 +1629,9 @@ public final class QmlCompiler {
         if (source == null) {
             throw new IllegalArgumentException("signal handler has no captured source");
         }
-        requireRhinoCanHandle(body, outerType, idTypes, declaredProps, params, rootFunctions,
+        require(body, outerType, idTypes, declaredProps, params, rootFunctions,
                               customSignals, aliases);
-        validateRhinoSource(source, params);
+        validateSource(source, params);
         ctor.visitTypeInsn(Opcodes.NEW, RHINO_HANDLER_INTERNAL);
         ctor.visitInsn(Opcodes.DUP);
         ctor.visitLdcInsn(source);
@@ -1641,23 +1644,6 @@ public final class QmlCompiler {
         pushAliases(ctor, collectAliases(body, aliases));
         ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_HANDLER_INTERNAL, "<init>",
             "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;Z[Ljava/lang/String;[Ljava/lang/Class;[Ljava/lang/String;)V", false);
-    }
-
-    // Compile the wrapped JS eagerly so a syntax error (a stray break, a malformed
-    // expression) surfaces at QML-compile time -- parity with the ASM backend's
-    // early diagnostics -- and warms the shared Script cache the runtime reuses. The
-    // wrapper must match RhinoClosure exactly, or a body with a top-level return
-    // would falsely fail validation.
-    private static void validateRhinoSource(String source, List<String> params) {
-        validateRhinoCompiles(RhinoClosure.wrap(source, params));
-    }
-
-    private static void validateRhinoCompiles(String js) {
-        try {
-            JsRuntime.compile(js);
-        } catch (RhinoException e) {
-            throw new IllegalArgumentException("invalid JS: " + e.getMessage(), e);
-        }
     }
 
     // A function-style property binding (`prop: { ...; return x }`) runs on Rhino as an
@@ -1673,12 +1659,12 @@ public final class QmlCompiler {
                                             Map<String, Integer> rootFunctions,
                                             Map<String, AliasRef> aliases) {
         if (blockValue.source == null) return false;
-        if (!handlerCanHandle(blockValue.block, outerType, idTypes, declaredProps,
+        if (!canHandle(blockValue.block, outerType, idTypes, declaredProps,
                               Collections.<String>emptyList(), rootFunctions, customSignals, aliases)) {
             return false;
         }
         String iife = "(function(){" + blockValue.source + "})()";
-        validateRhinoCompiles(iife);
+        validateCompiles(iife);
         emitRhinoBindingBind(ctor, declOwner, propName, iife, outerLocal, idTypes,
                              collectSingletons(blockValue.block), collectAliases(blockValue.block, aliases));
         return true;
@@ -1734,7 +1720,7 @@ public final class QmlCompiler {
                 throw new IllegalArgumentException(
                     "grouped binding '" + groupName + "." + propName + "' has no captured source");
             }
-            requireRhinoCanHandle(new Ast.ExprStmt(ev.expr), outerType, idTypes, declaredProps,
+            require(new Ast.ExprStmt(ev.expr), outerType, idTypes, declaredProps,
                                   Collections.<String>emptyList(), rootFunctions, customSignals, aliases);
             source = ev.source;
             singletons = collectSingletons(ev.expr);
@@ -1745,7 +1731,7 @@ public final class QmlCompiler {
                 throw new IllegalArgumentException(
                     "grouped binding '" + groupName + "." + propName + "' has no captured source");
             }
-            requireRhinoCanHandle(sb.block, outerType, idTypes, declaredProps,
+            require(sb.block, outerType, idTypes, declaredProps,
                                   Collections.<String>emptyList(), rootFunctions, customSignals, aliases);
             source = "(function(){" + sb.source + "})()";
             singletons = collectSingletons(sb.block);
@@ -1760,154 +1746,6 @@ public final class QmlCompiler {
         ctor.visitFieldInsn(Opcodes.GETFIELD, propDeclOwner, propName, PROPERTY_DESC);
         emitRhinoBindingFor(ctor, source, outerLocal, idTypes, singletons, usedAliases);
     }
-
-    // Conservative predicate for the Rhino handler/function backend: every free name
-    // the body reads or writes must be one the runtime QmlScope can resolve -- a
-    // scene id, a declared/inherited property field, a root function, a Java method,
-    // or a shared global. Aliases, singletons and value-type group fields fall into
-    // none of these and so keep the body on the ASM backend (no silent no-op).
-    private boolean handlerCanHandle(Ast.Statement body, Class<?> outerType,
-                                     Map<String, Class<? extends QObject>> idTypes,
-                                     Map<String, String> declaredProps,
-                                     List<String> signalParams,
-                                     Map<String, Integer> rootFunctions,
-                                     Set<String> customSignals,
-                                     Map<String, AliasRef> aliases) {
-        // Qt.binding / Qt.callLater are not bridged into the Rhino globals yet.
-        if (AstScan.usesDeferredQtHelper(body)) return false;
-        Set<String> bound = new HashSet<>(signalParams);
-        for (String name : FreeIdentifiers.collect(body, bound)) {
-            if (!resolvableByRhino(name, outerType, idTypes, declaredProps, rootFunctions,
-                                   customSignals, aliases)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    // Every binding/handler/function runs on Rhino. Anything the QmlScope cannot resolve
-    // at runtime is a compile error -- there is no second backend to fall back to. Mirrors
-    // handlerCanHandle's checks but throws an explanatory IllegalArgumentException instead
-    // of returning false.
-    private void requireRhinoCanHandle(Ast.Statement body, Class<?> outerType,
-                                       Map<String, Class<? extends QObject>> idTypes,
-                                       Map<String, String> declaredProps,
-                                       List<String> signalParams,
-                                       Map<String, Integer> rootFunctions,
-                                       Set<String> customSignals,
-                                       Map<String, AliasRef> aliases) {
-        if (AstScan.usesDeferredQtHelper(body)) {
-            throw new IllegalArgumentException("Qt.binding(expr) must use the arrow form Qt.binding(() => expr)");
-        }
-        Set<String> bound = new HashSet<>(signalParams);
-        for (String name : FreeIdentifiers.collect(body, bound)) {
-            if (!resolvableByRhino(name, outerType, idTypes, declaredProps, rootFunctions,
-                                   customSignals, aliases)) {
-                throw new IllegalArgumentException("unknown identifier: " + name);
-            }
-        }
-    }
-
-    private boolean resolvableByRhino(String name, Class<?> outerType,
-                                      Map<String, Class<? extends QObject>> idTypes,
-                                      Map<String, String> declaredProps,
-                                      Map<String, Integer> rootFunctions,
-                                      Set<String> customSignals,
-                                      Map<String, AliasRef> aliases) {
-        if (aliases.containsKey(name)) return true;
-        if (isSingleton(name)) return true;
-        if (inDelegateScope()) {
-            // In a delegate, index/modelData/local-id/enclosing-scope names resolve at
-            // runtime via DelegateScope.delegateLookup (matching rhinoCanHandle's
-            // delegate branch).
-            return true;
-        }
-        if (idTypes.containsKey(name) || declaredProps.containsKey(name)
-                || rootFunctions.containsKey(name) || customSignals.contains(name)
-                || JS_GLOBALS.contains(name)) {
-            return true;
-        }
-        try {
-            outerType.getField(name);
-            return true;
-        } catch (NoSuchFieldException ignore) {
-        }
-        for (Method m : outerType.getMethods()) {
-            if (m.getName().equals(name)) return true;
-        }
-        return false;
-    }
-
-    // Whether `name` resolves to a QML singleton (Theme, ...). Gated on an upper-case
-    // initial (singletons/types are capitalized) so plain property/id identifiers don't
-    // trigger a type-resolution attempt.
-    private boolean isSingleton(String name) {
-        if (name.isEmpty() || !Character.isUpperCase(name.charAt(0))) return false;
-        tryResolveType(name);
-        return currentSingletonClass(name) != null;
-    }
-
-    // The singletons a body/expression references, name -> the specific generated class,
-    // collected from its free identifiers so each binding carries exactly the classes it
-    // uses (no global name lookup).
-    private Map<String, Class<? extends QObject>> collectSingletons(Ast.Statement body) {
-        Map<String, Class<? extends QObject>> m = new LinkedHashMap<>();
-        for (String n : FreeIdentifiers.collect(body, Collections.<String>emptySet())) {
-            if (isSingleton(n)) m.put(n, currentSingletonClass(n));
-        }
-        return m;
-    }
-
-    private Map<String, Class<? extends QObject>> collectSingletons(Ast.Expression e) {
-        return collectSingletons(new Ast.ExprStmt(e));
-    }
-
-    // The aliases a body/expression references, name -> AliasRef, so each binding carries
-    // exactly the aliases it uses (resolved per-binding in QmlScope, never a global lookup).
-    private Map<String, AliasRef> collectAliases(Ast.Statement body, Map<String, AliasRef> aliases) {
-        if (aliases.isEmpty()) return Collections.emptyMap();
-        Map<String, AliasRef> m = new LinkedHashMap<>();
-        for (String n : FreeIdentifiers.collect(body, Collections.<String>emptySet())) {
-            AliasRef a = aliases.get(n);
-            if (a != null) m.put(n, a);
-        }
-        return m;
-    }
-
-    private Map<String, AliasRef> collectAliases(Ast.Expression e, Map<String, AliasRef> aliases) {
-        return collectAliases(new Ast.ExprStmt(e), aliases);
-    }
-
-    // Pushes the alias specs (String[] of "name\0targetId\0targetProperty") for a binding,
-    // so QmlScope can expand each alias to its target id's property at runtime. The NUL
-    // separator can't appear in identifiers, so QmlScope.aliasMap splits on it cleanly.
-    private void pushAliases(MethodVisitor mv, Map<String, AliasRef> aliases) {
-        List<String> specs = new ArrayList<>();
-        for (Map.Entry<String, AliasRef> e : aliases.entrySet()) {
-            specs.add(e.getKey() + "\u0000" + e.getValue().targetId + "\u0000" + e.getValue().targetProperty);
-        }
-        pushStringArray(mv, specs);
-    }
-
-    // Pushes the singleton names (String[]) and their classes (Class[]) for a binding,
-    // so the runtime QmlScope can resolve them per-binding without a global registry.
-    private void pushSingletons(MethodVisitor mv, Map<String, Class<? extends QObject>> singletons) {
-        List<String> names = new ArrayList<>(singletons.keySet());
-        pushStringArray(mv, names);
-        mv.visitLdcInsn(names.size());
-        mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Class");
-        for (int i = 0; i < names.size(); i++) {
-            mv.visitInsn(Opcodes.DUP);
-            mv.visitLdcInsn(i);
-            mv.visitLdcInsn(Type.getObjectType(Type.getInternalName(singletons.get(names.get(i)))));
-            mv.visitInsn(Opcodes.AASTORE);
-        }
-    }
-
-    private static final Set<String> JS_GLOBALS = new HashSet<>(Arrays.asList(
-        "Qt", "Math", "JSON", "console", "Easing", "Text", "Font",
-        "Object", "Array", "String", "Number", "Boolean", "Date", "RegExp",
-        "parseInt", "parseFloat", "isNaN", "isFinite", "NaN", "Infinity", "undefined"));
 
     // A reflective method `name(Object...)` that forwards to the function's RhinoFunction
     // (registered via __putFunction in the ctor). Keeps the Java-method identity that

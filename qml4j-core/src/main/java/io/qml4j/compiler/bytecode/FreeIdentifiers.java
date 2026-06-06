@@ -16,11 +16,11 @@ import java.util.Set;
 // Member/index property names and object-literal keys are not identifiers and are
 // never collected. `var` is treated sequentially rather than hoisted: a use before
 // its declaration is reported free, which only ever errs toward the ASM fallback.
-final class FreeIdentifiers {
+public final class FreeIdentifiers {
 
     private FreeIdentifiers() {}
 
-    static Set<String> collect(Ast.Statement body, Set<String> initiallyBound) {
+    public static Set<String> collect(Ast.Statement body, Set<String> initiallyBound) {
         Set<String> free = new LinkedHashSet<>();
         stmt(body, new HashSet<>(initiallyBound), free);
         return free;
