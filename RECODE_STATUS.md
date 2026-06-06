@@ -2,16 +2,17 @@
 
 > **新 session 接续步骤**:① 读本文件 → ② 读 `RECODE_PLAN.md`(总蓝图/角色/约束)
 > → ③ 读 `CLAUDE.md`(房规)→ ④ recall memory `project_recode_progress`。
-> 然后 `mvn -o -pl qml4j-core test` 确认 481 全绿(基线),再继续 Phase 5。
+> 然后 `mvn -o -pl qml4j-core test` 确认 481 全绿(基线),再继续 Phase 6。
 
 ## 当前位置
-- 分支 `phase0/merge-into-core`,HEAD = Phase 4.3 commit (`a24f16e`)
-- **Phase 0/1/2 + 3.1–3.7 + 4.1–4.3 全部完成**,481 测试全绿,full reactor(core + demo)绿
-- 真机(LWJGL desktop showcases)已验证至 3.5 渲染无退化;Phase 4 纯结构(事件/焦点),由 FocusScopeTest/KeysTest/QmlViewTest 守护
-- **下一步:Phase 5**(emit 多态化:QmlCompiler.emitMember instanceof → MemberEmitter 策略族)
+- 分支 `phase0/merge-into-core`,HEAD = Phase 5 commit (`33e9138`)
+- **Phase 0/1/2 + 3.1–3.7 + 4 + 5 全部完成**,481 测试全绿,full reactor(core + demo)绿
+- 真机(LWJGL desktop showcases)已验证至 3.5 渲染无退化;Phase 4(事件/焦点)/5(emit)纯结构,由 FocusScopeTest/KeysTest/QmlViewTest/QmlCompilerTest + 全 QML 编译路径守护
+- **下一步:Phase 6**(残余 switch → enum 多态/策略;合理 enum switch 如 line.edge/plan.op/hex.length 保留)
 
 ## 已完成 commit(新→旧)
 ```
+33e9138 Phase 5    polymorphic member emit via MemberEmitter strategy map + EmitContext
 a24f16e Phase 4.3  extract EventDispatcher; QmlView is now a facade (993->185)
 9d7ee91 Phase 4.2  extract FocusManager from QmlView
 27fb6eb Phase 4.1  extract Loader from QmlView
@@ -44,8 +45,13 @@ b80cdc6 Phase 0    merge 4 modules into qml4j-core
   - `FocusManager`(焦点/Tab:setFocus/clearFocus/focused/moveFocusByTab/scanInitialFocus),`setRoot` setter;失焦清选区内联(不依赖 text-edit statics)。
   - `EventDispatcher`(pointer/key/文本编辑/clipboard + 全部 hitTest*),注入 `(FocusManager, Renderer)`,`setRoot`/`setClipboard` setter;`KEY_*` 留 QmlView,内部引用 `QmlView.KEY_*`。
 
+## compiler emit 现状(Phase 5 完成)
+- **QmlCompiler.emitMember 的 instanceof 链已消除**:`Map<Class<?>, MemberEmitter> memberEmitters`(keyed on `m.getClass()`)分派 —— PropertyBinding/ChildObject/BehaviorMember/PropertyDeclaration → emit;Signal/Function → reject(保留原 defensive 消息)。
+- **EmitContext**(bytecode 包,不可变参数对象)封装 emitObjectBody→emitMember 间线程的 16 个状态;emitObjectBody 每个 object body 构建一次。
+- PropertyBinding 内联块抽成 `emitPropertyBinding(m,ctx)`(体逐字、ctx 解构前导桥接);ChildObject/Behavior/PropertyDeclaration 为 thin adapter,解构 ctx 调原深层 helper(**helper 签名未动**,有界风险)。
+- **务实偏离**:未拆成 `compiler/emit/` 下独立 Emitter 类(需暴露约 30 个私有 helper,对一次性编译路径不成比例);emitter 用 QmlCompiler 方法引用。emitMember 之外仍有 value/expr 形状的 instanceof(ExpressionValue/StatementBlockValue/LiteralExpr 等)—— 属 Phase 6 范畴或合理保留。
+
 ## 剩余工作
-- **Phase 5**:emit 多态化 —— QmlCompiler 的 `emitMember` instanceof 链 → `MemberEmitter` 策略族。QmlCompilerTest 守护。
 - **Phase 6**:残余 switch → enum 多态/策略(合理的 enum switch 如 line.edge/plan.op/hex.length 保留)。
 - **Phase 7**:全工程清理 —— 删死代码、inline FQN → import、装 CI 守护(checkstyle/error-prone)。注意 Phase 1/2 注入的 import 紧贴 package 行的小格式瑕疵在此统一整理。
 
