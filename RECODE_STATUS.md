@@ -2,16 +2,19 @@
 
 > **新 session 接续步骤**:① 读本文件 → ② 读 `RECODE_PLAN.md`(总蓝图/角色/约束)
 > → ③ 读 `CLAUDE.md`(房规)→ ④ recall memory `project_recode_progress`。
-> 然后 `mvn -o -pl qml4j-core test` 确认 481 全绿(基线),再继续 Phase 4。
+> 然后 `mvn -o -pl qml4j-core test` 确认 481 全绿(基线),再继续 Phase 5。
 
 ## 当前位置
-- 分支 `phase0/merge-into-core`,HEAD = Phase 3.7 commit
-- **Phase 0/1/2 + 3.1–3.7 全部完成**,481 测试全绿,full reactor(core + demo)绿
-- 真机(LWJGL desktop showcases)已验证至 3.5 渲染无退化
-- **下一步:Phase 4**(拆 QmlView 993 行 → Loader/EventDispatcher/FocusManager)
+- 分支 `phase0/merge-into-core`,HEAD = Phase 4.3 commit (`a24f16e`)
+- **Phase 0/1/2 + 3.1–3.7 + 4.1–4.3 全部完成**,481 测试全绿,full reactor(core + demo)绿
+- 真机(LWJGL desktop showcases)已验证至 3.5 渲染无退化;Phase 4 纯结构(事件/焦点),由 FocusScopeTest/KeysTest/QmlViewTest 守护
+- **下一步:Phase 5**(emit 多态化:QmlCompiler.emitMember instanceof → MemberEmitter 策略族)
 
 ## 已完成 commit(新→旧)
 ```
+a24f16e Phase 4.3  extract EventDispatcher; QmlView is now a facade (993->185)
+9d7ee91 Phase 4.2  extract FocusManager from QmlView
+27fb6eb Phase 4.1  extract Loader from QmlView
 (3.7)   Phase 3.7  measure polymorphic: Item.measure(TextLayout) + Text/Button override; paintNode inlined
 28e869e Phase 3.6  text input paint polymorphic; paintNode fully empty
 5de4295 Phase 3.5  Button + Text paint polymorphic
@@ -35,8 +38,13 @@ b80cdc6 Phase 0    merge 4 modules into qml4j-core
 - **Renderer 1571 → ~600 行**。paint/measure 分派**全部多态化**:所有可绘制 item `@Override Item.paint(Painter,...)`,有内容尺寸的 item(Text/Button)`@Override Item.measure(TextLayout)`。`paintNode` 已内联进 `drawForced`(canvas 参数本就 unused)。Renderer 再无 per-item instanceof 绘制/测量分派。
 - **TextLayout 现为 public**(item 子类经 `measure(TextLayout)` 调它,镜像 Painter);`measureText`/`measureButton` public;`measureControl` 已删(Button 测量抽成 `measureButton`,彻底多态)。
 
+## render/ 拆分现状(Phase 4 完成)
+- **QmlView 993 → 185 行**,纯 facade,组合三协作者(constructor injection),public API/KEY_*/FocusListener 全保留:
+  - `Loader`(编译+实例化:parse→bytecode→compound/singleton 解析+qmldir),注入 `(QmlEngine, TypeRegistry)`,`setResources` setter;`loader::instantiate` 作 renderer 的 ComponentFactory。
+  - `FocusManager`(焦点/Tab:setFocus/clearFocus/focused/moveFocusByTab/scanInitialFocus),`setRoot` setter;失焦清选区内联(不依赖 text-edit statics)。
+  - `EventDispatcher`(pointer/key/文本编辑/clipboard + 全部 hitTest*),注入 `(FocusManager, Renderer)`,`setRoot`/`setClipboard` setter;`KEY_*` 留 QmlView,内部引用 `QmlView.KEY_*`。
+
 ## 剩余工作
-- **Phase 4**:拆 QmlView(993 行)→ `Loader`/`EventDispatcher`/`FocusManager`,QmlView 变 facade。事件/焦点测试守护。
 - **Phase 5**:emit 多态化 —— QmlCompiler 的 `emitMember` instanceof 链 → `MemberEmitter` 策略族。QmlCompilerTest 守护。
 - **Phase 6**:残余 switch → enum 多态/策略(合理的 enum switch 如 line.edge/plan.op/hex.length 保留)。
 - **Phase 7**:全工程清理 —— 删死代码、inline FQN → import、装 CI 守护(checkstyle/error-prone)。注意 Phase 1/2 注入的 import 紧贴 package 行的小格式瑕疵在此统一整理。
