@@ -28,10 +28,10 @@ public class ListView extends Flickable implements DelegateHost {
             attachModelSignals(v);
             rebuild();
         });
-        spacing.addListener(v -> layout());
-        orientation.addListener(v -> layout());
-        width.addListener(v -> layout());
-        height.addListener(v -> layout());
+        spacing.addListener(v -> relayout());
+        orientation.addListener(v -> relayout());
+        width.addListener(v -> relayout());
+        height.addListener(v -> relayout());
     }
 
     @Override
@@ -77,10 +77,10 @@ public class ListView extends Flickable implements DelegateHost {
             children.add(item);
             instances.add(item);
         }
-        layout();
+        relayout();
     }
 
-    private void layout() {
+    private void relayout() {
         float sp = spacing.peek().floatValue();
         boolean horizontal = "Horizontal".equals(orientation.peek());
         float cursor = 0f;

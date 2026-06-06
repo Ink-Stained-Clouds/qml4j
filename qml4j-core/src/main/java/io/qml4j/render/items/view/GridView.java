@@ -26,11 +26,11 @@ public class GridView extends Flickable implements DelegateHost {
     public GridView() {
         clip.set(Boolean.TRUE);
         model.addListener(v -> { attachModelSignals(v); rebuild(); });
-        cellWidth.addListener(v -> layout());
-        cellHeight.addListener(v -> layout());
-        flow.addListener(v -> layout());
-        width.addListener(v -> layout());
-        height.addListener(v -> layout());
+        cellWidth.addListener(v -> relayout());
+        cellHeight.addListener(v -> relayout());
+        flow.addListener(v -> relayout());
+        width.addListener(v -> relayout());
+        height.addListener(v -> relayout());
     }
 
     @Override
@@ -76,10 +76,10 @@ public class GridView extends Flickable implements DelegateHost {
             children.add(item);
             instances.add(item);
         }
-        layout();
+        relayout();
     }
 
-    private void layout() {
+    private void relayout() {
         float cw = cellWidth.peek().floatValue();
         float ch = cellHeight.peek().floatValue();
         if (cw <= 0 || ch <= 0) return;

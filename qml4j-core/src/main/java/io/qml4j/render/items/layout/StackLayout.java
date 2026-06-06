@@ -9,6 +9,7 @@ import io.qml4j.engine.binding.Property;
 public class StackLayout extends Item {
     public final Property<Number> currentIndex = new Property<>(0);
 
+    @Override
     public void layout() {
         int cur = currentIndex.peek().intValue();
         double w = width.peek().doubleValue();

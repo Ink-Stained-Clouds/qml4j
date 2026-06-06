@@ -86,6 +86,10 @@ public class Item extends QObject {
         if (!states.isEmpty()) stateController.initWhen();
     }
 
+    // Container layout hook, invoked by the Renderer layout pass. Default no-op;
+    // layout containers (Row/Column/*Layout) override to position their children.
+    public void layout() {}
+
     // QML Item.mapFromItem(source, x, y): map a point from source's coordinate
     // system into this item's. Returns a point ({x, y}); positions only (no
     // rotation/scale), which is what hit-math like Slider's drag needs.

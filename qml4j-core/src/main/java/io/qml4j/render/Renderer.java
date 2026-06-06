@@ -4,8 +4,6 @@ import io.qml4j.engine.DelegateFactory;
 import io.qml4j.engine.QObject;
 import io.qml4j.engine.binding.DirtyQueue;
 import io.qml4j.engine.binding.Property;
-import io.qml4j.render.items.layout.Column;
-import io.qml4j.render.items.layout.ColumnLayout;
 import io.qml4j.render.items.view.Component;
 import io.qml4j.render.items.core.Flickable;
 import io.qml4j.render.items.core.Gradient;
@@ -31,10 +29,7 @@ import io.qml4j.render.items.shape.PathQuad;
 import io.qml4j.render.items.core.Rectangle;
 import io.qml4j.render.items.shape.Shape;
 import io.qml4j.render.items.shape.ShapePath;
-import io.qml4j.render.items.layout.Row;
 import io.qml4j.render.items.effect.MultiEffect;
-import io.qml4j.render.items.layout.RowLayout;
-import io.qml4j.render.items.layout.StackLayout;
 import io.qml4j.render.items.core.Text;
 import io.qml4j.render.items.input.TextEdit;
 import io.qml4j.render.items.input.TextInput;
@@ -344,11 +339,7 @@ public final class Renderer {
     }
 
     private static void runLayout(Item node) {
-        if (node instanceof Column) ((Column) node).layout();
-        else if (node instanceof Row) ((Row) node).layout();
-        else if (node instanceof RowLayout) ((RowLayout) node).layout();
-        else if (node instanceof ColumnLayout) ((ColumnLayout) node).layout();
-        else if (node instanceof StackLayout) ((StackLayout) node).layout();
+        node.layout();
     }
 
     private void draw(Canvas canvas, Item node, float inheritedAlpha) {
