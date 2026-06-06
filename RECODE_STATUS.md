@@ -2,16 +2,17 @@
 
 > **新 session 接续步骤**:① 读本文件 → ② 读 `RECODE_PLAN.md`(总蓝图/角色/约束)
 > → ③ 读 `CLAUDE.md`(房规)→ ④ recall memory `project_recode_progress`。
-> 然后 `mvn -o -pl qml4j-core test` 确认 481 全绿(基线),再继续 Phase 6。
+> 然后 `mvn -o -pl qml4j-core test` 确认 481 全绿(基线),再继续 Phase 7。
 
 ## 当前位置
-- 分支 `phase0/merge-into-core`,HEAD = Phase 5 commit (`33e9138`)
-- **Phase 0/1/2 + 3.1–3.7 + 4 + 5 全部完成**,481 测试全绿,full reactor(core + demo)绿
-- 真机(LWJGL desktop showcases)已验证至 3.5 渲染无退化;Phase 4(事件/焦点)/5(emit)纯结构,由 FocusScopeTest/KeysTest/QmlViewTest/QmlCompilerTest + 全 QML 编译路径守护
-- **下一步:Phase 6**(残余 switch → enum 多态/策略;合理 enum switch 如 line.edge/plan.op/hex.length 保留)
+- 分支 `phase0/merge-into-core`,HEAD = Phase 6 commit (`6529c14`)
+- **Phase 0/1/2 + 3.1–3.7 + 4 + 5 + 6 全部完成**,481 测试全绿,full reactor(core + demo)绿
+- 真机(LWJGL desktop showcases)已验证至 3.5 渲染无退化;Phase 4/5 纯结构,测试守护
+- **下一步:Phase 7**(全工程清理:删死代码、inline FQN → import、装 CI 守护)
 
 ## 已完成 commit(新→旧)
 ```
+6529c14 Phase 6    audit switches (all legit, no conversion) + codify OOP rules in CLAUDE.md
 33e9138 Phase 5    polymorphic member emit via MemberEmitter strategy map + EmitContext
 a24f16e Phase 4.3  extract EventDispatcher; QmlView is now a facade (993->185)
 9d7ee91 Phase 4.2  extract FocusManager from QmlView
@@ -51,8 +52,12 @@ b80cdc6 Phase 0    merge 4 modules into qml4j-core
 - PropertyBinding 内联块抽成 `emitPropertyBinding(m,ctx)`(体逐字、ctx 解构前导桥接);ChildObject/Behavior/PropertyDeclaration 为 thin adapter,解构 ctx 调原深层 helper(**helper 签名未动**,有界风险)。
 - **务实偏离**:未拆成 `compiler/emit/` 下独立 Emitter 类(需暴露约 30 个私有 helper,对一次性编译路径不成比例);emitter 用 QmlCompiler 方法引用。emitMember 之外仍有 value/expr 形状的 instanceof(ExpressionValue/StatementBlockValue/LiteralExpr 等)—— 属 Phase 6 范畴或合理保留。
 
+## Phase 6 结论(switch 审计)
+- **真正的类型分派反模式(Item 子类 / Ast.Member instanceof 链)已在 Phase 3、5 消除。残余 switch 全部合理,零转换。** 这正是 3/5 做到位的证据。
+- 保留类别:解析器 token 分派(ANTLR visitor,plan §5 明确保留)、字节码发射(typeName→opcode、lit.kind enum switch)、值/序数/字符串→值映射(keycode→Signal、wrapMode、line.edge、plan.op、hex.length、QColor 通道)、纯无状态 framework 数学表(Easings)。
+- plan §6 文档交付:已把已确立的 OOP 规约写进 `CLAUDE.md`(新 "Dispatch & polymorphism" 节)—— 类型分派走多态、skija 隔离在 Painter 后、参数对象代替长参列表、facade + constructor injection、合理 switch 政策。
+
 ## 剩余工作
-- **Phase 6**:残余 switch → enum 多态/策略(合理的 enum switch 如 line.edge/plan.op/hex.length 保留)。
 - **Phase 7**:全工程清理 —— 删死代码、inline FQN → import、装 CI 守护(checkstyle/error-prone)。注意 Phase 1/2 注入的 import 紧贴 package 行的小格式瑕疵在此统一整理。
 
 ## 关键约定(必守)
