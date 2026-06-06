@@ -2,7 +2,7 @@ package io.qml4j.render;
 
 import io.qml4j.engine.QmlEngine;
 import io.qml4j.engine.binding.DirtyQueue;
-import io.qml4j.render.items.Item;
+import io.qml4j.render.items.core.Item;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

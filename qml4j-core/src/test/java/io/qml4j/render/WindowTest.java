@@ -1,9 +1,9 @@
 package io.qml4j.render;
 
 import io.qml4j.engine.QmlEngine;
-import io.qml4j.render.items.ApplicationWindow;
-import io.qml4j.render.items.Item;
-import io.qml4j.render.items.Window;
+import io.qml4j.render.items.window.ApplicationWindow;
+import io.qml4j.render.items.core.Item;
+import io.qml4j.render.items.window.Window;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -48,8 +48,8 @@ class WindowTest {
             "  Rectangle { width: 100; height: 100; color: \"#00ff00\" }\n" +
             "}");
         ApplicationWindow aw = (ApplicationWindow) root;
-        assertInstanceOf(io.qml4j.render.items.Rectangle.class, aw.header.peek());
-        assertInstanceOf(io.qml4j.render.items.Rectangle.class, aw.footer.peek());
+        assertInstanceOf(io.qml4j.render.items.core.Rectangle.class, aw.header.peek());
+        assertInstanceOf(io.qml4j.render.items.core.Rectangle.class, aw.footer.peek());
         assertEquals(1, aw.children.size());
     }
 

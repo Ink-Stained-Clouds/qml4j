@@ -1,7 +1,7 @@
 package io.qml4j.render;
 
-import io.qml4j.render.items.RowLayout;
-import io.qml4j.render.items.Rectangle;
+import io.qml4j.render.items.layout.RowLayout;
+import io.qml4j.render.items.core.Rectangle;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 

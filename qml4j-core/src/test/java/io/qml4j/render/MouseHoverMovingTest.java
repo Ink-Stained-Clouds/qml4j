@@ -2,9 +2,9 @@ package io.qml4j.render;
 
 import io.qml4j.engine.QmlEngine;
 import io.qml4j.engine.binding.Property;
-import io.qml4j.render.items.Flickable;
-import io.qml4j.render.items.Item;
-import io.qml4j.render.items.MouseArea;
+import io.qml4j.render.items.core.Flickable;
+import io.qml4j.render.items.core.Item;
+import io.qml4j.render.items.core.MouseArea;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;

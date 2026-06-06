@@ -4,8 +4,8 @@ import io.qml4j.engine.QmlEngine;
 import io.qml4j.engine.binding.DirtyQueue;
 import io.qml4j.engine.binding.Property;
 import io.qml4j.engine.js.RhinoBinding;
-import io.qml4j.render.items.Item;
-import io.qml4j.render.items.Text;
+import io.qml4j.render.items.core.Item;
+import io.qml4j.render.items.core.Text;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -79,9 +79,9 @@ class RhinoDelegateTest {
         dq.install();
         try { dq.flush(); } finally { dq.uninstall(); }
 
-        List<io.qml4j.render.items.Rectangle> rects = new ArrayList<>();
+        List<io.qml4j.render.items.core.Rectangle> rects = new ArrayList<>();
         for (Item c : root.children) {
-            if (c instanceof io.qml4j.render.items.Rectangle) rects.add((io.qml4j.render.items.Rectangle) c);
+            if (c instanceof io.qml4j.render.items.core.Rectangle) rects.add((io.qml4j.render.items.core.Rectangle) c);
         }
         assertEquals(2, rects.size());
 
@@ -124,13 +124,13 @@ class RhinoDelegateTest {
         dq.install();
         try { dq.flush(); } finally { dq.uninstall(); }
 
-        List<io.qml4j.render.items.Rectangle> rects = new ArrayList<>();
+        List<io.qml4j.render.items.core.Rectangle> rects = new ArrayList<>();
         for (Item c : root.children) {
-            if (c instanceof io.qml4j.render.items.Rectangle) rects.add((io.qml4j.render.items.Rectangle) c);
+            if (c instanceof io.qml4j.render.items.core.Rectangle) rects.add((io.qml4j.render.items.core.Rectangle) c);
         }
         assertEquals(2, rects.size());
 
-        for (io.qml4j.render.items.Rectangle r : rects) {
+        for (io.qml4j.render.items.core.Rectangle r : rects) {
             io.qml4j.engine.Signal tapped = (io.qml4j.engine.Signal) r.getClass().getField("tapped").get(r);
             assertTrue(handlersOf(tapped).get(0) instanceof io.qml4j.engine.js.RhinoHandler,
                 "delegate handler should be a RhinoHandler");

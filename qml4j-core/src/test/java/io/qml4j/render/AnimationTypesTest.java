@@ -1,18 +1,18 @@
 package io.qml4j.render;
 
 import io.qml4j.engine.QmlEngine;
-import io.qml4j.render.items.ColorAnimation;
-import io.qml4j.render.items.ColorMath;
-import io.qml4j.render.items.Item;
-import io.qml4j.render.items.NumberAnimation;
-import io.qml4j.render.items.OpacityAnimation;
-import io.qml4j.render.items.ParallelAnimation;
-import io.qml4j.render.items.PauseAnimation;
-import io.qml4j.render.items.PropertyAnimation;
-import io.qml4j.render.items.Rectangle;
-import io.qml4j.render.items.RotationAnimation;
-import io.qml4j.render.items.ScriptAction;
-import io.qml4j.render.items.SequentialAnimation;
+import io.qml4j.render.items.animation.ColorAnimation;
+import io.qml4j.render.items.core.ColorMath;
+import io.qml4j.render.items.core.Item;
+import io.qml4j.render.items.animation.NumberAnimation;
+import io.qml4j.render.items.animation.OpacityAnimation;
+import io.qml4j.render.items.animation.ParallelAnimation;
+import io.qml4j.render.items.animation.PauseAnimation;
+import io.qml4j.render.items.animation.PropertyAnimation;
+import io.qml4j.render.items.core.Rectangle;
+import io.qml4j.render.items.animation.RotationAnimation;
+import io.qml4j.render.items.animation.ScriptAction;
+import io.qml4j.render.items.animation.SequentialAnimation;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;

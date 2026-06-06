@@ -1,27 +1,27 @@
 package io.qml4j.render;
 
 import io.qml4j.engine.QmlEngine;
-import io.qml4j.render.items.Column;
-import io.qml4j.render.items.Component;
-import io.qml4j.render.items.Connections;
-import io.qml4j.render.items.Flickable;
-import io.qml4j.render.items.Gradient;
-import io.qml4j.render.items.GradientStop;
-import io.qml4j.render.items.Image;
-import io.qml4j.render.items.Item;
-import io.qml4j.render.items.ListElement;
-import io.qml4j.render.items.ListModel;
-import io.qml4j.render.items.ListView;
-import io.qml4j.render.items.GridView;
-import io.qml4j.render.items.TextEdit;
-import io.qml4j.render.items.Loader;
-import io.qml4j.render.items.Repeater;
-import io.qml4j.render.items.MouseArea;
-import io.qml4j.render.items.Rectangle;
-import io.qml4j.render.items.Row;
-import io.qml4j.render.items.Text;
-import io.qml4j.render.items.TextInput;
-import io.qml4j.render.items.Timer;
+import io.qml4j.render.items.layout.Column;
+import io.qml4j.render.items.view.Component;
+import io.qml4j.render.items.view.Connections;
+import io.qml4j.render.items.core.Flickable;
+import io.qml4j.render.items.core.Gradient;
+import io.qml4j.render.items.core.GradientStop;
+import io.qml4j.render.items.core.Image;
+import io.qml4j.render.items.core.Item;
+import io.qml4j.render.items.view.ListElement;
+import io.qml4j.render.items.view.ListModel;
+import io.qml4j.render.items.view.ListView;
+import io.qml4j.render.items.view.GridView;
+import io.qml4j.render.items.input.TextEdit;
+import io.qml4j.render.items.view.Loader;
+import io.qml4j.render.items.view.Repeater;
+import io.qml4j.render.items.core.MouseArea;
+import io.qml4j.render.items.core.Rectangle;
+import io.qml4j.render.items.layout.Row;
+import io.qml4j.render.items.core.Text;
+import io.qml4j.render.items.input.TextInput;
+import io.qml4j.render.items.animation.Timer;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -383,8 +383,8 @@ class QmlViewTest {
             "  }\n" +
             "}");
         Rectangle r = (Rectangle) root;
-        io.qml4j.render.items.NumberAnimation anim =
-            (io.qml4j.render.items.NumberAnimation) r.children.get(0);
+        io.qml4j.render.items.animation.NumberAnimation anim =
+            (io.qml4j.render.items.animation.NumberAnimation) r.children.get(0);
         anim.property.set("width");
         long t0 = 1_000_000_000L;
         anim.tick(t0);
@@ -408,8 +408,8 @@ class QmlViewTest {
             "  }\n" +
             "}");
         Rectangle r = (Rectangle) root;
-        io.qml4j.render.items.NumberAnimation anim =
-            (io.qml4j.render.items.NumberAnimation) r.children.get(0);
+        io.qml4j.render.items.animation.NumberAnimation anim =
+            (io.qml4j.render.items.animation.NumberAnimation) r.children.get(0);
         anim.property.set("width");
         anim.tick(1L);
         assertEquals(42.0, r.width.peek().doubleValue(), 1e-9);
@@ -425,8 +425,8 @@ class QmlViewTest {
             "  NumberAnimation { target: parent; from: 0; to: 99; duration: 100 }\n" +
             "}");
         Rectangle r = (Rectangle) root;
-        io.qml4j.render.items.NumberAnimation anim =
-            (io.qml4j.render.items.NumberAnimation) r.children.get(0);
+        io.qml4j.render.items.animation.NumberAnimation anim =
+            (io.qml4j.render.items.animation.NumberAnimation) r.children.get(0);
         anim.property.set("width");
         anim.tick(1L);
         anim.tick(50_000_000L);
@@ -447,8 +447,8 @@ class QmlViewTest {
             "  }\n" +
             "}");
         Rectangle r = (Rectangle) root;
-        io.qml4j.render.items.NumberAnimation anim =
-            (io.qml4j.render.items.NumberAnimation) r.children.get(0);
+        io.qml4j.render.items.animation.NumberAnimation anim =
+            (io.qml4j.render.items.animation.NumberAnimation) r.children.get(0);
         anim.property.set("width");
         long t0 = 0L;
         anim.tick(t0);
@@ -554,11 +554,11 @@ class QmlViewTest {
         // Width should be set back to 100 to start tween.
         assertEquals(100.0, r.width.peek().doubleValue(), 1e-6);
         // Manually tick the ephemeral anim (it's the last child added).
-        io.qml4j.render.items.NumberAnimation eph = null;
+        io.qml4j.render.items.animation.NumberAnimation eph = null;
         for (Item c : r.children) {
-            if (c instanceof io.qml4j.render.items.NumberAnimation
-                && ((io.qml4j.render.items.NumberAnimation) c).ephemeral) {
-                eph = (io.qml4j.render.items.NumberAnimation) c;
+            if (c instanceof io.qml4j.render.items.animation.NumberAnimation
+                && ((io.qml4j.render.items.animation.NumberAnimation) c).ephemeral) {
+                eph = (io.qml4j.render.items.animation.NumberAnimation) c;
                 break;
             }
         }
@@ -587,9 +587,9 @@ class QmlViewTest {
         int afterEnter = r.children.size();
         // Drain the enter animation so width settles at 300.
         for (Item c : r.children) {
-            if (c instanceof io.qml4j.render.items.NumberAnimation
-                && ((io.qml4j.render.items.NumberAnimation) c).ephemeral) {
-                io.qml4j.render.items.NumberAnimation a = (io.qml4j.render.items.NumberAnimation) c;
+            if (c instanceof io.qml4j.render.items.animation.NumberAnimation
+                && ((io.qml4j.render.items.animation.NumberAnimation) c).ephemeral) {
+                io.qml4j.render.items.animation.NumberAnimation a = (io.qml4j.render.items.animation.NumberAnimation) c;
                 a.tick(0L);
                 a.tick(200_000_000L);
             }
@@ -599,12 +599,12 @@ class QmlViewTest {
         // Revert to empty state — must spawn a shrink animation, not snap.
         r.state.set("");
         assertEquals(300.0, r.width.peek().doubleValue(), 1e-6); // rewound to before-value
-        io.qml4j.render.items.NumberAnimation shrink = null;
+        io.qml4j.render.items.animation.NumberAnimation shrink = null;
         for (Item c : r.children) {
-            if (c instanceof io.qml4j.render.items.NumberAnimation
-                && ((io.qml4j.render.items.NumberAnimation) c).ephemeral
-                && Boolean.TRUE.equals(((io.qml4j.render.items.NumberAnimation) c).running.peek())) {
-                shrink = (io.qml4j.render.items.NumberAnimation) c;
+            if (c instanceof io.qml4j.render.items.animation.NumberAnimation
+                && ((io.qml4j.render.items.animation.NumberAnimation) c).ephemeral
+                && Boolean.TRUE.equals(((io.qml4j.render.items.animation.NumberAnimation) c).running.peek())) {
+                shrink = (io.qml4j.render.items.animation.NumberAnimation) c;
             }
         }
         assertNotNull(shrink, "revert direction must spawn an ephemeral animation");
@@ -739,8 +739,8 @@ class QmlViewTest {
     private static int countEphemerals(Item parent) {
         int n = 0;
         for (Item c : parent.children) {
-            if (c instanceof io.qml4j.render.items.NumberAnimation
-                && ((io.qml4j.render.items.NumberAnimation) c).ephemeral) n++;
+            if (c instanceof io.qml4j.render.items.animation.NumberAnimation
+                && ((io.qml4j.render.items.animation.NumberAnimation) c).ephemeral) n++;
         }
         return n;
     }
@@ -2144,9 +2144,9 @@ class QmlViewTest {
             "}");
         Repeater rep = (Repeater) reflectField(root, "rep");
         assertEquals(3, rep.instances().size());
-        assertEquals("a", ((io.qml4j.render.items.Text) rep.instances().get(0)).text.peek());
-        assertEquals("b", ((io.qml4j.render.items.Text) rep.instances().get(1)).text.peek());
-        assertEquals("c", ((io.qml4j.render.items.Text) rep.instances().get(2)).text.peek());
+        assertEquals("a", ((io.qml4j.render.items.core.Text) rep.instances().get(0)).text.peek());
+        assertEquals("b", ((io.qml4j.render.items.core.Text) rep.instances().get(1)).text.peek());
+        assertEquals("c", ((io.qml4j.render.items.core.Text) rep.instances().get(2)).text.peek());
     }
 
     @Test
@@ -2166,7 +2166,7 @@ class QmlViewTest {
         el.put("label", "y");
         lm.append(el);
         assertEquals(2, rep.instances().size());
-        assertEquals("y", ((io.qml4j.render.items.Text) rep.instances().get(1)).text.peek());
+        assertEquals("y", ((io.qml4j.render.items.core.Text) rep.instances().get(1)).text.peek());
     }
 
     @Test
@@ -2329,8 +2329,8 @@ class QmlViewTest {
         assertEquals(3, lv.instances().size());
         Item rect0 = lv.instances().get(0);
         Item rect2 = lv.instances().get(2);
-        io.qml4j.render.items.Text t0 = (io.qml4j.render.items.Text) rect0.children.get(0);
-        io.qml4j.render.items.Text t2 = (io.qml4j.render.items.Text) rect2.children.get(0);
+        io.qml4j.render.items.core.Text t0 = (io.qml4j.render.items.core.Text) rect0.children.get(0);
+        io.qml4j.render.items.core.Text t2 = (io.qml4j.render.items.core.Text) rect2.children.get(0);
         assertEquals("row 0", t0.text.peek());
         assertEquals("row 2", t2.text.peek());
     }
@@ -2355,8 +2355,8 @@ class QmlViewTest {
             "}");
         ListView lv = (ListView) reflectField(root, "lv");
         assertEquals(2, lv.instances().size());
-        io.qml4j.render.items.Text t0 = (io.qml4j.render.items.Text) lv.instances().get(0).children.get(0);
-        io.qml4j.render.items.Text t1 = (io.qml4j.render.items.Text) lv.instances().get(1).children.get(0);
+        io.qml4j.render.items.core.Text t0 = (io.qml4j.render.items.core.Text) lv.instances().get(0).children.get(0);
+        io.qml4j.render.items.core.Text t1 = (io.qml4j.render.items.core.Text) lv.instances().get(1).children.get(0);
         assertEquals("0:alice", t0.text.peek());
         assertEquals("1:bob", t1.text.peek());
     }
@@ -2429,8 +2429,8 @@ class QmlViewTest {
             "}");
         GridView gv = (GridView) reflectField(root, "gv");
         assertEquals(2, gv.instances().size());
-        io.qml4j.render.items.ListModel m =
-            (io.qml4j.render.items.ListModel) reflectField(root, "m");
+        io.qml4j.render.items.view.ListModel m =
+            (io.qml4j.render.items.view.ListModel) reflectField(root, "m");
         java.util.LinkedHashMap<String, Object> el = new java.util.LinkedHashMap<>();
         el.put("tag", "c");
         m.append(el);
@@ -2455,7 +2455,7 @@ class QmlViewTest {
             "  }\n" +
             "}");
         GridView gv = (GridView) reflectField(root, "gv");
-        io.qml4j.render.items.Text t1 = (io.qml4j.render.items.Text) gv.instances().get(1).children.get(0);
+        io.qml4j.render.items.core.Text t1 = (io.qml4j.render.items.core.Text) gv.instances().get(1).children.get(0);
         assertEquals("cell 1", t1.text.peek());
     }
 

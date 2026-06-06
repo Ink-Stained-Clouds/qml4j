@@ -1,10 +1,10 @@
 package io.qml4j.render;
 
 import io.qml4j.engine.QmlEngine;
-import io.qml4j.render.items.ColorOverlay;
-import io.qml4j.render.items.DropShadow;
-import io.qml4j.render.items.Glow;
-import io.qml4j.render.items.Item;
+import io.qml4j.render.items.effect.ColorOverlay;
+import io.qml4j.render.items.effect.DropShadow;
+import io.qml4j.render.items.effect.Glow;
+import io.qml4j.render.items.core.Item;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

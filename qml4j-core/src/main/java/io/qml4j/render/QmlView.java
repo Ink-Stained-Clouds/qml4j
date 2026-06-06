@@ -1,19 +1,19 @@
 package io.qml4j.render;
 
-import io.qml4j.render.items.AbstractButton;
-import io.qml4j.render.items.Animatable;
-import io.qml4j.render.items.Drag;
-import io.qml4j.render.items.Flickable;
-import io.qml4j.render.items.FocusScope;
-import io.qml4j.render.items.GroupAnimation;
-import io.qml4j.render.items.Item;
-import io.qml4j.render.items.KeyEvent;
-import io.qml4j.render.items.Keys;
-import io.qml4j.render.items.MouseArea;
-import io.qml4j.render.items.MouseEvent;
-import io.qml4j.render.items.PropertyAnimation;
-import io.qml4j.render.items.TextEditable;
-import io.qml4j.render.items.TextInput;
+import io.qml4j.render.items.window.AbstractButton;
+import io.qml4j.render.items.animation.Animatable;
+import io.qml4j.render.items.core.Drag;
+import io.qml4j.render.items.core.Flickable;
+import io.qml4j.render.items.input.FocusScope;
+import io.qml4j.render.items.animation.GroupAnimation;
+import io.qml4j.render.items.core.Item;
+import io.qml4j.render.items.input.KeyEvent;
+import io.qml4j.render.items.input.Keys;
+import io.qml4j.render.items.core.MouseArea;
+import io.qml4j.render.items.core.MouseEvent;
+import io.qml4j.render.items.animation.PropertyAnimation;
+import io.qml4j.render.items.input.TextEditable;
+import io.qml4j.render.items.input.TextInput;
 
 import io.github.humbleui.skija.Canvas;
 import io.qml4j.compiler.CompiledUnit;

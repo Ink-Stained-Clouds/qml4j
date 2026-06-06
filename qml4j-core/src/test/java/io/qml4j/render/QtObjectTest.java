@@ -2,7 +2,7 @@ package io.qml4j.render;
 
 import io.qml4j.engine.QmlEngine;
 import io.qml4j.engine.binding.Property;
-import io.qml4j.render.items.Item;
+import io.qml4j.render.items.core.Item;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -78,7 +78,7 @@ class QtObjectTest {
             "  property color surf: Theme.color.surface\n" +
             "  property int p: Theme.padding\n" +
             "}");
-        assertEquals("#ff8800", ((io.qml4j.render.items.Rectangle) root).color.peek());
+        assertEquals("#ff8800", ((io.qml4j.render.items.core.Rectangle) root).color.peek());
         assertEquals("#1a1f26", readProp(root, "surf"));
         assertEquals(16L, readProp(root, "p"));
     }

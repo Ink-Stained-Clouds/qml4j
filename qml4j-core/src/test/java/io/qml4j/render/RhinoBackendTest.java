@@ -4,7 +4,7 @@ import io.qml4j.engine.QmlEngine;
 import io.qml4j.engine.binding.DirtyQueue;
 import io.qml4j.engine.binding.Property;
 import io.qml4j.engine.js.RhinoBinding;
-import io.qml4j.render.items.Item;
+import io.qml4j.render.items.core.Item;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;

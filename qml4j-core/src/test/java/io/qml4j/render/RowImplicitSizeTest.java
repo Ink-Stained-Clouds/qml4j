@@ -1,7 +1,7 @@
 package io.qml4j.render;
 
-import io.qml4j.render.items.Item;
-import io.qml4j.render.items.Row;
+import io.qml4j.render.items.core.Item;
+import io.qml4j.render.items.layout.Row;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

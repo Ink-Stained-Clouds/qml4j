@@ -1,9 +1,9 @@
 package io.qml4j.render;
 
 import io.qml4j.engine.QmlEngine;
-import io.qml4j.render.items.ColumnLayout;
-import io.qml4j.render.items.Item;
-import io.qml4j.render.items.RowLayout;
+import io.qml4j.render.items.layout.ColumnLayout;
+import io.qml4j.render.items.core.Item;
+import io.qml4j.render.items.layout.RowLayout;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

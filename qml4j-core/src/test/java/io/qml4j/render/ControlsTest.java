@@ -2,10 +2,10 @@ package io.qml4j.render;
 
 import io.qml4j.engine.QmlEngine;
 import io.qml4j.engine.binding.Property;
-import io.qml4j.render.items.Button;
-import io.qml4j.render.items.Item;
-import io.qml4j.render.items.Label;
-import io.qml4j.render.items.TextField;
+import io.qml4j.render.items.window.Button;
+import io.qml4j.render.items.core.Item;
+import io.qml4j.render.items.window.Label;
+import io.qml4j.render.items.input.TextField;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -109,8 +109,8 @@ class ControlsTest {
     @Test
     void buttonIsControl() {
         Item root = newView().load("Button { text: \"k\" }");
-        assertInstanceOf(io.qml4j.render.items.Control.class, root);
-        assertInstanceOf(io.qml4j.render.items.AbstractButton.class, root);
+        assertInstanceOf(io.qml4j.render.items.window.Control.class, root);
+        assertInstanceOf(io.qml4j.render.items.window.AbstractButton.class, root);
     }
 
     // NOTE: implicit sizing (measureControl) needs font measurement via native
@@ -138,7 +138,7 @@ class ControlsTest {
     @Test
     void labelIsText() {
         Item root = newView().load("Label { text: \"hi\"; color: \"#123456\"; fontSize: 20 }");
-        assertInstanceOf(io.qml4j.render.items.Text.class, root);
+        assertInstanceOf(io.qml4j.render.items.core.Text.class, root);
         Label l = (Label) root;
         assertEquals("hi", l.text.peek());
         assertEquals("#123456", l.color.peek());
@@ -168,7 +168,7 @@ class ControlsTest {
     @Test
     void textFieldIsTextInput() {
         Item root = newView().load("TextField { width: 120; height: 36 }");
-        assertInstanceOf(io.qml4j.render.items.TextInput.class, root);
+        assertInstanceOf(io.qml4j.render.items.input.TextInput.class, root);
         assertEquals("#ffffff", ((TextField) root).backgroundColor.peek());
     }
 

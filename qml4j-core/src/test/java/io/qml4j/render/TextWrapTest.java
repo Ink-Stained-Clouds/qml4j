@@ -1,6 +1,6 @@
 package io.qml4j.render;
 
-import io.qml4j.render.items.TextWrap;
+import io.qml4j.render.items.core.TextWrap;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;

@@ -1,13 +1,13 @@
 package io.qml4j.render;
 
 import io.qml4j.engine.QmlEngine;
-import io.qml4j.render.items.Item;
-import io.qml4j.render.items.PathArc;
-import io.qml4j.render.items.PathCubic;
-import io.qml4j.render.items.PathLine;
-import io.qml4j.render.items.PathQuad;
-import io.qml4j.render.items.Shape;
-import io.qml4j.render.items.ShapePath;
+import io.qml4j.render.items.core.Item;
+import io.qml4j.render.items.shape.PathArc;
+import io.qml4j.render.items.shape.PathCubic;
+import io.qml4j.render.items.shape.PathLine;
+import io.qml4j.render.items.shape.PathQuad;
+import io.qml4j.render.items.shape.Shape;
+import io.qml4j.render.items.shape.ShapePath;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
