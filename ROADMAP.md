@@ -8,25 +8,46 @@ Living document. Updated whenever a milestone lands or the plan shifts.
 >
 > Landed since the dated sections:
 > - **JS backend = embedded Rhino only** (ASM JS codegen deleted). Bindings/handlers
->   execute from captured raw source.
+>   execute from captured raw source. Rhino compiled mode (JS→JVM bytecode) on by
+>   default; each document's JS compiles into its own class loader (hot-reload base).
 > - **RECODE** whole-project refactor: 4 `qml4j-*` modules → one `qml4j-core`,
 >   polymorphic dispatch, single-responsibility modules.
 > - **QtQuick.Layouts complete**: RowLayout/ColumnLayout/StackLayout/**GridLayout** +
 >   positioners Row/Column/**Flow** (closes G9 / M53′).
-> - **MD3 set: 25 bundled components** run unmodified (was 18). Of the upstream
->   ~39 Core controls, **24 load** on the current engine. See `COMPAT_REPORT.md` §0
->   and memory `project_md3_probe_gapmap`.
+> - **Canvas (HTML5 2D context)** landed (M55′): `getContext('2d')` over Skija, all
+>   native handles closed explicitly (Skija Paint/Path/… are not GC'd).
+> - **MD3 set: 32 bundled components** run unmodified (was 18). MD3 gallery showcase
+>   (Tabs / Breadcrumb / ComboBox / Menu / progress). See `COMPAT_REPORT.md` §0 and
+>   memory `project_md3_probe_gapmap`.
+> - **Pure-QML popup/overlay works unmodified.** MD3's reparent-the-overlay-onto-the-
+>   scene-root technique (to render on top) drove a batch of engine fixes so the
+>   *unmodified* upstream QML behaves correctly:
+>   - delegate-scope name resolution falls back to the captured component root for
+>     scene ids, so a reparented delegate subtree (overlay popped to root) still
+>     resolves its enclosing component id (`control`) — this is what makes
+>     ComboBox/Menu *close on selection*;
+>   - JS function values round-trip through a `var` property and stay callable
+>     (`obj.action()` from a model object);
+>   - `Transition.running` is driven so `onRunningChanged` fires (Menu tears down its
+>     overlay there — without it the scrim ate all input after closing);
+>   - `Loader` sizes to its loaded content and resolves in the measure pass;
+>   - `Repeater.itemAt()/count()` + `GroupAnimation.animations` (MD3 Tabs' sliding
+>     indicator); animation `loops` (Animation.Infinite); null-safe numeric Property
+>     reads.
+> - **Compatibility is engine-side only.** Bundled MD3 QML is kept byte-for-byte
+>   upstream — gaps are closed in the engine, never by patching the `.qml`. (Known
+>   upstream behaviour kept as-is: ComboBox calls `forceActiveFocus()` on open and
+>   never releases it, so the focused underline stays lit after close — same in Qt.)
 > - **Raw-capture parser (in progress).** Free-identifier analysis + literal /
 >   arrow-handler / id / alias all driven off the captured raw source via Rhino's
 >   parser, not a hand-rolled JS AST (Stages 1–2 done). Stage 3 (drop the JS grammar
 >   entirely, capture binding/handler bodies raw) pending. See memory
 >   `project_raw_capture_parser`.
-> - **501 tests + checkstyle CI guard.**
+> - **519 tests + checkstyle CI guard.**
 >
-> Remaining MD3 gaps (to load the other 15 upstream controls): Canvas 2D subsystem
-> (M55′ — ~8 components), whole-group assignment `font: parent.font` (TextField
-> family), `Translate` transform, `Binding {}` element, `ShaderEffectSource`,
-> `StyleManager`/dynamic color (M57′).
+> Remaining MD3 gaps: `Translate` transform, `ShaderEffectSource`,
+> `import "file.js" as M`, `Connections { function onX(){} }` form,
+> `StyleManager`/dynamic color (M57′ — C++ backend, needs a Java port).
 
 ## Direction reset (2026-05-31, post-M50)
 
@@ -331,16 +352,19 @@ real MD3 components in increasing order of dependency weight.
 - DONE: `property alias` (incl. grouped), `default property`, `switch`/`required`/
   all JS (Rhino executes raw source — the whole language subset is covered now),
   `Component.onCompleted`, `Qt.rgba/hsla/color/lighter/darker/binding/callLater`,
-  delegate `required property var modelData`.
-- STILL OPEN: `Binding {}` element (blocks NavigationDrawer); whole-group assignment
-  `font: parent.font` (blocks TextField family); `Translate` transform (FabMenu);
-  `import "file.js" as M` JS resources; `Connections { function onX(){} }` form.
+  delegate `required property var modelData`, **`Binding {}` element**, **whole-group
+  assignment `font: parent.font`**, **JS function values stay callable across a `var`
+  property round-trip**, **delegate scene-id resolution survives overlay reparent**.
+- STILL OPEN: `Translate` transform (FabMenu); `import "file.js" as M` JS resources;
+  `Connections { function onX(){} }` form.
 
-### M55′ — Canvas (HTML5 2D context)  🔜 NEXT (biggest remaining MD3 unblock, ~8 components)
-- `Canvas { onPaint: { var ctx = getContext('2d'); … } }` mapping the
-  2D context (beginPath/moveTo/lineTo/arc/arcTo/bezier/rect/fill/stroke/
-  fillText/clip/save/restore/gradients/setLineDash/transform) onto Skija
-  Canvas — near 1:1. Unblocks chart/custom-draw components (×11 in MD3).
+### M55′ — Canvas (HTML5 2D context)  ✅ DONE
+- `Canvas { onPaint: { var ctx = getContext('2d'); … } }` maps the 2D context
+  (beginPath/moveTo/lineTo/arc/arcTo/bezier/rect/fill/stroke/fillText/clip/save/
+  restore/gradients/setLineDash/transform) onto Skija Canvas. Implemented as an
+  op-list (`Context2D`) so every native Skija handle (Paint/Path/Shader/PathEffect)
+  is closed explicitly — a `PathBuilder` is unusable after `build()` (SIGSEGV), so
+  paths are replayed from the op-list. CanvasShowcase included.
 
 ### M56′ — QtQuick.Effects MultiEffect + hover + contentItem  ✅ DONE (contentItem partial)
 - `MultiEffect` (shadowEnabled/shadowColor/shadowBlur/
