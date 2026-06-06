@@ -14,9 +14,9 @@ public final class RhinoHandler implements SignalHandler {
 
     public RhinoHandler(String body, String[] params, Object outer, Object root,
                         String[] ids, boolean delegate,
-                        String[] singletonNames, Class<?>[] singletonClasses) {
+                        String[] singletonNames, Class<?>[] singletonClasses, String[] aliasSpecs) {
         this.closure = new RhinoClosure(body, Arrays.asList(params), outer, root, ids, delegate,
-                                        singletonNames, singletonClasses);
+                                        singletonNames, singletonClasses, aliasSpecs);
     }
 
     @Override

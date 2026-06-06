@@ -314,7 +314,7 @@ public final class QmlCompiler {
             // a thin reflective method that forwards to that callable (preserving getMethod
             // identity). The rest get a full ASM reflective method.
             if (rhinoFunctionEligible(fd, rootType, idTypes, rootDeclaredProps, rootFunctions,
-                                      rootSignalNames)) {
+                                      rootSignalNames, rootAliases)) {
                 emitThinRootFunctionMethod(cw, fd);
                 continue;
             }
@@ -345,15 +345,15 @@ public final class QmlCompiler {
             if (m instanceof Ast.FunctionDeclaration) {
                 Ast.FunctionDeclaration fd = (Ast.FunctionDeclaration) m;
                 boolean rhino = rhinoFunctionEligible(fd, outerType, idTypes, declaredProps,
-                                                      rootFunctions, customSignals);
+                                                      rootFunctions, customSignals, aliases);
                 if (outerLocal == 0) {
                     // Root function: a Rhino callable is registered here; the ASM
                     // reflective method is emitted later only when not eligible.
-                    if (rhino) emitRhinoFunction(ctor, 0, fd, idTypes);
+                    if (rhino) emitRhinoFunction(ctor, 0, fd, idTypes, aliases);
                     continue;
                 }
                 if (rhino) {
-                    emitRhinoFunction(ctor, outerLocal, fd, idTypes);
+                    emitRhinoFunction(ctor, outerLocal, fd, idTypes, aliases);
                 } else {
                     emitChildScopeFunction(ctor, outerType, outerLocal, fd, componentBinaryName,
                                            idTypes, declaredProps, aliases, rootFunctions,
@@ -465,7 +465,7 @@ public final class QmlCompiler {
                     Ast.StatementBlockValue sb = (Ast.StatementBlockValue) b.value;
                     String declOwner = propFieldOwnerOrNull(outerType, key, declaredProps);
                     if (declOwner != null && tryEmitRhinoIifeBinding(ctor, outerType, outerLocal,
-                            declOwner, key, sb, idTypes, declaredProps, customSignals, rootFunctions)) {
+                            declOwner, key, sb, idTypes, declaredProps, customSignals, rootFunctions, aliases)) {
                         return;
                     }
                     // A function-style binding `prop: { ...; return x }` becomes an
@@ -610,7 +610,7 @@ public final class QmlCompiler {
             if (pd.initializer instanceof Ast.StatementBlockValue
                     && tryEmitRhinoIifeBinding(ctor, outerType, outerLocal, overrideOwner, pd.name,
                         (Ast.StatementBlockValue) pd.initializer, idTypes, declaredProps,
-                        customSignalParams.keySet(), rootFunctions)) {
+                        customSignalParams.keySet(), rootFunctions, aliases)) {
                 return;
             }
             Ast.Expression e;
@@ -659,7 +659,7 @@ public final class QmlCompiler {
         if (pd.initializer instanceof Ast.StatementBlockValue
                 && tryEmitRhinoIifeBinding(ctor, outerType, outerLocal, ownerInternal, pd.name,
                     (Ast.StatementBlockValue) pd.initializer, idTypes, declaredProps,
-                    customSignalParams.keySet(), rootFunctions)) {
+                    customSignalParams.keySet(), rootFunctions, aliases)) {
             return;
         }
         Ast.Expression e;
@@ -1408,7 +1408,7 @@ public final class QmlCompiler {
         if (source != null
                 && rhinoCanHandle(expr, outerType, idTypes, declaredProps, aliases)) {
             emitRhinoBindingBind(ctor, declOwner, propName, source, outerLocal, idTypes,
-                                 collectSingletons(expr));
+                                 collectSingletons(expr), collectAliases(expr, aliases));
             return;
         }
 
@@ -1438,10 +1438,11 @@ public final class QmlCompiler {
     private void emitRhinoBindingBind(MethodVisitor ctor, String declOwner, String propName,
                                       String source, int outerLocal,
                                       Map<String, Class<? extends QObject>> idTypes,
-                                      Map<String, Class<? extends QObject>> singletons) {
+                                      Map<String, Class<? extends QObject>> singletons,
+                                      Map<String, AliasRef> aliases) {
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitFieldInsn(Opcodes.GETFIELD, declOwner, propName, PROPERTY_DESC);
-        emitRhinoBindingFor(ctor, source, outerLocal, idTypes, singletons);
+        emitRhinoBindingFor(ctor, source, outerLocal, idTypes, singletons, aliases);
     }
 
     // With the target Property already on the operand stack, binds it to a fresh
@@ -1449,7 +1450,8 @@ public final class QmlCompiler {
     // grouped border.color/font.pixelSize) and reuse the same binding wiring.
     private void emitRhinoBindingFor(MethodVisitor ctor, String source, int outerLocal,
                                      Map<String, Class<? extends QObject>> idTypes,
-                                     Map<String, Class<? extends QObject>> singletons) {
+                                     Map<String, Class<? extends QObject>> singletons,
+                                     Map<String, AliasRef> aliases) {
         ctor.visitTypeInsn(Opcodes.NEW, RHINO_BINDING_INTERNAL);
         ctor.visitInsn(Opcodes.DUP);
         ctor.visitLdcInsn(source);
@@ -1458,8 +1460,9 @@ public final class QmlCompiler {
         pushStringArray(ctor, new ArrayList<>(idTypes.keySet()));
         ctor.visitInsn(inDelegateScope() ? Opcodes.ICONST_1 : Opcodes.ICONST_0);
         pushSingletons(ctor, singletons);
+        pushAliases(ctor, aliases);
         ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_BINDING_INTERNAL, "<init>",
-                             "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;Z[Ljava/lang/String;[Ljava/lang/Class;)V", false);
+                             "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;Z[Ljava/lang/String;[Ljava/lang/Class;[Ljava/lang/String;)V", false);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
                              "bind", "(L" + BINDING_INTERNAL + ";)V", false);
     }
@@ -1478,7 +1481,7 @@ public final class QmlCompiler {
         }
         if (e instanceof Ast.IdentifierExpr) {
             String n = ((Ast.IdentifierExpr) e).name;
-            if (aliases.containsKey(n)) return false;
+            if (aliases.containsKey(n)) return true;
             if (JS_NAMESPACES.contains(n)) return true;
             if (isSingleton(n)) return true;
             if (inDelegateScope()) {
@@ -1871,16 +1874,18 @@ public final class QmlCompiler {
                                           Map<String, Class<? extends QObject>> idTypes,
                                           Map<String, String> declaredProps,
                                           Map<String, Integer> rootFunctions,
-                                          Set<String> customSignals) {
+                                          Set<String> customSignals,
+                                          Map<String, AliasRef> aliases) {
         return fd.source != null && !inDelegateScope()
             && handlerCanHandle(fd.body, contextType, idTypes, declaredProps, fd.paramNames,
-                                rootFunctions, customSignals);
+                                rootFunctions, customSignals, aliases);
     }
 
     // Registers `name` on the QObject at outerLocal as a RhinoFunction callable
     // (__putFunction), reached by both bare and member calls through callQml/callMethod.
     private void emitRhinoFunction(MethodVisitor ctor, int outerLocal, Ast.FunctionDeclaration fd,
-                                   Map<String, Class<? extends QObject>> idTypes) {
+                                   Map<String, Class<? extends QObject>> idTypes,
+                                   Map<String, AliasRef> aliases) {
         validateRhinoSource(fd.source, fd.paramNames);
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitLdcInsn(fd.name);
@@ -1893,8 +1898,9 @@ public final class QmlCompiler {
         pushStringArray(ctor, new ArrayList<>(idTypes.keySet()));
         ctor.visitInsn(inDelegateScope() ? Opcodes.ICONST_1 : Opcodes.ICONST_0);
         pushSingletons(ctor, collectSingletons(fd.body));
+        pushAliases(ctor, collectAliases(fd.body, aliases));
         ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_FUNCTION_INTERNAL, "<init>",
-            "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;Z[Ljava/lang/String;[Ljava/lang/Class;)V", false);
+            "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;Z[Ljava/lang/String;[Ljava/lang/Class;[Ljava/lang/String;)V", false);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, QOBJECT_INTERNAL, "__putFunction",
                              "(Ljava/lang/String;Lio/qml4j/engine/Callable;)V", false);
     }
@@ -1919,7 +1925,8 @@ public final class QmlCompiler {
         // the Rhino delegate scope doesn't walk yet -- keep those handlers on ASM.
         boolean delegateOk = !delegate || !AstScan.hasBareCall(body);
         if (source != null && delegateOk
-                && handlerCanHandle(body, outerType, idTypes, declaredProps, params, rootFunctions, customSignals)) {
+                && handlerCanHandle(body, outerType, idTypes, declaredProps, params, rootFunctions,
+                                    customSignals, aliases)) {
             validateRhinoSource(source, params);
             ctor.visitTypeInsn(Opcodes.NEW, RHINO_HANDLER_INTERNAL);
             ctor.visitInsn(Opcodes.DUP);
@@ -1930,8 +1937,9 @@ public final class QmlCompiler {
             pushStringArray(ctor, new ArrayList<>(idTypes.keySet()));
             ctor.visitInsn(delegate ? Opcodes.ICONST_1 : Opcodes.ICONST_0);
             pushSingletons(ctor, collectSingletons(body));
+            pushAliases(ctor, collectAliases(body, aliases));
             ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_HANDLER_INTERNAL, "<init>",
-                "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;Z[Ljava/lang/String;[Ljava/lang/Class;)V", false);
+                "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;Z[Ljava/lang/String;[Ljava/lang/Class;[Ljava/lang/String;)V", false);
             return;
         }
         int n = handlerCounter[0]++;
@@ -1977,16 +1985,17 @@ public final class QmlCompiler {
                                             Map<String, Class<? extends QObject>> idTypes,
                                             Map<String, String> declaredProps,
                                             Set<String> customSignals,
-                                            Map<String, Integer> rootFunctions) {
+                                            Map<String, Integer> rootFunctions,
+                                            Map<String, AliasRef> aliases) {
         if (blockValue.source == null) return false;
         if (!handlerCanHandle(blockValue.block, outerType, idTypes, declaredProps,
-                              Collections.<String>emptyList(), rootFunctions, customSignals)) {
+                              Collections.<String>emptyList(), rootFunctions, customSignals, aliases)) {
             return false;
         }
         String iife = "(function(){" + blockValue.source + "})()";
         validateRhinoCompiles(iife);
         emitRhinoBindingBind(ctor, declOwner, propName, iife, outerLocal, idTypes,
-                             collectSingletons(blockValue.block));
+                             collectSingletons(blockValue.block), collectAliases(blockValue.block, aliases));
         return true;
     }
 
@@ -2015,6 +2024,7 @@ public final class QmlCompiler {
 
         String source;
         Map<String, Class<? extends QObject>> singletons;
+        Map<String, AliasRef> usedAliases;
         if (value instanceof Ast.ExpressionValue) {
             Ast.ExpressionValue ev = (Ast.ExpressionValue) value;
             if (ev.source == null || ev.expr instanceof Ast.LiteralExpr
@@ -2023,15 +2033,17 @@ public final class QmlCompiler {
             }
             source = ev.source;
             singletons = collectSingletons(ev.expr);
+            usedAliases = collectAliases(ev.expr, aliases);
         } else if (value instanceof Ast.StatementBlockValue) {
             Ast.StatementBlockValue sb = (Ast.StatementBlockValue) value;
             if (sb.source == null
                     || !handlerCanHandle(sb.block, outerType, idTypes, declaredProps,
-                                         Collections.<String>emptyList(), rootFunctions, customSignals)) {
+                                         Collections.<String>emptyList(), rootFunctions, customSignals, aliases)) {
                 return false;
             }
             source = "(function(){" + sb.source + "})()";
             singletons = collectSingletons(sb.block);
+            usedAliases = collectAliases(sb.block, aliases);
         } else {
             return false;
         }
@@ -2043,7 +2055,7 @@ public final class QmlCompiler {
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitFieldInsn(Opcodes.GETFIELD, groupDeclOwner, groupName, "L" + groupTypeInternal + ";");
         ctor.visitFieldInsn(Opcodes.GETFIELD, propDeclOwner, propName, PROPERTY_DESC);
-        emitRhinoBindingFor(ctor, source, outerLocal, idTypes, singletons);
+        emitRhinoBindingFor(ctor, source, outerLocal, idTypes, singletons, usedAliases);
         return true;
     }
 
@@ -2068,12 +2080,14 @@ public final class QmlCompiler {
                                      Map<String, String> declaredProps,
                                      List<String> signalParams,
                                      Map<String, Integer> rootFunctions,
-                                     Set<String> customSignals) {
+                                     Set<String> customSignals,
+                                     Map<String, AliasRef> aliases) {
         // Qt.binding / Qt.callLater are not bridged into the Rhino globals yet.
         if (AstScan.usesDeferredQtHelper(body)) return false;
         Set<String> bound = new java.util.HashSet<>(signalParams);
         for (String name : FreeIdentifiers.collect(body, bound)) {
-            if (!resolvableByRhino(name, outerType, idTypes, declaredProps, rootFunctions, customSignals)) {
+            if (!resolvableByRhino(name, outerType, idTypes, declaredProps, rootFunctions,
+                                   customSignals, aliases)) {
                 return false;
             }
         }
@@ -2084,7 +2098,9 @@ public final class QmlCompiler {
                                       Map<String, Class<? extends QObject>> idTypes,
                                       Map<String, String> declaredProps,
                                       Map<String, Integer> rootFunctions,
-                                      Set<String> customSignals) {
+                                      Set<String> customSignals,
+                                      Map<String, AliasRef> aliases) {
+        if (aliases.containsKey(name)) return true;
         if (isSingleton(name)) return true;
         if (inDelegateScope()) {
             // In a delegate, index/modelData/local-id/enclosing-scope names resolve at
@@ -2130,6 +2146,33 @@ public final class QmlCompiler {
 
     private Map<String, Class<? extends QObject>> collectSingletons(Ast.Expression e) {
         return collectSingletons(new Ast.ExprStmt(e));
+    }
+
+    // The aliases a body/expression references, name -> AliasRef, so each binding carries
+    // exactly the aliases it uses (resolved per-binding in QmlScope, never a global lookup).
+    private Map<String, AliasRef> collectAliases(Ast.Statement body, Map<String, AliasRef> aliases) {
+        if (aliases.isEmpty()) return java.util.Collections.emptyMap();
+        Map<String, AliasRef> m = new LinkedHashMap<>();
+        for (String n : FreeIdentifiers.collect(body, java.util.Collections.<String>emptySet())) {
+            AliasRef a = aliases.get(n);
+            if (a != null) m.put(n, a);
+        }
+        return m;
+    }
+
+    private Map<String, AliasRef> collectAliases(Ast.Expression e, Map<String, AliasRef> aliases) {
+        return collectAliases(new Ast.ExprStmt(e), aliases);
+    }
+
+    // Pushes the alias specs (String[] of "name\0targetId\0targetProperty") for a binding,
+    // so QmlScope can expand each alias to its target id's property at runtime. The NUL
+    // separator can't appear in identifiers, so QmlScope.aliasMap splits on it cleanly.
+    private void pushAliases(MethodVisitor mv, Map<String, AliasRef> aliases) {
+        List<String> specs = new ArrayList<>();
+        for (Map.Entry<String, AliasRef> e : aliases.entrySet()) {
+            specs.add(e.getKey() + "\u0000" + e.getValue().targetId + "\u0000" + e.getValue().targetProperty);
+        }
+        pushStringArray(mv, specs);
     }
 
     // Pushes the singleton names (String[]) and their classes (Class[]) for a binding,

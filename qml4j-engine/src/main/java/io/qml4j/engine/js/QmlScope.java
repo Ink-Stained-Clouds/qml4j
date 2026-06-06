@@ -33,13 +33,20 @@ public final class QmlScope implements Scriptable {
     private Scriptable parent;
     private Scriptable prototype;
 
+    // Property aliases in scope, name -> [targetId, targetProperty]; an alias expands to
+    // a read/write of the target id's property (ExpressionCodegen expands `x` to
+    // `targetId.targetProperty`). Threaded per-binding, empty in delegate scope.
+    private final Map<String, String[]> aliases;
+
     public QmlScope(Object outer, Object root, Scriptable globals, Set<String> sceneIds,
-                    boolean delegate, Map<String, Class<?>> singletonClasses) {
+                    boolean delegate, Map<String, Class<?>> singletonClasses,
+                    Map<String, String[]> aliases) {
         this.outer = outer;
         this.root = root;
         this.sceneIds = sceneIds;
         this.delegate = delegate;
         this.singletonClasses = singletonClasses;
+        this.aliases = aliases;
         this.parent = globals;
     }
 
@@ -49,6 +56,28 @@ public final class QmlScope implements Scriptable {
         Map<String, Class<?>> m = new HashMap<>();
         for (int i = 0; i < names.length; i++) m.put(names[i], classes[i]);
         return m;
+    }
+
+    // Build the alias map from specs encoded as "name\u0000targetId\u0000targetProperty".
+    public static Map<String, String[]> aliasMap(String[] specs) {
+        if (specs.length == 0) return java.util.Collections.emptyMap();
+        Map<String, String[]> m = new HashMap<>();
+        for (String s : specs) {
+            String[] parts = s.split("\u0000");
+            m.put(parts[0], new String[]{parts[1], parts[2]});
+        }
+        return m;
+    }
+
+    // The object an alias's target id resolves to, then its target property. The id read
+    // is a plain reference (no dependency); the property read records the dependency.
+    private Object aliasValue(String name) {
+        String[] t = aliases.get(name);
+        Object o = owner(t[0]);
+        if (o == null) return null;
+        Object target = RuntimeHelpers.readMember(o, t[0]);
+        if (target == null) return null;
+        return RuntimeHelpers.readMember(target, t[1]);
     }
 
     private Object singleton(String name) {
@@ -113,6 +142,7 @@ public final class QmlScope implements Scriptable {
 
     @Override public Object get(String name, Scriptable start) {
         if (delegate) return getDelegate(name);
+        if (aliases.containsKey(name)) return wrap(aliasValue(name));
         Object o = owner(name);
         if (o != null) return wrap(RuntimeHelpers.readMember(o, name));
         Object c = callableOwner(name);
@@ -129,7 +159,7 @@ public final class QmlScope implements Scriptable {
                 || JsWrap.isCallable(outer, name)
                 || singletonClasses.containsKey(name);
         }
-        return owner(name) != null || callableOwner(name) != null
+        return aliases.containsKey(name) || owner(name) != null || callableOwner(name) != null
             || singletonClasses.containsKey(name);
     }
 
@@ -137,6 +167,15 @@ public final class QmlScope implements Scriptable {
         if (delegate) {
             if (RuntimeHelpers.hasProperty(outer, name)) {
                 RuntimeHelpers.writeMember(outer, name, JsWrap.toJava(value));
+            }
+            return;
+        }
+        if (aliases.containsKey(name)) {
+            String[] t = aliases.get(name);
+            Object o = owner(t[0]);
+            if (o != null) {
+                Object target = RuntimeHelpers.readMember(o, t[0]);
+                if (target != null) RuntimeHelpers.writeMember(target, t[1], JsWrap.toJava(value));
             }
             return;
         }
