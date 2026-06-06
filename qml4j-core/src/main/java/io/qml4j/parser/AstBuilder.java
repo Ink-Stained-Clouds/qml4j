@@ -316,7 +316,12 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
         Ast.Expression left = (Ast.Expression) visit(ctx.condExpr());
         if (ctx.assignmentExpr() == null) return left;
         Ast.Expression right = (Ast.Expression) visit(ctx.assignmentExpr());
-        return new Ast.AssignmentExpr(left, right);
+        String op = ctx.assignOp().getText();
+        if ("=".equals(op)) return new Ast.AssignmentExpr(left, right);
+        // `a += b` desugars to `a = a + b` for the AST (free-id/singleton walks); the
+        // captured raw source keeps the compound form for Rhino to execute verbatim.
+        String bin = op.substring(0, op.length() - 1);
+        return new Ast.AssignmentExpr(left, new Ast.BinaryExpr(bin, left, right));
     }
 
     @Override
@@ -458,9 +463,41 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
         if (ctx.literal() != null) return (Ast.Expression) visit(ctx.literal());
         if (ctx.arrayLiteral() != null) return visitArrayLiteral(ctx.arrayLiteral());
         if (ctx.objectLiteral() != null) return visitObjectLiteral(ctx.objectLiteral());
+        if (ctx.functionExpr() != null) return visitFunctionExpr(ctx.functionExpr());
+        if (ctx.newExpr() != null) return visitNewExpr(ctx.newExpr());
         if (ctx.TemplateLiteral() != null) return parseTemplateLiteral(ctx.TemplateLiteral().getText());
         if (ctx.Identifier() != null) return new Ast.IdentifierExpr(ctx.Identifier().getText());
         return (Ast.Expression) visit(ctx.expression());
+    }
+
+    // A function expression reuses ArrowFunctionExpr: params bind in the free-identifier
+    // walk and the body is captured as raw source for Rhino. The optional name is dropped
+    // from the AST (the raw source keeps it).
+    @Override
+    public Ast.Expression visitFunctionExpr(QmlParser.FunctionExprContext ctx) {
+        List<String> params = new ArrayList<>();
+        for (Token p : ctx.params) params.add(p.getText());
+        List<Ast.Statement> stmts = new ArrayList<>();
+        for (QmlParser.StatementContext sc : ctx.statement()) stmts.add(visitStatement(sc));
+        return new Ast.ArrowFunctionExpr(params, null, new Ast.Block(stmts), rawSource(ctx));
+    }
+
+    // `new Foo(args)` reuses CallExpr: the constructor name walks as a free identifier
+    // (resolved against JS_GLOBALS / singletons), the args walk normally, and the raw
+    // source keeps the `new` for Rhino.
+    @Override
+    public Ast.Expression visitNewExpr(QmlParser.NewExprContext ctx) {
+        Ast.Expression callee = qualifiedIdToExpr(ctx.qualifiedId());
+        List<Ast.Expression> args = new ArrayList<>();
+        for (QmlParser.SpreadOrExprContext se : ctx.spreadOrExpr()) args.add(visitSpreadOrExpr(se));
+        return new Ast.CallExpr(callee, args);
+    }
+
+    private Ast.Expression qualifiedIdToExpr(QmlParser.QualifiedIdContext ctx) {
+        List<QmlParser.IdLikeContext> parts = ctx.idLike();
+        Ast.Expression e = new Ast.IdentifierExpr(parts.get(0).getText());
+        for (int i = 1; i < parts.size(); i++) e = new Ast.MemberExpr(e, parts.get(i).getText());
+        return e;
     }
 
     @Override

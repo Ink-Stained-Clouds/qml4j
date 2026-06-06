@@ -20,8 +20,8 @@ import static io.qml4j.compiler.bytecode.asm.Descriptors.SINK_INTERNAL;
 import static io.qml4j.compiler.bytecode.asm.Fields.findPropertyField;
 import static io.qml4j.compiler.bytecode.emit.BindingEmitter.emitRhinoBindingBind;
 import static io.qml4j.compiler.bytecode.emit.BindingEmitter.pushNewRhinoBinding;
-import static io.qml4j.compiler.bytecode.rhino.RhinoScope.collectAliases;
-import static io.qml4j.compiler.bytecode.rhino.RhinoScope.collectSingletons;
+import static io.qml4j.compiler.bytecode.rhino.RhinoScope.collectAliasesFrom;
+import static io.qml4j.compiler.bytecode.rhino.RhinoScope.collectSingletonsFrom;
 import static io.qml4j.compiler.bytecode.rhino.RhinoScope.require;
 
 // Static helpers for assigning values (literals or expressions) to property
@@ -59,10 +59,10 @@ public final class ValueAssigner {
         if (source == null) {
             throw new IllegalArgumentException("binding for '" + name + "' has no captured source");
         }
-        require(new Ast.ExprStmt(expr), outerType, idTypes, declaredProps,
-                Collections.<String>emptyList(), rootFunctions, customSignals, aliases);
+        require(source, Collections.<String>emptySet(), outerType, idTypes, declaredProps,
+                rootFunctions, customSignals, aliases);
         emitRhinoBindingBind(ctor, ownerInternal, name, source, outerLocal, idTypes,
-                             collectSingletons(expr), collectAliases(expr, aliases));
+                             collectSingletonsFrom(source), collectAliasesFrom(source, aliases));
     }
 
     // Reflects propName on outerType to locate its field owner, validates the binding
@@ -81,10 +81,10 @@ public final class ValueAssigner {
         if (source == null) {
             throw new IllegalArgumentException("binding for '" + propName + "' has no captured source");
         }
-        require(new Ast.ExprStmt(expr), outerType, idTypes, declaredProps,
-                Collections.<String>emptyList(), rootFunctions, customSignals, aliases);
+        require(source, Collections.<String>emptySet(), outerType, idTypes, declaredProps,
+                rootFunctions, customSignals, aliases);
         emitRhinoBindingBind(ctor, declOwner, propName, source, outerLocal, idTypes,
-                             collectSingletons(expr), collectAliases(expr, aliases));
+                             collectSingletonsFrom(source), collectAliasesFrom(source, aliases));
     }
 
     // Assigns `name` on a PropertyChangeSink: a literal uses addChange, an expression
@@ -108,12 +108,12 @@ public final class ValueAssigner {
         if (source == null) {
             throw new IllegalArgumentException("change '" + name + "' has no captured source");
         }
-        require(new Ast.ExprStmt(expr), outerType, idTypes, declaredProps,
-                Collections.<String>emptyList(), rootFunctions, customSignals, aliases);
+        require(source, Collections.<String>emptySet(), outerType, idTypes, declaredProps,
+                rootFunctions, customSignals, aliases);
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitLdcInsn(name);
         pushNewRhinoBinding(ctor, source, outerLocal, idTypes,
-                            collectSingletons(expr), collectAliases(expr, aliases));
+                            collectSingletonsFrom(source), collectAliasesFrom(source, aliases));
         ctor.visitMethodInsn(Opcodes.INVOKEINTERFACE, SINK_INTERNAL,
                              "addChangeBinding",
                              "(Ljava/lang/String;L" + BINDING_INTERNAL + ";)V", true);

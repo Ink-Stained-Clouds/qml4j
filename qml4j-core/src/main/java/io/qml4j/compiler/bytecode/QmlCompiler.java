@@ -23,6 +23,7 @@ import java.lang.reflect.Field;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -76,8 +77,8 @@ import static io.qml4j.compiler.bytecode.emit.ValueAssigner.emitDeclaredProperty
 import static io.qml4j.compiler.bytecode.emit.ValueAssigner.emitExpressionBinding;
 import static io.qml4j.compiler.bytecode.emit.ValueAssigner.emitLiteralAssignment;
 import static io.qml4j.compiler.bytecode.rhino.RhinoScope.canHandle;
-import static io.qml4j.compiler.bytecode.rhino.RhinoScope.collectAliases;
-import static io.qml4j.compiler.bytecode.rhino.RhinoScope.collectSingletons;
+import static io.qml4j.compiler.bytecode.rhino.RhinoScope.collectAliasesFrom;
+import static io.qml4j.compiler.bytecode.rhino.RhinoScope.collectSingletonsFrom;
 import static io.qml4j.compiler.bytecode.rhino.RhinoScope.require;
 import static io.qml4j.compiler.bytecode.rhino.RhinoScope.validateCompiles;
 
@@ -365,7 +366,7 @@ public final class QmlCompiler {
                 if (fd.source == null) {
                     throw new IllegalArgumentException("function '" + fd.name + "' has no captured source");
                 }
-                require(fd.body, outerType, idTypes, declaredProps, fd.paramNames,
+                require(fd.source, new HashSet<>(fd.paramNames), outerType, idTypes, declaredProps,
                                       scopeFunctions, customSignals, aliases);
                 // Registers the function as a Rhino callable on the object at outerLocal
                 // (this for a root function); a root function also gets a thin reflective
@@ -493,8 +494,8 @@ public final class QmlCompiler {
                     return;
                 }
                 // Ineligible only when a free name does not resolve; surface that.
-                require(sb.block, outerType, idTypes, declaredProps,
-                                      Collections.<String>emptyList(), rootFunctions, customSignals, aliases);
+                require(sb.source, Collections.<String>emptySet(), outerType, idTypes, declaredProps,
+                                      rootFunctions, customSignals, aliases);
                 throw new IllegalArgumentException(
                     "statement-block binding for '" + key + "' could not be compiled");
             }
@@ -630,8 +631,8 @@ public final class QmlCompiler {
             }
             if (pd.initializer instanceof Ast.StatementBlockValue) {
                 // tryEmitRhinoIifeBinding above returned false: a free name does not resolve.
-                require(((Ast.StatementBlockValue) pd.initializer).block, outerType,
-                                      idTypes, declaredProps, Collections.<String>emptyList(),
+                require(((Ast.StatementBlockValue) pd.initializer).source, Collections.<String>emptySet(),
+                                      outerType, idTypes, declaredProps,
                                       rootFunctions, customSignalParams.keySet(), aliases);
                 throw new IllegalArgumentException(
                     "statement-block override for '" + pd.name + "' could not be compiled");
@@ -685,8 +686,8 @@ public final class QmlCompiler {
         }
         if (pd.initializer instanceof Ast.StatementBlockValue) {
             // tryEmitRhinoIifeBinding above returned false: a free name does not resolve.
-            require(((Ast.StatementBlockValue) pd.initializer).block, outerType,
-                                  idTypes, declaredProps, Collections.<String>emptyList(),
+            require(((Ast.StatementBlockValue) pd.initializer).source, Collections.<String>emptySet(),
+                                  outerType, idTypes, declaredProps,
                                   rootFunctions, customSignalParams.keySet(), aliases);
             throw new IllegalArgumentException(
                 "statement-block default for '" + pd.name + "' could not be compiled");
@@ -1243,14 +1244,14 @@ public final class QmlCompiler {
                                             Map<String, Integer> rootFunctions,
                                             Map<String, AliasRef> aliases) {
         if (blockValue.source == null) return false;
-        if (!canHandle(blockValue.block, outerType, idTypes, declaredProps,
-                              Collections.<String>emptyList(), rootFunctions, customSignals, aliases)) {
+        if (!canHandle(blockValue.source, Collections.<String>emptySet(), outerType, idTypes, declaredProps,
+                              rootFunctions, customSignals, aliases)) {
             return false;
         }
         String iife = "(function(){" + blockValue.source + "})()";
         validateCompiles(iife);
         emitRhinoBindingBind(ctor, declOwner, propName, iife, outerLocal, idTypes,
-                             collectSingletons(blockValue.block), collectAliases(blockValue.block, aliases));
+                             collectSingletonsFrom(blockValue.source), collectAliasesFrom(blockValue.source, aliases));
         return true;
     }
 
@@ -1304,22 +1305,22 @@ public final class QmlCompiler {
                 throw new IllegalArgumentException(
                     "grouped binding '" + groupName + "." + propName + "' has no captured source");
             }
-            require(new Ast.ExprStmt(ev.expr), outerType, idTypes, declaredProps,
-                                  Collections.<String>emptyList(), rootFunctions, customSignals, aliases);
+            require(ev.source, Collections.<String>emptySet(), outerType, idTypes, declaredProps,
+                                  rootFunctions, customSignals, aliases);
             source = ev.source;
-            singletons = collectSingletons(ev.expr);
-            usedAliases = collectAliases(ev.expr, aliases);
+            singletons = collectSingletonsFrom(ev.source);
+            usedAliases = collectAliasesFrom(ev.source, aliases);
         } else if (value instanceof Ast.StatementBlockValue) {
             Ast.StatementBlockValue sb = (Ast.StatementBlockValue) value;
             if (sb.source == null) {
                 throw new IllegalArgumentException(
                     "grouped binding '" + groupName + "." + propName + "' has no captured source");
             }
-            require(sb.block, outerType, idTypes, declaredProps,
-                                  Collections.<String>emptyList(), rootFunctions, customSignals, aliases);
+            require(sb.source, Collections.<String>emptySet(), outerType, idTypes, declaredProps,
+                                  rootFunctions, customSignals, aliases);
             source = "(function(){" + sb.source + "})()";
-            singletons = collectSingletons(sb.block);
-            usedAliases = collectAliases(sb.block, aliases);
+            singletons = collectSingletonsFrom(sb.source);
+            usedAliases = collectAliasesFrom(sb.source, aliases);
         } else {
             throw new UnsupportedOperationException(
                 "only expression/statement grouped bindings supported: " + groupName + "." + propName);

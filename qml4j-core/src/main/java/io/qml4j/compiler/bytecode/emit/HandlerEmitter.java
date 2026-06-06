@@ -13,6 +13,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -27,8 +28,8 @@ import static io.qml4j.compiler.bytecode.asm.Descriptors.SIGNAL_INTERNAL;
 import static io.qml4j.compiler.bytecode.asm.Descriptors.SIGNAL_RELAY_INTERNAL;
 import static io.qml4j.compiler.bytecode.asm.Fields.findPropertyField;
 import static io.qml4j.compiler.bytecode.asm.Fields.findSignalFieldOrNull;
-import static io.qml4j.compiler.bytecode.rhino.RhinoScope.collectAliases;
-import static io.qml4j.compiler.bytecode.rhino.RhinoScope.collectSingletons;
+import static io.qml4j.compiler.bytecode.rhino.RhinoScope.collectAliasesFrom;
+import static io.qml4j.compiler.bytecode.rhino.RhinoScope.collectSingletonsFrom;
 import static io.qml4j.compiler.bytecode.rhino.RhinoScope.pushAliases;
 import static io.qml4j.compiler.bytecode.rhino.RhinoScope.pushSingletons;
 import static io.qml4j.compiler.bytecode.rhino.RhinoScope.require;
@@ -191,8 +192,8 @@ public final class HandlerEmitter {
         ctor.visitVarInsn(Opcodes.ALOAD, 0);
         pushStringArray(ctor, new ArrayList<>(idTypes.keySet()));
         ctor.visitInsn(CompileScope.inDelegateScope() ? Opcodes.ICONST_1 : Opcodes.ICONST_0);
-        pushSingletons(ctor, collectSingletons(fd.body));
-        pushAliases(ctor, collectAliases(fd.body, aliases));
+        pushSingletons(ctor, collectSingletonsFrom(fd.source));
+        pushAliases(ctor, collectAliasesFrom(fd.source, aliases));
         ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_FUNCTION_INTERNAL, "<init>",
             "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;Z"
             + "[Ljava/lang/String;[Ljava/lang/Class;[Ljava/lang/String;)V", false);
@@ -217,8 +218,8 @@ public final class HandlerEmitter {
         if (source == null) {
             throw new IllegalArgumentException("signal handler has no captured source");
         }
-        require(body, outerType, idTypes, declaredProps, params, rootFunctions,
-                customSignals, aliases);
+        require(source, new HashSet<>(params), outerType, idTypes, declaredProps,
+                rootFunctions, customSignals, aliases);
         validateSource(source, params);
         ctor.visitTypeInsn(Opcodes.NEW, RHINO_HANDLER_INTERNAL);
         ctor.visitInsn(Opcodes.DUP);
@@ -228,8 +229,8 @@ public final class HandlerEmitter {
         ctor.visitVarInsn(Opcodes.ALOAD, 0);
         pushStringArray(ctor, new ArrayList<>(idTypes.keySet()));
         ctor.visitInsn(delegate ? Opcodes.ICONST_1 : Opcodes.ICONST_0);
-        pushSingletons(ctor, collectSingletons(body));
-        pushAliases(ctor, collectAliases(body, aliases));
+        pushSingletons(ctor, collectSingletonsFrom(source));
+        pushAliases(ctor, collectAliasesFrom(source, aliases));
         ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_HANDLER_INTERNAL, "<init>",
             "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;Z"
             + "[Ljava/lang/String;[Ljava/lang/Class;[Ljava/lang/String;)V", false);

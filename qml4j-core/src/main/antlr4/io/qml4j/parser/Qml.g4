@@ -170,7 +170,11 @@ expression
 
 assignmentExpr
     : arrowFunction
-    | condExpr ('=' assignmentExpr)?
+    | condExpr (assignOp assignmentExpr)?
+    ;
+
+assignOp
+    : '=' | '+=' | '-=' | '*=' | '/=' | '%=' | '&=' | '|=' | '^='
     ;
 
 arrowFunction
@@ -245,7 +249,7 @@ unaryExpr
     ;
 
 unaryOp
-    : '-' | '+' | '!'
+    : '-' | '+' | '!' | '~' | 'typeof' | 'void' | 'delete'
     ;
 
 postfixExpr
@@ -271,9 +275,19 @@ primaryExpr
     : literal
     | arrayLiteral
     | objectLiteral
+    | functionExpr
+    | newExpr
     | TemplateLiteral
     | Identifier
     | '(' expression ')'
+    ;
+
+functionExpr
+    : 'function' name=Identifier? '(' (params+=Identifier (',' params+=Identifier)*)? ')' '{' statement* '}'
+    ;
+
+newExpr
+    : 'new' qualifiedId ('(' (spreadOrExpr (',' spreadOrExpr)*)? ')')?
     ;
 
 arrayLiteral
