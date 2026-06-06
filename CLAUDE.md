@@ -18,6 +18,16 @@ Aim for small, single-purpose units. If a method or class is doing several disti
 
 When refactoring an existing fat class as part of new work, do the extraction in the same change. Don't pile on.
 
+## Dispatch & polymorphism
+
+The RECODE refactor replaced the engine's instanceof/switch type-dispatch with polymorphism. Keep it that way.
+
+- **Never dispatch on an item or AST-member type with `instanceof`/`switch`.** Behavior that varies per type lives on the type. Drawable items override `Item.paint(Painter)`; items with intrinsic size override `Item.measure(TextLayout)`; layout containers override `Item.layout()` — the Renderer just walks the tree and calls the hook (double-dispatch, not a per-type branch). New compiled member kinds get a `MemberEmitter` registered in `QmlCompiler.memberEmitters` keyed on the member class, not a new `if (m instanceof ...)` arm.
+- **Items never import skija.** Drawing goes through `Painter` primitives (the one exception is `Image.skiaImage`, a field). Font-heavy/complex draws are a `Painter.drawXxx(item, ...)` primitive the item delegates to; simple geometry keeps its logic in the item and calls low-level Painter ops.
+- **Thread shared emit/render state as a parameter object, not a long argument list.** `EmitContext` bundles the per-object-body emit state; don't re-introduce 14-parameter signatures.
+- **Compose collaborators via constructor injection; keep the public type a facade.** `QmlView` owns nothing but delegation — `Loader` (compile+instantiate), `FocusManager` (focus/tab), `EventDispatcher` (pointer/key/text/clipboard) do the work and are injected. The Renderer's `FontResolver`/`IconResolver`/`TextLayout` are injected the same way. Add a responsibility as a new injected collaborator, not as more state on the facade.
+- **`switch` is fine for value mapping, not type dispatch.** Legitimate and kept: parser token dispatch (the ANTLR visitor), bytecode emission (`typeName`→opcode, `lit.kind`), value/ordinal/string→value maps (keycode→Signal, wrapMode→string, `line.edge`, `plan.op`, `hex.length()`, QColor channel), and pure stateless framework math tables (`Easings`). These are not the antipattern; don't "polymorphize" them into ceremony.
+
 ## Other code rules
 
 - No emoji in source files unless the user asks.
