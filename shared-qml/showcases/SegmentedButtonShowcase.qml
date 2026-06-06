@@ -27,6 +27,7 @@ Rectangle {
             color: Theme.color.onSurfaceVariantColor; fontSize: 14
         }
         SegmentedButton {
+            width: 360
             buttons: [
                 { text: "Day", icon: "calendar_today", selected: false },
                 { text: "Week", icon: "date_range", selected: true },
@@ -40,6 +41,7 @@ Rectangle {
             color: Theme.color.onSurfaceVariantColor; fontSize: 14
         }
         SegmentedButton {
+            width: 360
             multiSelect: true
             buttons: [
                 { text: "Bold", icon: "format_bold", selected: true },

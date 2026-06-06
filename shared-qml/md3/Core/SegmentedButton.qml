@@ -64,6 +64,7 @@ Item {
                 delegate: Rectangle {
                     id: segment
                     Layout.fillHeight: true
+                    Layout.fillWidth: true
                     Layout.minimumWidth: 48
                     implicitWidth: Math.max(contentRow.implicitWidth + 24, 48)
                     
