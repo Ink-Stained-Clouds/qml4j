@@ -39,8 +39,6 @@ import io.qml4j.render.items.window.Window;
 import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.skija.Font;
 import io.github.humbleui.skija.FontMetrics;
-import io.github.humbleui.skija.FontMgr;
-import io.github.humbleui.skija.FontStyle;
 import io.github.humbleui.skija.BlendMode;
 import io.github.humbleui.skija.ColorFilter;
 import io.github.humbleui.skija.ImageFilter;
@@ -53,9 +51,7 @@ import io.github.humbleui.skija.PathBuilder;
 import io.github.humbleui.skija.PathDirection;
 import io.github.humbleui.skija.PathEllipseArc;
 import io.github.humbleui.skija.PathFillMode;
-import io.github.humbleui.skija.Data;
 import io.github.humbleui.skija.Shader;
-import io.github.humbleui.skija.Typeface;
 import io.github.humbleui.types.RRect;
 import io.github.humbleui.types.Rect;
 
@@ -66,12 +62,14 @@ import java.util.List;
 public final class Renderer {
 
     private Paint paint;
-    private Typeface defaultTypeface;
     private ResourceLoader resources;
     private ComponentFactory factory;
+    private final FontResolver fonts = new FontResolver();
+    private final IconResolver icons = new IconResolver(fonts);
 
     public void setResourceLoader(ResourceLoader loader) {
         this.resources = loader;
+        fonts.setResourceLoader(loader);
     }
 
     public void setComponentFactory(ComponentFactory factory) {
@@ -81,199 +79,6 @@ public final class Renderer {
     private Paint paint() {
         if (paint == null) paint = new Paint();
         return paint;
-    }
-
-    private Typeface defaultTypeface() {
-        if (defaultTypeface != null) return defaultTypeface;
-        FontMgr mgr = FontMgr.getDefault();
-        if (mgr != null) {
-            for (String name : LATIN_CANDIDATES) {
-                Typeface t = mgr.matchFamilyStyle(name, FontStyle.NORMAL);
-                if (t != null) { defaultTypeface = t; return t; }
-            }
-        }
-        return null;
-    }
-
-    private Typeface cjkTypeface() {
-        if (cjkTypeface != null) return cjkTypeface;
-        if (cjkLookupFailed) return null;
-        FontMgr mgr = FontMgr.getDefault();
-        if (mgr == null) { cjkLookupFailed = true; return null; }
-        for (String name : CJK_CANDIDATES) {
-            Typeface t = mgr.matchFamilyStyle(name, FontStyle.NORMAL);
-            if (t != null) { cjkTypeface = t; return t; }
-        }
-        try {
-            Typeface t = mgr.matchFamilyStyleCharacter(
-                null, FontStyle.NORMAL, new String[]{"zh-CN", "zh-Hans"}, 0x4E2D);
-            if (t != null) { cjkTypeface = t; return t; }
-        } catch (Throwable ignored) {}
-        cjkLookupFailed = true;
-        return null;
-    }
-
-    private Typeface cjkTypeface;
-    private boolean cjkLookupFailed;
-
-    private final java.util.Map<Integer, Typeface> symbolCache = new java.util.HashMap<>();
-
-    // A typeface that actually contains the given symbol codepoint. The default
-    // Latin face lacks glyphs like ✓/✕/☰, so ask the font manager for any font
-    // that covers it (Noto etc.), falling back to the CJK face.
-    private Typeface symbolTypeface(int cp) {
-        if (symbolCache.containsKey(cp)) return symbolCache.get(cp);
-        Typeface t = null;
-        FontMgr mgr = FontMgr.getDefault();
-        if (mgr != null) {
-            try { t = mgr.matchFamilyStyleCharacter(null, FontStyle.NORMAL, null, cp); }
-            catch (Throwable ignored) {}
-        }
-        if (t == null) t = cjkTypeface();
-        symbolCache.put(cp, t);
-        return t;
-    }
-
-    // General-punctuation through misc-symbols/dingbats: where our icon glyphs live.
-    private static boolean isSymbol(String s) {
-        if (s == null || s.isEmpty()) return false;
-        int c = s.codePointAt(0);
-        return c >= 0x2000 && c <= 0x2BFF;
-    }
-
-    private static final String[] LATIN_CANDIDATES = {
-        null, "sans-serif", "Roboto", "Droid Sans", "Arial"
-    };
-
-    private static final String[] CJK_CANDIDATES = {
-        "Noto Sans CJK SC", "NotoSansCJK", "Noto Sans CJK",
-        "Source Han Sans SC", "Source Han Sans",
-        "PingFang SC", "Heiti SC", "Droid Sans Fallback",
-        "Microsoft YaHei", "WenQuanYi Micro Hei"
-    };
-
-    // Material Symbols are accessed by ligature name (e.g. "check"). We don't
-    // bundle the icon font / ligature shaper; instead a curated subset of names
-    // maps to standard Unicode glyphs the default face can draw. Unmapped names
-    // render empty rather than as overflowing literal words.
-    private static final java.util.Map<String, String> ICON_GLYPHS = buildIconGlyphs();
-
-    private static java.util.Map<String, String> buildIconGlyphs() {
-        java.util.Map<String, String> m = new java.util.HashMap<>();
-        m.put("check", "✓");          // ✓
-        m.put("done", "✓");
-        m.put("close", "✕");          // ✕
-        m.put("remove", "−");         // −
-        m.put("add", "＋");            // ＋
-        m.put("menu", "☰");           // ☰
-        m.put("more_vert", "⋮");      // ⋮
-        m.put("more_horiz", "⋯");     // ⋯
-        m.put("search", "⚲");
-        m.put("arrow_back", "←");     // ←
-        m.put("arrow_forward", "→");  // →
-        m.put("arrow_upward", "↑");   // ↑
-        m.put("arrow_downward", "↓"); // ↓
-        m.put("chevron_left", "‹");   // ‹
-        m.put("chevron_right", "›");  // ›
-        m.put("expand_more", "˅");    // ˅
-        m.put("expand_less", "˄");    // ˄
-        m.put("star", "★");           // ★
-        m.put("favorite", "♥");       // ♥
-        m.put("settings", "⚙");       // ⚙
-        m.put("home", "⌂");           // ⌂
-        m.put("info", "ⓘ");           // ⓘ
-        m.put("warning", "⚠");        // ⚠
-        return m;
-    }
-
-    private static boolean isIconFamily(String family) {
-        return family != null && (family.contains("Symbols") || family.contains("Material"));
-    }
-
-    private Typeface iconTypeface;
-    private boolean iconLookupFailed;
-
-    // Material Symbols icon name -> private-use codepoint, drawn by codepoint
-    // with the icon typeface (plain drawString). A simple fast path that needs
-    // no text shaping; Shaper also works now (_nAfterLoad fixed it) if richer
-    // shaping is ever needed.
-    private static final java.util.Map<String, Integer> ICON_CODEPOINTS = buildIconCodepoints();
-
-    private static java.util.Map<String, Integer> buildIconCodepoints() {
-        java.util.Map<String, Integer> m = new java.util.HashMap<>();
-        m.put("add", 0xe145); m.put("arrow_back", 0xe5c4); m.put("arrow_downward", 0xe5db);
-        m.put("arrow_forward", 0xe5c8); m.put("arrow_upward", 0xe5d8); m.put("check", 0xe5ca);
-        m.put("chevron_left", 0xe5cb); m.put("chevron_right", 0xe5cc); m.put("close", 0xe5cd);
-        m.put("done", 0xe876); m.put("expand_less", 0xe5ce); m.put("expand_more", 0xe5cf);
-        m.put("favorite", 0xe87e); m.put("home", 0xe9b2); m.put("info", 0xe88e);
-        m.put("menu", 0xe5d2); m.put("more_horiz", 0xe5d3); m.put("more_vert", 0xe5d4);
-        m.put("remove", 0xe15b); m.put("search", 0xe8b6); m.put("settings", 0xe8b8);
-        m.put("star", 0xf09a); m.put("warning", 0xf083);
-        m.put("edit", 0xf097); m.put("delete", 0xe92e); m.put("share", 0xe80d);
-        m.put("person", 0xe7fd);
-        return m;
-    }
-
-    // The bundled Material Symbols font (icon glyphs are ligatures of the names).
-    // Loaded once from resources; null if absent (then we fall back to the
-    // curated Unicode mapping).
-    private Typeface iconTypeface() {
-        if (iconTypeface != null) return iconTypeface;
-        if (iconLookupFailed || resources == null) return null;
-        byte[] bytes = resources.load("fonts/MaterialSymbolsOutlined.ttf");
-        FontMgr mgr = FontMgr.getDefault();
-        if (bytes == null || mgr == null) { iconLookupFailed = true; return null; }
-        try {
-            iconTypeface = mgr.makeFromData(Data.makeFromBytes(bytes));
-            if (iconTypeface == null) iconLookupFailed = true;
-            return iconTypeface;
-        } catch (Throwable t) {
-            iconLookupFailed = true;
-            return null;
-        }
-    }
-
-    // For an icon-font Text with the real Material Symbols face: the glyph string
-    // (a PUA codepoint) to draw with the icon typeface. "" = unknown name (drawn
-    // blank). null = not an icon font / font unavailable -> use the Unicode map.
-    private String iconGlyph(Text t) {
-        if (!isIconFamily(t.font.family.peek())) return null;
-        if (iconTypeface() == null) return null;
-        String name = rawText(t);
-        if (name == null) return "";
-        Integer cp = ICON_CODEPOINTS.get(name.trim());
-        return cp == null ? "" : new String(Character.toChars(cp));
-    }
-
-    private static String displayText(Text t) {
-        String s = rawText(t);
-        if (s == null) return "";
-        if (isIconFamily(t.font.family.peek())) {
-            return ICON_GLYPHS.getOrDefault(s.trim(), "");
-        }
-        return s;
-    }
-
-    // QML allows binding a number (or any value) to Text.text; it stringifies. Read
-    // the raw value (avoiding the Property<String> checkcast) and format numbers the
-    // JS/QML way -- integral doubles without a trailing ".0".
-    private static String rawText(Text t) {
-        Object raw = ((Property<?>) t.text).peek();
-        if (raw == null) return null;
-        if (raw instanceof Double || raw instanceof Float) {
-            double d = ((Number) raw).doubleValue();
-            if (d == Math.rint(d) && !Double.isInfinite(d)) return Long.toString((long) d);
-        }
-        return raw.toString();
-    }
-
-    private static boolean needsCjk(String s) {
-        if (s == null) return false;
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            if (c >= 0x3000) return true;
-        }
-        return false;
     }
 
     // Max layout-settle iterations per frame. Converges multi-level implicit-size
@@ -438,10 +243,10 @@ public final class Renderer {
         boolean canMeasureW = !t.width.isBound() && ownsWidth(t);
         boolean canMeasureH = !t.height.isBound() && ownsHeight(t);
 
-        String ig = iconGlyph(t);
+        String ig = icons.iconGlyph(t);
         if (ig != null) {
             float w, h;
-            try (Font f = new Font(iconTypeface(), size)) {
+            try (Font f = new Font(fonts.iconTypeface(), size)) {
                 w = ig.isEmpty() ? 0f : f.measureTextWidth(ig);
                 h = lineHeight(f);
             }
@@ -452,7 +257,7 @@ public final class Renderer {
             return;
         }
 
-        String s = displayText(t);
+        String s = icons.displayText(t);
         String[] lines = splitLines(s);
         String wrapMode = wrapModeString(t.wrapMode.peek().intValue());
         // When wrapping is on and the width is externally constrained (a layout,
@@ -460,7 +265,7 @@ public final class Renderer {
         // line count grows; report the wrapped height so containers size to it.
         float wrapW = (wrapMode != null && (t.width.isBound() || !ownsWidth(t)))
             ? t.width.peek().floatValue() : 0f;
-        try (Font font = fontFor(size, s)) {
+        try (Font font = fonts.fontFor(size, s)) {
             float w = 0f;
             for (String line : lines) {
                 float lw = font.measureTextWidth(line);
@@ -505,7 +310,7 @@ public final class Renderer {
             float size = b.fontSize.peek().floatValue();
             String label = b.text.peek();
             float tw, textH;
-            try (Font font = fontFor(size, label == null ? "" : label)) {
+            try (Font font = fonts.fontFor(size, label == null ? "" : label)) {
                 tw = (label == null || label.isEmpty()) ? 0f : font.measureTextWidth(label);
                 textH = lineHeight(font);
             }
@@ -700,10 +505,10 @@ public final class Renderer {
             int color = applyAlpha(parseColor(t.color.peek()), alpha);
             paint().setColor(color);
             float size = t.effectiveFontSize();
-            String ig = iconGlyph(t);
+            String ig = icons.iconGlyph(t);
             if (ig != null) {
                 if (!ig.isEmpty()) {
-                    try (Font f = new Font(iconTypeface(), size)) {
+                    try (Font f = new Font(fonts.iconTypeface(), size)) {
                         // Centre the glyph vertically in the node box using real
                         // font metrics (ascent is negative, descent positive).
                         FontMetrics fm = f.getMetrics();
@@ -713,11 +518,11 @@ public final class Renderer {
                 }
                 return;
             }
-            String s = displayText(t);
+            String s = icons.displayText(t);
             if (s.isEmpty()) return;
             boolean elideRight = t.elide.peek().intValue() == 3; // Text.ElideRight
             String wrapMode = wrapModeString(t.wrapMode.peek().intValue());
-            try (Font font = fontFor(size, s)) {
+            try (Font font = fonts.fontFor(size, s)) {
                 String[] lines = (wrapMode != null && w > 0f)
                     ? TextWrap.wrap(s, wrapMode, w, seg -> font.measureTextWidth(seg))
                           .lines.toArray(new String[0])
@@ -839,7 +644,7 @@ public final class Renderer {
         String label = b.text.peek();
         if (label == null || label.isEmpty()) return;
         float size = b.fontSize.peek().floatValue();
-        try (Font font = fontFor(size, label)) {
+        try (Font font = fonts.fontFor(size, label)) {
             float tw = font.measureTextWidth(label);
             float tx = (w - tw) / 2f;
             float ty = centeredBaseline(font, h);
@@ -885,7 +690,7 @@ public final class Renderer {
             if (s == null || s.isEmpty()) {
                 String ph = tf.placeholderText.peek();
                 if (ph != null && !ph.isEmpty()) {
-                    try (Font font = fontFor(size, ph)) {
+                    try (Font font = fonts.fontFor(size, ph)) {
                         p.setColor(applyAlpha(parseColor(tf.placeholderTextColor.peek()), alpha));
                         canvas.drawString(ph, 0, centeredBaseline(font, h), font, p);
                     }
@@ -952,7 +757,7 @@ public final class Renderer {
         String s = ti.text.peek();
         if (s == null) s = "";
         float size = ti.fontSize.peek().floatValue();
-        try (Font font = fontFor(size, s)) {
+        try (Font font = fonts.fontFor(size, s)) {
             float baseline = centeredBaseline(font, h);
             float glyphTop = baseline + glyphTopOffset(font);
             float glyphHeight = glyphExtent(font);
@@ -1019,7 +824,7 @@ public final class Renderer {
         String s = te.text.peek();
         if (s == null) s = "";
         float size = te.fontSize.peek().floatValue();
-        try (Font font = fontFor(size, s)) {
+        try (Font font = fonts.fontFor(size, s)) {
             TextWrap.Result wrapped = wrapFor(te, s, w, size, font);
             te.lineCount.set(wrapped.lines.size());
             float lineH = lineHeight(font);
@@ -1110,7 +915,7 @@ public final class Renderer {
         String s = te.text.peek();
         if (s == null) s = "";
         float size = te.fontSize.peek().floatValue();
-        try (Font font = fontFor(size, s)) {
+        try (Font font = fonts.fontFor(size, s)) {
             float w = te.width.peek().floatValue();
             TextWrap.Result wrapped = wrapFor(te, s, w, size, font);
             return TextWrap.moveCaretVertical(wrapped, caret, delta,
@@ -1124,7 +929,7 @@ public final class Renderer {
         String s = te.text.peek();
         if (s == null) s = "";
         float size = te.fontSize.peek().floatValue();
-        try (Font font = fontFor(size, s)) {
+        try (Font font = fonts.fontFor(size, s)) {
             float w = te.width.peek().floatValue();
             float h = te.height.peek().floatValue();
             TextWrap.Result wrapped = wrapFor(te, s, w, size, font);
@@ -1149,7 +954,7 @@ public final class Renderer {
         }
         if (s == null || s.isEmpty() || localX <= 0) return 0;
         float size = ti.fontSize.peek().floatValue();
-        try (Font font = fontFor(size, s)) {
+        try (Font font = fonts.fontFor(size, s)) {
             float prev = 0f;
             int n = s.length();
             for (int i = 1; i <= n; i++) {
@@ -1339,33 +1144,12 @@ public final class Renderer {
         node.item.set(null);
     }
 
-    private Font font(float size) {
-        return fontFor(size, null);
-    }
-
-    private Font fontFor(float size, String text) {
-        Typeface tf;
-        if (isSymbol(text)) tf = symbolTypeface(text.codePointAt(0));
-        else if (needsCjk(text)) tf = cjkTypeface();
-        else tf = null;
-        if (tf == null) tf = defaultTypeface();
-        if (tf != null) return new Font(tf, size);
-        return new Font().setSize(size);
-    }
-
     public void dispose() {
         if (paint != null) {
             paint.close();
             paint = null;
         }
-        if (defaultTypeface != null) {
-            defaultTypeface.close();
-            defaultTypeface = null;
-        }
-        if (cjkTypeface != null) {
-            cjkTypeface.close();
-            cjkTypeface = null;
-        }
+        fonts.close();
     }
 
     // Common CSS/QML named colors. "transparent" is the critical one (MD3 uses it
