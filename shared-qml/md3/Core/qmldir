@@ -16,3 +16,10 @@ Slider 1.0 Slider.qml
 Snackbar 1.0 Snackbar.qml
 NavigationBar 1.0 NavigationBar.qml
 SegmentedButton 1.0 SegmentedButton.qml
+Breadcrumb 1.0 Breadcrumb.qml
+ComboBox 1.0 ComboBox.qml
+Menu 1.0 Menu.qml
+DataTable 1.0 DataTable.qml
+NavigationRail 1.0 NavigationRail.qml
+SideSheet 1.0 SideSheet.qml
+Tabs 1.0 Tabs.qml
