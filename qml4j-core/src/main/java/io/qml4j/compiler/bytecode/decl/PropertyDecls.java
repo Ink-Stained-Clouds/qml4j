@@ -12,6 +12,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import static io.qml4j.compiler.bytecode.asm.Bytecode.emitPropertyDefault;
 import static io.qml4j.compiler.bytecode.asm.Descriptors.LIST_DESC;
@@ -26,6 +27,8 @@ import static io.qml4j.compiler.bytecode.asm.Fields.findSignalFieldOrNull;
 public final class PropertyDecls {
 
     private PropertyDecls() {}
+
+    private static final Pattern IDENTIFIER = Pattern.compile("[a-zA-Z_$][a-zA-Z0-9_$]*");
 
     // Collects all PropertyDeclaration members of obj into DeclaredProp records.
     // Validates no duplicate names, no shadowing of existing signals, and that the
@@ -73,24 +76,30 @@ public final class PropertyDecls {
             throw new IllegalArgumentException(
                 "property alias '" + dp.name + "' initializer must be expression id.property");
         }
-        Ast.Expression e = ((Ast.ExpressionValue) dp.initializer).expr;
-        if (e instanceof Ast.IdentifierExpr) {
-            // Object alias: `property alias foo: someId` exposes the object itself.
-            return new AliasDecl(dp.name, ((Ast.IdentifierExpr) e).name, null, false, dp.isDefault);
-        }
-        if (!(e instanceof Ast.MemberExpr)) {
+        String source = ((Ast.ExpressionValue) dp.initializer).source;
+        String[] parts = source == null ? new String[0] : source.trim().split("\\.");
+        if (!validIdentifiers(parts)) {
             throw new IllegalArgumentException(
-                "property alias '" + dp.name + "' must reference id or id.property, got "
-                + e.getClass().getSimpleName());
+                "property alias '" + dp.name + "' must reference id or id.property, got " + source);
         }
-        Ast.MemberExpr m = (Ast.MemberExpr) e;
-        if (!(m.target instanceof Ast.IdentifierExpr)) {
+        if (parts.length == 1) {
+            // Object alias: `property alias foo: someId` exposes the object itself.
+            return new AliasDecl(dp.name, parts[0], null, false, dp.isDefault);
+        }
+        if (parts.length != 2) {
             throw new IllegalArgumentException(
                 "property alias '" + dp.name + "' must reference id.property (target must be id)");
         }
-        boolean isList = "data".equals(m.property) || "children".equals(m.property);
-        return new AliasDecl(dp.name, ((Ast.IdentifierExpr) m.target).name, m.property,
-                             isList, dp.isDefault);
+        boolean isList = "data".equals(parts[1]) || "children".equals(parts[1]);
+        return new AliasDecl(dp.name, parts[0], parts[1], isList, dp.isDefault);
+    }
+
+    private static boolean validIdentifiers(String[] parts) {
+        if (parts.length == 0) return false;
+        for (String p : parts) {
+            if (!IDENTIFIER.matcher(p).matches()) return false;
+        }
+        return true;
     }
 
     // Emits the constructor bytecode that assigns an alias field: list alias links

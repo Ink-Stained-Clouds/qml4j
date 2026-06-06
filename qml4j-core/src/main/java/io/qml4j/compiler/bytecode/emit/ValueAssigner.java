@@ -1,6 +1,7 @@
 package io.qml4j.compiler.bytecode.emit;
 
 import io.qml4j.compiler.bytecode.AliasRef;
+import io.qml4j.compiler.bytecode.Literals;
 import io.qml4j.engine.QObject;
 import io.qml4j.parser.ast.Ast;
 import org.objectweb.asm.MethodVisitor;
@@ -50,7 +51,7 @@ public final class ValueAssigner {
                                                    Class<? extends QObject> outerType,
                                                    int outerLocal,
                                                    String ownerInternal, String name,
-                                                   Ast.Expression expr, String source,
+                                                   String source,
                                                    Map<String, Class<? extends QObject>> idTypes,
                                                    Map<String, String> declaredProps,
                                                    Map<String, AliasRef> aliases,
@@ -69,7 +70,7 @@ public final class ValueAssigner {
     // source is available, and wires it to a RhinoBinding. Used for inherited properties
     // whose ownerInternal must be resolved via reflection.
     public static void emitExpressionBinding(MethodVisitor ctor, Class<? extends QObject> outerType,
-                                             int outerLocal, String propName, Ast.Expression expr,
+                                             int outerLocal, String propName,
                                              String source,
                                              Map<String, Class<? extends QObject>> idTypes,
                                              Map<String, String> declaredProps,
@@ -91,16 +92,17 @@ public final class ValueAssigner {
     // wraps a RhinoBinding and calls addChangeBinding.
     public static void emitChangeSinkAssignment(MethodVisitor ctor,
                                                 Class<? extends QObject> outerType, int outerLocal,
-                                                String name, Ast.Expression expr, String source,
+                                                String name, String source,
                                                 Map<String, Class<? extends QObject>> idTypes,
                                                 Map<String, String> declaredProps,
                                                 Map<String, AliasRef> aliases,
                                                 Map<String, Integer> rootFunctions,
                                                 Set<String> customSignals) {
-        if (expr instanceof Ast.LiteralExpr) {
+        Ast.LiteralExpr lit = Literals.parse(source);
+        if (lit != null) {
             ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
             ctor.visitLdcInsn(name);
-            loadLiteral(ctor, (Ast.LiteralExpr) expr);
+            loadLiteral(ctor, lit);
             ctor.visitMethodInsn(Opcodes.INVOKEINTERFACE, SINK_INTERNAL,
                                  "addChange", "(Ljava/lang/String;Ljava/lang/Object;)V", true);
             return;

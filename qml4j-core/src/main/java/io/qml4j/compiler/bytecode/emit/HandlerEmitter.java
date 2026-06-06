@@ -59,7 +59,7 @@ public final class HandlerEmitter {
                                        int outerLocal, String componentBinaryName,
                                        int[] handlerCounter, int[] bindingCounter,
                                        Map<String, byte[]> classes, String signalName,
-                                       Ast.Statement body, String source,
+                                       String source,
                                        Map<String, Class<? extends QObject>> idTypes,
                                        Map<String, String> declaredProps,
                                        Map<String, AliasRef> aliases,
@@ -87,7 +87,7 @@ public final class HandlerEmitter {
                              "()L" + keysTypeInternal + ";", false);
         ctor.visitFieldInsn(Opcodes.GETFIELD, keysTypeInternal, signalName, SIGNAL_DESC);
         emitHandlerInstance(ctor, outerType, outerInternal, componentInternal, componentBinaryName,
-                            outerLocal, body, source, Collections.singletonList("event"),
+                            outerLocal, source, Collections.singletonList("event"),
                             idTypes, declaredProps, aliases, rootFunctions, customSignals);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, SIGNAL_INTERNAL,
                              "connect", "(" + SIGNAL_HANDLER_DESC + ")V", false);
@@ -98,7 +98,7 @@ public final class HandlerEmitter {
                                          int outerLocal, String componentBinaryName,
                                          int[] handlerCounter, int[] bindingCounter,
                                          Map<String, byte[]> classes, Field signalField,
-                                         Ast.Statement body, String source,
+                                         String source,
                                          Map<String, Class<? extends QObject>> idTypes,
                                          List<String> signalParams,
                                          Map<String, String> declaredProps,
@@ -112,7 +112,7 @@ public final class HandlerEmitter {
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitFieldInsn(Opcodes.GETFIELD, declOwner, signalField.getName(), SIGNAL_DESC);
         emitHandlerInstance(ctor, outerType, outerInternal, componentInternal, componentBinaryName,
-                            outerLocal, body, source, signalParams, idTypes, declaredProps, aliases,
+                            outerLocal, source, signalParams, idTypes, declaredProps, aliases,
                             rootFunctions, customSignals);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, SIGNAL_INTERNAL,
                              "connect", "(" + SIGNAL_HANDLER_DESC + ")V", false);
@@ -124,7 +124,7 @@ public final class HandlerEmitter {
                                                   int outerLocal, String componentBinaryName,
                                                   int[] handlerCounter, int[] bindingCounter,
                                                   Map<String, byte[]> classes, String propName,
-                                                  Ast.Statement body, String source,
+                                                  String source,
                                                   Map<String, Class<? extends QObject>> idTypes,
                                                   Map<String, String> declaredProps,
                                                   Map<String, AliasRef> aliases,
@@ -143,7 +143,7 @@ public final class HandlerEmitter {
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitFieldInsn(Opcodes.GETFIELD, fieldOwner, propName, PROPERTY_DESC);
         emitHandlerInstance(ctor, outerType, outerInternal, componentInternal, componentBinaryName,
-                            outerLocal, body, source, null, idTypes, declaredProps, aliases,
+                            outerLocal, source, null, idTypes, declaredProps, aliases,
                             rootFunctions, customSignals);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
                              "addChangeHandler", "(" + SIGNAL_HANDLER_DESC + ")V", false);
@@ -155,7 +155,7 @@ public final class HandlerEmitter {
                                               int outerLocal, String componentBinaryName,
                                               int[] handlerCounter, int[] bindingCounter,
                                               Map<String, byte[]> classes, String signalName,
-                                              Ast.Statement body, String source,
+                                              String source,
                                               Map<String, Class<? extends QObject>> idTypes,
                                               List<String> signalParams,
                                               Map<String, String> declaredProps,
@@ -168,7 +168,7 @@ public final class HandlerEmitter {
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitLdcInsn(signalName);
         emitHandlerInstance(ctor, outerType, outerInternal, componentInternal, componentBinaryName,
-                            outerLocal, body, source, signalParams, idTypes, declaredProps, aliases,
+                            outerLocal, source, signalParams, idTypes, declaredProps, aliases,
                             rootFunctions, customSignals);
         ctor.visitMethodInsn(Opcodes.INVOKEINTERFACE, SIGNAL_RELAY_INTERNAL,
                              "connectSignal",
@@ -206,7 +206,7 @@ public final class HandlerEmitter {
     public static void emitHandlerInstance(MethodVisitor ctor, Class<?> outerType,
                                            String outerInternal, String componentInternal,
                                            String componentBinaryName, int outerLocal,
-                                           Ast.Statement body, String source,
+                                           String source,
                                            List<String> signalParams,
                                            Map<String, Class<? extends QObject>> idTypes,
                                            Map<String, String> declaredProps,

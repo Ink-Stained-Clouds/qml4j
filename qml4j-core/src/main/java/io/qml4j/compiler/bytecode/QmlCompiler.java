@@ -6,6 +6,7 @@ import io.qml4j.compiler.bytecode.decl.AliasDecl;
 import io.qml4j.compiler.bytecode.decl.DeclaredProp;
 import io.qml4j.compiler.bytecode.member.EmitContext;
 import io.qml4j.compiler.bytecode.member.MemberEmitter;
+import io.qml4j.compiler.bytecode.rhino.RhinoArrow;
 import io.qml4j.engine.DelegateHost;
 import io.qml4j.engine.PropertyChangeSink;
 import io.qml4j.engine.SignalRelay;
@@ -500,46 +501,44 @@ public final class QmlCompiler {
                     "statement-block binding for '" + key + "' could not be compiled");
             }
             if (isHandler) {
-                Ast.ArrowFunctionExpr arrow = arrowHandler(b.value);
-                List<String> handlerParams = arrow != null ? arrow.paramNames
+                // Arrow-form handlers `(a) => body` bind their params as the signal
+                // args; the captured body source runs as `(function(params){ body })`.
+                RhinoArrow.Result arrow = RhinoArrow.parse(valueSource(b.value));
+                List<String> handlerParams = arrow != null ? arrow.params
                     : (isCustomHandler ? customSignalParams.get(signalName) : null);
-                Ast.Statement handlerBody = arrow != null ? arrowBody(arrow) : toStatement(b.value);
-                // Arrow-form handlers bind their params as the signal args; the
-                // captured arrow body source runs as `(function(params){ body })`.
-                String handlerSource = arrow != null ? arrow.source : valueSource(b.value);
+                String handlerSource = arrow != null ? arrow.bodySource : valueSource(b.value);
                 if (isCustomHandler) {
                     emitCustomSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
                                             handlerCounter, bindingCounter, classes,
-                                            customSignalOwner, signalName, handlerBody, handlerSource, idTypes,
+                                            customSignalOwner, signalName, handlerSource, idTypes,
                                             handlerParams, declaredProps, aliases,
                                             rootFunctions, customSignals);
                 } else if (isRelay) {
                     emitRelaySignalHandler(ctor, outerType, outerLocal, componentBinaryName,
-                                           handlerCounter, bindingCounter, classes, signalName, handlerBody, handlerSource, idTypes,
+                                           handlerCounter, bindingCounter, classes, signalName, handlerSource, idTypes,
                                            handlerParams, declaredProps, aliases, rootFunctions, customSignals);
                 } else if (changeProp != null) {
                     emitPropertyChangeHandler(ctor, outerType, outerLocal, componentBinaryName,
-                                              handlerCounter, bindingCounter, classes, changeProp, handlerBody, handlerSource,
+                                              handlerCounter, bindingCounter, classes, changeProp, handlerSource,
                                               idTypes, declaredProps, aliases, rootFunctions, customSignals);
                 } else {
                     emitSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
-                                      handlerCounter, bindingCounter, classes, signalField, handlerBody, handlerSource, idTypes,
+                                      handlerCounter, bindingCounter, classes, signalField, handlerSource, idTypes,
                                       handlerParams, declaredProps, aliases, rootFunctions, customSignals);
                 }
                 return;
             }
-            Ast.Expression e = ((Ast.ExpressionValue) b.value).expr;
+            String exprSource = ((Ast.ExpressionValue) b.value).source;
             if (PropertyChangeSink.class.isAssignableFrom(outerType) && !"target".equals(key)) {
-                emitChangeSinkAssignment(ctor, outerType, outerLocal, key, e,
-                                         ((Ast.ExpressionValue) b.value).source, idTypes,
+                emitChangeSinkAssignment(ctor, outerType, outerLocal, key, exprSource, idTypes,
                                          declaredProps, aliases, rootFunctions, customSignals);
                 return;
             }
-            if (e instanceof Ast.LiteralExpr) {
-                emitLiteralAssignment(ctor, outerType, outerLocal, key, (Ast.LiteralExpr) e);
+            Ast.LiteralExpr lit = Literals.parse(exprSource);
+            if (lit != null) {
+                emitLiteralAssignment(ctor, outerType, outerLocal, key, lit);
             } else {
-                emitExpressionBinding(ctor, outerType, outerLocal, key, e,
-                                      ((Ast.ExpressionValue) b.value).source, idTypes,
+                emitExpressionBinding(ctor, outerType, outerLocal, key, exprSource, idTypes,
                                       declaredProps, aliases, rootFunctions, customSignals);
             }
             return;
@@ -550,9 +549,8 @@ public final class QmlCompiler {
                 throw new UnsupportedOperationException(
                     "Keys attached property supports only on<Signal> handlers: " + path);
             }
-            Ast.Statement handlerBody = toStatement(b.value);
             emitKeysHandler(ctor, outerType, outerLocal, componentBinaryName,
-                            handlerCounter, bindingCounter, classes, signalName, handlerBody, valueSource(b.value),
+                            handlerCounter, bindingCounter, classes, signalName, valueSource(b.value),
                             idTypes, declaredProps, aliases, rootFunctions, customSignals);
             return;
         }
@@ -619,12 +617,12 @@ public final class QmlCompiler {
                 return;
             }
             if (pd.initializer instanceof Ast.ExpressionValue) {
-                Ast.Expression e = ((Ast.ExpressionValue) pd.initializer).expr;
-                if (e instanceof Ast.LiteralExpr) {
-                    emitLiteralAssignment(ctor, outerType, outerLocal, pd.name, (Ast.LiteralExpr) e);
+                String initSource = ((Ast.ExpressionValue) pd.initializer).source;
+                Ast.LiteralExpr lit = Literals.parse(initSource);
+                if (lit != null) {
+                    emitLiteralAssignment(ctor, outerType, outerLocal, pd.name, lit);
                 } else {
-                    emitExpressionBinding(ctor, outerType, outerLocal, pd.name, e,
-                                          ((Ast.ExpressionValue) pd.initializer).source, idTypes,
+                    emitExpressionBinding(ctor, outerType, outerLocal, pd.name, initSource, idTypes,
                                           declaredProps, aliases, rootFunctions, customSignalParams.keySet());
                 }
                 return;
@@ -669,17 +667,18 @@ public final class QmlCompiler {
             return;
         }
         if (pd.initializer instanceof Ast.ExpressionValue) {
-            Ast.Expression e = ((Ast.ExpressionValue) pd.initializer).expr;
-            if (e instanceof Ast.LiteralExpr) {
+            String initSource = ((Ast.ExpressionValue) pd.initializer).source;
+            Ast.LiteralExpr lit = Literals.parse(initSource);
+            if (lit != null) {
                 ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
                 ctor.visitFieldInsn(Opcodes.GETFIELD, ownerInternal, pd.name, PROPERTY_DESC);
-                loadLiteral(ctor, (Ast.LiteralExpr) e);
+                loadLiteral(ctor, lit);
                 ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
                                      "set", "(Ljava/lang/Object;)V", false);
                 return;
             }
-            emitDeclaredPropertyBinding(ctor, outerType, outerLocal, ownerInternal, pd.name, e,
-                                        ((Ast.ExpressionValue) pd.initializer).source,
+            emitDeclaredPropertyBinding(ctor, outerType, outerLocal, ownerInternal, pd.name,
+                                        initSource,
                                         idTypes, declaredProps, aliases, rootFunctions,
                                         customSignalParams.keySet());
             return;
@@ -1178,41 +1177,20 @@ public final class QmlCompiler {
         return null;
     }
 
-    private static Ast.Statement toStatement(Ast.Value v) {
-        if (v instanceof Ast.StatementBlockValue) {
-            return ((Ast.StatementBlockValue) v).block;
-        }
-        Ast.Expression expr = ((Ast.ExpressionValue) v).expr;
-        return new Ast.Block(Collections.<Ast.Statement>singletonList(new Ast.ExprStmt(expr)));
-    }
-
     // The raw JS source captured for a handler body, whether a statement block
     // (`{ ... }`) or a single expression (`onClicked: foo()`). Null when the parser
-    // could not capture it, which routes the handler to the ASM backend.
+    // could not capture it.
     private static String valueSource(Ast.Value v) {
         if (v instanceof Ast.StatementBlockValue) return ((Ast.StatementBlockValue) v).source;
         if (v instanceof Ast.ExpressionValue) return ((Ast.ExpressionValue) v).source;
         return null;
     }
 
-    // `onPressed: (mouse) => {...}` — Qt's typed handler form. The arrow's params
-    // bind to the signal args; its body becomes the handler body.
-    private static Ast.ArrowFunctionExpr arrowHandler(Ast.Value v) {
-        if (!(v instanceof Ast.ExpressionValue)) return null;
-        Ast.Expression e = ((Ast.ExpressionValue) v).expr;
-        return e instanceof Ast.ArrowFunctionExpr ? (Ast.ArrowFunctionExpr) e : null;
-    }
-
-    private static Ast.Statement arrowBody(Ast.ArrowFunctionExpr arrow) {
-        if (arrow.bodyBlock != null) return arrow.bodyBlock;
-        return new Ast.Block(Collections.<Ast.Statement>singletonList(new Ast.ExprStmt(arrow.bodyExpr)));
-    }
-
     private void emitCustomSignalHandler(MethodVisitor ctor, Class<? extends QObject> outerType,
                                          int outerLocal, String componentBinaryName,
                                          int[] handlerCounter, int[] bindingCounter, Map<String, byte[]> classes,
                                          String signalOwnerInternal, String signalName,
-                                         Ast.Statement body, String source,
+                                         String source,
                                          Map<String, Class<? extends QObject>> idTypes,
                                          List<String> signalParams,
                                          Map<String, String> declaredProps,
@@ -1225,7 +1203,7 @@ public final class QmlCompiler {
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitFieldInsn(Opcodes.GETFIELD, signalOwnerInternal, signalName, SIGNAL_DESC);
         emitHandlerInstance(ctor, outerType, outerInternal, componentInternal, componentBinaryName,
-                            outerLocal, body, source, signalParams, idTypes, declaredProps, aliases,
+                            outerLocal, source, signalParams, idTypes, declaredProps, aliases,
                             rootFunctions, customSignals);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, SIGNAL_INTERNAL,
                              "connect", "(" + SIGNAL_HANDLER_DESC + ")V", false);
@@ -1285,12 +1263,13 @@ public final class QmlCompiler {
         String groupTypeInternal = Type.getInternalName(groupType);
 
         // A literal grouped value (`border.width: 2`) is a plain set, not a binding.
-        if (value instanceof Ast.ExpressionValue
-                && ((Ast.ExpressionValue) value).expr instanceof Ast.LiteralExpr) {
+        Ast.LiteralExpr groupLit = value instanceof Ast.ExpressionValue
+            ? Literals.parse(((Ast.ExpressionValue) value).source) : null;
+        if (groupLit != null) {
             ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
             ctor.visitFieldInsn(Opcodes.GETFIELD, groupDeclOwner, groupName, "L" + groupTypeInternal + ";");
             ctor.visitFieldInsn(Opcodes.GETFIELD, propDeclOwner, propName, PROPERTY_DESC);
-            loadLiteral(ctor, (Ast.LiteralExpr) ((Ast.ExpressionValue) value).expr);
+            loadLiteral(ctor, groupLit);
             ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
                                  "set", "(Ljava/lang/Object;)V", false);
             return;

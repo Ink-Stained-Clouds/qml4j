@@ -6,6 +6,7 @@ import io.qml4j.engine.QObject;
 import io.qml4j.parser.ast.Ast;
 
 import java.util.Map;
+import java.util.regex.Pattern;
 
 // Resolving object `id:` names from the AST: the local id of one node, and a
 // recursive walk collecting every id in a document to its compile-time type
@@ -15,15 +16,17 @@ public final class Ids {
 
     private Ids() {}
 
+    private static final Pattern IDENTIFIER = Pattern.compile("[a-zA-Z_$][a-zA-Z0-9_$]*");
+
     public static String idOf(Ast.ObjectNode obj) {
         for (Ast.ObjectMember m : obj.members) {
             if (m instanceof Ast.PropertyBinding) {
                 Ast.PropertyBinding b = (Ast.PropertyBinding) m;
                 if (b.path.size() == 1 && "id".equals(b.path.get(0))) {
                     if (b.value instanceof Ast.ExpressionValue) {
-                        Ast.Expression e = ((Ast.ExpressionValue) b.value).expr;
-                        if (e instanceof Ast.IdentifierExpr) {
-                            return ((Ast.IdentifierExpr) e).name;
+                        String s = ((Ast.ExpressionValue) b.value).source;
+                        if (s != null && IDENTIFIER.matcher(s.trim()).matches()) {
+                            return s.trim();
                         }
                     }
                     throw new IllegalArgumentException("id value must be a simple identifier");
