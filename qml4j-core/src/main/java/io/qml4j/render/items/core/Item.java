@@ -38,6 +38,7 @@ public class Item extends QObject {
     public final Property<Number> transformOrigin = new Property<>(4);
     public final Property<Number> z = new Property<>(0);
     public final Property<Boolean> clip = new Property<>(Boolean.FALSE);
+    public final Property<Boolean> antialiasing = new Property<>(Boolean.FALSE);
     public final Property<Item> parent = new Property<>(null);
     public final List<Item> children = new ArrayList<>();
     public final Anchors anchors = new Anchors();

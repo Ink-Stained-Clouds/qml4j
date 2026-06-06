@@ -43,6 +43,7 @@ public final class QtGlobals {
         scope.put("Item", scope, enumObject(ITEM));
         scope.put("Flickable", scope, enumObject(FLICKABLE));
         scope.put("Animation", scope, enumObject(ANIMATION));
+        scope.put("Canvas", scope, enumObject(CANVAS));
 
         NativeObject console = new NativeObject();
         console.put("log", console, fn("log", 1, a -> { System.out.println(join(a)); return null; }));
@@ -167,6 +168,11 @@ public final class QtGlobals {
 
     // Animation.loops sentinel.
     private static final Map<String, Long> ANIMATION = map("Infinite", -1L);
+
+    // Canvas.renderTarget / renderStrategy.
+    private static final Map<String, Long> CANVAS = map(
+        "Image", 0L, "FramebufferObject", 1L,
+        "Immediate", 0L, "Threaded", 1L, "Cooperative", 2L);
 
     // Flickable.BoundsBehavior.
     private static final Map<String, Long> FLICKABLE = map(

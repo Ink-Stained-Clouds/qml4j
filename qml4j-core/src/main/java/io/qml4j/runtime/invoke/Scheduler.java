@@ -1,6 +1,7 @@
 package io.qml4j.runtime.invoke;
 
 import io.qml4j.engine.Callable;
+import io.qml4j.engine.SignalHandler;
 import io.qml4j.engine.binding.Binding;
 import io.qml4j.engine.binding.DirtyQueue;
 
@@ -11,6 +12,17 @@ public final class Scheduler {
     private Scheduler() {}
 
     private static final Object[] EMPTY_ARGS = new Object[0];
+
+    // Component.onCompleted: run the handler once after the current construction +
+    // binding flush settles (end of the dirty-queue flush), or now if no queue is
+    // active.
+    public static void runLater(SignalHandler h) {
+        if (h == null) return;
+        Runnable r = () -> h.invoke(EMPTY_ARGS);
+        DirtyQueue dq = DirtyQueue.current();
+        if (dq != null) dq.enqueue(r);
+        else r.run();
+    }
 
     public static void qtCallLater(Object work) {
         if (work == null) return;

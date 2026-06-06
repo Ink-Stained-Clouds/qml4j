@@ -11,6 +11,7 @@ import io.qml4j.engine.DelegateHost;
 import io.qml4j.engine.PropertyChangeSink;
 import io.qml4j.engine.SignalRelay;
 import io.qml4j.engine.binding.Property;
+import io.qml4j.runtime.invoke.Scheduler;
 import io.qml4j.engine.QObject;
 import io.qml4j.parser.ast.Ast;
 import org.objectweb.asm.AnnotationVisitor;
@@ -102,6 +103,8 @@ public final class QmlCompiler {
         Ast.SignalDeclaration.class, this::rejectSignalDeclaration,
         Ast.FunctionDeclaration.class, this::rejectFunctionDeclaration);
 
+
+    private static final String SCHEDULER_INTERNAL = Type.getInternalName(Scheduler.class);
 
     private final AtomicInteger componentCounter = new AtomicInteger();
 
@@ -360,8 +363,15 @@ public final class QmlCompiler {
                                           customSignalParams, idTypes, declaredProps, aliases,
                                           scopeFunctions);
         List<Ast.ObjectMember> deferred = new ArrayList<>();
+        List<Ast.PropertyBinding> onCompleted = new ArrayList<>();
         for (Ast.ObjectMember m : obj.members) {
             if (m instanceof Ast.SignalDeclaration) continue;
+            String compAttached = componentAttachedName(m);
+            if (compAttached != null) {
+                // Component.onCompleted runs after construction; onDestruction is ignored.
+                if ("onCompleted".equals(compAttached)) onCompleted.add((Ast.PropertyBinding) m);
+                continue;
+            }
             if (m instanceof Ast.FunctionDeclaration) {
                 Ast.FunctionDeclaration fd = (Ast.FunctionDeclaration) m;
                 if (fd.source == null) {
@@ -383,6 +393,25 @@ public final class QmlCompiler {
                                  "drainDeferred", "()V", false);
             emitMember(m, ctx);
         }
+        for (Ast.PropertyBinding b : onCompleted) {
+            String source = valueSource(b.value);
+            if (source == null) continue;
+            String outerInternal = Type.getInternalName(outerType);
+            String componentInternal = componentBinaryName.replace('.', '/');
+            emitHandlerInstance(ctor, outerType, outerInternal, componentInternal, componentBinaryName,
+                                outerLocal, source, Collections.<String>emptyList(), idTypes, declaredProps,
+                                aliases, scopeFunctions, customSignals);
+            ctor.visitMethodInsn(Opcodes.INVOKESTATIC, SCHEDULER_INTERNAL, "runLater",
+                                 "(" + SIGNAL_HANDLER_DESC + ")V", false);
+        }
+    }
+
+    // The handler name of a `Component.on<X>` attached member (onCompleted /
+    // onDestruction), or null if `m` is not one.
+    private static String componentAttachedName(Ast.ObjectMember m) {
+        if (!(m instanceof Ast.PropertyBinding)) return null;
+        List<String> path = ((Ast.PropertyBinding) m).path;
+        return path.size() == 2 && "Component".equals(path.get(0)) ? path.get(1) : null;
     }
 
     private static boolean isStateAssignment(Ast.ObjectMember m) {
