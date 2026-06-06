@@ -1401,7 +1401,7 @@ public final class QmlCompiler {
         // over ids / this-object / inherited properties) onto a RhinoBinding; the ASM
         // backend still handles everything else (calls, Qt, enums, singletons, arrows,
         // delegate scope) until later phases widen rhinoCanHandle.
-        if (source != null && !inDelegateScope()
+        if (source != null
                 && rhinoCanHandle(expr, outerType, idTypes, declaredProps, aliases)) {
             emitRhinoBindingBind(ctor, declOwner, propName, source, outerLocal, idTypes);
             return;
@@ -1449,8 +1449,9 @@ public final class QmlCompiler {
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitVarInsn(Opcodes.ALOAD, 0);
         pushStringArray(ctor, new ArrayList<>(idTypes.keySet()));
+        ctor.visitInsn(inDelegateScope() ? Opcodes.ICONST_1 : Opcodes.ICONST_0);
         ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_BINDING_INTERNAL, "<init>",
-                             "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;)V", false);
+                             "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;Z)V", false);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
                              "bind", "(L" + BINDING_INTERNAL + ";)V", false);
     }
@@ -1471,6 +1472,13 @@ public final class QmlCompiler {
             String n = ((Ast.IdentifierExpr) e).name;
             if (aliases.containsKey(n)) return false;
             if (JS_NAMESPACES.contains(n)) return true;
+            if (inDelegateScope()) {
+                // In a delegate, index/modelData/local ids/enclosing-scope names all
+                // resolve at runtime through RuntimeHelpers.delegateLookup; only a
+                // singleton (Theme) can't, so keep those on the ASM backend.
+                tryResolveType(n);
+                return currentSingletonClass(n) == null;
+            }
             return declaredProps.containsKey(n) || idTypes.containsKey(n)
                 || findPropertyFieldOrNull(outerType, n) != null;
         }

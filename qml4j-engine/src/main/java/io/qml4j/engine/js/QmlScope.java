@@ -21,14 +21,37 @@ public final class QmlScope implements Scriptable {
     private final Object outer;
     private final Object root;
     private final Set<String> sceneIds;
+    private final boolean delegate;
     private Scriptable parent;
     private Scriptable prototype;
 
-    public QmlScope(Object outer, Object root, Scriptable globals, Set<String> sceneIds) {
+    public QmlScope(Object outer, Object root, Scriptable globals, Set<String> sceneIds, boolean delegate) {
         this.outer = outer;
         this.root = root;
         this.sceneIds = sceneIds;
+        this.delegate = delegate;
         this.parent = globals;
+    }
+
+    private Object wrap(Object v) {
+        // A signal read as a bare identifier supports both a direct emit (`clicked(i)`)
+        // and an explicit `.emit(...)` / `.connect(...)`.
+        if (v instanceof Signal) return new JsWrap.SignalRef((Signal) v, this);
+        return JsWrap.toJs(v, this);
+    }
+
+    // Delegate-scope resolution mirrors ExpressionCodegen's delegate path: the binding's
+    // own item first, then RuntimeHelpers.delegateLookup (the DelegateRoot's index/
+    // modelData/local ids, then the enclosing scene). An absent name falls through to
+    // the globals, and an unresolved reference yields undefined -- QML-tolerant.
+    private Object getDelegate(String name) {
+        if (RuntimeHelpers.hasMember(outer, name)) {
+            return wrap(RuntimeHelpers.readMember(outer, name));
+        }
+        Object v = RuntimeHelpers.delegateLookup(outer, name);
+        if (v != RuntimeHelpers.DELEGATE_ABSENT) return wrap(v);
+        if (JsWrap.isCallable(outer, name)) return new JsWrap.BoundMethod(outer, name, this);
+        return NOT_FOUND;
     }
 
     private Object owner(String name) {
@@ -52,24 +75,30 @@ public final class QmlScope implements Scriptable {
     }
 
     @Override public Object get(String name, Scriptable start) {
+        if (delegate) return getDelegate(name);
         Object o = owner(name);
-        if (o != null) {
-            Object v = RuntimeHelpers.readMember(o, name);
-            // A signal read as a bare identifier supports both a direct emit
-            // (`clicked(i)`) and an explicit `.emit(...)` / `.connect(...)`.
-            if (v instanceof Signal) return new JsWrap.SignalRef((Signal) v, this);
-            return JsWrap.toJs(v, this);
-        }
+        if (o != null) return wrap(RuntimeHelpers.readMember(o, name));
         Object c = callableOwner(name);
         if (c != null) return new JsWrap.BoundMethod(c, name, this);
         return NOT_FOUND;
     }
 
     @Override public boolean has(String name, Scriptable start) {
+        if (delegate) {
+            return RuntimeHelpers.hasMember(outer, name)
+                || RuntimeHelpers.delegateLookup(outer, name) != RuntimeHelpers.DELEGATE_ABSENT
+                || JsWrap.isCallable(outer, name);
+        }
         return owner(name) != null || callableOwner(name) != null;
     }
 
     @Override public void put(String name, Scriptable start, Object value) {
+        if (delegate) {
+            if (RuntimeHelpers.hasMember(outer, name)) {
+                RuntimeHelpers.writeMember(outer, name, JsWrap.toJava(value));
+            }
+            return;
+        }
         Object o = owner(name);
         if (o != null) RuntimeHelpers.writeMember(o, name, JsWrap.toJava(value));
     }

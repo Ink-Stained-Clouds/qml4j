@@ -280,29 +280,39 @@ public final class RuntimeHelpers {
         return writeMember(target, String.valueOf(index), value);
     }
 
-    public static Object delegateContext(Object start, String name) {
+    // Sentinel for delegateLookup when a name is nowhere in the delegate's chain.
+    public static final Object DELEGATE_ABSENT = new Object();
+
+    // The delegate-scope resolution shared by the ASM backend (delegateContext) and the
+    // Rhino QmlScope: walk to the DelegateRoot for index/modelData/delegate-local ids,
+    // then above it to the enclosing scene for outer-scope members (e.g. a Slider tick
+    // delegate reading the Slider's `_colors`). Returns DELEGATE_ABSENT if not found.
+    public static Object delegateLookup(Object start, String name) {
         Object cur = start;
         Object delegateRoot = null;
         while (cur != null) {
             if (cur instanceof DelegateRoot) {
                 delegateRoot = cur;
-                // index / modelData / delegate-local ids live on the delegate root.
                 if (hasMember(cur, name)) return readMember(cur, name);
                 break;
             }
             cur = parentOf(cur);
         }
-        // Not delegate-local: resolve against the enclosing scene -- the component
-        // that declared the Repeater -- by walking up from above the delegate root
-        // to the first item exposing the member (e.g. a Slider tick delegate reading
-        // the Slider's `_colors`).
         Object outer = parentOf(delegateRoot != null ? delegateRoot : start);
         while (outer != null) {
             if (hasMember(outer, name)) return readMember(outer, name);
             outer = parentOf(outer);
         }
-        throw new IllegalStateException(
-            "delegate context '" + name + "' not found in parent chain");
+        return DELEGATE_ABSENT;
+    }
+
+    public static Object delegateContext(Object start, String name) {
+        Object v = delegateLookup(start, name);
+        if (v == DELEGATE_ABSENT) {
+            throw new IllegalStateException(
+                "delegate context '" + name + "' not found in parent chain");
+        }
+        return v;
     }
 
     public static boolean hasMember(Object o, String name) {
