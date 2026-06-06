@@ -16,8 +16,6 @@ import io.qml4j.render.items.window.Button;
 import io.qml4j.render.items.window.Control;
 import io.qml4j.render.items.core.MouseArea;
 import io.qml4j.render.items.input.TextField;
-import io.qml4j.render.items.core.Rectangle;
-import io.qml4j.render.items.effect.MultiEffect;
 import io.qml4j.render.items.core.Text;
 import io.qml4j.render.items.input.TextEdit;
 import io.qml4j.render.items.input.TextInput;
@@ -140,7 +138,7 @@ public final class Renderer {
 
     // Draw a node ignoring its own `visible` flag (used to render a MultiEffect
     // source, which is normally an invisible sibling rendered only via the effect).
-    private void drawForced(Canvas canvas, Item node, float inheritedAlpha) {
+    void drawForced(Canvas canvas, Item node, float inheritedAlpha) {
         if (node instanceof Text) text.measureText((Text) node);
         if (node instanceof Control) text.measureControl((Control) node);
         followImplicitSize(node);
@@ -400,65 +398,7 @@ public final class Renderer {
                     canvas.drawString(line, 0, baseline0 + i * lineH, font, paint);
                 }
             }
-        } else if (node instanceof MultiEffect) {
-            paintMultiEffect(canvas, (MultiEffect) node, w, h, alpha);
         }
-    }
-
-    // v0 MultiEffect: paint the source subtree clipped to the mask's rounded-rect
-    // shape (true per-pixel alpha masking is not implemented). The source is
-    // normally an invisible sibling, so we draw its children directly here.
-    private void paintMultiEffect(Canvas canvas, MultiEffect me, float w, float h, float alpha) {
-        Object src = me.source.peek();
-        if (!(src instanceof Item)) return;
-        Item source = (Item) src;
-
-        // Drop shadow: render the source through a drop-shadow image filter.
-        if (Boolean.TRUE.equals(me.shadowEnabled.peek())) {
-            float op = (float) (alpha * me.shadowOpacity.peek().doubleValue());
-            int sc = applyAlpha(parseColor(me.shadowColor.peek()), op);
-            float dy = me.shadowVerticalOffset.peek().floatValue();
-            float dx = me.shadowHorizontalOffset.peek().floatValue();
-            float sg = sigma(me.shadowBlur.peek().floatValue() * 32f); // Qt blur is 0..1
-            Paint sp = new Paint();
-            sp.setImageFilter(ImageFilter.makeDropShadow(dx, dy, sg, sg, sc));
-            float mg = sg * 3f + Math.abs(dx) + Math.abs(dy) + 8f;
-            int save = canvas.saveLayer(Rect.makeXYWH(-mg, -mg, w + 2 * mg, h + 2 * mg), sp);
-            try { drawForced(canvas, source, alpha); }
-            finally { canvas.restoreToCount(save); sp.close(); }
-            return;
-        }
-
-        // Mask: clip the source to the mask's rounded-rect shape (v0 approximation).
-        int save = canvas.save();
-        if (Boolean.TRUE.equals(me.maskEnabled.peek())) {
-            Rectangle mr = maskRect(me.maskSource.peek());
-            float tl = mr == null ? 0f : mr.cornerRadius(mr.topLeftRadius.peek().floatValue());
-            float tr = mr == null ? 0f : mr.cornerRadius(mr.topRightRadius.peek().floatValue());
-            float br = mr == null ? 0f : mr.cornerRadius(mr.bottomRightRadius.peek().floatValue());
-            float bl = mr == null ? 0f : mr.cornerRadius(mr.bottomLeftRadius.peek().floatValue());
-            if (tl > 0 || tr > 0 || br > 0 || bl > 0) {
-                // Per-corner: a first/last SegmentedButton segment is round on one side,
-                // square on the other -- a single radius clipped the ripple as a rect.
-                canvas.clipRRect(RRect.makeComplexXYWH(0, 0, w, h, new float[]{tl, tr, br, bl}));
-            } else {
-                canvas.clipRect(Rect.makeXYWH(0, 0, w, h));
-            }
-        }
-        try { drawForced(canvas, source, alpha); }
-        finally { canvas.restoreToCount(save); }
-    }
-
-    // The first Rectangle in the mask subtree -- its effective per-corner radii define
-    // the clip shape.
-    private static Rectangle maskRect(Object maskSource) {
-        if (!(maskSource instanceof Item)) return null;
-        if (maskSource instanceof Rectangle) return (Rectangle) maskSource;
-        for (Item n : ((Item) maskSource).children) {
-            Rectangle r = maskRect(n);
-            if (r != null) return r;
-        }
-        return null;
     }
 
     private void drawChrome(Canvas canvas, ApplicationWindow win, float w, float h, float alpha) {
@@ -851,7 +791,7 @@ public final class Renderer {
         return (na << 24) | (color & 0x00FFFFFF);
     }
 
-    private static float sigma(float radius) {
+    static float sigma(float radius) {
         return radius <= 0f ? 0f : radius / 2f;
     }
 

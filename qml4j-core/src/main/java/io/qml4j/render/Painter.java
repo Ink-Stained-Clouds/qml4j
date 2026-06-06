@@ -1,6 +1,7 @@
 package io.qml4j.render;
 
 import io.github.humbleui.skija.Canvas;
+import io.github.humbleui.skija.ImageFilter;
 import io.github.humbleui.skija.Paint;
 import io.github.humbleui.skija.PaintMode;
 import io.github.humbleui.skija.PaintStrokeCap;
@@ -16,6 +17,9 @@ import io.github.humbleui.types.Rect;
 import io.qml4j.render.items.core.Gradient;
 import io.qml4j.render.items.core.GradientStop;
 import io.qml4j.render.items.core.Image;
+import io.qml4j.render.items.core.Item;
+import io.qml4j.render.items.core.Rectangle;
+import io.qml4j.render.items.effect.MultiEffect;
 import io.qml4j.render.items.shape.ImageFill;
 import io.qml4j.render.items.shape.PathArc;
 import io.qml4j.render.items.shape.PathCubic;
@@ -311,5 +315,61 @@ public final class Painter {
         if ("RoundJoin".equals(join)) return PaintStrokeJoin.ROUND;
         if ("MiterJoin".equals(join)) return PaintStrokeJoin.MITER;
         return PaintStrokeJoin.BEVEL;
+    }
+
+    // v0 MultiEffect: paint the source subtree clipped to the mask's rounded-rect
+    // shape (true per-pixel alpha masking is not implemented). The source is
+    // normally an invisible sibling, so we draw it through the renderer here.
+    public void drawMultiEffect(MultiEffect me, float w, float h, float alpha) {
+        Object src = me.source.peek();
+        if (!(src instanceof Item)) return;
+        Item source = (Item) src;
+
+        // Drop shadow: render the source through a drop-shadow image filter.
+        if (Boolean.TRUE.equals(me.shadowEnabled.peek())) {
+            float op = (float) (alpha * me.shadowOpacity.peek().doubleValue());
+            int sc = Renderer.applyAlpha(Renderer.parseColor(me.shadowColor.peek()), op);
+            float dy = me.shadowVerticalOffset.peek().floatValue();
+            float dx = me.shadowHorizontalOffset.peek().floatValue();
+            float sg = Renderer.sigma(me.shadowBlur.peek().floatValue() * 32f); // Qt blur is 0..1
+            Paint sp = new Paint();
+            sp.setImageFilter(ImageFilter.makeDropShadow(dx, dy, sg, sg, sc));
+            float mg = sg * 3f + Math.abs(dx) + Math.abs(dy) + 8f;
+            int save = canvas.saveLayer(Rect.makeXYWH(-mg, -mg, w + 2 * mg, h + 2 * mg), sp);
+            try { renderer.drawForced(canvas, source, alpha); }
+            finally { canvas.restoreToCount(save); sp.close(); }
+            return;
+        }
+
+        // Mask: clip the source to the mask's rounded-rect shape (v0 approximation).
+        int save = canvas.save();
+        if (Boolean.TRUE.equals(me.maskEnabled.peek())) {
+            Rectangle mr = maskRect(me.maskSource.peek());
+            float tl = mr == null ? 0f : mr.cornerRadius(mr.topLeftRadius.peek().floatValue());
+            float tr = mr == null ? 0f : mr.cornerRadius(mr.topRightRadius.peek().floatValue());
+            float br = mr == null ? 0f : mr.cornerRadius(mr.bottomRightRadius.peek().floatValue());
+            float bl = mr == null ? 0f : mr.cornerRadius(mr.bottomLeftRadius.peek().floatValue());
+            if (tl > 0 || tr > 0 || br > 0 || bl > 0) {
+                // Per-corner: a first/last SegmentedButton segment is round on one side,
+                // square on the other -- a single radius clipped the ripple as a rect.
+                canvas.clipRRect(RRect.makeComplexXYWH(0, 0, w, h, new float[]{tl, tr, br, bl}));
+            } else {
+                canvas.clipRect(Rect.makeXYWH(0, 0, w, h));
+            }
+        }
+        try { renderer.drawForced(canvas, source, alpha); }
+        finally { canvas.restoreToCount(save); }
+    }
+
+    // The first Rectangle in the mask subtree -- its effective per-corner radii
+    // define the clip shape.
+    private static Rectangle maskRect(Object maskSource) {
+        if (!(maskSource instanceof Item)) return null;
+        if (maskSource instanceof Rectangle) return (Rectangle) maskSource;
+        for (Item n : ((Item) maskSource).children) {
+            Rectangle r = maskRect(n);
+            if (r != null) return r;
+        }
+        return null;
     }
 }

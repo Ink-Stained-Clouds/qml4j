@@ -2,6 +2,7 @@ package io.qml4j.render.items.effect;
 import io.qml4j.render.items.core.Item;
 
 import io.qml4j.engine.binding.Property;
+import io.qml4j.render.Painter;
 
 // QtQuick.Effects MultiEffect. v0 supports source + mask (maskEnabled/maskSource):
 // the source item is painted at the effect's geometry, clipped to the mask's
@@ -26,4 +27,9 @@ public class MultiEffect extends Item {
     public final Property<Number> brightness = new Property<>(0);
     public final Property<Number> contrast = new Property<>(0);
     public final Property<Number> saturation = new Property<>(0);
+
+    @Override
+    public void paint(Painter p, float w, float h, float alpha) {
+        p.drawMultiEffect(this, w, h, alpha);
+    }
 }
