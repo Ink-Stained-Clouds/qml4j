@@ -15,9 +15,12 @@ public class Text extends Item {
     public final Property<Number> elide = new Property<>(0);                // Text.ElideNone
 
     // Effective pixel size: Qt's font.pixelSize wins when set, else flat fontSize.
+    // Either may be null (a binding that evaluated to undefined -- QML-tolerant).
     public float effectiveFontSize() {
-        float fp = font.pixelSize.peek().floatValue();
-        return fp > 0 ? fp : fontSize.peek().floatValue();
+        Number fp = font.pixelSize.peek();
+        if (fp != null && fp.floatValue() > 0) return fp.floatValue();
+        Number fs = fontSize.peek();
+        return fs != null ? fs.floatValue() : 14f;
     }
 
     public String lastMeasuredText;
