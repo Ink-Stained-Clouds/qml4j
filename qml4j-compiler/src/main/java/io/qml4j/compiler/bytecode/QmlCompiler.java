@@ -310,17 +310,10 @@ public final class QmlCompiler {
         ctor.visitEnd();
 
         for (Ast.FunctionDeclaration fd : rootFunctionDecls) {
-            // Eligible functions were registered as Rhino callables in the ctor; they get
-            // a thin reflective method that forwards to that callable (preserving getMethod
-            // identity). The rest get a full ASM reflective method.
-            if (rhinoFunctionEligible(fd, rootType, idTypes, rootDeclaredProps, rootFunctions,
-                                      rootSignalNames, rootAliases)) {
-                emitThinRootFunctionMethod(cw, fd);
-                continue;
-            }
-            emitRootFunctionMethod(cw, componentInternal, rootType, fd,
-                                   idTypes, rootDeclaredProps, rootAliases, rootFunctions,
-                                   componentBinaryName, bindingCounter, classes);
+            // Each root function was registered as a Rhino callable in the ctor; it gets a
+            // thin reflective method that forwards to that callable (preserving getMethod
+            // identity). The body's eligibility was already validated during ctor emission.
+            emitThinRootFunctionMethod(cw, fd);
         }
 
         cw.visitEnd();
@@ -339,33 +332,41 @@ public final class QmlCompiler {
                                 Map<String, String> declaredProps,
                                 Map<String, AliasRef> aliases,
                                 Map<String, Integer> rootFunctions) {
+        // A bare call in this object's bindings/handlers resolves to a function declared
+        // here (a delegate-local or child-local function) before walking out to the root,
+        // so the in-scope function names are this object's locals plus the enclosing ones.
+        // Functions are hoisted, so collect them all before emitting any member.
+        Map<String, Integer> scopeFunctions = rootFunctions;
+        for (Ast.ObjectMember m : obj.members) {
+            if (m instanceof Ast.FunctionDeclaration) {
+                Ast.FunctionDeclaration fd = (Ast.FunctionDeclaration) m;
+                if (!scopeFunctions.containsKey(fd.name)) {
+                    if (scopeFunctions == rootFunctions) scopeFunctions = new LinkedHashMap<>(rootFunctions);
+                    scopeFunctions.put(fd.name, fd.paramNames.size());
+                }
+            }
+        }
         List<Ast.ObjectMember> deferred = new ArrayList<>();
         for (Ast.ObjectMember m : obj.members) {
             if (m instanceof Ast.SignalDeclaration) continue;
             if (m instanceof Ast.FunctionDeclaration) {
                 Ast.FunctionDeclaration fd = (Ast.FunctionDeclaration) m;
-                boolean rhino = rhinoFunctionEligible(fd, outerType, idTypes, declaredProps,
-                                                      rootFunctions, customSignals, aliases);
-                if (outerLocal == 0) {
-                    // Root function: a Rhino callable is registered here; the ASM
-                    // reflective method is emitted later only when not eligible.
-                    if (rhino) emitRhinoFunction(ctor, 0, fd, idTypes, aliases);
-                    continue;
+                if (fd.source == null) {
+                    throw new IllegalArgumentException("function '" + fd.name + "' has no captured source");
                 }
-                if (rhino) {
-                    emitRhinoFunction(ctor, outerLocal, fd, idTypes, aliases);
-                } else {
-                    emitChildScopeFunction(ctor, outerType, outerLocal, fd, componentBinaryName,
-                                           idTypes, declaredProps, aliases, rootFunctions,
-                                           bindingCounter, classes);
-                }
+                requireRhinoCanHandle(fd.body, outerType, idTypes, declaredProps, fd.paramNames,
+                                      scopeFunctions, customSignals, aliases);
+                // Registers the function as a Rhino callable on the object at outerLocal
+                // (this for a root function); a root function also gets a thin reflective
+                // method emitted in the root-function loop.
+                emitRhinoFunction(ctor, outerLocal, fd, idTypes, aliases);
                 continue;
             }
             if (isStateAssignment(m)) { deferred.add(m); continue; }
             emitMember(ctor, outerType, outerLocal, m, registry,
                        localCounter, bindingCounter, handlerCounter, classes, componentBinaryName,
                        customSignalOwner, customSignals, customSignalParams,
-                       idTypes, declaredProps, aliases, rootFunctions);
+                       idTypes, declaredProps, aliases, scopeFunctions);
         }
         for (Ast.ObjectMember m : deferred) {
             ctor.visitMethodInsn(Opcodes.INVOKESTATIC, PROPERTY_INTERNAL,
@@ -373,7 +374,7 @@ public final class QmlCompiler {
             emitMember(ctor, outerType, outerLocal, m, registry,
                        localCounter, bindingCounter, handlerCounter, classes, componentBinaryName,
                        customSignalOwner, customSignals, customSignalParams,
-                       idTypes, declaredProps, aliases, rootFunctions);
+                       idTypes, declaredProps, aliases, scopeFunctions);
         }
     }
 
@@ -464,19 +465,19 @@ public final class QmlCompiler {
                 if (isStmtBlock && !isHandler) {
                     Ast.StatementBlockValue sb = (Ast.StatementBlockValue) b.value;
                     String declOwner = propFieldOwnerOrNull(outerType, key, declaredProps);
-                    if (declOwner != null && tryEmitRhinoIifeBinding(ctor, outerType, outerLocal,
+                    if (declOwner == null) {
+                        throw new IllegalArgumentException(
+                            "no property field '" + key + "' on " + outerType.getName());
+                    }
+                    if (tryEmitRhinoIifeBinding(ctor, outerType, outerLocal,
                             declOwner, key, sb, idTypes, declaredProps, customSignals, rootFunctions, aliases)) {
                         return;
                     }
-                    // A function-style binding `prop: { ...; return x }` becomes an
-                    // immediately-invoked arrow so the normal ASM binding path applies.
-                    Ast.ArrowFunctionExpr fn = new Ast.ArrowFunctionExpr(
-                        Collections.<String>emptyList(), null, sb.block);
-                    Ast.Expression iife = new Ast.CallExpr(fn, Collections.<Ast.Expression>emptyList());
-                    emitExpressionBinding(ctor, outerType, outerLocal, componentBinaryName,
-                                          bindingCounter, classes, key, iife, null, idTypes,
-                                          declaredProps, aliases, rootFunctions, customSignals);
-                    return;
+                    // Ineligible only when a free name does not resolve; surface that.
+                    requireRhinoCanHandle(sb.block, outerType, idTypes, declaredProps,
+                                          Collections.<String>emptyList(), rootFunctions, customSignals, aliases);
+                    throw new IllegalArgumentException(
+                        "statement-block binding for '" + key + "' could not be compiled");
                 }
                 if (isHandler) {
                     Ast.ArrowFunctionExpr arrow = arrowHandler(b.value);
@@ -537,23 +538,8 @@ public final class QmlCompiler {
                 return;
             }
             if (path.size() == 2) {
-                if (tryEmitRhinoGroupedBinding(ctor, outerType, outerLocal, path.get(0), path.get(1),
-                        b.value, idTypes, declaredProps, aliases, customSignals, rootFunctions)) {
-                    return;
-                }
-                Ast.Expression e;
-                if (isExprVal) {
-                    e = ((Ast.ExpressionValue) b.value).expr;
-                } else {
-                    // Function-style grouped binding (border.color: { ...; return x }).
-                    Ast.Block block = ((Ast.StatementBlockValue) b.value).block;
-                    Ast.ArrowFunctionExpr fn = new Ast.ArrowFunctionExpr(
-                        Collections.<String>emptyList(), null, block);
-                    e = new Ast.CallExpr(fn, Collections.<Ast.Expression>emptyList());
-                }
-                emitGroupedBinding(ctor, outerType, outerLocal, componentBinaryName,
-                                   bindingCounter, classes, path.get(0), path.get(1), e, idTypes,
-                                   declaredProps, aliases, rootFunctions);
+                emitGroupedBinding(ctor, outerType, outerLocal, path.get(0), path.get(1),
+                                   b.value, idTypes, declaredProps, aliases, customSignals, rootFunctions);
                 return;
             }
             throw new UnsupportedOperationException("nested grouped property path not supported: " + path);
@@ -613,26 +599,28 @@ public final class QmlCompiler {
                         customSignalParams.keySet(), rootFunctions, aliases)) {
                 return;
             }
-            Ast.Expression e;
             if (pd.initializer instanceof Ast.ExpressionValue) {
-                e = ((Ast.ExpressionValue) pd.initializer).expr;
-            } else if (pd.initializer instanceof Ast.StatementBlockValue) {
-                Ast.Block block = ((Ast.StatementBlockValue) pd.initializer).block;
-                Ast.ArrowFunctionExpr fn = new Ast.ArrowFunctionExpr(
-                    Collections.<String>emptyList(), null, block);
-                e = new Ast.CallExpr(fn, Collections.<Ast.Expression>emptyList());
-            } else {
-                throw new UnsupportedOperationException(
-                    "unsupported override initializer for property: " + pd.name);
+                Ast.Expression e = ((Ast.ExpressionValue) pd.initializer).expr;
+                if (e instanceof Ast.LiteralExpr) {
+                    emitLiteralAssignment(ctor, outerType, outerLocal, pd.name, (Ast.LiteralExpr) e);
+                } else {
+                    emitExpressionBinding(ctor, outerType, outerLocal, componentBinaryName,
+                                          bindingCounter, classes, pd.name, e,
+                                          ((Ast.ExpressionValue) pd.initializer).source, idTypes,
+                                          declaredProps, aliases, rootFunctions, customSignalParams.keySet());
+                }
+                return;
             }
-            if (e instanceof Ast.LiteralExpr) {
-                emitLiteralAssignment(ctor, outerType, outerLocal, pd.name, (Ast.LiteralExpr) e);
-            } else {
-                emitExpressionBinding(ctor, outerType, outerLocal, componentBinaryName,
-                                      bindingCounter, classes, pd.name, e, null, idTypes,
-                                      declaredProps, aliases, rootFunctions, customSignalParams.keySet());
+            if (pd.initializer instanceof Ast.StatementBlockValue) {
+                // tryEmitRhinoIifeBinding above returned false: a free name does not resolve.
+                requireRhinoCanHandle(((Ast.StatementBlockValue) pd.initializer).block, outerType,
+                                      idTypes, declaredProps, Collections.<String>emptyList(),
+                                      rootFunctions, customSignalParams.keySet(), aliases);
+                throw new IllegalArgumentException(
+                    "statement-block override for '" + pd.name + "' could not be compiled");
             }
-            return;
+            throw new UnsupportedOperationException(
+                "unsupported override initializer for property: " + pd.name);
         }
         if (pd.initializer instanceof Ast.ObjectValue) {
             String objOwner = declaredProps.get(pd.name);
@@ -662,39 +650,36 @@ public final class QmlCompiler {
                     customSignalParams.keySet(), rootFunctions, aliases)) {
             return;
         }
-        Ast.Expression e;
-        String source;
         if (pd.initializer instanceof Ast.ExpressionValue) {
-            e = ((Ast.ExpressionValue) pd.initializer).expr;
-            source = ((Ast.ExpressionValue) pd.initializer).source;
-        } else if (pd.initializer instanceof Ast.StatementBlockValue) {
-            // Function-style property default: { ...; return x } -> IIFE arrow.
-            Ast.Block block = ((Ast.StatementBlockValue) pd.initializer).block;
-            Ast.ArrowFunctionExpr fn = new Ast.ArrowFunctionExpr(
-                Collections.<String>emptyList(), null, block);
-            e = new Ast.CallExpr(fn, Collections.<Ast.Expression>emptyList());
-            source = null;
-        } else {
-            throw new UnsupportedOperationException(
-                "only expression/object/block initializer supported for property: " + pd.name);
-        }
-        if (e instanceof Ast.LiteralExpr) {
-            ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
-            ctor.visitFieldInsn(Opcodes.GETFIELD, ownerInternal, pd.name, PROPERTY_DESC);
-            loadLiteral(ctor, (Ast.LiteralExpr) e);
-            ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
-                                 "set", "(Ljava/lang/Object;)V", false);
+            Ast.Expression e = ((Ast.ExpressionValue) pd.initializer).expr;
+            if (e instanceof Ast.LiteralExpr) {
+                ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+                ctor.visitFieldInsn(Opcodes.GETFIELD, ownerInternal, pd.name, PROPERTY_DESC);
+                loadLiteral(ctor, (Ast.LiteralExpr) e);
+                ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
+                                     "set", "(Ljava/lang/Object;)V", false);
+                return;
+            }
+            emitDeclaredPropertyBinding(ctor, outerType, outerLocal, ownerInternal, pd.name, e,
+                                        ((Ast.ExpressionValue) pd.initializer).source,
+                                        idTypes, declaredProps, aliases, rootFunctions,
+                                        customSignalParams.keySet());
             return;
         }
-        emitDeclaredPropertyBinding(ctor, outerType, outerLocal, componentBinaryName,
-                                    bindingCounter, classes, ownerInternal, pd.name, e, source,
-                                    idTypes, declaredProps, aliases, rootFunctions,
-                                    customSignalParams.keySet());
+        if (pd.initializer instanceof Ast.StatementBlockValue) {
+            // tryEmitRhinoIifeBinding above returned false: a free name does not resolve.
+            requireRhinoCanHandle(((Ast.StatementBlockValue) pd.initializer).block, outerType,
+                                  idTypes, declaredProps, Collections.<String>emptyList(),
+                                  rootFunctions, customSignalParams.keySet(), aliases);
+            throw new IllegalArgumentException(
+                "statement-block default for '" + pd.name + "' could not be compiled");
+        }
+        throw new UnsupportedOperationException(
+            "only expression/object/block initializer supported for property: " + pd.name);
     }
 
     private void emitDeclaredPropertyBinding(MethodVisitor ctor, Class<? extends QObject> outerType,
-                                             int outerLocal, String componentBinaryName,
-                                             int[] bindingCounter, Map<String, byte[]> classes,
+                                             int outerLocal,
                                              String ownerInternal, String name, Ast.Expression expr,
                                              String source,
                                              Map<String, Class<? extends QObject>> idTypes,
@@ -702,30 +687,13 @@ public final class QmlCompiler {
                                              Map<String, AliasRef> aliases,
                                              Map<String, Integer> rootFunctions,
                                              Set<String> customSignals) {
-        if (source != null
-                && handlerCanHandle(new Ast.ExprStmt(expr), outerType, idTypes, declaredProps,
-                                    Collections.<String>emptyList(), rootFunctions,
-                                    customSignals, aliases)) {
-            emitRhinoBindingBind(ctor, ownerInternal, name, source, outerLocal, idTypes,
-                                 collectSingletons(expr), collectAliases(expr, aliases));
-            return;
+        if (source == null) {
+            throw new IllegalArgumentException("binding for '" + name + "' has no captured source");
         }
-        String outerInternal = Type.getInternalName(outerType);
-        String componentInternal = componentBinaryName.replace('.', '/');
-        String bindingInternal = emitBindingClass(outerInternal, outerType, expr, componentBinaryName,
-                                                  idTypes, declaredProps, aliases, rootFunctions,
-                                                  bindingCounter, classes);
-
-        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
-        ctor.visitFieldInsn(Opcodes.GETFIELD, ownerInternal, name, PROPERTY_DESC);
-        ctor.visitTypeInsn(Opcodes.NEW, bindingInternal);
-        ctor.visitInsn(Opcodes.DUP);
-        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
-        ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, bindingInternal, "<init>",
-                             "(L" + outerInternal + ";L" + componentInternal + ";)V", false);
-        ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
-                             "bind", "(L" + BINDING_INTERNAL + ";)V", false);
+        requireRhinoCanHandle(new Ast.ExprStmt(expr), outerType, idTypes, declaredProps,
+                              Collections.<String>emptyList(), rootFunctions, customSignals, aliases);
+        emitRhinoBindingBind(ctor, ownerInternal, name, source, outerLocal, idTypes,
+                             collectSingletons(expr), collectAliases(expr, aliases));
     }
 
     private void emitChildObject(MethodVisitor ctor, Class<? extends QObject> outerType,
@@ -1416,36 +1384,13 @@ public final class QmlCompiler {
         Field f = findPropertyField(outerType, propName);
         String declOwner = Type.getInternalName(f.getDeclaringClass());
 
-        // Route to Rhino whenever every free identifier the expression reads is one the
-        // runtime QmlScope can resolve (a scene id, a declared/inherited property, a root
-        // function, a Java method, a singleton, an alias, or a shared global). The ASM
-        // backend remains only as a fallback for the rare expression that fails this check.
-        if (source != null
-                && handlerCanHandle(new Ast.ExprStmt(expr), outerType, idTypes, declaredProps,
-                                    Collections.<String>emptyList(), rootFunctions,
-                                    customSignals, aliases)) {
-            emitRhinoBindingBind(ctor, declOwner, propName, source, outerLocal, idTypes,
-                                 collectSingletons(expr), collectAliases(expr, aliases));
-            return;
+        if (source == null) {
+            throw new IllegalArgumentException("binding for '" + propName + "' has no captured source");
         }
-
-        String outerInternal = Type.getInternalName(outerType);
-        String componentInternal = componentBinaryName.replace('.', '/');
-
-        String bindingInternal = emitBindingClass(outerInternal, outerType, expr, componentBinaryName,
-                                                  idTypes, declaredProps, aliases, rootFunctions,
-                                                  bindingCounter, classes);
-
-        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
-        ctor.visitFieldInsn(Opcodes.GETFIELD, declOwner, propName, PROPERTY_DESC);
-        ctor.visitTypeInsn(Opcodes.NEW, bindingInternal);
-        ctor.visitInsn(Opcodes.DUP);
-        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
-        ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, bindingInternal, "<init>",
-                             "(L" + outerInternal + ";L" + componentInternal + ";)V", false);
-        ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
-                             "bind", "(L" + BINDING_INTERNAL + ";)V", false);
+        requireRhinoCanHandle(new Ast.ExprStmt(expr), outerType, idTypes, declaredProps,
+                              Collections.<String>emptyList(), rootFunctions, customSignals, aliases);
+        emitRhinoBindingBind(ctor, declOwner, propName, source, outerLocal, idTypes,
+                             collectSingletons(expr), collectAliases(expr, aliases));
     }
 
     private static final String RHINO_BINDING_INTERNAL = "io/qml4j/engine/js/RhinoBinding";
@@ -1557,63 +1502,6 @@ public final class QmlCompiler {
         "Qt", "Math", "Text", "Font", "Easing", "console", "JSON",
         "Number", "parseInt", "parseFloat", "isNaN"));
 
-    private void emitGroupedBinding(MethodVisitor ctor, Class<? extends QObject> outerType,
-                                    int outerLocal, String componentBinaryName,
-                                    int[] bindingCounter, Map<String, byte[]> classes,
-                                    String groupName, String propName, Ast.Expression expr,
-                                    Map<String, Class<? extends QObject>> idTypes,
-                                    Map<String, String> declaredProps,
-                                    Map<String, AliasRef> aliases,
-                                    Map<String, Integer> rootFunctions) {
-        Field groupField;
-        try {
-            groupField = outerType.getField(groupName);
-        } catch (NoSuchFieldException ex) {
-            throw new IllegalArgumentException(
-                "no group field '" + groupName + "' on " + outerType.getName());
-        }
-        if (Property.class.isAssignableFrom(groupField.getType())) {
-            throw new IllegalArgumentException(
-                "field '" + groupName + "' on " + outerType.getName()
-                + " is a Property, not a grouped object");
-        }
-        Class<?> groupType = groupField.getType();
-        Field propField = findPropertyField(groupType, propName);
-        String groupDeclOwner = Type.getInternalName(groupField.getDeclaringClass());
-        String propDeclOwner = Type.getInternalName(propField.getDeclaringClass());
-        String groupTypeInternal = Type.getInternalName(groupType);
-        String outerInternal = Type.getInternalName(outerType);
-        String componentInternal = componentBinaryName.replace('.', '/');
-
-        if (expr instanceof Ast.LiteralExpr) {
-            ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
-            ctor.visitFieldInsn(Opcodes.GETFIELD, groupDeclOwner, groupName,
-                                "L" + groupTypeInternal + ";");
-            ctor.visitFieldInsn(Opcodes.GETFIELD, propDeclOwner, propName, PROPERTY_DESC);
-            loadLiteral(ctor, (Ast.LiteralExpr) expr);
-            ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
-                                 "set", "(Ljava/lang/Object;)V", false);
-            return;
-        }
-
-        String bindingInternal = emitBindingClass(outerInternal, outerType, expr, componentBinaryName,
-                                                  idTypes, declaredProps, aliases, rootFunctions,
-                                                  bindingCounter, classes);
-
-        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
-        ctor.visitFieldInsn(Opcodes.GETFIELD, groupDeclOwner, groupName,
-                            "L" + groupTypeInternal + ";");
-        ctor.visitFieldInsn(Opcodes.GETFIELD, propDeclOwner, propName, PROPERTY_DESC);
-        ctor.visitTypeInsn(Opcodes.NEW, bindingInternal);
-        ctor.visitInsn(Opcodes.DUP);
-        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
-        ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, bindingInternal, "<init>",
-                             "(L" + outerInternal + ";L" + componentInternal + ";)V", false);
-        ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
-                             "bind", "(L" + BINDING_INTERNAL + ";)V", false);
-    }
-
     private void emitKeysHandler(MethodVisitor ctor, Class<? extends QObject> outerType,
                                  int outerLocal, String componentBinaryName,
                                  int[] handlerCounter, int[] bindingCounter, Map<String, byte[]> classes,
@@ -1646,8 +1534,7 @@ public final class QmlCompiler {
         ctor.visitFieldInsn(Opcodes.GETFIELD, keysTypeInternal, signalName, SIGNAL_DESC);
         emitHandlerInstance(ctor, outerType, outerInternal, componentInternal, componentBinaryName,
                             outerLocal, body, source, Collections.singletonList("event"),
-                            idTypes, declaredProps, aliases, rootFunctions, customSignals,
-                            handlerCounter, bindingCounter, classes);
+                            idTypes, declaredProps, aliases, rootFunctions, customSignals);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, SIGNAL_INTERNAL,
                              "connect", "(" + SIGNAL_HANDLER_DESC + ")V", false);
     }
@@ -1733,7 +1620,7 @@ public final class QmlCompiler {
         ctor.visitFieldInsn(Opcodes.GETFIELD, signalOwnerInternal, signalName, SIGNAL_DESC);
         emitHandlerInstance(ctor, outerType, outerInternal, componentInternal, componentBinaryName,
                             outerLocal, body, source, signalParams, idTypes, declaredProps, aliases,
-                            rootFunctions, customSignals, handlerCounter, bindingCounter, classes);
+                            rootFunctions, customSignals);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, SIGNAL_INTERNAL,
                              "connect", "(" + SIGNAL_HANDLER_DESC + ")V", false);
     }
@@ -1756,7 +1643,7 @@ public final class QmlCompiler {
         ctor.visitFieldInsn(Opcodes.GETFIELD, declOwner, signalField.getName(), SIGNAL_DESC);
         emitHandlerInstance(ctor, outerType, outerInternal, componentInternal, componentBinaryName,
                             outerLocal, body, source, signalParams, idTypes, declaredProps, aliases,
-                            rootFunctions, customSignals, handlerCounter, bindingCounter, classes);
+                            rootFunctions, customSignals);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, SIGNAL_INTERNAL,
                              "connect", "(" + SIGNAL_HANDLER_DESC + ")V", false);
     }
@@ -1786,7 +1673,7 @@ public final class QmlCompiler {
         ctor.visitFieldInsn(Opcodes.GETFIELD, fieldOwner, propName, PROPERTY_DESC);
         emitHandlerInstance(ctor, outerType, outerInternal, componentInternal, componentBinaryName,
                             outerLocal, body, source, null, idTypes, declaredProps, aliases,
-                            rootFunctions, customSignals, handlerCounter, bindingCounter, classes);
+                            rootFunctions, customSignals);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
                              "addChangeHandler", "(" + SIGNAL_HANDLER_DESC + ")V", false);
     }
@@ -1808,7 +1695,7 @@ public final class QmlCompiler {
         ctor.visitLdcInsn(signalName);
         emitHandlerInstance(ctor, outerType, outerInternal, componentInternal, componentBinaryName,
                             outerLocal, body, source, signalParams, idTypes, declaredProps, aliases,
-                            rootFunctions, customSignals, handlerCounter, bindingCounter, classes);
+                            rootFunctions, customSignals);
         ctor.visitMethodInsn(Opcodes.INVOKEINTERFACE, SIGNAL_RELAY_INTERNAL,
                              "connectSignal",
                              "(Ljava/lang/String;" + SIGNAL_HANDLER_DESC + ")V", true);
@@ -1933,43 +1820,27 @@ public final class QmlCompiler {
                                      Map<String, String> declaredProps,
                                      Map<String, AliasRef> aliases,
                                      Map<String, Integer> rootFunctions,
-                                     Set<String> customSignals,
-                                     int[] handlerCounter, int[] bindingCounter,
-                                     Map<String, byte[]> classes) {
+                                     Set<String> customSignals) {
         List<String> params = signalParams != null ? signalParams : Collections.<String>emptyList();
         boolean delegate = inDelegateScope();
-        if (source != null
-                && handlerCanHandle(body, outerType, idTypes, declaredProps, params, rootFunctions,
-                                    customSignals, aliases)) {
-            validateRhinoSource(source, params);
-            ctor.visitTypeInsn(Opcodes.NEW, RHINO_HANDLER_INTERNAL);
-            ctor.visitInsn(Opcodes.DUP);
-            ctor.visitLdcInsn(source);
-            pushStringArray(ctor, params);
-            ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
-            ctor.visitVarInsn(Opcodes.ALOAD, 0);
-            pushStringArray(ctor, new ArrayList<>(idTypes.keySet()));
-            ctor.visitInsn(delegate ? Opcodes.ICONST_1 : Opcodes.ICONST_0);
-            pushSingletons(ctor, collectSingletons(body));
-            pushAliases(ctor, collectAliases(body, aliases));
-            ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_HANDLER_INTERNAL, "<init>",
-                "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;Z[Ljava/lang/String;[Ljava/lang/Class;[Ljava/lang/String;)V", false);
-            return;
+        if (source == null) {
+            throw new IllegalArgumentException("signal handler has no captured source");
         }
-        int n = handlerCounter[0]++;
-        String handlerBinaryName = componentBinaryName + "$Handler$" + n;
-        String handlerInternal = handlerBinaryName.replace('.', '/');
-        byte[] handlerBytes = emitHandlerClass(handlerInternal, outerInternal, outerType, body,
-                                               componentInternal, componentBinaryName, idTypes,
-                                               params, declaredProps, aliases, rootFunctions,
-                                               bindingCounter, classes);
-        classes.put(handlerBinaryName, handlerBytes);
-        ctor.visitTypeInsn(Opcodes.NEW, handlerInternal);
+        requireRhinoCanHandle(body, outerType, idTypes, declaredProps, params, rootFunctions,
+                              customSignals, aliases);
+        validateRhinoSource(source, params);
+        ctor.visitTypeInsn(Opcodes.NEW, RHINO_HANDLER_INTERNAL);
         ctor.visitInsn(Opcodes.DUP);
+        ctor.visitLdcInsn(source);
+        pushStringArray(ctor, params);
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, handlerInternal, "<init>",
-                             "(L" + outerInternal + ";L" + componentInternal + ";)V", false);
+        pushStringArray(ctor, new ArrayList<>(idTypes.keySet()));
+        ctor.visitInsn(delegate ? Opcodes.ICONST_1 : Opcodes.ICONST_0);
+        pushSingletons(ctor, collectSingletons(body));
+        pushAliases(ctor, collectAliases(body, aliases));
+        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_HANDLER_INTERNAL, "<init>",
+            "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;Z[Ljava/lang/String;[Ljava/lang/Class;[Ljava/lang/String;)V", false);
     }
 
     // Compile the wrapped JS eagerly so a syntax error (a stray break, a malformed
@@ -2013,64 +1884,81 @@ public final class QmlCompiler {
         return true;
     }
 
-    // A grouped binding (`border.color: ...`, `font.pixelSize: ...`) on Rhino: binds a
-    // RhinoBinding to the value-type group's Property. Handles both the simple
-    // expression form (rhinoCanHandle) and the function-style IIFE form
-    // (handlerCanHandle). Returns false to leave it on the ASM grouped path.
-    private boolean tryEmitRhinoGroupedBinding(MethodVisitor ctor, Class<? extends QObject> outerType,
-                                               int outerLocal, String groupName, String propName,
-                                               Ast.Value value,
-                                               Map<String, Class<? extends QObject>> idTypes,
-                                               Map<String, String> declaredProps,
-                                               Map<String, AliasRef> aliases,
-                                               Set<String> customSignals,
-                                               Map<String, Integer> rootFunctions) {
+    // A grouped binding (`border.color: ...`, `font.pixelSize: ...`): a literal sets the
+    // value-type group's Property directly; an expression / function-style body binds a
+    // RhinoBinding to it. Throws on a missing group field or property.
+    private void emitGroupedBinding(MethodVisitor ctor, Class<? extends QObject> outerType,
+                                    int outerLocal, String groupName, String propName,
+                                    Ast.Value value,
+                                    Map<String, Class<? extends QObject>> idTypes,
+                                    Map<String, String> declaredProps,
+                                    Map<String, AliasRef> aliases,
+                                    Set<String> customSignals,
+                                    Map<String, Integer> rootFunctions) {
         Field groupField;
         try {
             groupField = outerType.getField(groupName);
         } catch (NoSuchFieldException e) {
-            return false;
+            throw new IllegalArgumentException(
+                "no group field '" + groupName + "' on " + outerType.getName());
         }
-        if (Property.class.isAssignableFrom(groupField.getType())) return false;
+        if (Property.class.isAssignableFrom(groupField.getType())) {
+            throw new IllegalArgumentException(
+                "field '" + groupName + "' on " + outerType.getName()
+                + " is a Property, not a grouped object");
+        }
         Class<?> groupType = groupField.getType();
-        Field propField = findPropertyFieldOrNull(groupType, propName);
-        if (propField == null) return false;
+        Field propField = findPropertyField(groupType, propName);
+        String groupDeclOwner = Type.getInternalName(groupField.getDeclaringClass());
+        String propDeclOwner = Type.getInternalName(propField.getDeclaringClass());
+        String groupTypeInternal = Type.getInternalName(groupType);
+
+        // A literal grouped value (`border.width: 2`) is a plain set, not a binding.
+        if (value instanceof Ast.ExpressionValue
+                && ((Ast.ExpressionValue) value).expr instanceof Ast.LiteralExpr) {
+            ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+            ctor.visitFieldInsn(Opcodes.GETFIELD, groupDeclOwner, groupName, "L" + groupTypeInternal + ";");
+            ctor.visitFieldInsn(Opcodes.GETFIELD, propDeclOwner, propName, PROPERTY_DESC);
+            loadLiteral(ctor, (Ast.LiteralExpr) ((Ast.ExpressionValue) value).expr);
+            ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
+                                 "set", "(Ljava/lang/Object;)V", false);
+            return;
+        }
 
         String source;
         Map<String, Class<? extends QObject>> singletons;
         Map<String, AliasRef> usedAliases;
         if (value instanceof Ast.ExpressionValue) {
             Ast.ExpressionValue ev = (Ast.ExpressionValue) value;
-            if (ev.source == null || ev.expr instanceof Ast.LiteralExpr
-                    || !rhinoCanHandle(ev.expr, outerType, idTypes, declaredProps, aliases)) {
-                return false;
+            if (ev.source == null) {
+                throw new IllegalArgumentException(
+                    "grouped binding '" + groupName + "." + propName + "' has no captured source");
             }
+            requireRhinoCanHandle(new Ast.ExprStmt(ev.expr), outerType, idTypes, declaredProps,
+                                  Collections.<String>emptyList(), rootFunctions, customSignals, aliases);
             source = ev.source;
             singletons = collectSingletons(ev.expr);
             usedAliases = collectAliases(ev.expr, aliases);
         } else if (value instanceof Ast.StatementBlockValue) {
             Ast.StatementBlockValue sb = (Ast.StatementBlockValue) value;
-            if (sb.source == null
-                    || !handlerCanHandle(sb.block, outerType, idTypes, declaredProps,
-                                         Collections.<String>emptyList(), rootFunctions, customSignals, aliases)) {
-                return false;
+            if (sb.source == null) {
+                throw new IllegalArgumentException(
+                    "grouped binding '" + groupName + "." + propName + "' has no captured source");
             }
+            requireRhinoCanHandle(sb.block, outerType, idTypes, declaredProps,
+                                  Collections.<String>emptyList(), rootFunctions, customSignals, aliases);
             source = "(function(){" + sb.source + "})()";
             singletons = collectSingletons(sb.block);
             usedAliases = collectAliases(sb.block, aliases);
         } else {
-            return false;
+            throw new UnsupportedOperationException(
+                "only expression/statement grouped bindings supported: " + groupName + "." + propName);
         }
-        validateRhinoCompiles(source);
 
-        String groupDeclOwner = Type.getInternalName(groupField.getDeclaringClass());
-        String propDeclOwner = Type.getInternalName(propField.getDeclaringClass());
-        String groupTypeInternal = Type.getInternalName(groupType);
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitFieldInsn(Opcodes.GETFIELD, groupDeclOwner, groupName, "L" + groupTypeInternal + ";");
         ctor.visitFieldInsn(Opcodes.GETFIELD, propDeclOwner, propName, PROPERTY_DESC);
         emitRhinoBindingFor(ctor, source, outerLocal, idTypes, singletons, usedAliases);
-        return true;
     }
 
     private static void pushStringArray(MethodVisitor mv, List<String> items) {
@@ -2106,6 +1994,29 @@ public final class QmlCompiler {
             }
         }
         return true;
+    }
+
+    // Every binding/handler/function runs on Rhino. Anything the QmlScope cannot resolve
+    // at runtime is a compile error -- there is no second backend to fall back to. Mirrors
+    // handlerCanHandle's checks but throws an explanatory IllegalArgumentException instead
+    // of returning false.
+    private void requireRhinoCanHandle(Ast.Statement body, Class<?> outerType,
+                                       Map<String, Class<? extends QObject>> idTypes,
+                                       Map<String, String> declaredProps,
+                                       List<String> signalParams,
+                                       Map<String, Integer> rootFunctions,
+                                       Set<String> customSignals,
+                                       Map<String, AliasRef> aliases) {
+        if (AstScan.usesDeferredQtHelper(body)) {
+            throw new IllegalArgumentException("Qt.binding(expr) must use the arrow form Qt.binding(() => expr)");
+        }
+        Set<String> bound = new java.util.HashSet<>(signalParams);
+        for (String name : FreeIdentifiers.collect(body, bound)) {
+            if (!resolvableByRhino(name, outerType, idTypes, declaredProps, rootFunctions,
+                                   customSignals, aliases)) {
+                throw new IllegalArgumentException("unknown identifier: " + name);
+            }
+        }
     }
 
     private boolean resolvableByRhino(String name, Class<?> outerType,
