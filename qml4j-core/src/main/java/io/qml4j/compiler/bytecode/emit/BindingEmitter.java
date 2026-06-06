@@ -1,7 +1,7 @@
 package io.qml4j.compiler.bytecode.emit;
 
 import io.qml4j.compiler.bytecode.AliasRef;
-import io.qml4j.compiler.bytecode.QmlCompiler;
+import io.qml4j.compiler.bytecode.CompileScope;
 import io.qml4j.engine.QObject;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
@@ -39,7 +39,7 @@ public final class BindingEmitter {
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitVarInsn(Opcodes.ALOAD, 0);
         pushStringArray(ctor, new ArrayList<>(idTypes.keySet()));
-        ctor.visitInsn(QmlCompiler.inDelegateScope() ? Opcodes.ICONST_1 : Opcodes.ICONST_0);
+        ctor.visitInsn(CompileScope.inDelegateScope() ? Opcodes.ICONST_1 : Opcodes.ICONST_0);
         pushSingletons(ctor, singletons);
         pushAliases(ctor, aliases);
         ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_BINDING_INTERNAL, "<init>",

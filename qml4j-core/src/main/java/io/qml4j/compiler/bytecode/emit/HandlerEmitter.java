@@ -1,7 +1,7 @@
 package io.qml4j.compiler.bytecode.emit;
 
 import io.qml4j.compiler.bytecode.AliasRef;
-import io.qml4j.compiler.bytecode.QmlCompiler;
+import io.qml4j.compiler.bytecode.CompileScope;
 import io.qml4j.engine.QObject;
 import io.qml4j.parser.ast.Ast;
 import org.objectweb.asm.ClassWriter;
@@ -190,7 +190,7 @@ public final class HandlerEmitter {
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitVarInsn(Opcodes.ALOAD, 0);
         pushStringArray(ctor, new ArrayList<>(idTypes.keySet()));
-        ctor.visitInsn(QmlCompiler.inDelegateScope() ? Opcodes.ICONST_1 : Opcodes.ICONST_0);
+        ctor.visitInsn(CompileScope.inDelegateScope() ? Opcodes.ICONST_1 : Opcodes.ICONST_0);
         pushSingletons(ctor, collectSingletons(fd.body));
         pushAliases(ctor, collectAliases(fd.body, aliases));
         ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_FUNCTION_INTERNAL, "<init>",
@@ -213,7 +213,7 @@ public final class HandlerEmitter {
                                            Map<String, Integer> rootFunctions,
                                            Set<String> customSignals) {
         List<String> params = signalParams != null ? signalParams : Collections.<String>emptyList();
-        boolean delegate = QmlCompiler.inDelegateScope();
+        boolean delegate = CompileScope.inDelegateScope();
         if (source == null) {
             throw new IllegalArgumentException("signal handler has no captured source");
         }

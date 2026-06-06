@@ -2,6 +2,7 @@ package io.qml4j.render;
 
 import io.qml4j.compiler.CompiledUnit;
 import io.qml4j.compiler.TypeRegistry;
+import io.qml4j.compiler.bytecode.CompileScope;
 import io.qml4j.compiler.bytecode.QmlCompiler;
 import io.qml4j.engine.QObject;
 import io.qml4j.engine.QmlEngine;
@@ -125,7 +126,7 @@ final class Loader {
                 importedTypes.put(path, rootClass);
                 if (singleton) {
                     singletonsByPrefix.computeIfAbsent(p, k -> new HashMap<>()).put(name, rootClass);
-                    TypeRegistry current = QmlCompiler.currentRegistry();
+                    TypeRegistry current = CompileScope.currentRegistry();
                     if (current != null) current.registerSingleton(name, rootClass);
                 }
                 return rootClass;
@@ -139,7 +140,7 @@ final class Loader {
     private void registerCachedSingleton(String prefix, String name, Class<? extends QObject> cached) {
         Map<String, Class<? extends QObject>> m = singletonsByPrefix.get(prefix);
         if (m == null || m.get(name) != cached) return;
-        TypeRegistry current = QmlCompiler.currentRegistry();
+        TypeRegistry current = CompileScope.currentRegistry();
         if (current != null) current.registerSingleton(name, cached);
     }
 

@@ -83,9 +83,6 @@ import static io.qml4j.compiler.bytecode.rhino.RhinoScope.validateCompiles;
 
 public final class QmlCompiler {
 
-    private static final ThreadLocal<int[]> DELEGATE_SCOPE_DEPTH =
-        ThreadLocal.withInitial(() -> new int[]{0});
-
     // Where id'd child objects are stored: the root component (load=ALOAD 0) or,
     // inside a delegate, the delegate-root instance (load=ALOAD delegateLocal).
     private static final class IdSink {
@@ -103,40 +100,6 @@ public final class QmlCompiler {
         Ast.SignalDeclaration.class, this::rejectSignalDeclaration,
         Ast.FunctionDeclaration.class, this::rejectFunctionDeclaration);
 
-    private static final ThreadLocal<Deque<TypeRegistry>> REGISTRY_STACK =
-        ThreadLocal.withInitial(ArrayDeque::new);
-
-    public static boolean inDelegateScope() {
-        return DELEGATE_SCOPE_DEPTH.get()[0] > 0;
-    }
-
-    private static void enterDelegateScope() {
-        DELEGATE_SCOPE_DEPTH.get()[0]++;
-    }
-
-    private static void exitDelegateScope() {
-        DELEGATE_SCOPE_DEPTH.get()[0]--;
-    }
-
-    public static Class<? extends QObject> currentSingletonClass(String name) {
-        for (TypeRegistry r : REGISTRY_STACK.get()) {
-            Class<? extends QObject> c = r.singletonClass(name);
-            if (c != null) return c;
-        }
-        return null;
-    }
-
-    public static TypeRegistry currentRegistry() {
-        return REGISTRY_STACK.get().peek();
-    }
-
-    public static void tryResolveType(String name) {
-        TypeRegistry r = currentRegistry();
-        if (r == null) return;
-        if (r.isRegistered(name)) return;
-        try { r.resolve(name); }
-        catch (IllegalArgumentException ignored) {}
-    }
 
     private final AtomicInteger componentCounter = new AtomicInteger();
 
@@ -144,7 +107,7 @@ public final class QmlCompiler {
     private int factoryCounter;
 
     public CompiledUnit compile(Ast.QmlDocument doc, TypeRegistry registry) {
-        REGISTRY_STACK.get().push(registry);
+        CompileScope.pushRegistry(registry);
         try {
             Class<? extends QObject> rootType = registry.resolve(doc.root.typeName);
             int id = componentCounter.getAndIncrement();
@@ -178,7 +141,7 @@ public final class QmlCompiler {
                 this.factoryCounter = prevFactoryCounter;
             }
         } finally {
-            REGISTRY_STACK.get().pop();
+            CompileScope.popRegistry();
         }
     }
 
@@ -1049,7 +1012,7 @@ public final class QmlCompiler {
         mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
                            "set", "(Ljava/lang/Object;)V", false);
 
-        enterDelegateScope();
+        CompileScope.enterDelegateScope();
         idSinks.push(new IdSink(delegateInternal, delegateLocal));
         try {
             emitObjectBody(mv, delType, delegateLocal, delegateNode, registry,
@@ -1058,7 +1021,7 @@ public final class QmlCompiler {
                            delDeclaredProps, Collections.<String, AliasRef>emptyMap(), rootFunctions);
         } finally {
             idSinks.pop();
-            exitDelegateScope();
+            CompileScope.exitDelegateScope();
         }
 
         // Set parent before flushing deferred bindings, so a delegate binding's first
