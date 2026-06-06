@@ -14,7 +14,7 @@ public class PauseAnimation extends AbstractAnimation {
             return;
         }
         if (startNanos < 0L) startNanos = nowNanos;
-        double durMs = duration.peek().doubleValue();
+        double durMs = duration.peekDouble();
         if (durMs <= 0) {
             running.set(Boolean.FALSE);
             startNanos = -1L;

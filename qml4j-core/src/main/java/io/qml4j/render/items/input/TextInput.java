@@ -32,10 +32,10 @@ public class TextInput extends Item implements TextEditable {
 
     @Override public String text() { return text.peek(); }
     @Override public void setText(String t) { text.set(t); }
-    @Override public int cursorPosition() { return cursorPosition.peek().intValue(); }
+    @Override public int cursorPosition() { return cursorPosition.peekInt(); }
     @Override public void setCursorPosition(int p) { cursorPosition.set(p); }
-    @Override public int selectionStart() { return selectionStart.peek().intValue(); }
-    @Override public int selectionEnd() { return selectionEnd.peek().intValue(); }
+    @Override public int selectionStart() { return selectionStart.peekInt(); }
+    @Override public int selectionEnd() { return selectionEnd.peekInt(); }
     @Override public void setSelectionRange(int s, int e) {
         selectionStart.set(s);
         selectionEnd.set(e);
@@ -43,7 +43,7 @@ public class TextInput extends Item implements TextEditable {
     @Override public int selectionAnchor() { return selectionAnchor; }
     @Override public void setSelectionAnchor(int a) { selectionAnchor = a; }
     @Override public boolean readOnly() { return Boolean.TRUE.equals(readOnly.peek()); }
-    @Override public int maximumLength() { return maximumLength.peek().intValue(); }
+    @Override public int maximumLength() { return maximumLength.peekInt(); }
     @Override public void emitTextChanged() { textChanged.emit(); }
     @Override public boolean handleEnter() { accepted.emit(); return true; }
     @Override public int caretIndexAt(float localX, float localY, Renderer r) {

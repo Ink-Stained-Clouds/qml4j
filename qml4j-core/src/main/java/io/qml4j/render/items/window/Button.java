@@ -21,12 +21,12 @@ public class Button extends AbstractButton {
         boolean on = !Boolean.FALSE.equals(enabled.peek());
         boolean pressed = Boolean.TRUE.equals(down.peek()) || Boolean.TRUE.equals(checked.peek());
         float a = on ? alpha : alpha * 0.5f;
-        float radius = Math.max(0f, this.radius.peek().floatValue());
+        float radius = Math.max(0f, this.radius.peekFloat());
         int bg = p.alphaColor(pressed ? downColor.peek() : color.peek(), a);
         p.fillRoundRect(0, 0, w, h, radius, bg);
         String label = text.peek();
         if (label == null || label.isEmpty()) return;
-        float size = fontSize.peek().floatValue();
+        float size = fontSize.peekFloat();
         p.drawCenteredText(label, w, h, p.alphaColor(textColor.peek(), a), size);
     }
 }

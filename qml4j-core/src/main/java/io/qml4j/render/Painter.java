@@ -183,7 +183,7 @@ public final class Painter {
         for (int i = 0; i < n; i++) {
             GradientStop s = stops.get(i);
             colors[i] = Renderer.parseColor(s.color.peek());
-            positions[i] = s.position.peek().floatValue();
+            positions[i] = s.position.peekFloat();
         }
         return Shader.makeLinearGradient(0, 0, 0, h, colors, positions);
     }
@@ -313,7 +313,7 @@ public final class Painter {
         PathBuilder pb = new PathBuilder();
         pb.setFillMode("WindingFill".equals(sp.fillRule.peek())
             ? PathFillMode.WINDING : PathFillMode.EVEN_ODD);
-        pb.moveTo(sp.startX.peek().floatValue(), sp.startY.peek().floatValue());
+        pb.moveTo(sp.startX.peekFloat(), sp.startY.peekFloat());
         for (PathElement e : sp.pathElements) {
             appendElement(pb, e);
         }
@@ -323,28 +323,28 @@ public final class Painter {
     private void appendElement(PathBuilder pb, PathElement e) {
         if (e instanceof PathLine) {
             PathLine l = (PathLine) e;
-            pb.lineTo(l.x.peek().floatValue(), l.y.peek().floatValue());
+            pb.lineTo(l.x.peekFloat(), l.y.peekFloat());
         } else if (e instanceof PathMove) {
             PathMove m = (PathMove) e;
-            pb.moveTo(m.x.peek().floatValue(), m.y.peek().floatValue());
+            pb.moveTo(m.x.peekFloat(), m.y.peekFloat());
         } else if (e instanceof PathQuad) {
             PathQuad q = (PathQuad) e;
-            pb.quadTo(q.controlX.peek().floatValue(), q.controlY.peek().floatValue(),
-                      q.x.peek().floatValue(), q.y.peek().floatValue());
+            pb.quadTo(q.controlX.peekFloat(), q.controlY.peekFloat(),
+                      q.x.peekFloat(), q.y.peekFloat());
         } else if (e instanceof PathCubic) {
             PathCubic c = (PathCubic) e;
-            pb.cubicTo(c.control1X.peek().floatValue(), c.control1Y.peek().floatValue(),
-                       c.control2X.peek().floatValue(), c.control2Y.peek().floatValue(),
-                       c.x.peek().floatValue(), c.y.peek().floatValue());
+            pb.cubicTo(c.control1X.peekFloat(), c.control1Y.peekFloat(),
+                       c.control2X.peekFloat(), c.control2Y.peekFloat(),
+                       c.x.peekFloat(), c.y.peekFloat());
         } else if (e instanceof PathArc) {
             PathArc a = (PathArc) e;
             PathEllipseArc size = Boolean.TRUE.equals(a.useLargeArc.peek())
                 ? PathEllipseArc.LARGER : PathEllipseArc.SMALLER;
             PathDirection dir = "Counterclockwise".equals(a.direction.peek())
                 ? PathDirection.COUNTER_CLOCKWISE : PathDirection.CLOCKWISE;
-            pb.ellipticalArcTo(a.radiusX.peek().floatValue(), a.radiusY.peek().floatValue(),
-                               a.xAxisRotation.peek().floatValue(), size, dir,
-                               a.x.peek().floatValue(), a.y.peek().floatValue());
+            pb.ellipticalArcTo(a.radiusX.peekFloat(), a.radiusY.peekFloat(),
+                               a.xAxisRotation.peekFloat(), size, dir,
+                               a.x.peekFloat(), a.y.peekFloat());
         }
     }
 
@@ -357,7 +357,7 @@ public final class Painter {
     }
 
     private void strokePath(Path path, ShapePath sp, float alpha, Paint p) {
-        float sw = sp.strokeWidth.peek().floatValue();
+        float sw = sp.strokeWidth.peekFloat();
         if (sw <= 0f) return;
         int argb = shapeArgb(sp.strokeColor.peek(), alpha);
         if (argb == 0) return;
@@ -399,11 +399,11 @@ public final class Painter {
 
         // Drop shadow: render the source through a drop-shadow image filter.
         if (Boolean.TRUE.equals(me.shadowEnabled.peek())) {
-            float op = (float) (alpha * me.shadowOpacity.peek().doubleValue());
+            float op = (float) (alpha * me.shadowOpacity.peekDouble());
             int sc = Renderer.applyAlpha(Renderer.parseColor(me.shadowColor.peek()), op);
-            float dy = me.shadowVerticalOffset.peek().floatValue();
-            float dx = me.shadowHorizontalOffset.peek().floatValue();
-            float sg = Renderer.sigma(me.shadowBlur.peek().floatValue() * 32f); // Qt blur is 0..1
+            float dy = me.shadowVerticalOffset.peekFloat();
+            float dx = me.shadowHorizontalOffset.peekFloat();
+            float sg = Renderer.sigma(me.shadowBlur.peekFloat() * 32f); // Qt blur is 0..1
             Paint sp = new Paint();
             sp.setImageFilter(ImageFilter.makeDropShadow(dx, dy, sg, sg, sc));
             float mg = sg * 3f + Math.abs(dx) + Math.abs(dy) + 8f;
@@ -417,10 +417,10 @@ public final class Painter {
         int save = canvas.save();
         if (Boolean.TRUE.equals(me.maskEnabled.peek())) {
             Rectangle mr = maskRect(me.maskSource.peek());
-            float tl = mr == null ? 0f : mr.cornerRadius(mr.topLeftRadius.peek().floatValue());
-            float tr = mr == null ? 0f : mr.cornerRadius(mr.topRightRadius.peek().floatValue());
-            float br = mr == null ? 0f : mr.cornerRadius(mr.bottomRightRadius.peek().floatValue());
-            float bl = mr == null ? 0f : mr.cornerRadius(mr.bottomLeftRadius.peek().floatValue());
+            float tl = mr == null ? 0f : mr.cornerRadius(mr.topLeftRadius.peekFloat());
+            float tr = mr == null ? 0f : mr.cornerRadius(mr.topRightRadius.peekFloat());
+            float br = mr == null ? 0f : mr.cornerRadius(mr.bottomRightRadius.peekFloat());
+            float bl = mr == null ? 0f : mr.cornerRadius(mr.bottomLeftRadius.peekFloat());
             if (tl > 0 || tr > 0 || br > 0 || bl > 0) {
                 // Per-corner: a first/last SegmentedButton segment is round on one side,
                 // square on the other -- a single radius clipped the ripple as a rect.
@@ -452,7 +452,7 @@ public final class Painter {
     }
 
     public void drawTextField(TextField tf, float w, float h, float alpha) {
-        float radius = Math.max(0f, tf.radius.peek().floatValue());
+        float radius = Math.max(0f, tf.radius.peekFloat());
         Paint p = renderer.paint();
         p.setShader(null);
         p.setMode(PaintMode.FILL);
@@ -462,7 +462,7 @@ public final class Painter {
         } else {
             canvas.drawRect(Rect.makeXYWH(0, 0, w, h), p);
         }
-        float bw = Math.max(0f, tf.borderWidth.peek().floatValue());
+        float bw = Math.max(0f, tf.borderWidth.peekFloat());
         if (bw > 0f) {
             boolean focused = Boolean.TRUE.equals(tf.activeFocus.peek());
             int bc = Renderer.parseColor(focused ? tf.focusBorderColor.peek() : tf.borderColor.peek());
@@ -479,8 +479,8 @@ public final class Painter {
             }
             p.setMode(PaintMode.FILL);
         }
-        float size = tf.fontSize.peek().floatValue();
-        float pad = tf.padding.peek().floatValue();
+        float size = tf.fontSize.peekFloat();
+        float pad = tf.padding.peekFloat();
         int tfSave = canvas.save();
         try {
             canvas.translate(pad, 0);
@@ -503,7 +503,7 @@ public final class Painter {
     public void drawTextInput(TextInput ti, float w, float h, float alpha) {
         String s = ti.text.peek();
         if (s == null) s = "";
-        float size = ti.fontSize.peek().floatValue();
+        float size = ti.fontSize.peekFloat();
         try (Font font = renderer.fonts().fontFor(size, s)) {
             float baseline = TextLayout.centeredBaseline(font, h);
             float glyphTop = baseline + TextLayout.glyphTopOffset(font);
@@ -515,7 +515,7 @@ public final class Painter {
                 canvas.drawString(s, 0, baseline, font, p);
             }
             if (Boolean.TRUE.equals(ti.activeFocus.peek()) && caretBlinkOn()) {
-                int pos = Math.max(0, Math.min(ti.cursorPosition.peek().intValue(), s.length()));
+                int pos = Math.max(0, Math.min(ti.cursorPosition.peekInt(), s.length()));
                 float cx = font.measureTextWidth(s.substring(0, pos));
                 Paint p = renderer.paint();
                 p.setMode(PaintMode.FILL);
@@ -529,8 +529,8 @@ public final class Painter {
     private void paintSelectionRect(TextInput ti, String s, Font font,
                                     float glyphTop, float glyphHeight, float alpha) {
         int len = s.length();
-        int selS = Math.max(0, Math.min(ti.selectionStart.peek().intValue(), len));
-        int selE = Math.max(selS, Math.min(ti.selectionEnd.peek().intValue(), len));
+        int selS = Math.max(0, Math.min(ti.selectionStart.peekInt(), len));
+        int selE = Math.max(selS, Math.min(ti.selectionEnd.peekInt(), len));
         if (selE <= selS) return;
         float x0 = font.measureTextWidth(s.substring(0, selS));
         float x1 = font.measureTextWidth(s.substring(0, selE));
@@ -543,7 +543,7 @@ public final class Painter {
     public void drawTextEdit(TextEdit te, float w, float h, float alpha) {
         String s = te.text.peek();
         if (s == null) s = "";
-        float size = te.fontSize.peek().floatValue();
+        float size = te.fontSize.peekFloat();
         try (Font font = renderer.fonts().fontFor(size, s)) {
             TextWrap.Result wrapped = renderer.textLayout().wrapFor(te, s, w, size, font);
             te.lineCount.set(wrapped.lines.size());
@@ -569,8 +569,8 @@ public final class Painter {
     private void paintSelectionMultiline(TextEdit te, TextWrap.Result wrapped,
                                          Font font, float yOffset, float lineH, float size, float alpha) {
         int len = te.cachedText == null ? 0 : te.cachedText.length();
-        int selS = Math.max(0, Math.min(te.selectionStart.peek().intValue(), len));
-        int selE = Math.max(selS, Math.min(te.selectionEnd.peek().intValue(), len));
+        int selS = Math.max(0, Math.min(te.selectionStart.peekInt(), len));
+        int selE = Math.max(selS, Math.min(te.selectionEnd.peekInt(), len));
         if (selE <= selS) return;
         Paint p = renderer.paint();
         p.setMode(PaintMode.FILL);
@@ -594,7 +594,7 @@ public final class Painter {
     private void drawCaretMultiline(TextEdit te, TextWrap.Result wrapped,
                                     Font font, float yOffset, float lineH, float size, float alpha) {
         int len = te.cachedText == null ? 0 : te.cachedText.length();
-        int pos = Math.max(0, Math.min(te.cursorPosition.peek().intValue(), len));
+        int pos = Math.max(0, Math.min(te.cursorPosition.peekInt(), len));
         int lineIdx = TextWrap.lineForCaret(wrapped, pos);
         String line = wrapped.lines.get(lineIdx);
         int col = Math.max(0, Math.min(pos - wrapped.starts[lineIdx], line.length()));

@@ -15,7 +15,7 @@ public class ApplicationWindow extends Window {
             m.x.set(0);
             m.y.set(top);
             m.width.set(w);
-            top += m.height.peek().floatValue();
+            top += m.height.peekFloat();
         }
         Item hdr = header.peek();
         if (hdr != null) {
@@ -26,7 +26,7 @@ public class ApplicationWindow extends Window {
         Item ftr = footer.peek();
         if (ftr != null) {
             ftr.x.set(0);
-            ftr.y.set(h - ftr.height.peek().floatValue());
+            ftr.y.set(h - ftr.height.peekFloat());
             ftr.width.set(w);
         }
     }
@@ -34,14 +34,14 @@ public class ApplicationWindow extends Window {
     public float contentTop() {
         float top = 0f;
         Item m = menuBar.peek();
-        if (m != null) top += m.height.peek().floatValue();
+        if (m != null) top += m.height.peekFloat();
         Item hdr = header.peek();
-        if (hdr != null) top += hdr.height.peek().floatValue();
+        if (hdr != null) top += hdr.height.peekFloat();
         return top;
     }
 
     public float contentBottom(float h) {
         Item ftr = footer.peek();
-        return ftr != null ? h - ftr.height.peek().floatValue() : h;
+        return ftr != null ? h - ftr.height.peekFloat() : h;
     }
 }

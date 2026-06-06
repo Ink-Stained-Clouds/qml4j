@@ -14,14 +14,14 @@ public class Rectangle extends Item {
     public final Border border = new Border();
 
     public float cornerRadius(float corner) {
-        return corner >= 0 ? corner : radius.peek().floatValue();
+        return corner >= 0 ? corner : radius.peekFloat();
     }
     public final Property<Gradient> gradient = new Property<>(null);
 
     @Override
     public void paint(Painter p, float w, float h, float alpha) {
-        float radius = Math.max(0f, this.radius.peek().floatValue());
-        float borderWidth = Math.max(0f, border.width.peek().floatValue());
+        float radius = Math.max(0f, this.radius.peekFloat());
+        float borderWidth = Math.max(0f, border.width.peekFloat());
         Gradient g = gradient.peek();
         if (g != null) {
             p.fillGradientRoundRect(0, 0, w, h, radius, g, alpha);

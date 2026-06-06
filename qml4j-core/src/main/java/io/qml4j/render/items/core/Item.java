@@ -120,8 +120,8 @@ public class Item extends QObject {
     private double[] scenePosition() {
         double sx = 0, sy = 0;
         for (Item it = this; it != null; it = it.parent.peek()) {
-            sx += it.x.peek().doubleValue();
-            sy += it.y.peek().doubleValue();
+            sx += it.x.peekDouble();
+            sy += it.y.peekDouble();
         }
         return new double[]{sx, sy};
     }

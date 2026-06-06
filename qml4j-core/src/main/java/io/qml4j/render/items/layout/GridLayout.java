@@ -40,34 +40,34 @@ public class GridLayout extends Item {
 
         double[] colW = trackSizes(cells, nCols, true);
         double[] rowH = trackSizes(cells, nRows, false);
-        distributeExtra(cells, colW, nCols, true, width.peek().doubleValue(),
-            columnSpacing.peek().doubleValue());
-        distributeExtra(cells, rowH, nRows, false, height.peek().doubleValue(),
-            rowSpacing.peek().doubleValue());
+        distributeExtra(cells, colW, nCols, true, width.peekDouble(),
+            columnSpacing.peekDouble());
+        distributeExtra(cells, rowH, nRows, false, height.peekDouble(),
+            rowSpacing.peekDouble());
 
-        double[] colX = offsets(colW, columnSpacing.peek().doubleValue());
-        double[] rowY = offsets(rowH, rowSpacing.peek().doubleValue());
+        double[] colX = offsets(colW, columnSpacing.peekDouble());
+        double[] rowY = offsets(rowH, rowSpacing.peekDouble());
 
         for (Cell c : cells) place(c, colX, colW, rowY, rowH);
 
-        implicitWidth.set(extent(colW, columnSpacing.peek().doubleValue()));
-        implicitHeight.set(extent(rowH, rowSpacing.peek().doubleValue()));
+        implicitWidth.set(extent(colW, columnSpacing.peekDouble()));
+        implicitHeight.set(extent(rowH, rowSpacing.peekDouble()));
     }
 
     private List<Cell> assignCells() {
-        boolean ltr = flow.peek().intValue() == 0;
-        int colLimit = limit(columns.peek().intValue(), ltr);
-        int rowLimit = limit(rows.peek().intValue(), !ltr);
+        boolean ltr = flow.peekInt() == 0;
+        int colLimit = limit(columns.peekInt(), ltr);
+        int rowLimit = limit(rows.peekInt(), !ltr);
         Set<Long> occupied = new HashSet<>();
         int[] cursor = {0, 0};
         List<Cell> cells = new ArrayList<>();
         for (Item it : children) {
             if (!it.visible.peek()) continue;
             Cell cell = new Cell(it);
-            cell.rowSpan = Math.max(1, it.Layout.rowSpan.peek().intValue());
-            cell.colSpan = Math.max(1, it.Layout.columnSpan.peek().intValue());
-            int er = it.Layout.row.peek().intValue();
-            int ec = it.Layout.column.peek().intValue();
+            cell.rowSpan = Math.max(1, it.Layout.rowSpan.peekInt());
+            cell.colSpan = Math.max(1, it.Layout.columnSpan.peekInt());
+            int er = it.Layout.row.peekInt();
+            int ec = it.Layout.column.peekInt();
             if (er >= 0 && ec >= 0) {
                 cell.row = er;
                 cell.col = ec;
@@ -144,7 +144,7 @@ public class GridLayout extends Item {
             int idx = horizontal ? c.col : c.row;
             size[idx] = Math.max(size[idx], natural(c.item, horizontal));
         }
-        double gap = (horizontal ? columnSpacing : rowSpacing).peek().doubleValue();
+        double gap = (horizontal ? columnSpacing : rowSpacing).peekDouble();
         for (Cell c : cells) {
             int span = horizontal ? c.colSpan : c.rowSpan;
             if (span == 1) continue;
@@ -213,8 +213,8 @@ public class GridLayout extends Item {
         LayoutAttached la = it.Layout;
         double cellX = colX[cell.col];
         double cellY = rowY[cell.row];
-        double cellW = span(colW, cell.col, cell.colSpan, columnSpacing.peek().doubleValue());
-        double cellH = span(rowH, cell.row, cell.rowSpan, rowSpacing.peek().doubleValue());
+        double cellW = span(colW, cell.col, cell.colSpan, columnSpacing.peekDouble());
+        double cellH = span(rowH, cell.row, cell.rowSpan, rowSpacing.peekDouble());
 
         if (Boolean.TRUE.equals(la.fillWidth.peek())) {
             it.x.set(cellX);
@@ -222,7 +222,7 @@ public class GridLayout extends Item {
         } else {
             double w = natural(it, true);
             it.width.set(w);
-            it.x.set(cellX + alignOffset(la.alignment.peek().intValue(), cellW, w, true));
+            it.x.set(cellX + alignOffset(la.alignment.peekInt(), cellW, w, true));
         }
         if (Boolean.TRUE.equals(la.fillHeight.peek())) {
             it.y.set(cellY);
@@ -230,7 +230,7 @@ public class GridLayout extends Item {
         } else {
             double h = natural(it, false);
             it.height.set(h);
-            it.y.set(cellY + alignOffset(la.alignment.peek().intValue(), cellH, h, false));
+            it.y.set(cellY + alignOffset(la.alignment.peekInt(), cellH, h, false));
         }
     }
 

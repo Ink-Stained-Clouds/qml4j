@@ -80,12 +80,12 @@ public class GridView extends Flickable implements DelegateHost {
     }
 
     private void relayout() {
-        float cw = cellWidth.peek().floatValue();
-        float ch = cellHeight.peek().floatValue();
+        float cw = cellWidth.peekFloat();
+        float ch = cellHeight.peekFloat();
         if (cw <= 0 || ch <= 0) return;
         boolean topToBottom = "FlowTopToBottom".equals(flow.peek());
-        float viewW = width.peek().floatValue();
-        float viewH = height.peek().floatValue();
+        float viewW = width.peekFloat();
+        float viewH = height.peekFloat();
         int perRow = Math.max(1, (int) (viewW / cw));
         int perCol = Math.max(1, (int) (viewH / ch));
         int maxRow = 0;

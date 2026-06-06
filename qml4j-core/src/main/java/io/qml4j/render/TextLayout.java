@@ -42,12 +42,12 @@ public final class TextLayout {
 
         String s = icons.displayText(t);
         String[] lines = splitLines(s);
-        String wrapMode = wrapModeString(t.wrapMode.peek().intValue());
+        String wrapMode = wrapModeString(t.wrapMode.peekInt());
         // When wrapping is on and the width is externally constrained (a layout,
         // anchor, or explicit width set it -- i.e. we don't own it), the natural
         // line count grows; report the wrapped height so containers size to it.
         float wrapW = (wrapMode != null && (t.width.isBound() || !ownsWidth(t)))
-            ? t.width.peek().floatValue() : 0f;
+            ? t.width.peekFloat() : 0f;
         try (Font font = fonts.fontFor(size, s)) {
             float w = 0f;
             for (String line : lines) {
@@ -77,7 +77,7 @@ public final class TextLayout {
     }
 
     public void measureButton(Button b) {
-        float size = b.fontSize.peek().floatValue();
+        float size = b.fontSize.peekFloat();
         String label = b.text.peek();
         float tw, textH;
         try (Font font = fonts.fontFor(size, label == null ? "" : label)) {
@@ -103,12 +103,12 @@ public final class TextLayout {
     }
 
     private static float horizontalPad(Control c, float fallback) {
-        float p = c.padding.peek().floatValue();
+        float p = c.padding.peekFloat();
         return p > 0f ? p : fallback;
     }
 
     private static float verticalPad(Control c, float fallback) {
-        float p = c.padding.peek().floatValue();
+        float p = c.padding.peekFloat();
         return p > 0f ? p : fallback;
     }
 
@@ -118,13 +118,13 @@ public final class TextLayout {
     }
 
     private static boolean ownsWidth(Text t) {
-        if (Double.isNaN(t.lastSetWidth)) return t.width.peek().doubleValue() == 0.0;
-        return t.width.peek().doubleValue() == t.lastSetWidth;
+        if (Double.isNaN(t.lastSetWidth)) return t.width.peekDouble() == 0.0;
+        return t.width.peekDouble() == t.lastSetWidth;
     }
 
     private static boolean ownsHeight(Text t) {
-        if (Double.isNaN(t.lastSetHeight)) return t.height.peek().doubleValue() == 0.0;
-        return t.height.peek().doubleValue() == t.lastSetHeight;
+        if (Double.isNaN(t.lastSetHeight)) return t.height.peekDouble() == 0.0;
+        return t.height.peekDouble() == t.lastSetHeight;
     }
 
     static String elideToWidth(String line, Font font, float maxWidth) {

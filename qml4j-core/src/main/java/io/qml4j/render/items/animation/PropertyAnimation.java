@@ -68,7 +68,7 @@ public class PropertyAnimation extends AbstractAnimation {
 
         if (!prepared) prepare(t, prop);
         if (startNanos < 0L) startNanos = nowNanos;
-        double durMs = duration.peek().doubleValue();
+        double durMs = duration.peekDouble();
         if (durMs <= 0) {
             MemberAccess.writeMember(t, prop, preparedTo);
             stop();
@@ -78,7 +78,7 @@ public class PropertyAnimation extends AbstractAnimation {
         double frac = (nowNanos - startNanos) / 1_000_000.0 / durMs;
         boolean done = frac >= 1.0;
         if (done) frac = 1.0;
-        double eased = Easings.apply(easing.type.peek().intValue(), frac);
+        double eased = Easings.apply(easing.type.peekInt(), frac);
         MemberAccess.writeMember(t, prop, interpolate(preparedFrom, preparedTo, eased));
         if (done) { stop(); finished.emit(); }
     }

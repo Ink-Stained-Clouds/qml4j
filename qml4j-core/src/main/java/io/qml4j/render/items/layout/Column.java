@@ -9,18 +9,18 @@ public class Column extends Item {
     @Override
     public void layout() {
         double y = 0;
-        double s = spacing.peek().doubleValue();
+        double s = spacing.peekDouble();
         double maxW = 0;
         for (Item c : children) {
             if (!c.visible.peek()) continue;
             c.y.set(y);
-            double h = c.height.peek().doubleValue();
+            double h = c.height.peekDouble();
             y += h + s;
-            double w = c.width.peek().doubleValue();
+            double w = c.width.peekDouble();
             if (w > maxW) maxW = w;
         }
         if (y > 0) y -= s;
         height.set(y);
-        if (maxW > width.peek().doubleValue()) width.set(maxW);
+        if (maxW > width.peekDouble()) width.set(maxW);
     }
 }

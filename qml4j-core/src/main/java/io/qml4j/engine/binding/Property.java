@@ -42,6 +42,20 @@ public final class Property<T> {
         return value;
     }
 
+    // Null-safe numeric reads: a binding that evaluated to undefined leaves a null
+    // value, which QML treats as 0 for a numeric use (instead of NPEing the renderer).
+    public float peekFloat() {
+        return value instanceof Number ? ((Number) value).floatValue() : 0f;
+    }
+
+    public double peekDouble() {
+        return value instanceof Number ? ((Number) value).doubleValue() : 0d;
+    }
+
+    public int peekInt() {
+        return value instanceof Number ? ((Number) value).intValue() : 0;
+    }
+
     @SuppressWarnings("unchecked")
     public void set(T newValue) {
         if (newValue instanceof Binding) {

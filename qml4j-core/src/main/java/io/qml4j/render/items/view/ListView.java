@@ -91,18 +91,18 @@ public class ListView extends Flickable implements DelegateHost {
     }
 
     private void relayout() {
-        float sp = spacing.peek().floatValue();
+        float sp = spacing.peekFloat();
         boolean horizontal = "Horizontal".equals(orientation.peek());
         float cursor = 0f;
         for (Item it : instances) {
             if (horizontal) {
                 it.x.set(cursor);
                 it.y.set(0);
-                cursor += it.width.peek().floatValue() + sp;
+                cursor += it.width.peekFloat() + sp;
             } else {
                 it.x.set(0);
                 it.y.set(cursor);
-                cursor += it.height.peek().floatValue() + sp;
+                cursor += it.height.peekFloat() + sp;
             }
         }
         if (horizontal) {

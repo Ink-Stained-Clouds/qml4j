@@ -306,8 +306,8 @@ final class EventDispatcher {
         f.moving.set(Boolean.TRUE);
         captureRootX = x;
         captureRootY = y;
-        scrollStartContentX = f.contentX.peek().floatValue();
-        scrollStartContentY = f.contentY.peek().floatValue();
+        scrollStartContentX = f.contentX.peekFloat();
+        scrollStartContentY = f.contentY.peekFloat();
         return true;
     }
 
@@ -351,8 +351,8 @@ final class EventDispatcher {
 
     private static boolean within(MouseArea ma, float[] local) {
         return local[0] >= 0 && local[1] >= 0
-            && local[0] <= ma.width.peek().floatValue()
-            && local[1] <= ma.height.peek().floatValue();
+            && local[0] <= ma.width.peekFloat()
+            && local[1] <= ma.height.peekFloat();
     }
 
     boolean dispatchPointerUp(float x, float y) {
@@ -367,8 +367,8 @@ final class EventDispatcher {
             if (Boolean.FALSE.equals(b.enabled.peek())) return true;
             float[] local = localCoords(b, x, y);
             boolean inside = local[0] >= 0 && local[1] >= 0
-                && local[0] <= b.width.peek().floatValue()
-                && local[1] <= b.height.peek().floatValue();
+                && local[0] <= b.width.peekFloat()
+                && local[1] <= b.height.peekFloat();
             if (inside) b.releaseInside(); else b.releaseOutside();
             return true;
         }
@@ -382,8 +382,8 @@ final class EventDispatcher {
             endDrag(target);
             target.released.emit(new MouseEvent(local[0], local[1]));
             boolean inside = local[0] >= 0 && local[1] >= 0
-                && local[0] <= target.width.peek().floatValue()
-                && local[1] <= target.height.peek().floatValue();
+                && local[0] <= target.width.peekFloat()
+                && local[1] <= target.height.peekFloat();
             if (inside) target.clicked.emit(new MouseEvent(local[0], local[1]));
             captured = null;
             return true;
@@ -413,8 +413,8 @@ final class EventDispatcher {
         Item dt = hit.drag.target.peek();
         if (dt == null) return;
         dragTarget = dt;
-        dragStartX = dt.x.peek().floatValue();
-        dragStartY = dt.y.peek().floatValue();
+        dragStartX = dt.x.peekFloat();
+        dragStartY = dt.y.peekFloat();
     }
 
     private void applyDrag(float rootX, float rootY) {
@@ -427,14 +427,14 @@ final class EventDispatcher {
         float dy = rootY - captureRootY;
         if (allowX) {
             float nx = clamp(dragStartX + dx,
-                             drag.minimumX.peek().floatValue(),
-                             drag.maximumX.peek().floatValue());
+                             drag.minimumX.peekFloat(),
+                             drag.maximumX.peekFloat());
             dragTarget.x.set(nx);
         }
         if (allowY) {
             float ny = clamp(dragStartY + dy,
-                             drag.minimumY.peek().floatValue(),
-                             drag.maximumY.peek().floatValue());
+                             drag.minimumY.peekFloat(),
+                             drag.maximumY.peekFloat());
             dragTarget.y.set(ny);
         }
         drag.active.set(Boolean.TRUE);
@@ -451,10 +451,10 @@ final class EventDispatcher {
         String dir = f.flickableDirection.peek();
         boolean allowX = !"VerticalFlick".equals(dir);
         boolean allowY = !"HorizontalFlick".equals(dir);
-        float w = f.width.peek().floatValue();
-        float h = f.height.peek().floatValue();
-        float cw = f.contentWidth.peek().floatValue();
-        float ch = f.contentHeight.peek().floatValue();
+        float w = f.width.peekFloat();
+        float h = f.height.peekFloat();
+        float cw = f.contentWidth.peekFloat();
+        float ch = f.contentHeight.peekFloat();
         float maxX = Math.max(0f, cw - w);
         float maxY = Math.max(0f, ch - h);
         if (allowX) {
@@ -469,10 +469,10 @@ final class EventDispatcher {
 
     private Flickable hitTestFlickable(Item item, float x, float y) {
         if (!item.visible.peek()) return null;
-        float ix = item.x.peek().floatValue();
-        float iy = item.y.peek().floatValue();
-        float w = item.width.peek().floatValue();
-        float h = item.height.peek().floatValue();
+        float ix = item.x.peekFloat();
+        float iy = item.y.peekFloat();
+        float w = item.width.peekFloat();
+        float h = item.height.peekFloat();
         float lx = x - ix;
         float ly = y - iy;
         if (lx < 0 || ly < 0 || lx > w || ly > h) return null;
@@ -480,8 +480,8 @@ final class EventDispatcher {
         float childLy = ly;
         if (item instanceof Flickable) {
             Flickable f = (Flickable) item;
-            childLx += f.contentX.peek().floatValue();
-            childLy += f.contentY.peek().floatValue();
+            childLx += f.contentX.peekFloat();
+            childLy += f.contentY.peekFloat();
         }
         List<Item> ordered = zOrdered(item.children);
         for (int i = ordered.size() - 1; i >= 0; i--) {
@@ -512,10 +512,10 @@ final class EventDispatcher {
 
     private TextEditable hitTestTextEditable(Item item, float x, float y) {
         if (!item.visible.peek()) return null;
-        float ix = item.x.peek().floatValue();
-        float iy = item.y.peek().floatValue();
-        float w = item.width.peek().floatValue();
-        float h = item.height.peek().floatValue();
+        float ix = item.x.peekFloat();
+        float iy = item.y.peekFloat();
+        float w = item.width.peekFloat();
+        float h = item.height.peekFloat();
         float lx = x - ix;
         float ly = y - iy;
         if (lx < 0 || ly < 0 || lx > w || ly > h) return null;
@@ -523,8 +523,8 @@ final class EventDispatcher {
         float childLy = ly;
         if (item instanceof Flickable) {
             Flickable f = (Flickable) item;
-            childLx += f.contentX.peek().floatValue();
-            childLy += f.contentY.peek().floatValue();
+            childLx += f.contentX.peekFloat();
+            childLy += f.contentY.peekFloat();
         }
         List<Item> ordered = zOrdered(item.children);
         for (int i = ordered.size() - 1; i >= 0; i--) {
@@ -536,10 +536,10 @@ final class EventDispatcher {
 
     private AbstractButton hitTestButton(Item item, float x, float y) {
         if (!item.visible.peek()) return null;
-        float ix = item.x.peek().floatValue();
-        float iy = item.y.peek().floatValue();
-        float w = item.width.peek().floatValue();
-        float h = item.height.peek().floatValue();
+        float ix = item.x.peekFloat();
+        float iy = item.y.peekFloat();
+        float w = item.width.peekFloat();
+        float h = item.height.peekFloat();
         float lx = x - ix;
         float ly = y - iy;
         if (lx < 0 || ly < 0 || lx > w || ly > h) return null;
@@ -547,8 +547,8 @@ final class EventDispatcher {
         float childLy = ly;
         if (item instanceof Flickable) {
             Flickable f = (Flickable) item;
-            childLx += f.contentX.peek().floatValue();
-            childLy += f.contentY.peek().floatValue();
+            childLx += f.contentX.peekFloat();
+            childLy += f.contentY.peekFloat();
         }
         List<Item> ordered = zOrdered(item.children);
         for (int i = ordered.size() - 1; i >= 0; i--) {
@@ -560,10 +560,10 @@ final class EventDispatcher {
 
     private MouseArea hitTestMouseArea(Item item, float x, float y) {
         if (!item.visible.peek()) return null;
-        float ix = item.x.peek().floatValue();
-        float iy = item.y.peek().floatValue();
-        float w = item.width.peek().floatValue();
-        float h = item.height.peek().floatValue();
+        float ix = item.x.peekFloat();
+        float iy = item.y.peekFloat();
+        float w = item.width.peekFloat();
+        float h = item.height.peekFloat();
         float lx = x - ix;
         float ly = y - iy;
         if (lx < 0 || ly < 0 || lx > w || ly > h) return null;
@@ -571,8 +571,8 @@ final class EventDispatcher {
         float childLy = ly;
         if (item instanceof Flickable) {
             Flickable f = (Flickable) item;
-            childLx += f.contentX.peek().floatValue();
-            childLy += f.contentY.peek().floatValue();
+            childLx += f.contentX.peekFloat();
+            childLy += f.contentY.peekFloat();
         }
         List<Item> ordered = zOrdered(item.children);
         for (int i = ordered.size() - 1; i >= 0; i--) {
@@ -584,7 +584,7 @@ final class EventDispatcher {
         if (item instanceof MouseArea) {
             MouseArea ma = (MouseArea) item;
             if (Boolean.FALSE.equals(ma.enabled.peek())) return null;
-            if (ma.acceptedButtons.peek().intValue() == 0) return null;
+            if (ma.acceptedButtons.peekInt() == 0) return null;
             return ma;
         }
         return null;
@@ -594,13 +594,13 @@ final class EventDispatcher {
         float ox = 0, oy = 0;
         Item cur = target;
         while (cur != null) {
-            ox += cur.x.peek().floatValue();
-            oy += cur.y.peek().floatValue();
+            ox += cur.x.peekFloat();
+            oy += cur.y.peekFloat();
             Item p = cur.parent.peek();
             if (p instanceof Flickable) {
                 Flickable f = (Flickable) p;
-                ox -= f.contentX.peek().floatValue();
-                oy -= f.contentY.peek().floatValue();
+                ox -= f.contentX.peekFloat();
+                oy -= f.contentY.peekFloat();
             }
             cur = p;
         }

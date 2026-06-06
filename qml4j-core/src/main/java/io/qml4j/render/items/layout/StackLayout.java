@@ -11,15 +11,15 @@ public class StackLayout extends Item {
 
     @Override
     public void layout() {
-        int cur = currentIndex.peek().intValue();
-        double w = width.peek().doubleValue();
-        double h = height.peek().doubleValue();
+        int cur = currentIndex.peekInt();
+        double w = width.peekDouble();
+        double h = height.peekDouble();
         double iw = 0;
         double ih = 0;
         int i = 0;
         for (Item c : children) {
-            iw = Math.max(iw, c.implicitWidth.peek().doubleValue());
-            ih = Math.max(ih, c.implicitHeight.peek().doubleValue());
+            iw = Math.max(iw, c.implicitWidth.peekDouble());
+            ih = Math.max(ih, c.implicitHeight.peekDouble());
             boolean show = i == cur;
             c.visible.set(show);
             if (show) {

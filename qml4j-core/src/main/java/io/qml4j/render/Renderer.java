@@ -120,8 +120,8 @@ public final class Renderer {
         boolean any = false;
         for (Item c : node.children) {
             if (!c.visible.peek()) continue;
-            float cx = c.x.peek().floatValue(), cy = c.y.peek().floatValue();
-            float cw = c.width.peek().floatValue(), ch = c.height.peek().floatValue();
+            float cx = c.x.peekFloat(), cy = c.y.peekFloat();
+            float cw = c.width.peekFloat(), ch = c.height.peekFloat();
             minX = Math.min(minX, cx); minY = Math.min(minY, cy);
             maxX = Math.max(maxX, cx + cw); maxY = Math.max(maxY, cy + ch);
             any = true;
@@ -152,14 +152,14 @@ public final class Renderer {
             resolveLoader((Loader) node);
         }
         runLayout(node);
-        float x = node.x.peek().floatValue();
-        float y = node.y.peek().floatValue();
-        float w = node.width.peek().floatValue();
-        float h = node.height.peek().floatValue();
-        float alpha = inheritedAlpha * node.opacity.peek().floatValue();
+        float x = node.x.peekFloat();
+        float y = node.y.peekFloat();
+        float w = node.width.peekFloat();
+        float h = node.height.peekFloat();
+        float alpha = inheritedAlpha * node.opacity.peekFloat();
         if (alpha <= 0f) return;
-        float rot = node.rotation.peek().floatValue();
-        float sc = node.scale.peek().floatValue();
+        float rot = node.rotation.peekFloat();
+        float sc = node.scale.peekFloat();
         boolean clip = Boolean.TRUE.equals(node.clip.peek());
 
         int savedCount = canvas.save();
@@ -176,7 +176,7 @@ public final class Renderer {
             if (node instanceof Flickable) {
                 Flickable f = (Flickable) node;
                 canvas.clipRect(Rect.makeXYWH(0, 0, w, h));
-                canvas.translate(-f.contentX.peek().floatValue(), -f.contentY.peek().floatValue());
+                canvas.translate(-f.contentX.peekFloat(), -f.contentY.peekFloat());
             }
             if (node instanceof ApplicationWindow) {
                 ApplicationWindow win = (ApplicationWindow) node;
@@ -219,11 +219,11 @@ public final class Renderer {
         if (n < 2) return children;
         boolean anyZ = false;
         for (int i = 0; i < n; i++) {
-            if (children.get(i).z.peek().floatValue() != 0f) { anyZ = true; break; }
+            if (children.get(i).z.peekFloat() != 0f) { anyZ = true; break; }
         }
         if (!anyZ) return children;
         List<Item> copy = new ArrayList<>(children);
-        copy.sort(Comparator.comparingDouble(c -> c.z.peek().doubleValue()));
+        copy.sort(Comparator.comparingDouble(c -> c.z.peekDouble()));
         return copy;
     }
 
@@ -233,12 +233,12 @@ public final class Renderer {
     // flag, mirroring Text auto-measure. Not unit-testable (no headless trigger
     // beyond this pass); verified on device.
     private static void followImplicitSize(Item node) {
-        double iw = node.implicitWidth.peek().doubleValue();
+        double iw = node.implicitWidth.peekDouble();
         if (iw > 0 && !node.width.isBound() && ownsImplicitWidth(node)) {
             node.width.set(iw);
             node.lastImplicitWidth = iw;
         }
-        double ih = node.implicitHeight.peek().doubleValue();
+        double ih = node.implicitHeight.peekDouble();
         if (ih > 0 && !node.height.isBound() && ownsImplicitHeight(node)) {
             node.height.set(ih);
             node.lastImplicitHeight = ih;
@@ -246,18 +246,18 @@ public final class Renderer {
     }
 
     private static boolean ownsImplicitWidth(Item c) {
-        if (Double.isNaN(c.lastImplicitWidth)) return c.width.peek().doubleValue() == 0.0;
-        return c.width.peek().doubleValue() == c.lastImplicitWidth;
+        if (Double.isNaN(c.lastImplicitWidth)) return c.width.peekDouble() == 0.0;
+        return c.width.peekDouble() == c.lastImplicitWidth;
     }
 
     private static boolean ownsImplicitHeight(Item c) {
-        if (Double.isNaN(c.lastImplicitHeight)) return c.height.peek().doubleValue() == 0.0;
-        return c.height.peek().doubleValue() == c.lastImplicitHeight;
+        if (Double.isNaN(c.lastImplicitHeight)) return c.height.peekDouble() == 0.0;
+        return c.height.peekDouble() == c.lastImplicitHeight;
     }
 
     static void applyAnchors(Item node) {
         Anchors a = node.anchors;
-        float baseM = a.margins.peek().floatValue();
+        float baseM = a.margins.peekFloat();
         float lm = marginOr(a.leftMargin.peek(), baseM);
         float rm = marginOr(a.rightMargin.peek(), baseM);
         float tm = marginOr(a.topMargin.peek(), baseM);
@@ -267,16 +267,16 @@ public final class Renderer {
         if (fill != null) {
             node.x.set(lm);
             node.y.set(tm);
-            node.width.set(fill.width.peek().floatValue() - lm - rm);
-            node.height.set(fill.height.peek().floatValue() - tm - bm);
+            node.width.set(fill.width.peekFloat() - lm - rm);
+            node.height.set(fill.height.peekFloat() - tm - bm);
             return;
         }
         Item ci = a.centerIn.peek();
         if (ci != null) {
-            float w = node.width.peek().floatValue();
-            float h = node.height.peek().floatValue();
-            node.x.set((ci.width.peek().floatValue() - w) / 2f);
-            node.y.set((ci.height.peek().floatValue() - h) / 2f);
+            float w = node.width.peekFloat();
+            float h = node.height.peekFloat();
+            node.x.set((ci.width.peekFloat() - w) / 2f);
+            node.y.set((ci.height.peekFloat() - h) / 2f);
             return;
         }
         applyHorizontalAnchors(node, lm, rm, a);
@@ -295,11 +295,11 @@ public final class Renderer {
         } else if (left != null) {
             node.x.set(resolveX(left, node) + lm);
         } else if (right != null) {
-            float w = node.width.peek().floatValue();
+            float w = node.width.peekFloat();
             node.x.set(resolveX(right, node) - rm - w);
         } else if (hcenter != null) {
-            float w = node.width.peek().floatValue();
-            float off = a.horizontalCenterOffset.peek().floatValue();
+            float w = node.width.peekFloat();
+            float off = a.horizontalCenterOffset.peekFloat();
             node.x.set(resolveX(hcenter, node) - w / 2f + off);
         }
     }
@@ -316,11 +316,11 @@ public final class Renderer {
         } else if (top != null) {
             node.y.set(resolveY(top, node) + tm);
         } else if (bottom != null) {
-            float h = node.height.peek().floatValue();
+            float h = node.height.peekFloat();
             node.y.set(resolveY(bottom, node) - bm - h);
         } else if (vcenter != null) {
-            float h = node.height.peek().floatValue();
-            float off = a.verticalCenterOffset.peek().floatValue();
+            float h = node.height.peekFloat();
+            float off = a.verticalCenterOffset.peekFloat();
             node.y.set(resolveY(vcenter, node) - h / 2f + off);
         }
     }
@@ -328,8 +328,8 @@ public final class Renderer {
     private static float resolveX(AnchorLine line, Item node) {
         Item src = line.source;
         boolean srcIsParent = src == node.parent.peek();
-        float base = srcIsParent ? 0f : src.x.peek().floatValue();
-        float w = src.width.peek().floatValue();
+        float base = srcIsParent ? 0f : src.x.peekFloat();
+        float w = src.width.peekFloat();
         switch (line.edge) {
             case LEFT: return base;
             case RIGHT: return base + w;
@@ -341,8 +341,8 @@ public final class Renderer {
     private static float resolveY(AnchorLine line, Item node) {
         Item src = line.source;
         boolean srcIsParent = src == node.parent.peek();
-        float base = srcIsParent ? 0f : src.y.peek().floatValue();
-        float h = src.height.peek().floatValue();
+        float base = srcIsParent ? 0f : src.y.peekFloat();
+        float h = src.height.peekFloat();
         switch (line.edge) {
             case TOP: return base;
             case BOTTOM: return base + h;
@@ -371,9 +371,9 @@ public final class Renderer {
     public int moveCaretVerticalForTextEdit(TextEdit te, int caret, int delta) {
         String s = te.text.peek();
         if (s == null) s = "";
-        float size = te.fontSize.peek().floatValue();
+        float size = te.fontSize.peekFloat();
         try (Font font = fonts.fontFor(size, s)) {
-            float w = te.width.peek().floatValue();
+            float w = te.width.peekFloat();
             TextWrap.Result wrapped = text.wrapFor(te, s, w, size, font);
             return TextWrap.moveCaretVertical(wrapped, caret, delta,
                 seg -> font.measureTextWidth(seg));
@@ -385,10 +385,10 @@ public final class Renderer {
     public int caretIndexForTextEdit(TextEdit te, float localX, float localY) {
         String s = te.text.peek();
         if (s == null) s = "";
-        float size = te.fontSize.peek().floatValue();
+        float size = te.fontSize.peekFloat();
         try (Font font = fonts.fontFor(size, s)) {
-            float w = te.width.peek().floatValue();
-            float h = te.height.peek().floatValue();
+            float w = te.width.peekFloat();
+            float h = te.height.peekFloat();
             TextWrap.Result wrapped = text.wrapFor(te, s, w, size, font);
             float lineH = text.lineHeight(font);
             float total = lineH * wrapped.lines.size();
@@ -407,10 +407,10 @@ public final class Renderer {
     public int caretIndexFor(TextInput ti, float localX) {
         String s = ti.text.peek();
         if (ti instanceof TextField) {
-            localX -= ((TextField) ti).padding.peek().floatValue();
+            localX -= ((TextField) ti).padding.peekFloat();
         }
         if (s == null || s.isEmpty() || localX <= 0) return 0;
-        float size = ti.fontSize.peek().floatValue();
+        float size = ti.fontSize.peekFloat();
         try (Font font = fonts.fontFor(size, s)) {
             float prev = 0f;
             int n = s.length();
@@ -572,13 +572,13 @@ public final class Renderer {
         if (effect instanceof DropShadow) {
             DropShadow d = (DropShadow) effect;
             p.setImageFilter(ImageFilter.makeDropShadow(
-                d.offsetX.peek().floatValue(), d.offsetY.peek().floatValue(),
-                sigma(d.radius.peek().floatValue()), sigma(d.radius.peek().floatValue()),
+                d.offsetX.peekFloat(), d.offsetY.peekFloat(),
+                sigma(d.radius.peekFloat()), sigma(d.radius.peekFloat()),
                 parseColor(d.color.peek())));
         } else if (effect instanceof Glow) {
             Glow g = (Glow) effect;
             p.setImageFilter(ImageFilter.makeDropShadow(
-                0f, 0f, sigma(g.radius.peek().floatValue()), sigma(g.radius.peek().floatValue()),
+                0f, 0f, sigma(g.radius.peekFloat()), sigma(g.radius.peekFloat()),
                 parseColor(g.color.peek())));
         } else if (effect instanceof ColorOverlay) {
             ColorOverlay c = (ColorOverlay) effect;
@@ -594,13 +594,13 @@ public final class Renderer {
         Object effect = node.layer.effect.peek();
         if (effect instanceof DropShadow) {
             DropShadow d = (DropShadow) effect;
-            float r = d.radius.peek().floatValue();
-            float ox = Math.abs(d.offsetX.peek().floatValue());
-            float oy = Math.abs(d.offsetY.peek().floatValue());
+            float r = d.radius.peekFloat();
+            float ox = Math.abs(d.offsetX.peekFloat());
+            float oy = Math.abs(d.offsetY.peekFloat());
             return r + Math.max(ox, oy) + 4f;
         }
         if (effect instanceof Glow) {
-            return ((Glow) effect).radius.peek().floatValue() + 4f;
+            return ((Glow) effect).radius.peekFloat() + 4f;
         }
         return 0f;
     }

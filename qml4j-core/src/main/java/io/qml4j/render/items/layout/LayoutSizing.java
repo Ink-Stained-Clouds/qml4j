@@ -13,11 +13,11 @@ final class LayoutSizing {
     // accumulate pass over pass (a spacer ratchets wider every frame).
     static double mainSize(Property<Number> preferred, Property<Number> implicit,
                            Property<Number> explicit, boolean isFill) {
-        double pref = preferred.peek().doubleValue();
+        double pref = preferred.peekDouble();
         if (pref >= 0) return pref;
-        double iw = implicit.peek().doubleValue();
+        double iw = implicit.peekDouble();
         if (iw > 0) return iw;
-        return isFill ? 0 : explicit.peek().doubleValue();
+        return isFill ? 0 : explicit.peekDouble();
     }
 
     static double crossSize(Property<Number> preferred, Property<Number> implicit,
@@ -27,17 +27,17 @@ final class LayoutSizing {
 
     private static double sizeFor(Property<Number> preferred, Property<Number> implicit,
                                   Property<Number> explicit) {
-        double pref = preferred.peek().doubleValue();
+        double pref = preferred.peekDouble();
         if (pref >= 0) return pref;
-        double iw = implicit.peek().doubleValue();
-        return iw > 0 ? iw : explicit.peek().doubleValue();
+        double iw = implicit.peekDouble();
+        return iw > 0 ? iw : explicit.peekDouble();
     }
 
     // A specific margin (leftMargin/...) overrides the general `margins` only
     // when explicitly non-zero.
     static double margin(Property<Number> specific, Property<Number> general) {
-        double m = specific.peek().doubleValue();
-        return m != 0 ? m : general.peek().doubleValue();
+        double m = specific.peekDouble();
+        return m != 0 ? m : general.peekDouble();
     }
 
     // Cross-axis offset for a non-filling child. Defaults to centred (Qt's

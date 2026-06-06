@@ -18,7 +18,7 @@ public class ColumnLayout extends Item {
         for (Item c : children) if (c.visible.peek()) vis.add(c);
         if (vis.isEmpty()) { implicitWidth.set(0); implicitHeight.set(0); return; }
 
-        double s = spacing.peek().doubleValue();
+        double s = spacing.peekDouble();
         int n = vis.size();
         double[] h = new double[n];
         double[] top = new double[n];
@@ -50,9 +50,9 @@ public class ColumnLayout extends Item {
         // alignment must use THAT width, not the widest child's natural size --
         // else a long unwrapped label balloons the box and pushes aligned items
         // (centred icon, right-aligned actions) off the real bounds.
-        double ownW = width.peek().doubleValue();
+        double ownW = width.peekDouble();
         double boxW = ownW > 0 ? ownW : maxCross;
-        double boxH = Math.max(height.peek().doubleValue(), sumMain);
+        double boxH = Math.max(height.peekDouble(), sumMain);
         if (fillCount > 0 && boxH > sumMain) {
             double extra = (boxH - sumMain) / fillCount;
             for (int i = 0; i < n; i++) if (fill[i]) h[i] += extra;
@@ -72,7 +72,7 @@ public class ColumnLayout extends Item {
                 c.width.set(boxW - leftM - rightM);
             } else {
                 double cw = LayoutSizing.crossSize(la.preferredWidth, c.implicitWidth, c.width);
-                c.x.set(LayoutSizing.crossPos(la.alignment.peek().intValue(), boxW, cw, leftM, rightM, true));
+                c.x.set(LayoutSizing.crossPos(la.alignment.peekInt(), boxW, cw, leftM, rightM, true));
             }
             y += h[i] + bottom[i] + s;
         }

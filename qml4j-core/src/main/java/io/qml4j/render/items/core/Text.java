@@ -44,7 +44,7 @@ public class Text extends Item {
         }
         String s = p.displayTextFor(this);
         if (s.isEmpty()) return;
-        boolean elideRight = elide.peek().intValue() == 3; // Text.ElideRight
-        p.drawWrappedText(s, w, argb, size, wrapMode.peek().intValue(), elideRight);
+        boolean elideRight = elide.peekInt() == 3; // Text.ElideRight
+        p.drawWrappedText(s, w, argb, size, wrapMode.peekInt(), elideRight);
     }
 }

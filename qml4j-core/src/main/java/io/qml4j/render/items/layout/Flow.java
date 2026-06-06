@@ -15,18 +15,18 @@ public class Flow extends Item {
 
     @Override
     public void layout() {
-        if (flow.peek().intValue() == 1) layoutTopToBottom();
+        if (flow.peekInt() == 1) layoutTopToBottom();
         else layoutLeftToRight();
     }
 
     private void layoutLeftToRight() {
-        double s = spacing.peek().doubleValue();
-        double bound = width.peek().doubleValue();
+        double s = spacing.peekDouble();
+        double bound = width.peekDouble();
         double x = 0, y = 0, rowH = 0, maxRowW = 0;
         for (Item c : children) {
             if (!c.visible.peek()) continue;
-            double cw = c.width.peek().doubleValue();
-            double ch = c.height.peek().doubleValue();
+            double cw = c.width.peekDouble();
+            double ch = c.height.peekDouble();
             if (x > 0 && bound > 0 && x + cw > bound) {
                 maxRowW = Math.max(maxRowW, x - s);
                 x = 0; y += rowH + s; rowH = 0;
@@ -40,17 +40,17 @@ public class Flow extends Item {
         implicitWidth.set(maxRowW);
         double total = y + rowH;
         implicitHeight.set(total);
-        if (total > height.peek().doubleValue()) height.set(total);
+        if (total > height.peekDouble()) height.set(total);
     }
 
     private void layoutTopToBottom() {
-        double s = spacing.peek().doubleValue();
-        double bound = height.peek().doubleValue();
+        double s = spacing.peekDouble();
+        double bound = height.peekDouble();
         double x = 0, y = 0, colW = 0, maxColH = 0;
         for (Item c : children) {
             if (!c.visible.peek()) continue;
-            double cw = c.width.peek().doubleValue();
-            double ch = c.height.peek().doubleValue();
+            double cw = c.width.peekDouble();
+            double ch = c.height.peekDouble();
             if (y > 0 && bound > 0 && y + ch > bound) {
                 maxColH = Math.max(maxColH, y - s);
                 y = 0; x += colW + s; colW = 0;
@@ -64,6 +64,6 @@ public class Flow extends Item {
         implicitHeight.set(maxColH);
         double total = x + colW;
         implicitWidth.set(total);
-        if (total > width.peek().doubleValue()) width.set(total);
+        if (total > width.peekDouble()) width.set(total);
     }
 }

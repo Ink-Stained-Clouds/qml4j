@@ -29,7 +29,7 @@ public class Timer extends Item implements Animatable {
     @Override
     public void tick(long nowNanos) {
         if (!Boolean.TRUE.equals(running.peek())) return;
-        long intervalNanos = (long) (interval.peek().doubleValue() * 1_000_000d);
+        long intervalNanos = (long) (interval.peekDouble() * 1_000_000d);
         if (intervalNanos <= 0) return;
         if (armed) {
             armed = false;

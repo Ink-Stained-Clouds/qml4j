@@ -34,10 +34,10 @@ public class TextEdit extends Item implements TextEditable {
 
     @Override public String text() { return text.peek(); }
     @Override public void setText(String t) { text.set(t); }
-    @Override public int cursorPosition() { return cursorPosition.peek().intValue(); }
+    @Override public int cursorPosition() { return cursorPosition.peekInt(); }
     @Override public void setCursorPosition(int p) { cursorPosition.set(p); }
-    @Override public int selectionStart() { return selectionStart.peek().intValue(); }
-    @Override public int selectionEnd() { return selectionEnd.peek().intValue(); }
+    @Override public int selectionStart() { return selectionStart.peekInt(); }
+    @Override public int selectionEnd() { return selectionEnd.peekInt(); }
     @Override public void setSelectionRange(int s, int e) {
         selectionStart.set(s);
         selectionEnd.set(e);

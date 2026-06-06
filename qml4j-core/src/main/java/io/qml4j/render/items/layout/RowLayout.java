@@ -19,7 +19,7 @@ public class RowLayout extends Item {
         for (Item c : children) if (c.visible.peek()) vis.add(c);
         if (vis.isEmpty()) { implicitWidth.set(0); implicitHeight.set(0); return; }
 
-        double s = spacing.peek().doubleValue();
+        double s = spacing.peekDouble();
         int n = vis.size();
         double[] w = new double[n];
         double[] left = new double[n];
@@ -47,8 +47,8 @@ public class RowLayout extends Item {
         implicitWidth.set(sumMain);
         implicitHeight.set(maxCross);
 
-        double boxW = Math.max(width.peek().doubleValue(), sumMain);
-        double boxH = Math.max(height.peek().doubleValue(), maxCross);
+        double boxW = Math.max(width.peekDouble(), sumMain);
+        double boxH = Math.max(height.peekDouble(), maxCross);
         if (fillCount > 0 && boxW > sumMain) {
             double extra = (boxW - sumMain) / fillCount;
             for (int i = 0; i < n; i++) if (fill[i]) w[i] += extra;
@@ -73,7 +73,7 @@ public class RowLayout extends Item {
                 // centred icon) would otherwise keep its 0 height and its centred
                 // content would collapse to the top edge.
                 c.height.set(ch);
-                c.y.set(LayoutSizing.crossPos(la.alignment.peek().intValue(), boxH, ch, top, bottom, false));
+                c.y.set(LayoutSizing.crossPos(la.alignment.peekInt(), boxH, ch, top, bottom, false));
             }
             x += w[i] + right[i] + s;
         }
