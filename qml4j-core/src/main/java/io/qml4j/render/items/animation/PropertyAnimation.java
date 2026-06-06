@@ -20,6 +20,14 @@ public class PropertyAnimation extends AbstractAnimation {
     protected Object preparedFrom;
     protected Object preparedTo;
 
+    // `NumberAnimation on x { ... }` -- an animation attached directly to a property
+    // (the animation-as-Behavior shorthand). Targets owner.prop and runs immediately.
+    public void attach(Object owner, String prop) {
+        target.set(owner);
+        property.set(prop);
+        start();
+    }
+
     @Override
     public void start() {
         // Qt semantics: starting a property animation takes exclusive control of

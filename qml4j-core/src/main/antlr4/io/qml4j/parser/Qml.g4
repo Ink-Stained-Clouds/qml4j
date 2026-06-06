@@ -140,7 +140,7 @@ returnStatement
     ;
 
 varStatement
-    : ('var' | 'let' | 'const') Identifier ('=' expression)? ';'?
+    : ('var' | 'let' | 'const') Identifier ('=' expression)? (',' Identifier ('=' expression)?)* ';'?
     ;
 
 ifStatement
@@ -322,7 +322,8 @@ FloatLiteral
     ;
 
 IntegerLiteral
-    : Digits
+    : '0' [xX] [0-9a-fA-F]+
+    | Digits
     ;
 
 fragment Digits

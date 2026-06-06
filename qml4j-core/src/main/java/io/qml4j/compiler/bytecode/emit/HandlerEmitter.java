@@ -49,9 +49,13 @@ public final class HandlerEmitter {
     // not a valid handler name (must start with "on" followed by an uppercase letter).
     public static String signalNameFromHandler(String key) {
         if (key.length() < 3 || !key.startsWith("on")) return null;
-        char c = key.charAt(2);
-        if (!Character.isUpperCase(c)) return null;
-        return Character.toLowerCase(c) + key.substring(3);
+        String rest = key.substring(2);
+        // Qt upper-cases the property/signal's first letter after `on`, keeping any
+        // leading underscores (`_primaryColor` -> `on_PrimaryColorChanged`); reverse it.
+        int i = 0;
+        while (i < rest.length() && rest.charAt(i) == '_') i++;
+        if (i >= rest.length() || !Character.isUpperCase(rest.charAt(i))) return null;
+        return rest.substring(0, i) + Character.toLowerCase(rest.charAt(i)) + rest.substring(i + 1);
     }
 
     // Connects a RhinoHandler to the named signal on the Keys attached object.

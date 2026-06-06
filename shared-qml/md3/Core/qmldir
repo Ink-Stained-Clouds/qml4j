@@ -27,3 +27,5 @@ TextField 1.0 TextField.qml
 NavigationDrawer 1.0 NavigationDrawer.qml
 DatePicker 1.0 DatePicker.qml
 TimePicker 1.0 TimePicker.qml
+CircularProgress 1.0 CircularProgress.qml
+LinearProgress 1.0 LinearProgress.qml

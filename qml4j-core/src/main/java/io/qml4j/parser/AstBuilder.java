@@ -278,12 +278,18 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     }
 
     @Override
-    public Ast.VarDecl visitVarStatement(QmlParser.VarStatementContext ctx) {
-        String name = ctx.Identifier().getText();
-        Ast.Expression init = ctx.expression() != null
-            ? (Ast.Expression) visit(ctx.expression())
-            : null;
-        return new Ast.VarDecl(name, init);
+    public Ast.Statement visitVarStatement(QmlParser.VarStatementContext ctx) {
+        List<TerminalNode> ids = ctx.Identifier();
+        if (ids.size() == 1) {
+            Ast.Expression init = ctx.expression().isEmpty()
+                ? null : (Ast.Expression) visit(ctx.expression(0));
+            return new Ast.VarDecl(ids.get(0).getText(), init);
+        }
+        // `var a, b = 1, c`: the inits aren't paired to names in the AST (vestigial --
+        // execution uses the captured raw source via Rhino); bind the names.
+        List<Ast.Statement> decls = new ArrayList<>();
+        for (TerminalNode id : ids) decls.add(new Ast.VarDecl(id.getText(), null));
+        return new Ast.Block(decls);
     }
 
     @Override
@@ -536,7 +542,8 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     @Override
     public Ast.Expression visitLiteral(QmlParser.LiteralContext ctx) {
         if (ctx.IntegerLiteral() != null) {
-            return new Ast.LiteralExpr(Ast.LiteralKind.INT, Long.parseLong(ctx.IntegerLiteral().getText()));
+            // Long.decode handles 0x hex as well as decimal.
+            return new Ast.LiteralExpr(Ast.LiteralKind.INT, Long.decode(ctx.IntegerLiteral().getText()));
         }
         if (ctx.FloatLiteral() != null) {
             return new Ast.LiteralExpr(Ast.LiteralKind.FLOAT, Double.parseDouble(ctx.FloatLiteral().getText()));
