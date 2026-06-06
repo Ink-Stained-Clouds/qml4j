@@ -5,6 +5,7 @@ import io.qml4j.runtime.member.MemberAccess;
 import io.qml4j.engine.Signal;
 import org.mozilla.javascript.Scriptable;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -53,7 +54,7 @@ public final class QmlScope implements Scriptable {
 
     // Build the name -> class map from the parallel arrays the compiler pushes.
     public static Map<String, Class<?>> singletonMap(String[] names, Class<?>[] classes) {
-        if (names.length == 0) return java.util.Collections.emptyMap();
+        if (names.length == 0) return Collections.emptyMap();
         Map<String, Class<?>> m = new HashMap<>();
         for (int i = 0; i < names.length; i++) m.put(names[i], classes[i]);
         return m;
@@ -61,7 +62,7 @@ public final class QmlScope implements Scriptable {
 
     // Build the alias map from specs encoded as "name\u0000targetId\u0000targetProperty".
     public static Map<String, String[]> aliasMap(String[] specs) {
-        if (specs.length == 0) return java.util.Collections.emptyMap();
+        if (specs.length == 0) return Collections.emptyMap();
         Map<String, String[]> m = new HashMap<>();
         for (String s : specs) {
             String[] parts = s.split("\u0000");

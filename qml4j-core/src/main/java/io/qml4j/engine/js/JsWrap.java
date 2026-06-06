@@ -2,10 +2,12 @@ package io.qml4j.engine.js;
 
 import io.qml4j.runtime.member.MemberAccess;
 import io.qml4j.runtime.invoke.MethodInvocation;
+import io.qml4j.engine.Callable;
 import io.qml4j.engine.QObject;
 import io.qml4j.engine.Signal;
 import org.mozilla.javascript.BaseFunction;
 import org.mozilla.javascript.Context;
+import org.mozilla.javascript.Function;
 import org.mozilla.javascript.NativeArray;
 import org.mozilla.javascript.NativeObject;
 import org.mozilla.javascript.Scriptable;
@@ -17,6 +19,7 @@ import org.mozilla.javascript.Wrapper;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -90,18 +93,18 @@ public final class JsWrap {
         }
         // A JS function escaping into Java (e.g. `property var fn: x => x * 2`) becomes a
         // Callable so QML/Java callers can invoke it like any other function value.
-        if (v instanceof org.mozilla.javascript.Function) {
-            return new RhinoFunctionValue((org.mozilla.javascript.Function) v);
+        if (v instanceof Function) {
+            return new RhinoFunctionValue((Function) v);
         }
         return v;
     }
 
     // A Rhino function value held on the Java side, invokable through io.qml4j's Callable.
     // Each call re-enters a Rhino context and runs the function against its captured scope.
-    static final class RhinoFunctionValue implements io.qml4j.engine.Callable, Wrapper {
-        private final org.mozilla.javascript.Function fn;
+    static final class RhinoFunctionValue implements Callable, Wrapper {
+        private final Function fn;
 
-        RhinoFunctionValue(org.mozilla.javascript.Function fn) { this.fn = fn; }
+        RhinoFunctionValue(Function fn) { this.fn = fn; }
 
         @Override public Object unwrap() { return fn; }
 
@@ -180,7 +183,7 @@ public final class JsWrap {
             if (key == SymbolKey.ITERATOR && target instanceof Iterable) {
                 return new BaseFunction() {
                     @Override public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
-                        java.util.Iterator<?> it = ((Iterable<?>) target).iterator();
+                        Iterator<?> it = ((Iterable<?>) target).iterator();
                         NativeObject iter = new NativeObject();
                         iter.put("next", iter, new BaseFunction() {
                             @Override public Object call(Context c, Scriptable s, Scriptable t, Object[] a) {

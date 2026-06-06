@@ -5,6 +5,7 @@ import io.qml4j.compiler.TypeRegistry;
 import io.qml4j.engine.DelegateHost;
 import io.qml4j.engine.PropertyChangeSink;
 import io.qml4j.engine.QmlDefaultList;
+import io.qml4j.engine.Signal;
 import io.qml4j.engine.SignalRelay;
 import io.qml4j.engine.binding.Property;
 import io.qml4j.engine.QObject;
@@ -12,15 +13,21 @@ import io.qml4j.engine.js.JsRuntime;
 import io.qml4j.engine.js.RhinoClosure;
 import io.qml4j.parser.ast.Ast;
 import org.mozilla.javascript.RhinoException;
+import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Deque;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -57,7 +64,7 @@ public final class QmlCompiler {
         final int local;
         IdSink(String internal, int local) { this.internal = internal; this.local = local; }
     }
-    private final java.util.Deque<IdSink> idSinks = new java.util.ArrayDeque<>();
+    private final Deque<IdSink> idSinks = new ArrayDeque<>();
 
     private final Map<Class<?>, MemberEmitter> memberEmitters = Map.of(
         Ast.PropertyBinding.class, this::emitPropertyBinding,
@@ -67,8 +74,8 @@ public final class QmlCompiler {
         Ast.SignalDeclaration.class, this::rejectSignalDeclaration,
         Ast.FunctionDeclaration.class, this::rejectFunctionDeclaration);
 
-    private static final ThreadLocal<java.util.Deque<TypeRegistry>> REGISTRY_STACK =
-        ThreadLocal.withInitial(java.util.ArrayDeque::new);
+    private static final ThreadLocal<Deque<TypeRegistry>> REGISTRY_STACK =
+        ThreadLocal.withInitial(ArrayDeque::new);
 
     public static boolean inDelegateScope() {
         return DELEGATE_SCOPE_DEPTH.get()[0] > 0;
@@ -155,7 +162,7 @@ public final class QmlCompiler {
         mv.visitCode();
         mv.visitFieldInsn(Opcodes.GETSTATIC, componentInternal, "__singleton",
                           "Ljava/lang/Object;");
-        org.objectweb.asm.Label ret = new org.objectweb.asm.Label();
+        Label ret = new Label();
         mv.visitJumpInsn(Opcodes.IFNONNULL, ret);
         mv.visitTypeInsn(Opcodes.NEW, componentInternal);
         mv.visitInsn(Opcodes.DUP);
@@ -245,7 +252,7 @@ public final class QmlCompiler {
             }
         }
         if (defaultListAlias != null) {
-            org.objectweb.asm.AnnotationVisitor av =
+            AnnotationVisitor av =
                 cw.visitAnnotation("Lio/qml4j/engine/QmlDefaultList;", true);
             av.visit("value", defaultListAlias);
             if (defaultListParent != null) av.visit("parentField", defaultListParent);
@@ -1351,12 +1358,14 @@ public final class QmlCompiler {
     private static Field findListFieldOrNull(Class<?> type, String name) {
         try {
             Field f = type.getField(name);
-            return java.util.List.class.isAssignableFrom(f.getType()) ? f : null;
+            return List.class.isAssignableFrom(f.getType()) ? f : null;
         } catch (NoSuchFieldException e) {
             return null;
         }
     }
 
+    // java.lang.reflect.Type is FQN'd here: its simple name clashes with the
+    // imported org.objectweb.asm.Type used everywhere else for bytecode emission.
     private static boolean listAcceptsElement(Field listField, Class<?> childType) {
         java.lang.reflect.Type gt = listField.getGenericType();
         if (!(gt instanceof java.lang.reflect.ParameterizedType)) return true;
@@ -1499,7 +1508,7 @@ public final class QmlCompiler {
     private static Field findSignalFieldOrNull(Class<?> type, String name) {
         try {
             Field f = type.getField(name);
-            return io.qml4j.engine.Signal.class.isAssignableFrom(f.getType()) ? f : null;
+            return Signal.class.isAssignableFrom(f.getType()) ? f : null;
         } catch (NoSuchFieldException e) {
             return null;
         }
@@ -1855,7 +1864,7 @@ public final class QmlCompiler {
                                      Map<String, AliasRef> aliases) {
         // Qt.binding / Qt.callLater are not bridged into the Rhino globals yet.
         if (AstScan.usesDeferredQtHelper(body)) return false;
-        Set<String> bound = new java.util.HashSet<>(signalParams);
+        Set<String> bound = new HashSet<>(signalParams);
         for (String name : FreeIdentifiers.collect(body, bound)) {
             if (!resolvableByRhino(name, outerType, idTypes, declaredProps, rootFunctions,
                                    customSignals, aliases)) {
@@ -1879,7 +1888,7 @@ public final class QmlCompiler {
         if (AstScan.usesDeferredQtHelper(body)) {
             throw new IllegalArgumentException("Qt.binding(expr) must use the arrow form Qt.binding(() => expr)");
         }
-        Set<String> bound = new java.util.HashSet<>(signalParams);
+        Set<String> bound = new HashSet<>(signalParams);
         for (String name : FreeIdentifiers.collect(body, bound)) {
             if (!resolvableByRhino(name, outerType, idTypes, declaredProps, rootFunctions,
                                    customSignals, aliases)) {
@@ -1932,7 +1941,7 @@ public final class QmlCompiler {
     // uses (no global name lookup).
     private Map<String, Class<? extends QObject>> collectSingletons(Ast.Statement body) {
         Map<String, Class<? extends QObject>> m = new LinkedHashMap<>();
-        for (String n : FreeIdentifiers.collect(body, java.util.Collections.<String>emptySet())) {
+        for (String n : FreeIdentifiers.collect(body, Collections.<String>emptySet())) {
             if (isSingleton(n)) m.put(n, currentSingletonClass(n));
         }
         return m;
@@ -1945,9 +1954,9 @@ public final class QmlCompiler {
     // The aliases a body/expression references, name -> AliasRef, so each binding carries
     // exactly the aliases it uses (resolved per-binding in QmlScope, never a global lookup).
     private Map<String, AliasRef> collectAliases(Ast.Statement body, Map<String, AliasRef> aliases) {
-        if (aliases.isEmpty()) return java.util.Collections.emptyMap();
+        if (aliases.isEmpty()) return Collections.emptyMap();
         Map<String, AliasRef> m = new LinkedHashMap<>();
-        for (String n : FreeIdentifiers.collect(body, java.util.Collections.<String>emptySet())) {
+        for (String n : FreeIdentifiers.collect(body, Collections.<String>emptySet())) {
             AliasRef a = aliases.get(n);
             if (a != null) m.put(n, a);
         }
@@ -1984,7 +1993,7 @@ public final class QmlCompiler {
         }
     }
 
-    private static final Set<String> JS_GLOBALS = new java.util.HashSet<>(java.util.Arrays.asList(
+    private static final Set<String> JS_GLOBALS = new HashSet<>(Arrays.asList(
         "Qt", "Math", "JSON", "console", "Easing", "Text", "Font",
         "Object", "Array", "String", "Number", "Boolean", "Date", "RegExp",
         "parseInt", "parseFloat", "isNaN", "isFinite", "NaN", "Infinity", "undefined"));

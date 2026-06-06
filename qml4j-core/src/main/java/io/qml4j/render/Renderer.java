@@ -27,9 +27,12 @@ import io.github.humbleui.skija.Paint;
 import io.github.humbleui.skija.PaintMode;
 import io.github.humbleui.types.Rect;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public final class Renderer {
 
@@ -454,7 +457,7 @@ public final class Renderer {
         if (factory == null || resources == null) return;
         byte[] bytes = resources.load(src);
         if (bytes == null) return;
-        String qml = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+        String qml = new String(bytes, StandardCharsets.UTF_8);
         Item child;
         try {
             child = factory.create(qml);
@@ -507,10 +510,10 @@ public final class Renderer {
 
     // Common CSS/QML named colors. "transparent" is the critical one (MD3 uses it
     // heavily); without it parseColor returned opaque black and painted over.
-    private static final java.util.Map<String, Integer> NAMED_COLORS = buildNamedColors();
+    private static final Map<String, Integer> NAMED_COLORS = buildNamedColors();
 
-    private static java.util.Map<String, Integer> buildNamedColors() {
-        java.util.Map<String, Integer> m = new java.util.HashMap<>();
+    private static Map<String, Integer> buildNamedColors() {
+        Map<String, Integer> m = new HashMap<>();
         m.put("transparent", 0x00000000);
         m.put("black", 0xFF000000);
         m.put("white", 0xFFFFFFFF);

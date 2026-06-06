@@ -5,6 +5,9 @@ import org.mozilla.javascript.Context;
 import org.mozilla.javascript.EcmaError;
 import org.mozilla.javascript.Script;
 
+import java.util.Arrays;
+import java.util.HashSet;
+
 // A Property binding whose body is JavaScript run by Rhino against a QmlScope. The
 // source compiles once (cached); each evaluate() runs it under the scope, so reads
 // of qml4j Properties register reactive dependencies through the normal machinery.
@@ -17,7 +20,7 @@ public final class RhinoBinding extends Binding {
                         String[] singletonNames, Class<?>[] singletonClasses, String[] aliasSpecs) {
         this.script = JsRuntime.compile(source);
         this.scope = new QmlScope(outer, root, JsRuntime.globals(),
-                                  new java.util.HashSet<>(java.util.Arrays.asList(ids)), delegate,
+                                  new HashSet<>(Arrays.asList(ids)), delegate,
                                   QmlScope.singletonMap(singletonNames, singletonClasses),
                                   QmlScope.aliasMap(aliasSpecs));
     }

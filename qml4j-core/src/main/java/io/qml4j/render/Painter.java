@@ -184,7 +184,8 @@ public final class Painter {
 
     // Image is its own subsystem: source loading/decoding, intrinsic-size probe,
     // ImageFill plan, and the draw/tile blit. It lives here (not on the Image item)
-    // because it touches skija decoding and the resource loader.
+    // because it touches skija decoding and the resource loader. skija's Image is
+    // FQN'd throughout this section: its simple name clashes with the QML Image item.
     public void drawImage(Image node, float w, float h) {
         String src = node.source.peek();
         if (src == null || src.isEmpty()) return;
