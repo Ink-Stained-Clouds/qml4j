@@ -1,6 +1,8 @@
 package io.qml4j.render;
 
 import io.github.humbleui.skija.Canvas;
+import io.github.humbleui.skija.Font;
+import io.github.humbleui.skija.FontMetrics;
 import io.github.humbleui.skija.ImageFilter;
 import io.github.humbleui.skija.Paint;
 import io.github.humbleui.skija.PaintMode;
@@ -19,6 +21,8 @@ import io.qml4j.render.items.core.GradientStop;
 import io.qml4j.render.items.core.Image;
 import io.qml4j.render.items.core.Item;
 import io.qml4j.render.items.core.Rectangle;
+import io.qml4j.render.items.core.Text;
+import io.qml4j.render.items.core.TextWrap;
 import io.qml4j.render.items.effect.MultiEffect;
 import io.qml4j.render.items.shape.ImageFill;
 import io.qml4j.render.items.shape.PathArc;
@@ -50,6 +54,64 @@ public final class Painter {
 
     public int alphaColor(String color, float alpha) {
         return Renderer.applyAlpha(Renderer.parseColor(color), alpha);
+    }
+
+    public String iconGlyphFor(Text t) {
+        return renderer.icons().iconGlyph(t);
+    }
+
+    public String displayTextFor(Text t) {
+        return renderer.icons().displayText(t);
+    }
+
+    // A single icon glyph, vertically centred in the box via real font metrics.
+    public void drawIconGlyph(String glyph, float boxH, int argb, float size) {
+        try (Font f = new Font(renderer.fonts().iconTypeface(), size)) {
+            FontMetrics fm = f.getMetrics();
+            float baseline = boxH / 2f - (fm.getAscent() + fm.getDescent()) / 2f;
+            Paint p = renderer.paint();
+            p.setMode(PaintMode.FILL);
+            p.setShader(null);
+            p.setColor(argb);
+            canvas.drawString(glyph, 0, baseline, f, p);
+        }
+    }
+
+    // Multi-line text: optional wrap to boxW, optional right-elision, from y=0.
+    public void drawWrappedText(String s, float boxW, int argb, float size,
+                                int wrapModeEnum, boolean elideRight) {
+        String wrapMode = TextLayout.wrapModeString(wrapModeEnum);
+        try (Font font = renderer.fonts().fontFor(size, s)) {
+            String[] lines = (wrapMode != null && boxW > 0f)
+                ? TextWrap.wrap(s, wrapMode, boxW, seg -> font.measureTextWidth(seg))
+                      .lines.toArray(new String[0])
+                : TextLayout.splitLines(s);
+            float lineH = TextLayout.lineHeight(font);
+            float baseline0 = TextLayout.baselineInLine(font);
+            Paint p = renderer.paint();
+            p.setMode(PaintMode.FILL);
+            p.setShader(null);
+            p.setColor(argb);
+            for (int i = 0; i < lines.length; i++) {
+                if (lines[i].isEmpty()) continue;
+                String line = elideRight ? TextLayout.elideToWidth(lines[i], font, boxW) : lines[i];
+                canvas.drawString(line, 0, baseline0 + i * lineH, font, p);
+            }
+        }
+    }
+
+    // A single line of text, horizontally centred and baseline-centred in the box.
+    public void drawCenteredText(String s, float boxW, float boxH, int argb, float size) {
+        try (Font font = renderer.fonts().fontFor(size, s)) {
+            float tw = font.measureTextWidth(s);
+            float tx = (boxW - tw) / 2f;
+            float ty = TextLayout.centeredBaseline(font, boxH);
+            Paint p = renderer.paint();
+            p.setMode(PaintMode.FILL);
+            p.setShader(null);
+            p.setColor(argb);
+            canvas.drawString(s, tx, ty, font, p);
+        }
     }
 
     public void fillRect(float x, float y, float w, float h, int argb) {

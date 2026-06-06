@@ -1,6 +1,7 @@
 package io.qml4j.render.items.core;
 
 import io.qml4j.engine.binding.Property;
+import io.qml4j.render.Painter;
 
 public class Text extends Item {
     public final Property<String> text = new Property<>("");
@@ -22,4 +23,19 @@ public class Text extends Item {
     public float lastMeasuredSize = -1f;
     public double lastSetWidth = Double.NaN;
     public double lastSetHeight = Double.NaN;
+
+    @Override
+    public void paint(Painter p, float w, float h, float alpha) {
+        int argb = p.alphaColor(color.peek(), alpha);
+        float size = effectiveFontSize();
+        String ig = p.iconGlyphFor(this);
+        if (ig != null) {
+            if (!ig.isEmpty()) p.drawIconGlyph(ig, h, argb, size);
+            return;
+        }
+        String s = p.displayTextFor(this);
+        if (s.isEmpty()) return;
+        boolean elideRight = elide.peek().intValue() == 3; // Text.ElideRight
+        p.drawWrappedText(s, w, argb, size, wrapMode.peek().intValue(), elideRight);
+    }
 }

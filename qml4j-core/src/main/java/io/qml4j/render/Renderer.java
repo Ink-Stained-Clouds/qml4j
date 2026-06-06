@@ -12,7 +12,6 @@ import io.qml4j.render.items.effect.ColorOverlay;
 import io.qml4j.render.items.effect.DropShadow;
 import io.qml4j.render.items.effect.Glow;
 import io.qml4j.render.items.window.ApplicationWindow;
-import io.qml4j.render.items.window.Button;
 import io.qml4j.render.items.window.Control;
 import io.qml4j.render.items.core.MouseArea;
 import io.qml4j.render.items.input.TextField;
@@ -23,7 +22,6 @@ import io.qml4j.render.items.core.TextWrap;
 
 import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.skija.Font;
-import io.github.humbleui.skija.FontMetrics;
 import io.github.humbleui.skija.BlendMode;
 import io.github.humbleui.skija.ColorFilter;
 import io.github.humbleui.skija.ImageFilter;
@@ -57,6 +55,14 @@ public final class Renderer {
 
     ResourceLoader resources() {
         return resources;
+    }
+
+    FontResolver fonts() {
+        return fonts;
+    }
+
+    IconResolver icons() {
+        return icons;
     }
 
     Paint paint() {
@@ -355,49 +361,12 @@ public final class Renderer {
 
     private void paintNode(Canvas canvas, Item node, float w, float h, float alpha) {
         node.paint(painter, w, h, alpha);
-        if (node instanceof Button) {
-            paintButton(canvas, (Button) node, w, h, alpha);
-        } else if (node instanceof TextField) {
+        if (node instanceof TextField) {
             paintTextField(canvas, (TextField) node, w, h, alpha);
         } else if (node instanceof TextInput) {
             paintTextInput(canvas, (TextInput) node, w, h, alpha);
         } else if (node instanceof TextEdit) {
             paintTextEdit(canvas, (TextEdit) node, w, h, alpha);
-        } else if (node instanceof Text) {
-            Text t = (Text) node;
-            int color = applyAlpha(parseColor(t.color.peek()), alpha);
-            paint().setColor(color);
-            float size = t.effectiveFontSize();
-            String ig = icons.iconGlyph(t);
-            if (ig != null) {
-                if (!ig.isEmpty()) {
-                    try (Font f = new Font(fonts.iconTypeface(), size)) {
-                        // Centre the glyph vertically in the node box using real
-                        // font metrics (ascent is negative, descent positive).
-                        FontMetrics fm = f.getMetrics();
-                        float baseline = h / 2f - (fm.getAscent() + fm.getDescent()) / 2f;
-                        canvas.drawString(ig, 0, baseline, f, paint);
-                    }
-                }
-                return;
-            }
-            String s = icons.displayText(t);
-            if (s.isEmpty()) return;
-            boolean elideRight = t.elide.peek().intValue() == 3; // Text.ElideRight
-            String wrapMode = text.wrapModeString(t.wrapMode.peek().intValue());
-            try (Font font = fonts.fontFor(size, s)) {
-                String[] lines = (wrapMode != null && w > 0f)
-                    ? TextWrap.wrap(s, wrapMode, w, seg -> font.measureTextWidth(seg))
-                          .lines.toArray(new String[0])
-                    : text.splitLines(s);
-                float lineH = text.lineHeight(font);
-                float baseline0 = text.baselineInLine(font);
-                for (int i = 0; i < lines.length; i++) {
-                    if (lines[i].isEmpty()) continue;
-                    String line = elideRight ? text.elideToWidth(lines[i], font, w) : lines[i];
-                    canvas.drawString(line, 0, baseline0 + i * lineH, font, paint);
-                }
-            }
         }
     }
 
@@ -409,33 +378,6 @@ public final class Renderer {
         if (m != null) draw(canvas, m, alpha);
         if (hdr != null) draw(canvas, hdr, alpha);
         if (ftr != null) draw(canvas, ftr, alpha);
-    }
-
-    private void paintButton(Canvas canvas, Button b, float w, float h, float alpha) {
-        boolean enabled = !Boolean.FALSE.equals(b.enabled.peek());
-        boolean down = Boolean.TRUE.equals(b.down.peek()) || Boolean.TRUE.equals(b.checked.peek());
-        float a = enabled ? alpha : alpha * 0.5f;
-        float radius = Math.max(0f, b.radius.peek().floatValue());
-        int bg = parseColor(down ? b.downColor.peek() : b.color.peek());
-        Paint p = paint();
-        p.setShader(null);
-        p.setMode(PaintMode.FILL);
-        p.setColor(applyAlpha(bg, a));
-        if (radius > 0f) {
-            canvas.drawRRect(RRect.makeXYWH(0, 0, w, h, radius), p);
-        } else {
-            canvas.drawRect(Rect.makeXYWH(0, 0, w, h), p);
-        }
-        String label = b.text.peek();
-        if (label == null || label.isEmpty()) return;
-        float size = b.fontSize.peek().floatValue();
-        try (Font font = fonts.fontFor(size, label)) {
-            float tw = font.measureTextWidth(label);
-            float tx = (w - tw) / 2f;
-            float ty = text.centeredBaseline(font, h);
-            p.setColor(applyAlpha(parseColor(b.textColor.peek()), a));
-            canvas.drawString(label, tx, ty, font, p);
-        }
     }
 
     private void paintTextField(Canvas canvas, TextField tf, float w, float h, float alpha) {
