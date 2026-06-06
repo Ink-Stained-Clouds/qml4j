@@ -3,6 +3,13 @@ package io.qml4j.render;
 import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.skija.Paint;
 import io.github.humbleui.skija.PaintMode;
+import io.github.humbleui.skija.PaintStrokeCap;
+import io.github.humbleui.skija.PaintStrokeJoin;
+import io.github.humbleui.skija.Path;
+import io.github.humbleui.skija.PathBuilder;
+import io.github.humbleui.skija.PathDirection;
+import io.github.humbleui.skija.PathEllipseArc;
+import io.github.humbleui.skija.PathFillMode;
 import io.github.humbleui.skija.Shader;
 import io.github.humbleui.types.RRect;
 import io.github.humbleui.types.Rect;
@@ -10,6 +17,14 @@ import io.qml4j.render.items.core.Gradient;
 import io.qml4j.render.items.core.GradientStop;
 import io.qml4j.render.items.core.Image;
 import io.qml4j.render.items.shape.ImageFill;
+import io.qml4j.render.items.shape.PathArc;
+import io.qml4j.render.items.shape.PathCubic;
+import io.qml4j.render.items.shape.PathElement;
+import io.qml4j.render.items.shape.PathLine;
+import io.qml4j.render.items.shape.PathMove;
+import io.qml4j.render.items.shape.PathQuad;
+import io.qml4j.render.items.shape.Shape;
+import io.qml4j.render.items.shape.ShapePath;
 
 import java.util.List;
 
@@ -204,5 +219,97 @@ public final class Painter {
             }
         }
         return new int[]{0, 0};
+    }
+
+    public void drawShape(Shape shape, float alpha) {
+        try (Paint p = new Paint()) {
+            p.setAntiAlias(true);
+            for (ShapePath sp : shape.elements) {
+                try (Path path = buildPath(sp)) {
+                    fillPath(path, sp, alpha, p);
+                    strokePath(path, sp, alpha, p);
+                }
+            }
+        }
+    }
+
+    private Path buildPath(ShapePath sp) {
+        PathBuilder pb = new PathBuilder();
+        pb.setFillMode("WindingFill".equals(sp.fillRule.peek())
+            ? PathFillMode.WINDING : PathFillMode.EVEN_ODD);
+        pb.moveTo(sp.startX.peek().floatValue(), sp.startY.peek().floatValue());
+        for (PathElement e : sp.pathElements) {
+            appendElement(pb, e);
+        }
+        return pb.build();
+    }
+
+    private void appendElement(PathBuilder pb, PathElement e) {
+        if (e instanceof PathLine) {
+            PathLine l = (PathLine) e;
+            pb.lineTo(l.x.peek().floatValue(), l.y.peek().floatValue());
+        } else if (e instanceof PathMove) {
+            PathMove m = (PathMove) e;
+            pb.moveTo(m.x.peek().floatValue(), m.y.peek().floatValue());
+        } else if (e instanceof PathQuad) {
+            PathQuad q = (PathQuad) e;
+            pb.quadTo(q.controlX.peek().floatValue(), q.controlY.peek().floatValue(),
+                      q.x.peek().floatValue(), q.y.peek().floatValue());
+        } else if (e instanceof PathCubic) {
+            PathCubic c = (PathCubic) e;
+            pb.cubicTo(c.control1X.peek().floatValue(), c.control1Y.peek().floatValue(),
+                       c.control2X.peek().floatValue(), c.control2Y.peek().floatValue(),
+                       c.x.peek().floatValue(), c.y.peek().floatValue());
+        } else if (e instanceof PathArc) {
+            PathArc a = (PathArc) e;
+            PathEllipseArc size = Boolean.TRUE.equals(a.useLargeArc.peek())
+                ? PathEllipseArc.LARGER : PathEllipseArc.SMALLER;
+            PathDirection dir = "Counterclockwise".equals(a.direction.peek())
+                ? PathDirection.COUNTER_CLOCKWISE : PathDirection.CLOCKWISE;
+            pb.ellipticalArcTo(a.radiusX.peek().floatValue(), a.radiusY.peek().floatValue(),
+                               a.xAxisRotation.peek().floatValue(), size, dir,
+                               a.x.peek().floatValue(), a.y.peek().floatValue());
+        }
+    }
+
+    private void fillPath(Path path, ShapePath sp, float alpha, Paint p) {
+        int argb = shapeArgb(sp.fillColor.peek(), alpha);
+        if (argb == 0) return;
+        p.setColor(argb);
+        p.setMode(PaintMode.FILL);
+        canvas.drawPath(path, p);
+    }
+
+    private void strokePath(Path path, ShapePath sp, float alpha, Paint p) {
+        float sw = sp.strokeWidth.peek().floatValue();
+        if (sw <= 0f) return;
+        int argb = shapeArgb(sp.strokeColor.peek(), alpha);
+        if (argb == 0) return;
+        p.setColor(argb);
+        p.setMode(PaintMode.STROKE);
+        p.setStrokeWidth(sw);
+        p.setStrokeCap(mapCap(sp.capStyle.peek()));
+        p.setStrokeJoin(mapJoin(sp.joinStyle.peek()));
+        canvas.drawPath(path, p);
+    }
+
+    private static int shapeArgb(String colorStr, float alpha) {
+        if (colorStr == null || "transparent".equals(colorStr)) return 0;
+        int rgb = Renderer.parseColor(colorStr);
+        int a = (int) (((rgb >>> 24) & 0xFF) * alpha);
+        if (a <= 0) return 0;
+        return (a << 24) | (rgb & 0xFFFFFF);
+    }
+
+    private static PaintStrokeCap mapCap(String cap) {
+        if ("RoundCap".equals(cap)) return PaintStrokeCap.ROUND;
+        if ("FlatCap".equals(cap)) return PaintStrokeCap.BUTT;
+        return PaintStrokeCap.SQUARE;
+    }
+
+    private static PaintStrokeJoin mapJoin(String join) {
+        if ("RoundJoin".equals(join)) return PaintStrokeJoin.ROUND;
+        if ("MiterJoin".equals(join)) return PaintStrokeJoin.MITER;
+        return PaintStrokeJoin.BEVEL;
     }
 }

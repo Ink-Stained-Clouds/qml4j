@@ -16,15 +16,7 @@ import io.qml4j.render.items.window.Button;
 import io.qml4j.render.items.window.Control;
 import io.qml4j.render.items.core.MouseArea;
 import io.qml4j.render.items.input.TextField;
-import io.qml4j.render.items.shape.PathArc;
-import io.qml4j.render.items.shape.PathCubic;
-import io.qml4j.render.items.shape.PathElement;
-import io.qml4j.render.items.shape.PathLine;
-import io.qml4j.render.items.shape.PathMove;
-import io.qml4j.render.items.shape.PathQuad;
 import io.qml4j.render.items.core.Rectangle;
-import io.qml4j.render.items.shape.Shape;
-import io.qml4j.render.items.shape.ShapePath;
 import io.qml4j.render.items.effect.MultiEffect;
 import io.qml4j.render.items.core.Text;
 import io.qml4j.render.items.input.TextEdit;
@@ -39,13 +31,6 @@ import io.github.humbleui.skija.ColorFilter;
 import io.github.humbleui.skija.ImageFilter;
 import io.github.humbleui.skija.Paint;
 import io.github.humbleui.skija.PaintMode;
-import io.github.humbleui.skija.PaintStrokeCap;
-import io.github.humbleui.skija.PaintStrokeJoin;
-import io.github.humbleui.skija.Path;
-import io.github.humbleui.skija.PathBuilder;
-import io.github.humbleui.skija.PathDirection;
-import io.github.humbleui.skija.PathEllipseArc;
-import io.github.humbleui.skija.PathFillMode;
 import io.github.humbleui.types.RRect;
 import io.github.humbleui.types.Rect;
 
@@ -372,9 +357,7 @@ public final class Renderer {
 
     private void paintNode(Canvas canvas, Item node, float w, float h, float alpha) {
         node.paint(painter, w, h, alpha);
-        if (node instanceof Shape) {
-            paintShape(canvas, (Shape) node, w, h, alpha);
-        } else if (node instanceof Button) {
+        if (node instanceof Button) {
             paintButton(canvas, (Button) node, w, h, alpha);
         } else if (node instanceof TextField) {
             paintTextField(canvas, (TextField) node, w, h, alpha);
@@ -868,16 +851,8 @@ public final class Renderer {
         return (na << 24) | (color & 0x00FFFFFF);
     }
 
-    private void paintShape(Canvas canvas, Shape shape, float w, float h, float alpha) {
-        try (Paint p = new Paint()) {
-            p.setAntiAlias(true);
-            for (ShapePath sp : shape.elements) {
-                try (Path path = buildPath(sp)) {
-                    fillPath(canvas, path, sp, alpha, p);
-                    strokePath(canvas, path, sp, alpha, p);
-                }
-            }
-        }
+    private static float sigma(float radius) {
+        return radius <= 0f ? 0f : radius / 2f;
     }
 
     private Paint layerEffectPaint(Item node) {
@@ -919,89 +894,5 @@ public final class Renderer {
             return ((Glow) effect).radius.peek().floatValue() + 4f;
         }
         return 0f;
-    }
-
-    private static float sigma(float radius) {
-        return radius <= 0f ? 0f : radius / 2f;
-    }
-
-    private Path buildPath(ShapePath sp) {
-        PathBuilder pb = new PathBuilder();
-        pb.setFillMode("WindingFill".equals(sp.fillRule.peek())
-            ? PathFillMode.WINDING : PathFillMode.EVEN_ODD);
-        pb.moveTo(sp.startX.peek().floatValue(), sp.startY.peek().floatValue());
-        for (PathElement e : sp.pathElements) {
-            appendElement(pb, e);
-        }
-        return pb.build();
-    }
-
-    private void appendElement(PathBuilder pb, PathElement e) {
-        if (e instanceof PathLine) {
-            PathLine l = (PathLine) e;
-            pb.lineTo(l.x.peek().floatValue(), l.y.peek().floatValue());
-        } else if (e instanceof PathMove) {
-            PathMove m = (PathMove) e;
-            pb.moveTo(m.x.peek().floatValue(), m.y.peek().floatValue());
-        } else if (e instanceof PathQuad) {
-            PathQuad q = (PathQuad) e;
-            pb.quadTo(q.controlX.peek().floatValue(), q.controlY.peek().floatValue(),
-                      q.x.peek().floatValue(), q.y.peek().floatValue());
-        } else if (e instanceof PathCubic) {
-            PathCubic c = (PathCubic) e;
-            pb.cubicTo(c.control1X.peek().floatValue(), c.control1Y.peek().floatValue(),
-                       c.control2X.peek().floatValue(), c.control2Y.peek().floatValue(),
-                       c.x.peek().floatValue(), c.y.peek().floatValue());
-        } else if (e instanceof PathArc) {
-            PathArc a = (PathArc) e;
-            PathEllipseArc size = Boolean.TRUE.equals(a.useLargeArc.peek())
-                ? PathEllipseArc.LARGER : PathEllipseArc.SMALLER;
-            PathDirection dir = "Counterclockwise".equals(a.direction.peek())
-                ? PathDirection.COUNTER_CLOCKWISE : PathDirection.CLOCKWISE;
-            pb.ellipticalArcTo(a.radiusX.peek().floatValue(), a.radiusY.peek().floatValue(),
-                               a.xAxisRotation.peek().floatValue(), size, dir,
-                               a.x.peek().floatValue(), a.y.peek().floatValue());
-        }
-    }
-
-    private void fillPath(Canvas canvas, Path path, ShapePath sp, float alpha, Paint p) {
-        int argb = shapeArgb(sp.fillColor.peek(), alpha);
-        if (argb == 0) return;
-        p.setColor(argb);
-        p.setMode(PaintMode.FILL);
-        canvas.drawPath(path, p);
-    }
-
-    private void strokePath(Canvas canvas, Path path, ShapePath sp, float alpha, Paint p) {
-        float sw = sp.strokeWidth.peek().floatValue();
-        if (sw <= 0f) return;
-        int argb = shapeArgb(sp.strokeColor.peek(), alpha);
-        if (argb == 0) return;
-        p.setColor(argb);
-        p.setMode(PaintMode.STROKE);
-        p.setStrokeWidth(sw);
-        p.setStrokeCap(mapCap(sp.capStyle.peek()));
-        p.setStrokeJoin(mapJoin(sp.joinStyle.peek()));
-        canvas.drawPath(path, p);
-    }
-
-    private static int shapeArgb(String colorStr, float alpha) {
-        if (colorStr == null || "transparent".equals(colorStr)) return 0;
-        int rgb = parseColor(colorStr);
-        int a = (int) (((rgb >>> 24) & 0xFF) * alpha);
-        if (a <= 0) return 0;
-        return (a << 24) | (rgb & 0xFFFFFF);
-    }
-
-    private static PaintStrokeCap mapCap(String cap) {
-        if ("RoundCap".equals(cap)) return PaintStrokeCap.ROUND;
-        if ("FlatCap".equals(cap)) return PaintStrokeCap.BUTT;
-        return PaintStrokeCap.SQUARE;
-    }
-
-    private static PaintStrokeJoin mapJoin(String join) {
-        if ("RoundJoin".equals(join)) return PaintStrokeJoin.ROUND;
-        if ("MiterJoin".equals(join)) return PaintStrokeJoin.MITER;
-        return PaintStrokeJoin.BEVEL;
     }
 }
