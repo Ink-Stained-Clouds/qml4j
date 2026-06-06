@@ -1403,7 +1403,8 @@ public final class QmlCompiler {
         // delegate scope) until later phases widen rhinoCanHandle.
         if (source != null
                 && rhinoCanHandle(expr, outerType, idTypes, declaredProps, aliases)) {
-            emitRhinoBindingBind(ctor, declOwner, propName, source, outerLocal, idTypes);
+            emitRhinoBindingBind(ctor, declOwner, propName, source, outerLocal, idTypes,
+                                 collectSingletons(expr));
             return;
         }
 
@@ -1432,17 +1433,19 @@ public final class QmlCompiler {
     // field is loaded from declOwner; source is the JS the binding evaluates.
     private void emitRhinoBindingBind(MethodVisitor ctor, String declOwner, String propName,
                                       String source, int outerLocal,
-                                      Map<String, Class<? extends QObject>> idTypes) {
+                                      Map<String, Class<? extends QObject>> idTypes,
+                                      Map<String, Class<? extends QObject>> singletons) {
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitFieldInsn(Opcodes.GETFIELD, declOwner, propName, PROPERTY_DESC);
-        emitRhinoBindingFor(ctor, source, outerLocal, idTypes);
+        emitRhinoBindingFor(ctor, source, outerLocal, idTypes, singletons);
     }
 
     // With the target Property already on the operand stack, binds it to a fresh
     // RhinoBinding over `source`. Lets callers load any Property (a root field or a
     // grouped border.color/font.pixelSize) and reuse the same binding wiring.
     private void emitRhinoBindingFor(MethodVisitor ctor, String source, int outerLocal,
-                                     Map<String, Class<? extends QObject>> idTypes) {
+                                     Map<String, Class<? extends QObject>> idTypes,
+                                     Map<String, Class<? extends QObject>> singletons) {
         ctor.visitTypeInsn(Opcodes.NEW, RHINO_BINDING_INTERNAL);
         ctor.visitInsn(Opcodes.DUP);
         ctor.visitLdcInsn(source);
@@ -1450,8 +1453,9 @@ public final class QmlCompiler {
         ctor.visitVarInsn(Opcodes.ALOAD, 0);
         pushStringArray(ctor, new ArrayList<>(idTypes.keySet()));
         ctor.visitInsn(inDelegateScope() ? Opcodes.ICONST_1 : Opcodes.ICONST_0);
+        pushSingletons(ctor, singletons);
         ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_BINDING_INTERNAL, "<init>",
-                             "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;Z)V", false);
+                             "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;Z[Ljava/lang/String;[Ljava/lang/Class;)V", false);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
                              "bind", "(L" + BINDING_INTERNAL + ";)V", false);
     }
@@ -1472,12 +1476,11 @@ public final class QmlCompiler {
             String n = ((Ast.IdentifierExpr) e).name;
             if (aliases.containsKey(n)) return false;
             if (JS_NAMESPACES.contains(n)) return true;
+            if (isSingleton(n)) return true;
             if (inDelegateScope()) {
                 // In a delegate, index/modelData/local ids/enclosing-scope names all
-                // resolve at runtime through RuntimeHelpers.delegateLookup; only a
-                // singleton (Theme) can't, so keep those on the ASM backend.
-                tryResolveType(n);
-                return currentSingletonClass(n) == null;
+                // resolve at runtime through RuntimeHelpers.delegateLookup.
+                return true;
             }
             return declaredProps.containsKey(n) || idTypes.containsKey(n)
                 || findPropertyFieldOrNull(outerType, n) != null;
@@ -1886,8 +1889,9 @@ public final class QmlCompiler {
         ctor.visitVarInsn(Opcodes.ALOAD, 0);
         pushStringArray(ctor, new ArrayList<>(idTypes.keySet()));
         ctor.visitInsn(inDelegateScope() ? Opcodes.ICONST_1 : Opcodes.ICONST_0);
+        pushSingletons(ctor, collectSingletons(fd.body));
         ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_FUNCTION_INTERNAL, "<init>",
-            "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;Z)V", false);
+            "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;Z[Ljava/lang/String;[Ljava/lang/Class;)V", false);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, QOBJECT_INTERNAL, "__putFunction",
                              "(Ljava/lang/String;Lio/qml4j/engine/Callable;)V", false);
     }
@@ -1922,8 +1926,9 @@ public final class QmlCompiler {
             ctor.visitVarInsn(Opcodes.ALOAD, 0);
             pushStringArray(ctor, new ArrayList<>(idTypes.keySet()));
             ctor.visitInsn(delegate ? Opcodes.ICONST_1 : Opcodes.ICONST_0);
+            pushSingletons(ctor, collectSingletons(body));
             ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_HANDLER_INTERNAL, "<init>",
-                "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;Z)V", false);
+                "(Ljava/lang/String;[Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;Z[Ljava/lang/String;[Ljava/lang/Class;)V", false);
             return;
         }
         int n = handlerCounter[0]++;
@@ -1977,7 +1982,8 @@ public final class QmlCompiler {
         }
         String iife = "(function(){" + blockValue.source + "})()";
         validateRhinoCompiles(iife);
-        emitRhinoBindingBind(ctor, declOwner, propName, iife, outerLocal, idTypes);
+        emitRhinoBindingBind(ctor, declOwner, propName, iife, outerLocal, idTypes,
+                             collectSingletons(blockValue.block));
         return true;
     }
 
@@ -2005,6 +2011,7 @@ public final class QmlCompiler {
         if (propField == null) return false;
 
         String source;
+        Map<String, Class<? extends QObject>> singletons;
         if (value instanceof Ast.ExpressionValue) {
             Ast.ExpressionValue ev = (Ast.ExpressionValue) value;
             if (ev.source == null || ev.expr instanceof Ast.LiteralExpr
@@ -2012,6 +2019,7 @@ public final class QmlCompiler {
                 return false;
             }
             source = ev.source;
+            singletons = collectSingletons(ev.expr);
         } else if (value instanceof Ast.StatementBlockValue) {
             Ast.StatementBlockValue sb = (Ast.StatementBlockValue) value;
             if (sb.source == null
@@ -2020,6 +2028,7 @@ public final class QmlCompiler {
                 return false;
             }
             source = "(function(){" + sb.source + "})()";
+            singletons = collectSingletons(sb.block);
         } else {
             return false;
         }
@@ -2031,7 +2040,7 @@ public final class QmlCompiler {
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitFieldInsn(Opcodes.GETFIELD, groupDeclOwner, groupName, "L" + groupTypeInternal + ";");
         ctor.visitFieldInsn(Opcodes.GETFIELD, propDeclOwner, propName, PROPERTY_DESC);
-        emitRhinoBindingFor(ctor, source, outerLocal, idTypes);
+        emitRhinoBindingFor(ctor, source, outerLocal, idTypes, singletons);
         return true;
     }
 
@@ -2073,12 +2082,12 @@ public final class QmlCompiler {
                                       Map<String, String> declaredProps,
                                       Map<String, Integer> rootFunctions,
                                       Set<String> customSignals) {
+        if (isSingleton(name)) return true;
         if (inDelegateScope()) {
             // In a delegate, index/modelData/local-id/enclosing-scope names resolve at
             // runtime via RuntimeHelpers.delegateLookup (matching rhinoCanHandle's
-            // delegate branch); only a singleton (Theme) can't, so keep those on ASM.
-            tryResolveType(name);
-            return currentSingletonClass(name) == null;
+            // delegate branch).
+            return true;
         }
         if (idTypes.containsKey(name) || declaredProps.containsKey(name)
                 || rootFunctions.containsKey(name) || customSignals.contains(name)
@@ -2094,6 +2103,45 @@ public final class QmlCompiler {
             if (m.getName().equals(name)) return true;
         }
         return false;
+    }
+
+    // Whether `name` resolves to a QML singleton (Theme, ...). Gated on an upper-case
+    // initial (singletons/types are capitalized) so plain property/id identifiers don't
+    // trigger a type-resolution attempt.
+    private boolean isSingleton(String name) {
+        if (name.isEmpty() || !Character.isUpperCase(name.charAt(0))) return false;
+        tryResolveType(name);
+        return currentSingletonClass(name) != null;
+    }
+
+    // The singletons a body/expression references, name -> the specific generated class,
+    // collected from its free identifiers so each binding carries exactly the classes it
+    // uses (no global name lookup).
+    private Map<String, Class<? extends QObject>> collectSingletons(Ast.Statement body) {
+        Map<String, Class<? extends QObject>> m = new LinkedHashMap<>();
+        for (String n : FreeIdentifiers.collect(body, java.util.Collections.<String>emptySet())) {
+            if (isSingleton(n)) m.put(n, currentSingletonClass(n));
+        }
+        return m;
+    }
+
+    private Map<String, Class<? extends QObject>> collectSingletons(Ast.Expression e) {
+        return collectSingletons(new Ast.ExprStmt(e));
+    }
+
+    // Pushes the singleton names (String[]) and their classes (Class[]) for a binding,
+    // so the runtime QmlScope can resolve them per-binding without a global registry.
+    private void pushSingletons(MethodVisitor mv, Map<String, Class<? extends QObject>> singletons) {
+        List<String> names = new ArrayList<>(singletons.keySet());
+        pushStringArray(mv, names);
+        mv.visitLdcInsn(names.size());
+        mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Class");
+        for (int i = 0; i < names.size(); i++) {
+            mv.visitInsn(Opcodes.DUP);
+            mv.visitLdcInsn(i);
+            mv.visitLdcInsn(Type.getObjectType(Type.getInternalName(singletons.get(names.get(i)))));
+            mv.visitInsn(Opcodes.AASTORE);
+        }
     }
 
     private static final Set<String> JS_GLOBALS = new java.util.HashSet<>(java.util.Arrays.asList(

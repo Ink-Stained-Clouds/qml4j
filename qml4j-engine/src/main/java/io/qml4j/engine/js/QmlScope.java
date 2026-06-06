@@ -4,6 +4,8 @@ import io.qml4j.engine.RuntimeHelpers;
 import io.qml4j.engine.Signal;
 import org.mozilla.javascript.Scriptable;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 // The top scope a binding's JS runs in. Bare identifiers resolve against the QML
@@ -22,15 +24,46 @@ public final class QmlScope implements Scriptable {
     private final Object root;
     private final Set<String> sceneIds;
     private final boolean delegate;
+    // The singletons this binding's JS may reference, keyed by name -> the SPECIFIC
+    // generated class (threaded per-binding from the compiler, never a global name
+    // lookup, so two components' same-named singletons never collide). Instances are
+    // materialised lazily via __instance().
+    private final Map<String, Class<?>> singletonClasses;
+    private Map<String, Object> singletonInstances;
     private Scriptable parent;
     private Scriptable prototype;
 
-    public QmlScope(Object outer, Object root, Scriptable globals, Set<String> sceneIds, boolean delegate) {
+    public QmlScope(Object outer, Object root, Scriptable globals, Set<String> sceneIds,
+                    boolean delegate, Map<String, Class<?>> singletonClasses) {
         this.outer = outer;
         this.root = root;
         this.sceneIds = sceneIds;
         this.delegate = delegate;
+        this.singletonClasses = singletonClasses;
         this.parent = globals;
+    }
+
+    // Build the name -> class map from the parallel arrays the compiler pushes.
+    public static Map<String, Class<?>> singletonMap(String[] names, Class<?>[] classes) {
+        if (names.length == 0) return java.util.Collections.emptyMap();
+        Map<String, Class<?>> m = new HashMap<>();
+        for (int i = 0; i < names.length; i++) m.put(names[i], classes[i]);
+        return m;
+    }
+
+    private Object singleton(String name) {
+        Class<?> c = singletonClasses.get(name);
+        if (c == null) return null;
+        if (singletonInstances == null) singletonInstances = new HashMap<>();
+        Object inst = singletonInstances.get(name);
+        if (inst != null) return inst;
+        try {
+            inst = c.getMethod("__instance").invoke(null);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("cannot instantiate singleton " + name, e);
+        }
+        singletonInstances.put(name, inst);
+        return inst;
     }
 
     private Object wrap(Object v) {
@@ -53,6 +86,8 @@ public final class QmlScope implements Scriptable {
         Object v = RuntimeHelpers.delegateLookup(outer, name);
         if (v != RuntimeHelpers.DELEGATE_ABSENT) return wrap(v);
         if (JsWrap.isCallable(outer, name)) return new JsWrap.BoundMethod(outer, name, this);
+        Object s = singleton(name);
+        if (s != null) return JsWrap.toJs(s, this);
         return NOT_FOUND;
     }
 
@@ -82,6 +117,8 @@ public final class QmlScope implements Scriptable {
         if (o != null) return wrap(RuntimeHelpers.readMember(o, name));
         Object c = callableOwner(name);
         if (c != null) return new JsWrap.BoundMethod(c, name, this);
+        Object s = singleton(name);
+        if (s != null) return JsWrap.toJs(s, this);
         return NOT_FOUND;
     }
 
@@ -89,9 +126,11 @@ public final class QmlScope implements Scriptable {
         if (delegate) {
             return RuntimeHelpers.hasProperty(outer, name)
                 || RuntimeHelpers.delegateLookup(outer, name) != RuntimeHelpers.DELEGATE_ABSENT
-                || JsWrap.isCallable(outer, name);
+                || JsWrap.isCallable(outer, name)
+                || singletonClasses.containsKey(name);
         }
-        return owner(name) != null || callableOwner(name) != null;
+        return owner(name) != null || callableOwner(name) != null
+            || singletonClasses.containsKey(name);
     }
 
     @Override public void put(String name, Scriptable start, Object value) {

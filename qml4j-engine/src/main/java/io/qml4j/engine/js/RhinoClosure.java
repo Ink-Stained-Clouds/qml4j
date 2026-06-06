@@ -27,10 +27,12 @@ public final class RhinoClosure {
     private Function fn;
 
     public RhinoClosure(String body, List<String> params, Object outer, Object root,
-                        String[] ids, boolean delegate) {
+                        String[] ids, boolean delegate,
+                        String[] singletonNames, Class<?>[] singletonClasses) {
         this.script = JsRuntime.compile(wrap(body, params));
         this.scope = new QmlScope(outer, root, JsRuntime.globals(),
-                                  new HashSet<>(Arrays.asList(ids)), delegate);
+                                  new HashSet<>(Arrays.asList(ids)), delegate,
+                                  QmlScope.singletonMap(singletonNames, singletonClasses));
     }
 
     // The function-expression form fed to Rhino. Shared with the compiler so its

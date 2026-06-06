@@ -13,8 +13,10 @@ public final class RhinoHandler implements SignalHandler {
     private final RhinoClosure closure;
 
     public RhinoHandler(String body, String[] params, Object outer, Object root,
-                        String[] ids, boolean delegate) {
-        this.closure = new RhinoClosure(body, Arrays.asList(params), outer, root, ids, delegate);
+                        String[] ids, boolean delegate,
+                        String[] singletonNames, Class<?>[] singletonClasses) {
+        this.closure = new RhinoClosure(body, Arrays.asList(params), outer, root, ids, delegate,
+                                        singletonNames, singletonClasses);
     }
 
     @Override
