@@ -20,5 +20,11 @@ public class Row extends Item {
         if (x > 0) x -= s;
         width.set(x);
         if (maxH > height.peek().doubleValue()) height.set(maxH);
+        // Publish the content size as implicit size (like RowLayout/Column do) so a
+        // binding reading this Row's implicitWidth -- e.g. a SegmentedButton segment's
+        // `Math.max(contentRow.implicitWidth + 24, 48)` -- sizes to the content instead
+        // of reading 0 and collapsing.
+        implicitWidth.set(x);
+        implicitHeight.set(maxH);
     }
 }
