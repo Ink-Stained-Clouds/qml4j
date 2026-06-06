@@ -67,6 +67,9 @@ Item {
                     Layout.fillWidth: true
                     Layout.minimumWidth: 48
                     implicitWidth: Math.max(contentRow.implicitWidth + 24, 48)
+                    // Selecting swaps the icon for a wider checkmark; animate the
+                    // resulting width change instead of snapping.
+                    Behavior on implicitWidth { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                     
                     property bool isSelected: modelData.selected === true
                     property bool isSegmentEnabled: (modelData.enabled !== undefined ? modelData.enabled : true) && control.enabled
@@ -115,13 +118,10 @@ Item {
                         anchors.centerIn: parent
                         spacing: 8
                         
-                        // Icon (Checkmark if selected, or provided icon). Fixed-width
-                        // reserved slot with the glyph centred, so swapping icon<->check
-                        // on selection doesn't change content width (segment + label stay put).
+                        // Icon (Checkmark if selected, or provided icon). Content-sized;
+                        // the segment animates its width when this swaps in/out.
                         Text {
                             text: segment.isSelected ? "check" : (modelData.icon || "")
-                            width: 20
-                            horizontalAlignment: Text.AlignHCenter
                             font.family: Theme.iconFont.name
                             font.pixelSize: 18
                             color: {
