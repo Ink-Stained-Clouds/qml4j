@@ -118,4 +118,29 @@ class RhinoBackendTest {
         flush(v);
         assertEquals(45, root.width.peek().intValue());   // 4*10 + 5
     }
+
+    // Phase 4 tail: a grouped binding (border.width: ...) runs on Rhino, bound to the
+    // value-type group's Property, and stays reactive.
+    @Test
+    void groupedBindingRunsOnRhino() throws Exception {
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        Item root = v.load(
+            "import QtQuick\n" +
+            "Rectangle {\n" +
+            "  id: root\n" +
+            "  width: 10\n" +
+            "  border.width: width > 5 ? 3 : 1\n" +
+            "}");
+        flush(v);
+
+        Object border = root.getClass().getField("border").get(root);
+        Property<?> borderWidth = (Property<?>) border.getClass().getField("width").get(border);
+        assertTrue(bindingOf(borderWidth) instanceof RhinoBinding,
+            "grouped binding should be a RhinoBinding");
+        assertEquals(3, ((Number) borderWidth.peek()).intValue());   // width 10 > 5
+
+        root.width.set(2);
+        flush(v);
+        assertEquals(1, ((Number) borderWidth.peek()).intValue());   // width 2 <= 5
+    }
 }

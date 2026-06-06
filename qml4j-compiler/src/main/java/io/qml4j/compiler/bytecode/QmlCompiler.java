@@ -533,6 +533,10 @@ public final class QmlCompiler {
                 return;
             }
             if (path.size() == 2) {
+                if (tryEmitRhinoGroupedBinding(ctor, outerType, outerLocal, path.get(0), path.get(1),
+                        b.value, idTypes, declaredProps, aliases, customSignals, rootFunctions)) {
+                    return;
+                }
                 Ast.Expression e;
                 if (isExprVal) {
                     e = ((Ast.ExpressionValue) b.value).expr;
@@ -1431,6 +1435,14 @@ public final class QmlCompiler {
                                       Map<String, Class<? extends QObject>> idTypes) {
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitFieldInsn(Opcodes.GETFIELD, declOwner, propName, PROPERTY_DESC);
+        emitRhinoBindingFor(ctor, source, outerLocal, idTypes);
+    }
+
+    // With the target Property already on the operand stack, binds it to a fresh
+    // RhinoBinding over `source`. Lets callers load any Property (a root field or a
+    // grouped border.color/font.pixelSize) and reuse the same binding wiring.
+    private void emitRhinoBindingFor(MethodVisitor ctor, String source, int outerLocal,
+                                     Map<String, Class<? extends QObject>> idTypes) {
         ctor.visitTypeInsn(Opcodes.NEW, RHINO_BINDING_INTERNAL);
         ctor.visitInsn(Opcodes.DUP);
         ctor.visitLdcInsn(source);
@@ -1952,6 +1964,61 @@ public final class QmlCompiler {
         String iife = "(function(){" + blockValue.source + "})()";
         validateRhinoCompiles(iife);
         emitRhinoBindingBind(ctor, declOwner, propName, iife, outerLocal, idTypes);
+        return true;
+    }
+
+    // A grouped binding (`border.color: ...`, `font.pixelSize: ...`) on Rhino: binds a
+    // RhinoBinding to the value-type group's Property. Handles both the simple
+    // expression form (rhinoCanHandle) and the function-style IIFE form
+    // (handlerCanHandle). Returns false to leave it on the ASM grouped path.
+    private boolean tryEmitRhinoGroupedBinding(MethodVisitor ctor, Class<? extends QObject> outerType,
+                                               int outerLocal, String groupName, String propName,
+                                               Ast.Value value,
+                                               Map<String, Class<? extends QObject>> idTypes,
+                                               Map<String, String> declaredProps,
+                                               Map<String, AliasRef> aliases,
+                                               Set<String> customSignals,
+                                               Map<String, Integer> rootFunctions) {
+        if (inDelegateScope()) return false;
+        Field groupField;
+        try {
+            groupField = outerType.getField(groupName);
+        } catch (NoSuchFieldException e) {
+            return false;
+        }
+        if (Property.class.isAssignableFrom(groupField.getType())) return false;
+        Class<?> groupType = groupField.getType();
+        Field propField = findPropertyFieldOrNull(groupType, propName);
+        if (propField == null) return false;
+
+        String source;
+        if (value instanceof Ast.ExpressionValue) {
+            Ast.ExpressionValue ev = (Ast.ExpressionValue) value;
+            if (ev.source == null || ev.expr instanceof Ast.LiteralExpr
+                    || !rhinoCanHandle(ev.expr, outerType, idTypes, declaredProps, aliases)) {
+                return false;
+            }
+            source = ev.source;
+        } else if (value instanceof Ast.StatementBlockValue) {
+            Ast.StatementBlockValue sb = (Ast.StatementBlockValue) value;
+            if (sb.source == null
+                    || !handlerCanHandle(sb.block, outerType, idTypes, declaredProps,
+                                         Collections.<String>emptyList(), rootFunctions, customSignals)) {
+                return false;
+            }
+            source = "(function(){" + sb.source + "})()";
+        } else {
+            return false;
+        }
+        validateRhinoCompiles(source);
+
+        String groupDeclOwner = Type.getInternalName(groupField.getDeclaringClass());
+        String propDeclOwner = Type.getInternalName(propField.getDeclaringClass());
+        String groupTypeInternal = Type.getInternalName(groupType);
+        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
+        ctor.visitFieldInsn(Opcodes.GETFIELD, groupDeclOwner, groupName, "L" + groupTypeInternal + ";");
+        ctor.visitFieldInsn(Opcodes.GETFIELD, propDeclOwner, propName, PROPERTY_DESC);
+        emitRhinoBindingFor(ctor, source, outerLocal, idTypes);
         return true;
     }
 
