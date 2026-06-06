@@ -116,6 +116,12 @@ public final class QmlScope implements Scriptable {
         }
         Object v = DelegateScope.delegateLookup(outer, name);
         if (v != DelegateScope.DELEGATE_ABSENT) return wrap(v);
+        // Scene ids are lexical: resolve them off the captured component root even when
+        // the runtime parent chain can't reach it. A reparented subtree (the MD3 popup
+        // reparents its overlay onto the scene root to render on top) detaches the
+        // delegate items from the enclosing component, so delegateLookup's parent walk
+        // never reaches the component root -- but the id still names that root.
+        if (sceneIds.contains(name)) return wrap(MemberAccess.readMember(root, name));
         Object co = DelegateScope.delegateCallableOwner(outer, name);
         if (co != null) return new JsWrap.BoundMethod(co, name, this);
         Object s = singleton(name);
@@ -159,6 +165,7 @@ public final class QmlScope implements Scriptable {
         if (delegate) {
             return MemberAccess.hasProperty(outer, name)
                 || DelegateScope.delegateLookup(outer, name) != DelegateScope.DELEGATE_ABSENT
+                || sceneIds.contains(name)
                 || DelegateScope.delegateCallableOwner(outer, name) != null
                 || singletonClasses.containsKey(name);
         }
