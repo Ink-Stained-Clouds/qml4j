@@ -1,10 +1,33 @@
 # qml4j 兼容性评估报告 — 通往「等同 Qt、用户无感切换」
 
-> **现状校正(2026-06-06)**:本文是 2026-05-31 的快照。此后大部分 Tier-1/2 缺口已闭合
-> —— QtObject + 嵌套对象属性 + 多级点绑定、implicitWidth/Height、font 组属性 + Font/Text/Easing
-> 枚举、QtQuick.Layouts、MultiEffect、hover dispatch、StyleManager stub 均已实现,**12+ 个未修改的
-> MD3 组件原样运行**。引擎随后做了全工程架构重构(多态分派 + 单一职责模块,详见 `CLAUDE.md`)。
-> 当前能力清单以 `README.md` 为准;本文保留作缺口分析的历史记录。
+> **现状校正(2026-06-06)**:本文是 2026-05-31 的快照,大部分缺口此后已闭合。引擎随后做了
+> 全工程架构重构(多态分派 + 单一职责模块,4 个 `qml4j-*` 模块合并为 `qml4j-core`,详见
+> `CLAUDE.md`)。当前能力清单以 `README.md` 为准;下面「§零」是逐项复核后的缺口现状,原
+> §一–§五 保留作 2026-05-31 的历史快照。
+
+## 零、缺口闭合现状(2026-06-06 复核,以源码为准)
+
+`shared-qml/md3/Core/` 现有 **16 个未修改 MD3 组件**原样运行(Button/Card/Checkbox/Chip/Dialog/
+FAB/IconButton/NavigationBar/RadioButton/ScrollBar/SegmentedButton/Slider/Snackbar/Switch/
+ToolTip/TopAppBar;另含 Theme + Ripple 基础件)。
+
+**✅ 已闭合**(源码核实):
+- **G1** QtObject + 嵌套对象属性 + 多级点绑定(`QtObject` 已注册;Theme 单例模式工作)
+- **G2** implicitWidth/implicitHeight 进 Item 一等属性(`Item.implicitWidth/Height`)
+- **G3** font 组属性(`Text.font` → `Font` 类:family/pixelSize/weight/…)
+- **G6** 枚举体系(`Easing` 等枚举类 + 编译器枚举解析)
+- **G10** MultiEffect(已注册;Painter.drawMultiEffect 经 Skija ImageFilter)
+- **G11** MouseArea hover 真实 dispatch(`EventDispatcher.updateHover` 驱动 hoverEnabled/containsMouse/entered/exited)
+
+**◐ 部分**:
+- **G9** QtQuick.Layouts —— RowLayout / ColumnLayout / StackLayout + `Layout.*` 附加属性(LayoutAttached/LayoutSizing)已实现;**GridLayout、Flow 仍缺**。
+
+**⬜ 仍开**:
+- **G13** 动态种子配色 —— 静态主题靠 Theme.qml 的 `defaultScheme` 直接生效(无需 StyleManager);把 material-color-utilities 移植到 Java 做动态配色未做。
+- **G14** Canvas、**G15** Animator(Opacity/Scale)—— 未注册。
+- 16 个组件原样运行已表明剩余 Tier-1 横切项(G4/G5/G7/G8 等)在实践上基本覆盖;未逐项复核的以 `README.md` feature 清单为准。
+
+---
 
 日期: 2026-05-31
 触发: 目标从「补全自有控件」校准为「qml4j 引擎能运行第三方 QML 组件库 / 等同 Qt 能力」。试金石: MD3 组件库 (github.com/sudoevolve/material-components-qml)。
