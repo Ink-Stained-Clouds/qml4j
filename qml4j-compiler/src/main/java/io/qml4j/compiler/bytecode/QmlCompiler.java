@@ -2,7 +2,6 @@ package io.qml4j.compiler.bytecode;
 
 import io.qml4j.compiler.CompiledUnit;
 import io.qml4j.compiler.TypeRegistry;
-import io.qml4j.compiler.bytecode.ExpressionCodegen.AliasRef;
 import io.qml4j.engine.DelegateHost;
 import io.qml4j.engine.PropertyChangeSink;
 import io.qml4j.engine.QmlDefaultList;
@@ -510,9 +509,9 @@ public final class QmlCompiler {
                 }
                 Ast.Expression e = ((Ast.ExpressionValue) b.value).expr;
                 if (PropertyChangeSink.class.isAssignableFrom(outerType) && !"target".equals(key)) {
-                    emitChangeSinkAssignment(ctor, outerType, outerLocal, componentBinaryName,
-                                             bindingCounter, classes, key, e, idTypes,
-                                             declaredProps, aliases, rootFunctions);
+                    emitChangeSinkAssignment(ctor, outerType, outerLocal, key, e,
+                                             ((Ast.ExpressionValue) b.value).source, idTypes,
+                                             declaredProps, aliases, rootFunctions, customSignals);
                     return;
                 }
                 if (e instanceof Ast.LiteralExpr) {
@@ -1266,13 +1265,12 @@ public final class QmlCompiler {
     }
 
     private void emitChangeSinkAssignment(MethodVisitor ctor, Class<? extends QObject> outerType,
-                                          int outerLocal, String componentBinaryName,
-                                          int[] bindingCounter, Map<String, byte[]> classes,
-                                          String name, Ast.Expression expr,
+                                          int outerLocal, String name, Ast.Expression expr, String source,
                                           Map<String, Class<? extends QObject>> idTypes,
                                           Map<String, String> declaredProps,
                                           Map<String, AliasRef> aliases,
-                                          Map<String, Integer> rootFunctions) {
+                                          Map<String, Integer> rootFunctions,
+                                          Set<String> customSignals) {
         if (expr instanceof Ast.LiteralExpr) {
             ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
             ctor.visitLdcInsn(name);
@@ -1281,20 +1279,15 @@ public final class QmlCompiler {
                                  "addChange", "(Ljava/lang/String;Ljava/lang/Object;)V", true);
             return;
         }
-        String outerInternal = Type.getInternalName(outerType);
-        String componentInternal = componentBinaryName.replace('.', '/');
-        String bindingInternal = emitBindingClass(outerInternal, outerType, expr, componentBinaryName,
-                                                  idTypes, declaredProps, aliases, rootFunctions,
-                                                  bindingCounter, classes);
-
+        if (source == null) {
+            throw new IllegalArgumentException("change '" + name + "' has no captured source");
+        }
+        requireRhinoCanHandle(new Ast.ExprStmt(expr), outerType, idTypes, declaredProps,
+                              Collections.<String>emptyList(), rootFunctions, customSignals, aliases);
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitLdcInsn(name);
-        ctor.visitTypeInsn(Opcodes.NEW, bindingInternal);
-        ctor.visitInsn(Opcodes.DUP);
-        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
-        ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, bindingInternal, "<init>",
-                             "(L" + outerInternal + ";L" + componentInternal + ";)V", false);
+        pushNewRhinoBinding(ctor, source, outerLocal, idTypes,
+                            collectSingletons(expr), collectAliases(expr, aliases));
         ctor.visitMethodInsn(Opcodes.INVOKEINTERFACE, SINK_INTERNAL,
                              "addChangeBinding",
                              "(Ljava/lang/String;L" + BINDING_INTERNAL + ";)V", true);
@@ -1414,6 +1407,17 @@ public final class QmlCompiler {
                                      Map<String, Class<? extends QObject>> idTypes,
                                      Map<String, Class<? extends QObject>> singletons,
                                      Map<String, AliasRef> aliases) {
+        pushNewRhinoBinding(ctor, source, outerLocal, idTypes, singletons, aliases);
+        ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
+                             "bind", "(L" + BINDING_INTERNAL + ";)V", false);
+    }
+
+    // Leaves a fresh RhinoBinding over `source` on the operand stack (for Property.bind or
+    // a sink's addChangeBinding).
+    private void pushNewRhinoBinding(MethodVisitor ctor, String source, int outerLocal,
+                                     Map<String, Class<? extends QObject>> idTypes,
+                                     Map<String, Class<? extends QObject>> singletons,
+                                     Map<String, AliasRef> aliases) {
         ctor.visitTypeInsn(Opcodes.NEW, RHINO_BINDING_INTERNAL);
         ctor.visitInsn(Opcodes.DUP);
         ctor.visitLdcInsn(source);
@@ -1425,82 +1429,7 @@ public final class QmlCompiler {
         pushAliases(ctor, aliases);
         ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_BINDING_INTERNAL, "<init>",
                              "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;Z[Ljava/lang/String;[Ljava/lang/Class;[Ljava/lang/String;)V", false);
-        ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
-                             "bind", "(L" + BINDING_INTERNAL + ";)V", false);
     }
-
-    // Conservative predicate for the Rhino backend's first phase: a pure expression
-    // whose every bare identifier is a scene id, a this-object property, or an
-    // inherited property (so QmlScope can resolve it at runtime). Rejects calls,
-    // arrows, spreads, templates, array/object literals, aliases, and namespace/
-    // singleton members (Qt/Math/Theme/enums) -- those stay on the ASM backend.
-    private boolean rhinoCanHandle(Ast.Expression e, Class<? extends QObject> outerType,
-                                   Map<String, Class<? extends QObject>> idTypes,
-                                   Map<String, String> declaredProps,
-                                   Map<String, AliasRef> aliases) {
-        if (e instanceof Ast.LiteralExpr) {
-            return ((Ast.LiteralExpr) e).kind != Ast.LiteralKind.UNDEFINED;
-        }
-        if (e instanceof Ast.IdentifierExpr) {
-            String n = ((Ast.IdentifierExpr) e).name;
-            if (aliases.containsKey(n)) return true;
-            if (JS_NAMESPACES.contains(n)) return true;
-            if (isSingleton(n)) return true;
-            if (inDelegateScope()) {
-                // In a delegate, index/modelData/local ids/enclosing-scope names all
-                // resolve at runtime through RuntimeHelpers.delegateLookup.
-                return true;
-            }
-            return declaredProps.containsKey(n) || idTypes.containsKey(n)
-                || findPropertyFieldOrNull(outerType, n) != null;
-        }
-        if (e instanceof Ast.MemberExpr) {
-            return rhinoCanHandle(((Ast.MemberExpr) e).target, outerType, idTypes, declaredProps, aliases);
-        }
-        if (e instanceof Ast.IndexExpr) {
-            Ast.IndexExpr ix = (Ast.IndexExpr) e;
-            return rhinoCanHandle(ix.target, outerType, idTypes, declaredProps, aliases)
-                && rhinoCanHandle(ix.index, outerType, idTypes, declaredProps, aliases);
-        }
-        if (e instanceof Ast.BinaryExpr) {
-            Ast.BinaryExpr b = (Ast.BinaryExpr) e;
-            return rhinoCanHandle(b.left, outerType, idTypes, declaredProps, aliases)
-                && rhinoCanHandle(b.right, outerType, idTypes, declaredProps, aliases);
-        }
-        if (e instanceof Ast.UnaryExpr) {
-            return rhinoCanHandle(((Ast.UnaryExpr) e).operand, outerType, idTypes, declaredProps, aliases);
-        }
-        if (e instanceof Ast.CondExpr) {
-            Ast.CondExpr c = (Ast.CondExpr) e;
-            return rhinoCanHandle(c.cond, outerType, idTypes, declaredProps, aliases)
-                && rhinoCanHandle(c.thenBranch, outerType, idTypes, declaredProps, aliases)
-                && rhinoCanHandle(c.elseBranch, outerType, idTypes, declaredProps, aliases);
-        }
-        if (e instanceof Ast.CallExpr) {
-            // A call with a receiver (namespace fn like Math.max / Qt.rgba, or a method
-            // on an id/property object) whose receiver and args all resolve. Bare calls
-            // (no receiver) and Qt.binding/callLater (need scope capture) stay on ASM.
-            Ast.CallExpr call = (Ast.CallExpr) e;
-            if (!(call.callee instanceof Ast.MemberExpr)) return false;
-            Ast.MemberExpr m = (Ast.MemberExpr) call.callee;
-            if (m.target instanceof Ast.IdentifierExpr) {
-                String ns = ((Ast.IdentifierExpr) m.target).name;
-                if ("Qt".equals(ns) && ("binding".equals(m.property) || "callLater".equals(m.property))) {
-                    return false;
-                }
-            }
-            if (!rhinoCanHandle(m.target, outerType, idTypes, declaredProps, aliases)) return false;
-            for (Ast.Expression arg : call.args) {
-                if (!rhinoCanHandle(arg, outerType, idTypes, declaredProps, aliases)) return false;
-            }
-            return true;
-        }
-        return false;
-    }
-
-    private static final java.util.Set<String> JS_NAMESPACES = new java.util.HashSet<>(java.util.Arrays.asList(
-        "Qt", "Math", "Text", "Font", "Easing", "console", "JSON",
-        "Number", "parseInt", "parseFloat", "isNaN"));
 
     private void emitKeysHandler(MethodVisitor ctor, Class<? extends QObject> outerType,
                                  int outerLocal, String componentBinaryName,
@@ -1701,89 +1630,8 @@ public final class QmlCompiler {
                              "(Ljava/lang/String;" + SIGNAL_HANDLER_DESC + ")V", true);
     }
 
-    private byte[] emitHandlerClass(String handlerInternal, String outerInternal,
-                                    Class<?> outerType, Ast.Statement body,
-                                    String componentInternal,
-                                    String componentBinaryName,
-                                    Map<String, Class<? extends QObject>> idTypes,
-                                    List<String> signalParams,
-                                    Map<String, String> declaredProps,
-                                    Map<String, AliasRef> aliases,
-                                    Map<String, Integer> rootFunctions,
-                                    int[] bindingCounter,
-                                    Map<String, byte[]> classes) {
-        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
-        cw.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
-                 handlerInternal, null, "java/lang/Object",
-                 new String[]{SIGNAL_HANDLER_INTERNAL});
-
-        cw.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL,
-                      "outer", "L" + outerInternal + ";", null, null).visitEnd();
-        cw.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL,
-                      "root", "L" + componentInternal + ";", null, null).visitEnd();
-
-        MethodVisitor ctor = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>",
-                                            "(L" + outerInternal + ";L" + componentInternal + ";)V",
-                                            null, null);
-        ctor.visitCode();
-        ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
-        ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        ctor.visitVarInsn(Opcodes.ALOAD, 1);
-        ctor.visitFieldInsn(Opcodes.PUTFIELD, handlerInternal, "outer", "L" + outerInternal + ";");
-        ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        ctor.visitVarInsn(Opcodes.ALOAD, 2);
-        ctor.visitFieldInsn(Opcodes.PUTFIELD, handlerInternal, "root", "L" + componentInternal + ";");
-        ctor.visitInsn(Opcodes.RETURN);
-        ctor.visitMaxs(0, 0);
-        ctor.visitEnd();
-
-        MethodVisitor invoke = cw.visitMethod(Opcodes.ACC_PUBLIC, "invoke",
-                                              "([Ljava/lang/Object;)V", null, null);
-        invoke.visitCode();
-        Map<String, Integer> paramIdx = new LinkedHashMap<>();
-        for (int i = 0; i < signalParams.size(); i++) paramIdx.put(signalParams.get(i), i);
-        Map<String, Integer> localVars = new LinkedHashMap<>();
-        ExpressionCodegen codegen = new ExpressionCodegen(outerInternal, handlerInternal, outerType,
-                                                          componentInternal, idTypes,
-                                                          paramIdx, localVars, declaredProps, aliases,
-                                                          rootFunctions);
-        @SuppressWarnings("unchecked")
-        Class<? extends QObject> outerQ = (Class<? extends QObject>) outerType;
-        codegen.setBindingEmitter(childExpr -> emitBindingClass(
-            outerInternal, outerQ, childExpr, componentBinaryName,
-            idTypes, declaredProps, aliases, rootFunctions, bindingCounter, classes));
-        codegen.setArrowEmitter(childArrow -> emitArrowClass(
-            outerInternal, outerType, childArrow, componentBinaryName,
-            idTypes, declaredProps, aliases, rootFunctions, bindingCounter, classes));
-        StatementCodegen stmts = new StatementCodegen(codegen, 2);
-        stmts.emit(invoke, body);
-        invoke.visitInsn(Opcodes.RETURN);
-        invoke.visitMaxs(0, 0);
-        invoke.visitEnd();
-
-        cw.visitEnd();
-        return cw.toByteArray();
-    }
-
     private static final String RHINO_HANDLER_INTERNAL = "io/qml4j/engine/js/RhinoHandler";
     private static final String RHINO_FUNCTION_INTERNAL = "io/qml4j/engine/js/RhinoFunction";
-
-    // A QML function runs on Rhino when its source is captured, it is not in a delegate
-    // scope, and every free name resolves at runtime (no alias / deferred Qt helper). A
-    // root function additionally keeps a thin reflective method that forwards to its
-    // RhinoFunction (emitThinRootFunctionMethod), so callers invoking it via getMethod
-    // still find it.
-    private boolean rhinoFunctionEligible(Ast.FunctionDeclaration fd, Class<?> contextType,
-                                          Map<String, Class<? extends QObject>> idTypes,
-                                          Map<String, String> declaredProps,
-                                          Map<String, Integer> rootFunctions,
-                                          Set<String> customSignals,
-                                          Map<String, AliasRef> aliases) {
-        return fd.source != null
-            && handlerCanHandle(fd.body, contextType, idTypes, declaredProps, fd.paramNames,
-                                rootFunctions, customSignals, aliases);
-    }
 
     // Registers `name` on the QObject at outerLocal as a RhinoFunction callable
     // (__putFunction), reached by both bare and member calls through callQml/callMethod.
@@ -2120,187 +1968,6 @@ public final class QmlCompiler {
         "Object", "Array", "String", "Number", "Boolean", "Date", "RegExp",
         "parseInt", "parseFloat", "isNaN", "isFinite", "NaN", "Infinity", "undefined"));
 
-    private String emitBindingClass(String outerInternal,
-                                    Class<?> outerType, Ast.Expression expr,
-                                    String componentBinaryName,
-                                    Map<String, Class<? extends QObject>> idTypes,
-                                    Map<String, String> declaredProps,
-                                    Map<String, AliasRef> aliases,
-                                    Map<String, Integer> rootFunctions,
-                                    int[] bindingCounter,
-                                    Map<String, byte[]> classes) {
-        String componentInternal = componentBinaryName.replace('.', '/');
-        int n = bindingCounter[0]++;
-        String bindingBinaryName = componentBinaryName + "$Binding$" + n;
-        String bindingInternal = bindingBinaryName.replace('.', '/');
-
-        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
-        cw.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
-                 bindingInternal, null, BINDING_INTERNAL, null);
-
-        cw.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL,
-                      "outer", "L" + outerInternal + ";", null, null).visitEnd();
-        cw.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL,
-                      "root", "L" + componentInternal + ";", null, null).visitEnd();
-
-        MethodVisitor ctor = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>",
-                                            "(L" + outerInternal + ";L" + componentInternal + ";)V",
-                                            null, null);
-        ctor.visitCode();
-        ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, BINDING_INTERNAL, "<init>", "()V", false);
-        ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        ctor.visitVarInsn(Opcodes.ALOAD, 1);
-        ctor.visitFieldInsn(Opcodes.PUTFIELD, bindingInternal, "outer", "L" + outerInternal + ";");
-        ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        ctor.visitVarInsn(Opcodes.ALOAD, 2);
-        ctor.visitFieldInsn(Opcodes.PUTFIELD, bindingInternal, "root", "L" + componentInternal + ";");
-        ctor.visitInsn(Opcodes.RETURN);
-        ctor.visitMaxs(0, 0);
-        ctor.visitEnd();
-
-        MethodVisitor eval = cw.visitMethod(Opcodes.ACC_PUBLIC, "evaluate",
-                                            "()Ljava/lang/Object;", null, null);
-        eval.visitCode();
-        ExpressionCodegen codegen = ExpressionCodegen.forBinding(outerInternal, bindingInternal, outerType,
-                                                                 componentInternal, idTypes, declaredProps, aliases,
-                                                                 rootFunctions);
-        codegen.setBindingEmitter(childExpr -> emitBindingClass(
-            outerInternal, outerType, childExpr, componentBinaryName,
-            idTypes, declaredProps, aliases, rootFunctions, bindingCounter, classes));
-        codegen.setArrowEmitter(childArrow -> emitArrowClass(
-            outerInternal, outerType, childArrow, componentBinaryName,
-            idTypes, declaredProps, aliases, rootFunctions, bindingCounter, classes));
-        codegen.emit(eval, expr);
-        eval.visitInsn(Opcodes.ARETURN);
-        eval.visitMaxs(0, 0);
-        eval.visitEnd();
-
-        cw.visitEnd();
-        classes.put(bindingBinaryName, cw.toByteArray());
-        return bindingInternal;
-    }
-
-    private void emitChildScopeFunction(MethodVisitor ctor, Class<? extends QObject> outerType,
-                                        int outerLocal, Ast.FunctionDeclaration fd,
-                                        String componentBinaryName,
-                                        Map<String, Class<? extends QObject>> idTypes,
-                                        Map<String, String> declaredProps,
-                                        Map<String, AliasRef> aliases,
-                                        Map<String, Integer> rootFunctions,
-                                        int[] bindingCounter,
-                                        Map<String, byte[]> classes) {
-        Ast.ArrowFunctionExpr arrowEquiv =
-            new Ast.ArrowFunctionExpr(fd.paramNames, null, fd.body);
-        String outerInternal = Type.getInternalName(outerType);
-        String componentInternal = componentBinaryName.replace('.', '/');
-        String funcInternal = emitArrowClass(outerInternal, outerType, arrowEquiv,
-                                             componentBinaryName, idTypes, declaredProps,
-                                             aliases, rootFunctions, bindingCounter, classes);
-        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
-        ctor.visitLdcInsn(fd.name);
-        ctor.visitTypeInsn(Opcodes.NEW, funcInternal);
-        ctor.visitInsn(Opcodes.DUP);
-        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
-        ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, funcInternal, "<init>",
-                             "(L" + outerInternal + ";L" + componentInternal + ";)V", false);
-        ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, QOBJECT_INTERNAL,
-                             "__putFunction",
-                             "(Ljava/lang/String;Lio/qml4j/engine/Callable;)V", false);
-    }
-
-    private String emitArrowClass(String outerInternal, Class<?> outerType,
-                                  Ast.ArrowFunctionExpr fn,
-                                  String componentBinaryName,
-                                  Map<String, Class<? extends QObject>> idTypes,
-                                  Map<String, String> declaredProps,
-                                  Map<String, AliasRef> aliases,
-                                  Map<String, Integer> rootFunctions,
-                                  int[] bindingCounter,
-                                  Map<String, byte[]> classes) {
-        String componentInternal = componentBinaryName.replace('.', '/');
-        int n = bindingCounter[0]++;
-        String arrowBinary = componentBinaryName + "$Arrow$" + n;
-        String arrowInternal = arrowBinary.replace('.', '/');
-
-        ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
-        cw.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
-                 arrowInternal, null, "java/lang/Object",
-                 new String[]{"io/qml4j/engine/Callable"});
-
-        cw.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL,
-                      "outer", "L" + outerInternal + ";", null, null).visitEnd();
-        cw.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL,
-                      "root", "L" + componentInternal + ";", null, null).visitEnd();
-
-        MethodVisitor ctor = cw.visitMethod(Opcodes.ACC_PUBLIC, "<init>",
-                                            "(L" + outerInternal + ";L" + componentInternal + ";)V",
-                                            null, null);
-        ctor.visitCode();
-        ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
-        ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        ctor.visitVarInsn(Opcodes.ALOAD, 1);
-        ctor.visitFieldInsn(Opcodes.PUTFIELD, arrowInternal, "outer", "L" + outerInternal + ";");
-        ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        ctor.visitVarInsn(Opcodes.ALOAD, 2);
-        ctor.visitFieldInsn(Opcodes.PUTFIELD, arrowInternal, "root", "L" + componentInternal + ";");
-        ctor.visitInsn(Opcodes.RETURN);
-        ctor.visitMaxs(0, 0);
-        ctor.visitEnd();
-
-        MethodVisitor call = cw.visitMethod(Opcodes.ACC_PUBLIC, "call",
-                                            "([Ljava/lang/Object;)Ljava/lang/Object;", null, null);
-        call.visitCode();
-
-        int firstParamSlot = 2;
-        Map<String, Integer> directParams = new LinkedHashMap<>();
-        for (int i = 0; i < fn.paramNames.size(); i++) {
-            int slot = firstParamSlot + i;
-            call.visitVarInsn(Opcodes.ALOAD, 1);
-            pushSmallInt(call, i);
-            call.visitInsn(Opcodes.AALOAD);
-            call.visitVarInsn(Opcodes.ASTORE, slot);
-            directParams.put(fn.paramNames.get(i), slot);
-        }
-
-        ExpressionCodegen codegen = ExpressionCodegen.forArrow(outerInternal, arrowInternal, outerType,
-                                                               componentInternal, idTypes, directParams,
-                                                               declaredProps, aliases, rootFunctions);
-        @SuppressWarnings("unchecked")
-        Class<? extends QObject> outerQ = (Class<? extends QObject>) outerType;
-        codegen.setBindingEmitter(childExpr -> emitBindingClass(
-            outerInternal, outerQ, childExpr, componentBinaryName,
-            idTypes, declaredProps, aliases, rootFunctions, bindingCounter, classes));
-        codegen.setArrowEmitter(childArrow -> emitArrowClass(
-            outerInternal, outerType, childArrow, componentBinaryName,
-            idTypes, declaredProps, aliases, rootFunctions, bindingCounter, classes));
-
-        if (fn.bodyExpr != null) {
-            codegen.emit(call, fn.bodyExpr);
-            call.visitInsn(Opcodes.ARETURN);
-        } else {
-            StatementCodegen stmts = new StatementCodegen(codegen,
-                firstParamSlot + fn.paramNames.size(), StatementCodegen.ReturnKind.OBJECT);
-            stmts.emit(call, fn.bodyBlock);
-            call.visitInsn(Opcodes.ACONST_NULL);
-            call.visitInsn(Opcodes.ARETURN);
-        }
-        call.visitMaxs(0, 0);
-        call.visitEnd();
-
-        cw.visitEnd();
-        classes.put(arrowBinary, cw.toByteArray());
-        return arrowInternal;
-    }
-
-    private static void pushSmallInt(MethodVisitor mv, int v) {
-        if (v >= 0 && v <= 5) mv.visitInsn(Opcodes.ICONST_0 + v);
-        else if (v <= Byte.MAX_VALUE) mv.visitIntInsn(Opcodes.BIPUSH, v);
-        else mv.visitIntInsn(Opcodes.SIPUSH, v);
-    }
-
     // A reflective method `name(Object...)` that forwards to the function's RhinoFunction
     // (registered via __putFunction in the ctor). Keeps the Java-method identity that
     // callers using getClass().getMethod(name) rely on, while the body runs on Rhino.
@@ -2326,45 +1993,6 @@ public final class QmlCompiler {
         }
         mv.visitMethodInsn(Opcodes.INVOKEINTERFACE, "io/qml4j/engine/Callable", "call",
                            "([Ljava/lang/Object;)Ljava/lang/Object;", true);
-        mv.visitInsn(Opcodes.ARETURN);
-        mv.visitMaxs(0, 0);
-        mv.visitEnd();
-    }
-
-    private void emitRootFunctionMethod(ClassWriter cw, String componentInternal,
-                                        Class<? extends QObject> rootType,
-                                        Ast.FunctionDeclaration fd,
-                                        Map<String, Class<? extends QObject>> idTypes,
-                                        Map<String, String> rootDeclaredProps,
-                                        Map<String, AliasRef> rootAliases,
-                                        Map<String, Integer> rootFunctions,
-                                        String componentBinaryName,
-                                        int[] bindingCounter,
-                                        Map<String, byte[]> classes) {
-        StringBuilder desc = new StringBuilder("(");
-        for (int i = 0; i < fd.paramNames.size(); i++) desc.append("Ljava/lang/Object;");
-        desc.append(")Ljava/lang/Object;");
-
-        MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PUBLIC, fd.name, desc.toString(), null, null);
-        mv.visitCode();
-
-        Map<String, Integer> directParams = new LinkedHashMap<>();
-        for (int i = 0; i < fd.paramNames.size(); i++) {
-            directParams.put(fd.paramNames.get(i), i + 1);
-        }
-        ExpressionCodegen codegen = ExpressionCodegen.forFunction(componentInternal, rootType, idTypes,
-                                                                  directParams, rootDeclaredProps,
-                                                                  rootAliases, rootFunctions);
-        codegen.setBindingEmitter(childExpr -> emitBindingClass(
-            componentInternal, rootType, childExpr, componentBinaryName,
-            idTypes, rootDeclaredProps, rootAliases, rootFunctions, bindingCounter, classes));
-        codegen.setArrowEmitter(childArrow -> emitArrowClass(
-            componentInternal, rootType, childArrow, componentBinaryName,
-            idTypes, rootDeclaredProps, rootAliases, rootFunctions, bindingCounter, classes));
-        StatementCodegen stmts = new StatementCodegen(codegen, fd.paramNames.size() + 1,
-                                                      StatementCodegen.ReturnKind.OBJECT);
-        stmts.emit(mv, fd.body);
-        mv.visitInsn(Opcodes.ACONST_NULL);
         mv.visitInsn(Opcodes.ARETURN);
         mv.visitMaxs(0, 0);
         mv.visitEnd();
