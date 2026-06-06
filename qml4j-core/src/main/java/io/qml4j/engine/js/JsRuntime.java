@@ -16,10 +16,16 @@ public final class JsRuntime {
 
     private JsRuntime() {}
 
+    // Compiled (JS -> JVM bytecode) by default: bindings/handlers run far faster than
+    // interpreted. Android must force the interpreter (no runtime bytecode gen) with
+    // -Dqml4j.rhino.opt=-1. First step of the compiled-mode / hot-reload direction;
+    // a later step defines the generated classes into each component's classloader.
+    private static final int OPT_LEVEL = Integer.getInteger("qml4j.rhino.opt", 9);
+
     private static final ContextFactory FACTORY = new ContextFactory() {
         @Override protected Context makeContext() {
             Context cx = super.makeContext();
-            cx.setOptimizationLevel(-1);
+            cx.setOptimizationLevel(OPT_LEVEL);
             cx.setLanguageVersion(Context.VERSION_ES6);
             return cx;
         }
