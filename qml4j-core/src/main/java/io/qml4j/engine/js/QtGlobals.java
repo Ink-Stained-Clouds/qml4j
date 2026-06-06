@@ -47,6 +47,7 @@ public final class QtGlobals {
         scope.put("ListView", scope, enumObject(LISTVIEW));
         scope.put("GridView", scope, enumObject(LISTVIEW));
         scope.put("RotationAnimation", scope, enumObject(ROTATION_ANIMATION));
+        scope.put("Image", scope, enumObject(TEXT));
 
         NativeObject console = new NativeObject();
         console.put("log", console, fn("log", 1, a -> { System.out.println(join(a)); return null; }));

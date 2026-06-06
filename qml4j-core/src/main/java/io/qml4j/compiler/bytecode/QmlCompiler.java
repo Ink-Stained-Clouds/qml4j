@@ -529,6 +529,16 @@ public final class QmlCompiler {
                 throw new IllegalArgumentException(
                     "statement-block binding for '" + key + "' could not be compiled");
             }
+            // ScriptAction.script: a body run when the action triggers -- emit it as a
+            // handler on the owner's `trigger` signal (not a value binding).
+            if ("script".equals(key) && findSignalFieldOrNull(outerType, "trigger") != null) {
+                emitSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
+                                  handlerCounter, bindingCounter, classes,
+                                  findSignalFieldOrNull(outerType, "trigger"), valueSource(b.value),
+                                  idTypes, Collections.<String>emptyList(), declaredProps, aliases,
+                                  rootFunctions, customSignals);
+                return;
+            }
             if (isHandler) {
                 // Arrow-form handlers `(a) => body` bind their params as the signal
                 // args; the captured body source runs as `(function(params){ body })`.

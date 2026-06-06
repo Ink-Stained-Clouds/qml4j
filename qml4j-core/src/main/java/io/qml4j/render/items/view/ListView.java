@@ -16,6 +16,9 @@ public class ListView extends Flickable implements DelegateHost {
     public final Property<Object> model = new Property<>(0);
     public final Property<Number> spacing = new Property<>(0);
     public final Property<String> orientation = new Property<>("Vertical");
+    public final Property<Number> cacheBuffer = new Property<>(0);
+    public final Property<Number> currentIndex = new Property<>(0);
+    public final Property<Number> highlightMoveDuration = new Property<>(0);
 
     private DelegateFactory factory;
     private final List<Item> instances = new ArrayList<>();

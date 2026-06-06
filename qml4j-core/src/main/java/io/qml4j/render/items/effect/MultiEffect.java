@@ -9,9 +9,14 @@ import io.qml4j.render.Painter;
 // shape. Colour/blur/shadow knobs are accepted but not yet applied.
 public class MultiEffect extends Item {
     public final Property<Object> source = new Property<>(null);
+    public final Property<Boolean> autoPaddingEnabled = new Property<>(Boolean.TRUE);
     public final Property<Boolean> maskEnabled = new Property<>(Boolean.FALSE);
     public final Property<Object> maskSource = new Property<>(null);
     public final Property<Boolean> maskInverted = new Property<>(Boolean.FALSE);
+    public final Property<Number> maskThresholdMin = new Property<>(0.0);
+    public final Property<Number> maskThresholdMax = new Property<>(1.0);
+    public final Property<Number> maskSpreadAtMin = new Property<>(0.0);
+    public final Property<Number> maskSpreadAtMax = new Property<>(0.0);
 
     public final Property<Boolean> blurEnabled = new Property<>(Boolean.FALSE);
     public final Property<Number> blur = new Property<>(0);
