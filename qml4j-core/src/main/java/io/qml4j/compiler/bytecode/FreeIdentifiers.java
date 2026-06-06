@@ -4,7 +4,6 @@ import io.qml4j.parser.ast.Ast;
 
 import java.util.HashSet;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Set;
 
 // Collects the free identifiers of a handler/function body -- the bare names it

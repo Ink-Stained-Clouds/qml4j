@@ -42,7 +42,6 @@ public final class QmlCompiler {
     private static final String BINDING_INTERNAL = "io/qml4j/engine/binding/Binding";
     private static final String SIGNAL_INTERNAL = "io/qml4j/engine/Signal";
     private static final String SIGNAL_DESC = "L" + SIGNAL_INTERNAL + ";";
-    private static final String RUNNABLE_INTERNAL = "java/lang/Runnable";
     private static final String SIGNAL_HANDLER_INTERNAL = "io/qml4j/engine/SignalHandler";
     private static final String SIGNAL_HANDLER_DESC = "L" + SIGNAL_HANDLER_INTERNAL + ";";
     private static final String LIST_INTERNAL = "java/util/List";

@@ -1,9 +1,5 @@
 package io.qml4j.engine.binding;
 
-import io.qml4j.engine.QmlEngine;
-import io.qml4j.engine.QObject;
-import io.qml4j.engine.Signal;
-import io.qml4j.engine.Context;
 
 import org.junit.jupiter.api.Test;
 
