@@ -6,6 +6,9 @@ import io.qml4j.render.items.core.Canvas;
 import io.qml4j.render.items.core.Item;
 import org.junit.jupiter.api.Test;
 
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
@@ -42,5 +45,20 @@ class CanvasLoadTest {
         assertFalse(root.children.isEmpty());
         assertNotNull(root.children.get(0));
         org.junit.jupiter.api.Assertions.assertTrue(root.children.get(0) instanceof Canvas);
+    }
+
+    @Test
+    void canvasShowcaseCompiles() {
+        String qml;
+        try (InputStream in = CanvasLoadTest.class.getResourceAsStream("/showcases/CanvasShowcase.qml")) {
+            assertNotNull(in, "missing CanvasShowcase.qml");
+            qml = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (Exception e) { throw new RuntimeException(e); }
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        Item root = v.load(qml);
+        DirtyQueue dq = v.dirtyQueue();
+        dq.install();
+        try { dq.flush(); } finally { dq.uninstall(); }
+        assertFalse(root.children.isEmpty());
     }
 }
