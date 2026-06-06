@@ -32,7 +32,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.qml4j.compiler.bytecode.asm.Bytecode.loadLiteral;
 import static io.qml4j.compiler.bytecode.asm.Bytecode.pushStringArray;
-import static io.qml4j.compiler.bytecode.asm.Descriptors.BINDING_INTERNAL;
 import static io.qml4j.compiler.bytecode.asm.Descriptors.DELEGATE_FACTORY_INTERNAL;
 import static io.qml4j.compiler.bytecode.asm.Descriptors.DELEGATE_HOST_INTERNAL;
 import static io.qml4j.compiler.bytecode.asm.Descriptors.LIST_DESC;
@@ -45,7 +44,6 @@ import static io.qml4j.compiler.bytecode.asm.Descriptors.SIGNAL_DESC;
 import static io.qml4j.compiler.bytecode.asm.Descriptors.SIGNAL_HANDLER_DESC;
 import static io.qml4j.compiler.bytecode.asm.Descriptors.SIGNAL_INTERNAL;
 import static io.qml4j.compiler.bytecode.asm.Descriptors.SIGNAL_RELAY_INTERNAL;
-import static io.qml4j.compiler.bytecode.asm.Descriptors.SINK_INTERNAL;
 import static io.qml4j.compiler.bytecode.asm.Fields.defaultListFieldFor;
 import static io.qml4j.compiler.bytecode.asm.Fields.defaultParentFieldFor;
 import static io.qml4j.compiler.bytecode.asm.Fields.findFieldOrNull;
@@ -61,6 +59,12 @@ import static io.qml4j.compiler.bytecode.decl.PropertyDecls.collectPropertyDecls
 import static io.qml4j.compiler.bytecode.decl.PropertyDecls.emitAliasLink;
 import static io.qml4j.compiler.bytecode.decl.PropertyDecls.emitInitDeclaredProperty;
 import static io.qml4j.compiler.bytecode.decl.PropertyDecls.parseAlias;
+import static io.qml4j.compiler.bytecode.emit.BindingEmitter.emitRhinoBindingBind;
+import static io.qml4j.compiler.bytecode.emit.BindingEmitter.emitRhinoBindingFor;
+import static io.qml4j.compiler.bytecode.emit.ValueAssigner.emitChangeSinkAssignment;
+import static io.qml4j.compiler.bytecode.emit.ValueAssigner.emitDeclaredPropertyBinding;
+import static io.qml4j.compiler.bytecode.emit.ValueAssigner.emitExpressionBinding;
+import static io.qml4j.compiler.bytecode.emit.ValueAssigner.emitLiteralAssignment;
 import static io.qml4j.compiler.bytecode.rhino.RhinoScope.canHandle;
 import static io.qml4j.compiler.bytecode.rhino.RhinoScope.collectAliases;
 import static io.qml4j.compiler.bytecode.rhino.RhinoScope.collectSingletons;
@@ -563,8 +567,7 @@ public final class QmlCompiler {
             if (e instanceof Ast.LiteralExpr) {
                 emitLiteralAssignment(ctor, outerType, outerLocal, key, (Ast.LiteralExpr) e);
             } else {
-                emitExpressionBinding(ctor, outerType, outerLocal, componentBinaryName,
-                                      bindingCounter, classes, key, e,
+                emitExpressionBinding(ctor, outerType, outerLocal, key, e,
                                       ((Ast.ExpressionValue) b.value).source, idTypes,
                                       declaredProps, aliases, rootFunctions, customSignals);
             }
@@ -649,8 +652,7 @@ public final class QmlCompiler {
                 if (e instanceof Ast.LiteralExpr) {
                     emitLiteralAssignment(ctor, outerType, outerLocal, pd.name, (Ast.LiteralExpr) e);
                 } else {
-                    emitExpressionBinding(ctor, outerType, outerLocal, componentBinaryName,
-                                          bindingCounter, classes, pd.name, e,
+                    emitExpressionBinding(ctor, outerType, outerLocal, pd.name, e,
                                           ((Ast.ExpressionValue) pd.initializer).source, idTypes,
                                           declaredProps, aliases, rootFunctions, customSignalParams.keySet());
                 }
@@ -721,24 +723,6 @@ public final class QmlCompiler {
         }
         throw new UnsupportedOperationException(
             "only expression/object/block initializer supported for property: " + pd.name);
-    }
-
-    private void emitDeclaredPropertyBinding(MethodVisitor ctor, Class<? extends QObject> outerType,
-                                             int outerLocal,
-                                             String ownerInternal, String name, Ast.Expression expr,
-                                             String source,
-                                             Map<String, Class<? extends QObject>> idTypes,
-                                             Map<String, String> declaredProps,
-                                             Map<String, AliasRef> aliases,
-                                             Map<String, Integer> rootFunctions,
-                                             Set<String> customSignals) {
-        if (source == null) {
-            throw new IllegalArgumentException("binding for '" + name + "' has no captured source");
-        }
-        require(new Ast.ExprStmt(expr), outerType, idTypes, declaredProps,
-                              Collections.<String>emptyList(), rootFunctions, customSignals, aliases);
-        emitRhinoBindingBind(ctor, ownerInternal, name, source, outerLocal, idTypes,
-                             collectSingletons(expr), collectAliases(expr, aliases));
     }
 
     private void emitChildObject(MethodVisitor ctor, Class<? extends QObject> outerType,
@@ -1292,112 +1276,6 @@ public final class QmlCompiler {
                                 componentBinaryName, idTypes, customSignalParams, listFieldName,
                                 declaredProps, rootFunctions);
         }
-    }
-
-    private void emitChangeSinkAssignment(MethodVisitor ctor, Class<? extends QObject> outerType,
-                                          int outerLocal, String name, Ast.Expression expr, String source,
-                                          Map<String, Class<? extends QObject>> idTypes,
-                                          Map<String, String> declaredProps,
-                                          Map<String, AliasRef> aliases,
-                                          Map<String, Integer> rootFunctions,
-                                          Set<String> customSignals) {
-        if (expr instanceof Ast.LiteralExpr) {
-            ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
-            ctor.visitLdcInsn(name);
-            loadLiteral(ctor, (Ast.LiteralExpr) expr);
-            ctor.visitMethodInsn(Opcodes.INVOKEINTERFACE, SINK_INTERNAL,
-                                 "addChange", "(Ljava/lang/String;Ljava/lang/Object;)V", true);
-            return;
-        }
-        if (source == null) {
-            throw new IllegalArgumentException("change '" + name + "' has no captured source");
-        }
-        require(new Ast.ExprStmt(expr), outerType, idTypes, declaredProps,
-                              Collections.<String>emptyList(), rootFunctions, customSignals, aliases);
-        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
-        ctor.visitLdcInsn(name);
-        pushNewRhinoBinding(ctor, source, outerLocal, idTypes,
-                            collectSingletons(expr), collectAliases(expr, aliases));
-        ctor.visitMethodInsn(Opcodes.INVOKEINTERFACE, SINK_INTERNAL,
-                             "addChangeBinding",
-                             "(Ljava/lang/String;L" + BINDING_INTERNAL + ";)V", true);
-    }
-
-    private void emitLiteralAssignment(MethodVisitor ctor, Class<? extends QObject> outerType,
-                                       int outerLocal, String propName, Ast.LiteralExpr lit) {
-        Field f = findPropertyField(outerType, propName);
-        String declOwner = Type.getInternalName(f.getDeclaringClass());
-        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
-        ctor.visitFieldInsn(Opcodes.GETFIELD, declOwner, propName, PROPERTY_DESC);
-        loadLiteral(ctor, lit);
-        ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
-                             "set", "(Ljava/lang/Object;)V", false);
-    }
-
-    private void emitExpressionBinding(MethodVisitor ctor, Class<? extends QObject> outerType,
-                                       int outerLocal, String componentBinaryName,
-                                       int[] bindingCounter, Map<String, byte[]> classes,
-                                       String propName, Ast.Expression expr, String source,
-                                       Map<String, Class<? extends QObject>> idTypes,
-                                       Map<String, String> declaredProps,
-                                       Map<String, AliasRef> aliases,
-                                       Map<String, Integer> rootFunctions,
-                                       Set<String> customSignals) {
-        Field f = findPropertyField(outerType, propName);
-        String declOwner = Type.getInternalName(f.getDeclaringClass());
-
-        if (source == null) {
-            throw new IllegalArgumentException("binding for '" + propName + "' has no captured source");
-        }
-        require(new Ast.ExprStmt(expr), outerType, idTypes, declaredProps,
-                              Collections.<String>emptyList(), rootFunctions, customSignals, aliases);
-        emitRhinoBindingBind(ctor, declOwner, propName, source, outerLocal, idTypes,
-                             collectSingletons(expr), collectAliases(expr, aliases));
-    }
-
-    private static final String RHINO_BINDING_INTERNAL = "io/qml4j/engine/js/RhinoBinding";
-
-    // Binds the property to `new RhinoBinding(source, outer, root, ids)`. The property
-    // field is loaded from declOwner; source is the JS the binding evaluates.
-    private void emitRhinoBindingBind(MethodVisitor ctor, String declOwner, String propName,
-                                      String source, int outerLocal,
-                                      Map<String, Class<? extends QObject>> idTypes,
-                                      Map<String, Class<? extends QObject>> singletons,
-                                      Map<String, AliasRef> aliases) {
-        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
-        ctor.visitFieldInsn(Opcodes.GETFIELD, declOwner, propName, PROPERTY_DESC);
-        emitRhinoBindingFor(ctor, source, outerLocal, idTypes, singletons, aliases);
-    }
-
-    // With the target Property already on the operand stack, binds it to a fresh
-    // RhinoBinding over `source`. Lets callers load any Property (a root field or a
-    // grouped border.color/font.pixelSize) and reuse the same binding wiring.
-    private void emitRhinoBindingFor(MethodVisitor ctor, String source, int outerLocal,
-                                     Map<String, Class<? extends QObject>> idTypes,
-                                     Map<String, Class<? extends QObject>> singletons,
-                                     Map<String, AliasRef> aliases) {
-        pushNewRhinoBinding(ctor, source, outerLocal, idTypes, singletons, aliases);
-        ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
-                             "bind", "(L" + BINDING_INTERNAL + ";)V", false);
-    }
-
-    // Leaves a fresh RhinoBinding over `source` on the operand stack (for Property.bind or
-    // a sink's addChangeBinding).
-    private void pushNewRhinoBinding(MethodVisitor ctor, String source, int outerLocal,
-                                     Map<String, Class<? extends QObject>> idTypes,
-                                     Map<String, Class<? extends QObject>> singletons,
-                                     Map<String, AliasRef> aliases) {
-        ctor.visitTypeInsn(Opcodes.NEW, RHINO_BINDING_INTERNAL);
-        ctor.visitInsn(Opcodes.DUP);
-        ctor.visitLdcInsn(source);
-        ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
-        ctor.visitVarInsn(Opcodes.ALOAD, 0);
-        pushStringArray(ctor, new ArrayList<>(idTypes.keySet()));
-        ctor.visitInsn(inDelegateScope() ? Opcodes.ICONST_1 : Opcodes.ICONST_0);
-        pushSingletons(ctor, singletons);
-        pushAliases(ctor, aliases);
-        ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, RHINO_BINDING_INTERNAL, "<init>",
-                             "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;[Ljava/lang/String;Z[Ljava/lang/String;[Ljava/lang/Class;[Ljava/lang/String;)V", false);
     }
 
     private void emitKeysHandler(MethodVisitor ctor, Class<? extends QObject> outerType,
