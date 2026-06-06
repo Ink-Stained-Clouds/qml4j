@@ -1,6 +1,7 @@
 package io.qml4j.render.items.input;
 
 import io.qml4j.engine.binding.Property;
+import io.qml4j.render.Painter;
 
 public class TextField extends TextInput {
     public final Property<String> placeholderText = new Property<>("");
@@ -11,4 +12,9 @@ public class TextField extends TextInput {
     public final Property<Number> borderWidth = new Property<>(1);
     public final Property<Number> radius = new Property<>(6);
     public final Property<Number> padding = new Property<>(8);
+
+    @Override
+    public void paint(Painter p, float w, float h, float alpha) {
+        p.drawTextField(this, w, h, alpha);
+    }
 }

@@ -4,6 +4,7 @@ import io.qml4j.render.items.core.Item;
 import io.qml4j.engine.Signal;
 import io.qml4j.engine.binding.Property;
 import io.qml4j.render.Renderer;
+import io.qml4j.render.Painter;
 
 public class TextInput extends Item implements TextEditable {
     public final Property<String> text = new Property<>("");
@@ -42,5 +43,10 @@ public class TextInput extends Item implements TextEditable {
     }
     @Override public int moveCaretVertical(int caret, int delta, Renderer r) {
         return caret;
+    }
+
+    @Override
+    public void paint(Painter p, float w, float h, float alpha) {
+        p.drawTextInput(this, w, h, alpha);
     }
 }

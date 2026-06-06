@@ -4,6 +4,7 @@ import io.qml4j.render.items.core.Item;
 import io.qml4j.engine.Signal;
 import io.qml4j.engine.binding.Property;
 import io.qml4j.render.Renderer;
+import io.qml4j.render.Painter;
 
 import java.util.List;
 
@@ -52,5 +53,10 @@ public class TextEdit extends Item implements TextEditable {
     }
     @Override public int moveCaretVertical(int caret, int delta, Renderer r) {
         return r.moveCaretVerticalForTextEdit(this, caret, delta);
+    }
+
+    @Override
+    public void paint(Painter p, float w, float h, float alpha) {
+        p.drawTextEdit(this, w, h, alpha);
     }
 }

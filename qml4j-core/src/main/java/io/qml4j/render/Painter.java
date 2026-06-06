@@ -24,6 +24,9 @@ import io.qml4j.render.items.core.Rectangle;
 import io.qml4j.render.items.core.Text;
 import io.qml4j.render.items.core.TextWrap;
 import io.qml4j.render.items.effect.MultiEffect;
+import io.qml4j.render.items.input.TextEdit;
+import io.qml4j.render.items.input.TextField;
+import io.qml4j.render.items.input.TextInput;
 import io.qml4j.render.items.shape.ImageFill;
 import io.qml4j.render.items.shape.PathArc;
 import io.qml4j.render.items.shape.PathCubic;
@@ -433,5 +436,168 @@ public final class Painter {
             if (r != null) return r;
         }
         return null;
+    }
+
+    private static final long CARET_BLINK_MS = 500;
+
+    private static boolean caretBlinkOn() {
+        return (System.currentTimeMillis() / CARET_BLINK_MS) % 2 == 0;
+    }
+
+    public void drawTextField(TextField tf, float w, float h, float alpha) {
+        float radius = Math.max(0f, tf.radius.peek().floatValue());
+        Paint p = renderer.paint();
+        p.setShader(null);
+        p.setMode(PaintMode.FILL);
+        p.setColor(Renderer.applyAlpha(Renderer.parseColor(tf.backgroundColor.peek()), alpha));
+        if (radius > 0f) {
+            canvas.drawRRect(RRect.makeXYWH(0, 0, w, h, radius), p);
+        } else {
+            canvas.drawRect(Rect.makeXYWH(0, 0, w, h), p);
+        }
+        float bw = Math.max(0f, tf.borderWidth.peek().floatValue());
+        if (bw > 0f) {
+            boolean focused = Boolean.TRUE.equals(tf.activeFocus.peek());
+            int bc = Renderer.parseColor(focused ? tf.focusBorderColor.peek() : tf.borderColor.peek());
+            p.setMode(PaintMode.STROKE);
+            p.setStrokeWidth(bw);
+            p.setColor(Renderer.applyAlpha(bc, alpha));
+            float inset = bw / 2f;
+            float iw = Math.max(0f, w - bw);
+            float ih = Math.max(0f, h - bw);
+            if (radius > 0f) {
+                canvas.drawRRect(RRect.makeXYWH(inset, inset, iw, ih, Math.max(0f, radius - inset)), p);
+            } else {
+                canvas.drawRect(Rect.makeXYWH(inset, inset, iw, ih), p);
+            }
+            p.setMode(PaintMode.FILL);
+        }
+        float size = tf.fontSize.peek().floatValue();
+        float pad = tf.padding.peek().floatValue();
+        int tfSave = canvas.save();
+        try {
+            canvas.translate(pad, 0);
+            String s = tf.text.peek();
+            if (s == null || s.isEmpty()) {
+                String ph = tf.placeholderText.peek();
+                if (ph != null && !ph.isEmpty()) {
+                    try (Font font = renderer.fonts().fontFor(size, ph)) {
+                        p.setColor(Renderer.applyAlpha(Renderer.parseColor(tf.placeholderTextColor.peek()), alpha));
+                        canvas.drawString(ph, 0, TextLayout.centeredBaseline(font, h), font, p);
+                    }
+                }
+            }
+            drawTextInput(tf, w, h, alpha);
+        } finally {
+            canvas.restoreToCount(tfSave);
+        }
+    }
+
+    public void drawTextInput(TextInput ti, float w, float h, float alpha) {
+        String s = ti.text.peek();
+        if (s == null) s = "";
+        float size = ti.fontSize.peek().floatValue();
+        try (Font font = renderer.fonts().fontFor(size, s)) {
+            float baseline = TextLayout.centeredBaseline(font, h);
+            float glyphTop = baseline + TextLayout.glyphTopOffset(font);
+            float glyphHeight = TextLayout.glyphExtent(font);
+            paintSelectionRect(ti, s, font, glyphTop, glyphHeight, alpha);
+            if (!s.isEmpty()) {
+                Paint p = renderer.paint();
+                p.setColor(Renderer.applyAlpha(Renderer.parseColor(ti.color.peek()), alpha));
+                canvas.drawString(s, 0, baseline, font, p);
+            }
+            if (Boolean.TRUE.equals(ti.activeFocus.peek()) && caretBlinkOn()) {
+                int pos = Math.max(0, Math.min(ti.cursorPosition.peek().intValue(), s.length()));
+                float cx = font.measureTextWidth(s.substring(0, pos));
+                Paint p = renderer.paint();
+                p.setMode(PaintMode.FILL);
+                p.setColor(Renderer.applyAlpha(Renderer.parseColor(ti.color.peek()), alpha));
+                float cw = Math.max(1f, size / 16f);
+                canvas.drawRect(Rect.makeXYWH(cx, glyphTop, cw, glyphHeight), p);
+            }
+        }
+    }
+
+    private void paintSelectionRect(TextInput ti, String s, Font font,
+                                    float glyphTop, float glyphHeight, float alpha) {
+        int len = s.length();
+        int selS = Math.max(0, Math.min(ti.selectionStart.peek().intValue(), len));
+        int selE = Math.max(selS, Math.min(ti.selectionEnd.peek().intValue(), len));
+        if (selE <= selS) return;
+        float x0 = font.measureTextWidth(s.substring(0, selS));
+        float x1 = font.measureTextWidth(s.substring(0, selE));
+        Paint p = renderer.paint();
+        p.setMode(PaintMode.FILL);
+        p.setColor(Renderer.applyAlpha(Renderer.parseColor(ti.selectionColor.peek()), alpha));
+        canvas.drawRect(Rect.makeXYWH(x0, glyphTop, x1 - x0, glyphHeight), p);
+    }
+
+    public void drawTextEdit(TextEdit te, float w, float h, float alpha) {
+        String s = te.text.peek();
+        if (s == null) s = "";
+        float size = te.fontSize.peek().floatValue();
+        try (Font font = renderer.fonts().fontFor(size, s)) {
+            TextWrap.Result wrapped = renderer.textLayout().wrapFor(te, s, w, size, font);
+            te.lineCount.set(wrapped.lines.size());
+            float lineH = TextLayout.lineHeight(font);
+            float total = lineH * wrapped.lines.size();
+            float yOffset = renderer.textLayout().topOffset(te.verticalAlignment.peek(), h, total);
+            paintSelectionMultiline(te, wrapped, font, yOffset, lineH, size, alpha);
+            Paint p = renderer.paint();
+            p.setColor(Renderer.applyAlpha(Renderer.parseColor(te.color.peek()), alpha));
+            for (int i = 0; i < wrapped.lines.size(); i++) {
+                String line = wrapped.lines.get(i);
+                if (!line.isEmpty()) {
+                    float baseline = yOffset + i * lineH + TextLayout.baselineInLine(font);
+                    canvas.drawString(line, 0, baseline, font, p);
+                }
+            }
+            if (Boolean.TRUE.equals(te.activeFocus.peek()) && caretBlinkOn()) {
+                drawCaretMultiline(te, wrapped, font, yOffset, lineH, size, alpha);
+            }
+        }
+    }
+
+    private void paintSelectionMultiline(TextEdit te, TextWrap.Result wrapped,
+                                         Font font, float yOffset, float lineH, float size, float alpha) {
+        int len = te.cachedText == null ? 0 : te.cachedText.length();
+        int selS = Math.max(0, Math.min(te.selectionStart.peek().intValue(), len));
+        int selE = Math.max(selS, Math.min(te.selectionEnd.peek().intValue(), len));
+        if (selE <= selS) return;
+        Paint p = renderer.paint();
+        p.setMode(PaintMode.FILL);
+        p.setColor(Renderer.applyAlpha(Renderer.parseColor(te.selectionColor.peek()), alpha));
+        float glyphTop = TextLayout.baselineInLine(font) + TextLayout.glyphTopOffset(font);
+        float glyphHeight = TextLayout.glyphExtent(font);
+        for (int i = 0; i < wrapped.lines.size(); i++) {
+            int ls = wrapped.starts[i];
+            String line = wrapped.lines.get(i);
+            int le = ls + line.length();
+            if (selE <= ls || selS >= le) continue;
+            int a = Math.max(selS, ls) - ls;
+            int b = Math.min(selE, le) - ls;
+            float x0 = a == 0 ? 0 : font.measureTextWidth(line.substring(0, a));
+            float x1 = font.measureTextWidth(line.substring(0, b));
+            float y = yOffset + i * lineH + glyphTop;
+            canvas.drawRect(Rect.makeXYWH(x0, y, x1 - x0, glyphHeight), p);
+        }
+    }
+
+    private void drawCaretMultiline(TextEdit te, TextWrap.Result wrapped,
+                                    Font font, float yOffset, float lineH, float size, float alpha) {
+        int len = te.cachedText == null ? 0 : te.cachedText.length();
+        int pos = Math.max(0, Math.min(te.cursorPosition.peek().intValue(), len));
+        int lineIdx = TextWrap.lineForCaret(wrapped, pos);
+        String line = wrapped.lines.get(lineIdx);
+        int col = Math.max(0, Math.min(pos - wrapped.starts[lineIdx], line.length()));
+        float cx = col == 0 ? 0 : font.measureTextWidth(line.substring(0, col));
+        float glyphTop = TextLayout.baselineInLine(font) + TextLayout.glyphTopOffset(font);
+        float glyphHeight = TextLayout.glyphExtent(font);
+        Paint p = renderer.paint();
+        p.setMode(PaintMode.FILL);
+        p.setColor(Renderer.applyAlpha(Renderer.parseColor(te.color.peek()), alpha));
+        float cw = Math.max(1f, size / 16f);
+        canvas.drawRect(Rect.makeXYWH(cx, yOffset + lineIdx * lineH + glyphTop, cw, glyphHeight), p);
     }
 }
