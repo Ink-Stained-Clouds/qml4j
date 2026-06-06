@@ -6,8 +6,6 @@ import io.qml4j.engine.binding.DirtyQueue;
 import io.qml4j.engine.binding.Property;
 import io.qml4j.render.items.view.Component;
 import io.qml4j.render.items.core.Flickable;
-import io.qml4j.render.items.core.Gradient;
-import io.qml4j.render.items.core.GradientStop;
 import io.qml4j.render.items.core.Image;
 import io.qml4j.render.items.shape.ImageFill;
 import io.qml4j.render.items.core.Item;
@@ -34,7 +32,6 @@ import io.qml4j.render.items.core.Text;
 import io.qml4j.render.items.input.TextEdit;
 import io.qml4j.render.items.input.TextInput;
 import io.qml4j.render.items.core.TextWrap;
-import io.qml4j.render.items.window.Window;
 
 import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.skija.Font;
@@ -51,7 +48,6 @@ import io.github.humbleui.skija.PathBuilder;
 import io.github.humbleui.skija.PathDirection;
 import io.github.humbleui.skija.PathEllipseArc;
 import io.github.humbleui.skija.PathFillMode;
-import io.github.humbleui.skija.Shader;
 import io.github.humbleui.types.RRect;
 import io.github.humbleui.types.Rect;
 
@@ -67,6 +63,7 @@ public final class Renderer {
     private final FontResolver fonts = new FontResolver();
     private final IconResolver icons = new IconResolver(fonts);
     private final TextLayout text = new TextLayout(fonts, icons);
+    private final Painter painter = new Painter(this);
 
     public void setResourceLoader(ResourceLoader loader) {
         this.resources = loader;
@@ -77,7 +74,7 @@ public final class Renderer {
         this.factory = factory;
     }
 
-    private Paint paint() {
+    Paint paint() {
         if (paint == null) paint = new Paint();
         return paint;
     }
@@ -88,6 +85,7 @@ public final class Renderer {
 
     public void render(Canvas canvas, Item root) {
         if (root == null) return;
+        painter.bind(canvas);
         settleLayout(root);
         draw(canvas, root, 1f);
     }
@@ -371,11 +369,8 @@ public final class Renderer {
     }
 
     private void paintNode(Canvas canvas, Item node, float w, float h, float alpha) {
-        if (node instanceof Window) {
-            paintWindow(canvas, (Window) node, w, h, alpha);
-        } else if (node instanceof Rectangle) {
-            paintRectangle(canvas, (Rectangle) node, w, h, alpha);
-        } else if (node instanceof Shape) {
+        node.paint(painter, w, h, alpha);
+        if (node instanceof Shape) {
             paintShape(canvas, (Shape) node, w, h, alpha);
         } else if (node instanceof Image) {
             paintImage(canvas, (Image) node, w, h, alpha);
@@ -483,16 +478,6 @@ public final class Renderer {
         return null;
     }
 
-    private void paintWindow(Canvas canvas, Window win, float w, float h, float alpha) {
-        String c = win.color.peek();
-        if (c == null || "transparent".equals(c)) return;
-        Paint p = paint();
-        p.setMode(PaintMode.FILL);
-        p.setShader(null);
-        p.setColor(applyAlpha(parseColor(c), alpha));
-        canvas.drawRect(Rect.makeXYWH(0, 0, w, h), p);
-    }
-
     private void drawChrome(Canvas canvas, ApplicationWindow win, float w, float h, float alpha) {
         win.layoutChrome(w, h);
         Item m = win.menuBar.peek();
@@ -577,57 +562,6 @@ public final class Renderer {
         } finally {
             canvas.restoreToCount(tfSave);
         }
-    }
-
-    private void paintRectangle(Canvas canvas, Rectangle r, float w, float h, float alpha) {
-        float radius = Math.max(0f, r.radius.peek().floatValue());
-        float borderWidth = Math.max(0f, r.border.width.peek().floatValue());
-        Gradient g = r.gradient.peek();
-        Shader shader = (g != null) ? buildLinearGradient(g, w, h) : null;
-        Paint p = paint();
-        p.setMode(PaintMode.FILL);
-        p.setShader(shader);
-        if (shader == null) {
-            p.setColor(applyAlpha(parseColor(r.color.peek()), alpha));
-        } else {
-            p.setColor(applyAlpha(0xFFFFFFFF, alpha));
-        }
-        if (radius > 0f) {
-            canvas.drawRRect(RRect.makeXYWH(0, 0, w, h, radius), p);
-        } else {
-            canvas.drawRect(Rect.makeXYWH(0, 0, w, h), p);
-        }
-        p.setShader(null);
-        if (shader != null) shader.close();
-        if (borderWidth > 0f) {
-            p.setMode(PaintMode.STROKE);
-            p.setStrokeWidth(borderWidth);
-            p.setColor(applyAlpha(parseColor(r.border.color.peek()), alpha));
-            float inset = borderWidth / 2f;
-            float bw = Math.max(0f, w - borderWidth);
-            float bh = Math.max(0f, h - borderWidth);
-            if (radius > 0f) {
-                float br = Math.max(0f, radius - inset);
-                canvas.drawRRect(RRect.makeXYWH(inset, inset, bw, bh, br), p);
-            } else {
-                canvas.drawRect(Rect.makeXYWH(inset, inset, bw, bh), p);
-            }
-            p.setMode(PaintMode.FILL);
-        }
-    }
-
-    private static Shader buildLinearGradient(Gradient g, float w, float h) {
-        List<GradientStop> stops = g.stops;
-        int n = stops.size();
-        if (n == 0) return null;
-        int[] colors = new int[n];
-        float[] positions = new float[n];
-        for (int i = 0; i < n; i++) {
-            GradientStop s = stops.get(i);
-            colors[i] = parseColor(s.color.peek());
-            positions[i] = s.position.peek().floatValue();
-        }
-        return Shader.makeLinearGradient(0, 0, 0, h, colors, positions);
     }
 
     private void paintTextInput(Canvas canvas, TextInput ti, float w, float h, float alpha) {
@@ -1030,7 +964,7 @@ public final class Renderer {
         }
     }
 
-    private static int applyAlpha(int color, float alpha) {
+    static int applyAlpha(int color, float alpha) {
         if (alpha >= 1f) return color;
         if (alpha <= 0f) return color & 0x00FFFFFF;
         int a = (color >>> 24) & 0xFF;

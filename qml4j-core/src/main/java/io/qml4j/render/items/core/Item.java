@@ -8,6 +8,7 @@ import io.qml4j.render.items.animation.Transition;
 
 import io.qml4j.render.AnchorLine;
 import io.qml4j.render.Anchors;
+import io.qml4j.render.Painter;
 
 import io.qml4j.engine.QObject;
 import io.qml4j.engine.binding.Property;
@@ -89,6 +90,11 @@ public class Item extends QObject {
     // Container layout hook, invoked by the Renderer layout pass. Default no-op;
     // layout containers (Row/Column/*Layout) override to position their children.
     public void layout() {}
+
+    // Paint hook, invoked by the Renderer paint pass once geometry/clip/transform
+    // are set up. Default no-op; drawable items override to render themselves via
+    // Painter primitives (so item subclasses never import skija directly).
+    public void paint(Painter p, float w, float h, float alpha) {}
 
     // QML Item.mapFromItem(source, x, y): map a point from source's coordinate
     // system into this item's. Returns a point ({x, y}); positions only (no
