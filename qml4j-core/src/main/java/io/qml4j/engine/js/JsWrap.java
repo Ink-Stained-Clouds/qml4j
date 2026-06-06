@@ -44,7 +44,25 @@ public final class JsWrap {
             if (isColorHex(s)) return new JsColor(s, scope);
             return s;
         }
+        // A function value crossing back into JS must stay callable. A JS function stored
+        // in a `var` property round-trips as RhinoFunctionValue; unwrap it to the live
+        // Rhino Function (preserving its captured scope) so `obj.action()` / `mk()` work
+        // instead of resolving to a non-callable JavaMember. A plain io.qml4j Callable
+        // (a Java-side function value) is adapted to a BaseFunction.
+        if (v instanceof Function) return v;
+        if (v instanceof RhinoFunctionValue) return ((RhinoFunctionValue) v).unwrap();
+        if (v instanceof Callable) return callableToFunction((Callable) v);
         return new JavaMember(v, scope);
+    }
+
+    private static Function callableToFunction(Callable c) {
+        return new BaseFunction() {
+            @Override public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+                Object[] ja = new Object[args == null ? 0 : args.length];
+                for (int i = 0; i < ja.length; i++) ja[i] = toJava(args[i]);
+                return toJs(c.call(ja), scope);
+            }
+        };
     }
 
     private static boolean isColorHex(String s) {

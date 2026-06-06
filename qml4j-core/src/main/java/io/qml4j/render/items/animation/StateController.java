@@ -85,10 +85,29 @@ public final class StateController {
         Map<TargetKey, Object> before = readAll(keys);
         swap(next);
         Map<TargetKey, Object> after = readAll(keys);
+        List<PropertyAnimation> spawned = new ArrayList<>();
         for (Item child : tr.children) {
             if (child instanceof PropertyAnimation) {
-                spawnAnimations((PropertyAnimation) child, before, after);
+                spawnAnimations((PropertyAnimation) child, before, after, spawned);
             }
+        }
+        driveRunning(tr, spawned);
+    }
+
+    // Qt's Transition.running is true while its animations play. Drive it here so
+    // `onRunningChanged` fires -- the only completion hook QML has for a transition
+    // (e.g. MD3 Menu closes its overlay in `onRunningChanged: if (!running) ...`).
+    private void driveRunning(Transition tr, List<PropertyAnimation> spawned) {
+        tr.running.set(Boolean.TRUE);
+        if (spawned.isEmpty()) {
+            tr.running.set(Boolean.FALSE);
+            return;
+        }
+        int[] remaining = { spawned.size() };
+        for (PropertyAnimation a : spawned) {
+            a.finished.connect(() -> {
+                if (--remaining[0] == 0) tr.running.set(Boolean.FALSE);
+            });
         }
     }
 
@@ -123,24 +142,28 @@ public final class StateController {
 
     private void spawnAnimations(PropertyAnimation tpl,
                                  Map<TargetKey, Object> before,
-                                 Map<TargetKey, Object> after) {
+                                 Map<TargetKey, Object> after,
+                                 List<PropertyAnimation> spawned) {
         Object targetFilter = tpl.target.peek();
         String[] propFilter = parseCsv(tpl.properties.peek());
         for (Map.Entry<TargetKey, Object> e : after.entrySet()) {
             considerSpawn(tpl, e.getKey(), before.get(e.getKey()), e.getValue(),
-                          targetFilter, propFilter);
+                          targetFilter, propFilter, spawned);
         }
     }
 
     private void considerSpawn(PropertyAnimation tpl, TargetKey k,
                                Object beforeVal, Object afterVal,
-                               Object targetFilter, String[] propFilter) {
+                               Object targetFilter, String[] propFilter,
+                               List<PropertyAnimation> spawned) {
         if (Objects.equals(beforeVal, afterVal)) return;
         if (targetFilter != null && targetFilter != k.target) return;
         if (propFilter != null && !contains(propFilter, k.name)) return;
         if (!tpl.acceptsTransition(beforeVal, afterVal)) return;
         cancelEphemeralsFor(k);
-        owner.children.add(buildEphemeral(tpl, k, beforeVal, afterVal));
+        PropertyAnimation a = buildEphemeral(tpl, k, beforeVal, afterVal);
+        owner.children.add(a);
+        spawned.add(a);
         MemberAccess.writeMember(k.target, k.name, beforeVal);
     }
 
