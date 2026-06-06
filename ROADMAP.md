@@ -2,6 +2,14 @@
 
 Living document. Updated whenever a milestone lands or the plan shifts.
 
+> **Current state (2026-06-06).** The engine grew well past the snapshots below:
+> 12+ unmodified MD3 components run, JS bindings/expressions moved to embedded
+> Rhino (the ASM JS codegen was removed), and the whole project was refactored to
+> polymorphic dispatch + single-responsibility modules (the four `qml4j-*` engine
+> modules merged into one `qml4j-core`). 481 tests + a checkstyle CI guard.
+> `README.md` is the current source of truth for capabilities and layout; the
+> dated entries below are kept as milestone history.
+
 ## Direction reset (2026-05-31, post-M50)
 
 Phases L–R (M35–M50) all landed: data views, animation, language

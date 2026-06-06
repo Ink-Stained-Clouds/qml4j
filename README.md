@@ -1,8 +1,8 @@
 # qml4j
 
-A pure-Java QML engine: parse `.qml` → JIT-compile to JVM bytecode (ASM) → render with Skia (Skija). Targets desktop today; Android (D8 → DEX → `InMemoryDexClassLoader`) is the next milestone.
+A pure-Java QML engine: parse `.qml` → JIT-compile the object tree to JVM bytecode (ASM) → evaluate bindings/expressions on embedded Rhino → render with Skia (Skija). Targets x86-64 desktop today; Android (D8 → DEX → `InMemoryDexClassLoader`) remains a milestone.
 
-> Status: pre-alpha. v0 + v0.1 + v0.2 ship: parser, JIT bytecode compiler, Skija renderer, anchors / Image / MouseArea / signals, Android APK with in-process D8 dexing.
+> Status: pre-alpha, but capable. **12+ unmodified third-party MD3 (Material Design 3) QML components run** (ScrollBar, ToolTip, Checkbox, Switch, RadioButton, IconButton, TopAppBar, Card, FAB, Chip, Button, Dialog, Slider, …). 481 tests green; checkstyle CI guard. The whole engine was refactored to polymorphic dispatch + single-responsibility modules (the long-term conventions are in `CLAUDE.md` § *Dispatch & polymorphism*).
 
 ## Why
 
@@ -10,57 +10,69 @@ Existing options have gaps:
 - `paulovap/qmljava` — stalled, no renderer
 - `jaqumal` / QtJambi — depend on Qt C++
 
-qml4j aims to be a fully native-Java path from QML source to pixels.
+qml4j aims to be a fully native-Java path from QML source to pixels — a drop-in engine that runs unmodified third-party QML libraries, not a hand-grown Controls clone.
 
 ## Architecture
 
 ```
-.qml → Qml4j.parse() → AST → QmlCompiler.compile() → byte[]
+.qml → Qml4j.parse() → AST → QmlCompiler.compile() → byte[]  (one Component$N per object)
                                      ↓
-                          ClassLoaderBackend.defineClass()
+                          ClassLoaderBackend.defineClasses()
                                      ↓
-                            Item tree (QObject + Property)
+                            Item tree (QObject + Property<T>)
                                      ↓
-                            Renderer (Skija Canvas)
+            bindings/handlers run as JavaScript on embedded Rhino (RhinoBinding)
+            against a QmlScope; Property.get() registers reactive dependencies
+                                     ↓
+                            Renderer (Skija Canvas, polymorphic Item.paint)
                                      ↓
                               SurfaceBackend
 ```
 
 ### Modules
 
+The four original `qml4j-{parser,engine,compiler,render}` modules were merged into a single `qml4j-core` (they remain Java *packages* inside it). The host is a separate module.
+
 | Module | Role |
 |---|---|
-| `qml4j-parser` | ANTLR4 grammar (`Qml.g4` + `JsExpression.g4`) → POJO AST |
-| `qml4j-engine` | `QObject`, `Property<T>`, `Binding`, dependency-tracking `BindingEvaluationContext`, `DirtyQueue`, `ClassLoaderBackend` SPI |
-| `qml4j-compiler` | ASM bytecode codegen — every `.qml` object → a synthetic `Component$N` class; every non-literal binding → a synthetic `Binding$M` class |
-| `qml4j-render` | `Item / Rectangle / Text / Column`, Skija-based `Renderer`, `SurfaceBackend` SPI, `QmlView` |
-| `qml4j-demo-desktop` | LWJGL3 + GLFW host + `GlfwSurfaceBackend` |
-| `android-shell` | Separate Gradle project: APK with `DexClassLoaderBackend` (D8 → DEX → `InMemoryDexClassLoader`) and Skija GL via `GLSurfaceView` |
+| `qml4j-core` | The whole engine. Packages: `parser` (ANTLR4 `Qml.g4` → POJO AST), `engine` (`QObject`, `Property<T>`, `Binding`, `DirtyQueue`, `ClassLoaderBackend` SPI, `js/` Rhino bridge), `runtime` (stateless `member`/`invoke`/`convert`/`qt` support utilities), `compiler` (ASM bytecode codegen + `emit/` member-emitter strategies), `render` (`QmlView` facade, `Renderer`, `Painter`, `items/` by feature) |
+| `qml4j-demo-desktop` | LWJGL3 + GLFW host + `GlfwSurfaceBackend` + showcase launcher |
+| `android-shell` | **Frozen.** Separate Gradle project: APK with `DexClassLoaderBackend` (D8 → DEX → `InMemoryDexClassLoader`). Kept for reference only; do not build. |
+
+`shared-qml/` (repo root) is the single source of truth for the bundled MD3 component library and the showcases; both the tests and the desktop host load it from the classpath.
 
 ### Design choices
 
-- **Runtime JIT, not source generation.** A `.qml` file becomes JVM classes inside the running process. On Android, the same byte[] will be fed through D8 → DEX → `InMemoryDexClassLoader` (API 26+).
-- **Bindings are compiled methods**, not interpreters. Each binding is a generated `extends Binding` class whose `evaluate()` is real bytecode (`INVOKEVIRTUAL Property.get` + helpers in `RuntimeHelpers`).
-- **Dependency tracking is automatic.** `Property.get()` registers itself with the active `BindingEvaluationContext` thread-local, so re-evaluation only needs to re-run the binding to refresh its subscription set.
-- **Generated types are erased to `Object`/`Number`.** No type inference in v0; runtime helpers coerce.
+- **Runtime JIT, not source generation.** A `.qml` file becomes JVM classes inside the running process. On Android, the same `byte[]` is fed through D8 → DEX → `InMemoryDexClassLoader` (API 26+).
+- **The object tree is compiled; bindings are interpreted JS.** Each QML object becomes a generated `Component$N` class wired up in its constructor. Each non-literal binding/handler is JavaScript captured from source and run by **embedded Rhino** (`RhinoBinding`) against a `QmlScope` — there is no separate JS bytecode backend (the old ASM `ExpressionCodegen`/`StatementCodegen` were removed). An unresolvable identifier in a binding is a compile error.
+- **Dependency tracking is automatic.** `Property.get()` registers itself with the active `BindingEvaluationContext` thread-local, so re-evaluation only needs to re-run the binding to refresh its subscription set; `DirtyQueue` coalesces redundant re-evaluations per frame.
+- **Polymorphic dispatch, not type switches.** Drawable items override `Item.paint(Painter)`; items with intrinsic size override `Item.measure(TextLayout)`; layout containers override `Item.layout()`. The compiler dispatches member emission through a `MemberEmitter` strategy map. See `CLAUDE.md` § *Dispatch & polymorphism*.
+- **Generated types are erased to `Object`/`Number`.** No type inference; runtime `convert` utilities coerce.
 - `source/target = 1.8` to stay friendly to Android dexing without desugar.
 
 ## Build
 
-Requires JDK 8+ (built with JDK 21 toolchain), Maven 3.9+.
+Requires JDK 8+ (built with a JDK 21 toolchain), Maven 3.9+.
 
 ```sh
-mvn -q verify
+mvn verify      # compile + 481 tests + checkstyle guard, all modules
 ```
-
-Per-module:
 
 ```sh
-mvn -pl qml4j-parser   -am test
-mvn -pl qml4j-engine   -am test
-mvn -pl qml4j-compiler -am test
-mvn -pl qml4j-render   -am test
+mvn -pl qml4j-core test                          # engine tests only
+mvn -pl qml4j-core test -Dtest=DialogLoadTest    # one test
 ```
+
+The build runs offline-friendly; iteration commonly uses `mvn -o install -DskipTests` then `mvn -o -pl qml4j-core test`. A checkstyle guard (`config/checkstyle/checkstyle.xml`) is bound to `verify` and fails on unused/redundant imports and unused locals.
+
+### Run the desktop showcases
+
+```sh
+mvn -q -pl qml4j-demo-desktop exec:java                              # launcher
+mvn -q -pl qml4j-demo-desktop exec:java -Dexec.args=ButtonShowcase   # one showcase
+```
+
+Exit code 137 on close is expected (NVIDIA libEGL teardown SIGSEGV, worked around by SIGKILL-self).
 
 ## A 10-line tour
 
@@ -78,97 +90,42 @@ view.load(
 // view.renderFrame(surfaceBackend); per frame
 ```
 
-What the compiler emits for `Rectangle { width: parent.width / 2 }` (sketch):
+For `Rectangle { width: parent.width / 2 }`, the compiler emits a `Component$N extends Rectangle` whose constructor binds `width` to a `RhinoBinding` carrying the source `"parent.width / 2"`; at evaluation Rhino resolves `parent` against the `QmlScope`, and reading `parent.width` registers the reactive dependency.
 
-```
-class Component$N extends Rectangle {
-  Component$N() {
-    super();
-    this.width.bind(new Component$N$Binding$0(this));
-  }
-}
-class Component$N$Binding$0 extends Binding {
-  final Component$N outer;
-  Object evaluate() {
-    return RuntimeHelpers.div(
-      RuntimeHelpers.readMember(outer.parent.get(), "width"),
-      Long.valueOf(2));
-  }
-}
-```
+## Feature set
 
-## v0 feature set
+The engine hosts enough QML to run real component libraries. Supported (inventory from `StockTypes`, the compiler, and the renderer):
 
-QML:
-- Object tree with nested children
-- `id:` (ignored in v0)
-- Property assignments — literals, bindings
-- JS expressions: arithmetic, comparison, logical, conditional, member access, unary, string concat
-- `parent` member access in bindings tracks dependency reactively
-- `Item / Rectangle / Text / Column` stock types
+- Object trees, nested children, `id:` resolution in bindings (incl. forward refs via deferred bindings)
+- Property declarations (`int/real/bool/string/color/var/url/alias/Item/list`), bindings + dependency tracking, grouped properties (`anchors.*`, `border.*`, `font.*`), member chains, `property alias`
+- JS via Rhino: binary/unary/ternary, member/call/index, arrays, object literals, template strings, arrow functions, `function` declarations, statements (`if/for/while/return/let/var/const/block`)
+- Signals (with typed args) + handlers + arrow handlers; custom `signal foo()` on root and child scopes; `on<Prop>Changed`; `Connections`
+- `States` / `PropertyChanges` / `Transition`; `Behavior`; the full animation set (`Number/Color/Rotation/Opacity/Parallel/Sequential/Pause/ScriptAction`)
+- `pragma Singleton`, `qmldir`, import aliases, `import "dir"`
+- `Repeater` / `ListModel` / `ListElement` / `ListView` / `GridView` / `Component` / `Loader` / `Flickable`
+- `Keys` attached + `FocusScope`; `Window` / `ApplicationWindow`
+- `Shape` / `ShapePath` / `Path*`; layer effects (`DropShadow` / `Glow` / `ColorOverlay`) and `MultiEffect`
+- `Rectangle` (radius/border/linear gradient), `Text` (font group, wrap/align/elide, icon glyphs), `Image` (fill modes), `TextInput` / `TextEdit` / `TextField` (caret/selection/clipboard via a `Clipboard` SPI), `Control` / `AbstractButton` / `Button` / `Label`
+- `QtObject` + nested object properties + multi-level dotted bindings (the MD3 `Theme` pattern)
+- `MouseArea` (hover: `hoverEnabled`/`containsMouse`/`entered`/`exited`; `drag.target` with axis + bounds)
+- `Qt.rgba/hsla/lighter/darker/binding/callLater`, enum families (`Easing.*`, `Font.*`, `Text.*`, `Qt.Align*`)
 
-Shipped since v0:
-- v0.1 — `MouseArea`, `Signal`, `on<Sig>:` handlers compiled to `Runnable` classes; assignment expressions
-- v0.2 — `anchors.fill` / `anchors.centerIn` / `anchors.margins` (+ per-side); `Image` with pluggable `ResourceLoader`; `Loader` for nested QML
-- v0.3 — opacity composes down the tree; `DirtyQueue` coalesces redundant binding re-evaluations per frame; `signal foo()` custom declarations on the root object
-- v0.4 — `id:` resolution in bindings; signal arguments; child-object custom signals; `NumberAnimation` (target/from/to/duration/easing) ticked per frame in `QmlView.renderFrame`; `State` + `PropertyChanges` with `state:` switching (revert prior, apply next; binding expressions evaluated at apply time); `Transition { from; to; NumberAnimation }` tweens between states by spawning ephemeral animations from snapshotted before/after values; `properties: "a,b"` csv filter on `NumberAnimation`
-
-Shipped since the v0.4 line above:
-- v0.5 — `Behavior on <prop> { NumberAnimation { ... } }` (M12d); JS statement blocks in signal handlers — `var`, assignment, `if/else`, sequences (M12e)
-- v0.6 — edge anchors with `AnchorLine` (`anchors.left: other.right`, etc.) and auto-measured `Text` width/height (M13)
-- v0.7 — method calls on QObjects from handlers via reflection (`r.signal.emit(...)`, `box.state = ...`) (M14)
-- v0.8 — user-declared `property <type> name` on root and child scopes with literal/binding initializers (M15)
-- v0.9 — `property alias foo: id.prop` (M16): reads/writes/dependencies routed through the target Property
-
-Not yet (see `ROADMAP.md` for the planned order):
-- `function` declarations, `for`/`while`/`break`/`continue`, array/object literals (Phase F)
-- `Repeater`, `ListModel`, `ListView` (Phase G)
-- `Component` + `Loader { sourceComponent }`, multi-file imports, `Connections` (Phase H)
-- `Keys`, `FocusScope`, `TextInput` (Phase I)
-- `ColorAnimation`, `ParallelAnimation`/`SequentialAnimation` (Phase J)
-- cross-item edge anchor margins, `Row`/`Grid`, `GridView` (Phase K)
-- `Qt.binding()`, modules/singletons, QML profiler
+See `ROADMAP.md` for milestone history and `COMPAT_REPORT.md` for the original Qt-parity gap analysis (largely closed).
 
 ## Known limitations / tech debt
 
-These are real and worth knowing before building on top of qml4j:
-
-- **`id:` references unsupported in bindings.** Compiler resolves `parent.x` and context globals, but not sibling-by-id (`btn.width`). The `id:` keyword parses fine and is ignored.
-- **Custom signals only on the root object.** `signal foo()` works on the root (a synthetic subclass is generated and gets a `Signal` field), but children use stock types and can't be augmented. Signal arguments are parsed but ignored at emit/handler time.
-- **Skija-on-Android JNI is fragile.** Several Skija APIs crash in `NewObjectV NULL jclass` on Android because cached `jclass` refs are populated via `FindClass` in a context where the app classloader isn't visible. We currently work around `_nGetImageInfo` (parse PNG/JPG header in Java) and `Paint._nGetColor4f` (avoid `setAlphaf`). Other Skija APIs may hit the same pattern when touched — expect to add workarounds incrementally rather than fix root cause (would need a Skija patch).
-- **Generated classes have no `LineNumberTable`.** Stack traces from binding evaluation point at synthetic class line 0, not back at `.qml` source lines.
-- **Type system is `Object` + `Number` everywhere.** No type inference; runtime coerces on each operation. Numeric precision degrades through bind chains; string + number relies on `RuntimeHelpers.add` semantics.
-- **No hot reload.** Source changes require process restart (or, for `Loader`, mutating its `source` property).
-- **`Image` dimensions read from header parse, not Skia.** Animated / multi-frame formats and unusual codecs may report 0×0 even when Skia would decode them.
-- **Renderer is not thread-safe.** All `render()` and `dispatchClick` calls must come from the same thread (the GL thread on Android).
-- **No release-mode dexing tested.** R8 / proguard are disabled to keep Skija reflection alive; APK is debug-only for now.
-- **`property` is a reserved keyword.** Grammar uses it for `property type name:` declarations, so `NumberAnimation { property: "width" }` won't parse — set the binding target name from Java (`anim.property.set("width")`) for now. Qt QML disambiguates contextually; our lexer doesn't.
+- **C++-backed QML modules can't load.** `import md3.Core` is normally a C++-registered module; we load the `Core/*.qml` files as a directory module via `qmldir` and stub the C++ `StyleManager` in Java. We cannot load arbitrary C++ QML plugins — each target library's C++ backend must be re-implemented in Java.
+- **Type system is `Object` + `Number` everywhere.** No type inference; runtime coerces on each operation. Numeric precision can degrade through long bind chains.
+- **No `LineNumberTable` on generated classes.** Stack traces from binding evaluation point at synthetic classes, not `.qml` lines.
+- **No hot reload.** Source changes require a process restart (or, for `Loader`, mutating its `source`).
+- **`Image` dimensions read from a header parse, not Skia.** Animated/multi-frame formats may report 0×0.
+- **Renderer is not thread-safe.** All `render()` / dispatch calls must come from one thread (the GL thread).
+- **`property` is a reserved keyword.** `NumberAnimation { property: "width" }` won't parse — set it from Java (`anim.property.set("width")`).
+- **Skija-on-Android JNI is fragile** (the `android-shell` is frozen): several `_n*` natives crash from missing cached `jclass` refs; worked around case by case.
 
 ## Android
 
-The `android-shell` module is a separate Gradle project (AGP 8.5, Gradle 8.7, JDK 21).
-
-```sh
-mvn install -DskipTests   # publish qml4j-* to mavenLocal first
-cd android-shell
-ANDROID_HOME=$HOME/android-sdk ./gradlew :app:assembleDebug
-adb install app/build/outputs/apk/debug/app-debug.apk
-```
-
-The APK ships:
-- `qml4j-*` jars (transitively from mavenLocal)
-- `skija-android-arm64` (the `libskija.so` is extracted from the jar into `jniLibs/arm64-v8a` at build time)
-- `com.android.tools:r8:8.13.17` for in-process dexing
-
-At runtime, `DexClassLoaderBackend.defineClasses(Map<String, byte[]>)` invokes D8 in-process to convert all generated `.class` bytes into a single dex `byte[]`, then loads them via `InMemoryDexClassLoader` (API 26+).
-
-## Roadmap
-
-Done: M7–M16 (signals, Android dexing, anchors+Image+Loader, opacity+dirty queue+custom signals, id resolution + signal args, States/Transitions/NumberAnimation/Behavior, statement blocks, edge anchors, method calls, declared properties, property alias).
-
-Next: **M17 — `function` declarations**, then loops, then `Repeater`. Full plan and rationale in **[ROADMAP.md](./ROADMAP.md)**.
-
-See `qml4j-engine/src/main/java/io/qml4j/engine/ClassLoaderBackend.java` for the SPI that decouples the JVM and Android dexing paths.
+The `android-shell` module is a frozen separate Gradle project (AGP 8.5, Gradle 8.7, JDK 21). It is kept as a reference for the desktop host's input/IME wiring and the D8 dexing path; it is not built or shipped today. At runtime its `DexClassLoaderBackend.defineClasses(Map<String, byte[]>)` invoked D8 in-process to convert generated `.class` bytes into a single dex `byte[]`, loaded via `InMemoryDexClassLoader` (API 26+).
 
 ## License
 

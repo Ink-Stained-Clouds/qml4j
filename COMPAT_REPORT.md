@@ -1,5 +1,11 @@
 # qml4j 兼容性评估报告 — 通往「等同 Qt、用户无感切换」
 
+> **现状校正(2026-06-06)**:本文是 2026-05-31 的快照。此后大部分 Tier-1/2 缺口已闭合
+> —— QtObject + 嵌套对象属性 + 多级点绑定、implicitWidth/Height、font 组属性 + Font/Text/Easing
+> 枚举、QtQuick.Layouts、MultiEffect、hover dispatch、StyleManager stub 均已实现,**12+ 个未修改的
+> MD3 组件原样运行**。引擎随后做了全工程架构重构(多态分派 + 单一职责模块,详见 `CLAUDE.md`)。
+> 当前能力清单以 `README.md` 为准;本文保留作缺口分析的历史记录。
+
 日期: 2026-05-31
 触发: 目标从「补全自有控件」校准为「qml4j 引擎能运行第三方 QML 组件库 / 等同 Qt 能力」。试金石: MD3 组件库 (github.com/sudoevolve/material-components-qml)。
 约束放宽: **可引入第三方库**(已用 Skija;可继续借力)。
