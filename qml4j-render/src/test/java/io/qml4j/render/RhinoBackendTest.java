@@ -119,6 +119,40 @@ class RhinoBackendTest {
         assertEquals(45, root.width.peek().intValue());   // 4*10 + 5
     }
 
+    // Phase 6 (the flip): bindings the old structural predicate rejected -- a template
+    // literal, an array/object literal, a bare call to a root function -- now route to
+    // Rhino too, since their free identifiers all resolve in the QmlScope.
+    @Test
+    void widenedBindingsRunOnRhino() throws Exception {
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        Item root = v.load(
+            "import QtQuick\n" +
+            "Rectangle {\n" +
+            "  id: root\n" +
+            "  function dbl(x) { return x * 2 }\n" +
+            "  height: 7\n" +
+            "  property string label: `h=${height}`\n" +    // template literal
+            "  property var nums: [height, height + 1]\n" +  // array literal
+            "  width: dbl(height)\n" +                       // bare call to root function
+            "}");
+        flush(v);
+
+        Property<?> label = (Property<?>) root.getClass().getField("label").get(root);
+        Property<?> nums = (Property<?>) root.getClass().getField("nums").get(root);
+        assertTrue(bindingOf(label) instanceof RhinoBinding, "template-literal binding");
+        assertTrue(bindingOf(root.width) instanceof RhinoBinding, "bare-call binding");
+        assertEquals("h=7", label.peek());
+        assertEquals(14, root.width.peek().intValue());
+        @SuppressWarnings("unchecked")
+        java.util.List<Object> ns = (java.util.List<Object>) nums.peek();
+        assertEquals(2, ns.size());
+
+        root.height.set(20);
+        flush(v);
+        assertEquals("h=20", label.peek());
+        assertEquals(40, root.width.peek().intValue());
+    }
+
     // Phase 4 tail: a grouped binding (border.width: ...) runs on Rhino, bound to the
     // value-type group's Property, and stays reactive.
     @Test

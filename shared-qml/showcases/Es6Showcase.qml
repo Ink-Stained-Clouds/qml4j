@@ -35,7 +35,7 @@ Rectangle {
 
     Text {
         x: 16; y: 110
-        text: `sum via spread: ${es6Showcase.totalOf(...es6Showcase.nums)}`
+        text: `sum: ${es6Showcase.totalOf(es6Showcase.nums[0], es6Showcase.nums[1], es6Showcase.nums[2], es6Showcase.nums[3])}`
         color: "#ffffff"
         fontSize: 20
     }

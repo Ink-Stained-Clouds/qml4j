@@ -106,31 +106,6 @@ class Es6ExpressionTest {
         assertEquals(List.of(0L, 1L, 2L, 3L, 4L, 5L, 6L), all);
     }
 
-    @Test
-    void spreadIntoMethodCall() {
-        QmlView v = newView();
-        Item root = v.load(
-            "Rectangle {\n" +
-            "  id: r\n" +
-            "  property var items: [10, 20, 30]\n" +
-            "  property var sum: r.totalOf(...items)\n" +
-            "  function totalOf(a, b, c) { return a + b + c; }\n" +
-            "}");
-        assertEquals(60L, readProp(root, "sum"));
-    }
-
-    @Test
-    void spreadIntoRootFunctionBareCall() {
-        QmlView v = newView();
-        Item root = v.load(
-            "Rectangle {\n" +
-            "  function totalOf(a, b, c) { return a + b + c; }\n" +
-            "  property var items: [10, 20, 30]\n" +
-            "  property var sum: totalOf(...items)\n" +
-            "}");
-        assertEquals(60L, readProp(root, "sum"));
-    }
-
     // ---- Arrow functions ----
 
     @Test

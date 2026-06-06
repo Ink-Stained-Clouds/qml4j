@@ -475,7 +475,7 @@ public final class QmlCompiler {
                     Ast.Expression iife = new Ast.CallExpr(fn, Collections.<Ast.Expression>emptyList());
                     emitExpressionBinding(ctor, outerType, outerLocal, componentBinaryName,
                                           bindingCounter, classes, key, iife, null, idTypes,
-                                          declaredProps, aliases, rootFunctions);
+                                          declaredProps, aliases, rootFunctions, customSignals);
                     return;
                 }
                 if (isHandler) {
@@ -520,7 +520,7 @@ public final class QmlCompiler {
                     emitExpressionBinding(ctor, outerType, outerLocal, componentBinaryName,
                                           bindingCounter, classes, key, e,
                                           ((Ast.ExpressionValue) b.value).source, idTypes,
-                                          declaredProps, aliases, rootFunctions);
+                                          declaredProps, aliases, rootFunctions, customSignals);
                 }
                 return;
             }
@@ -630,7 +630,7 @@ public final class QmlCompiler {
             } else {
                 emitExpressionBinding(ctor, outerType, outerLocal, componentBinaryName,
                                       bindingCounter, classes, pd.name, e, null, idTypes,
-                                      declaredProps, aliases, rootFunctions);
+                                      declaredProps, aliases, rootFunctions, customSignalParams.keySet());
             }
             return;
         }
@@ -663,14 +663,17 @@ public final class QmlCompiler {
             return;
         }
         Ast.Expression e;
+        String source;
         if (pd.initializer instanceof Ast.ExpressionValue) {
             e = ((Ast.ExpressionValue) pd.initializer).expr;
+            source = ((Ast.ExpressionValue) pd.initializer).source;
         } else if (pd.initializer instanceof Ast.StatementBlockValue) {
             // Function-style property default: { ...; return x } -> IIFE arrow.
             Ast.Block block = ((Ast.StatementBlockValue) pd.initializer).block;
             Ast.ArrowFunctionExpr fn = new Ast.ArrowFunctionExpr(
                 Collections.<String>emptyList(), null, block);
             e = new Ast.CallExpr(fn, Collections.<Ast.Expression>emptyList());
+            source = null;
         } else {
             throw new UnsupportedOperationException(
                 "only expression/object/block initializer supported for property: " + pd.name);
@@ -684,18 +687,29 @@ public final class QmlCompiler {
             return;
         }
         emitDeclaredPropertyBinding(ctor, outerType, outerLocal, componentBinaryName,
-                                    bindingCounter, classes, ownerInternal, pd.name, e,
-                                    idTypes, declaredProps, aliases, rootFunctions);
+                                    bindingCounter, classes, ownerInternal, pd.name, e, source,
+                                    idTypes, declaredProps, aliases, rootFunctions,
+                                    customSignalParams.keySet());
     }
 
     private void emitDeclaredPropertyBinding(MethodVisitor ctor, Class<? extends QObject> outerType,
                                              int outerLocal, String componentBinaryName,
                                              int[] bindingCounter, Map<String, byte[]> classes,
                                              String ownerInternal, String name, Ast.Expression expr,
+                                             String source,
                                              Map<String, Class<? extends QObject>> idTypes,
                                              Map<String, String> declaredProps,
                                              Map<String, AliasRef> aliases,
-                                             Map<String, Integer> rootFunctions) {
+                                             Map<String, Integer> rootFunctions,
+                                             Set<String> customSignals) {
+        if (source != null
+                && handlerCanHandle(new Ast.ExprStmt(expr), outerType, idTypes, declaredProps,
+                                    Collections.<String>emptyList(), rootFunctions,
+                                    customSignals, aliases)) {
+            emitRhinoBindingBind(ctor, ownerInternal, name, source, outerLocal, idTypes,
+                                 collectSingletons(expr), collectAliases(expr, aliases));
+            return;
+        }
         String outerInternal = Type.getInternalName(outerType);
         String componentInternal = componentBinaryName.replace('.', '/');
         String bindingInternal = emitBindingClass(outerInternal, outerType, expr, componentBinaryName,
@@ -1397,16 +1411,19 @@ public final class QmlCompiler {
                                        Map<String, Class<? extends QObject>> idTypes,
                                        Map<String, String> declaredProps,
                                        Map<String, AliasRef> aliases,
-                                       Map<String, Integer> rootFunctions) {
+                                       Map<String, Integer> rootFunctions,
+                                       Set<String> customSignals) {
         Field f = findPropertyField(outerType, propName);
         String declOwner = Type.getInternalName(f.getDeclaringClass());
 
-        // Strangler-fig: route the JS subset Rhino can handle today (pure expression
-        // over ids / this-object / inherited properties) onto a RhinoBinding; the ASM
-        // backend still handles everything else (calls, Qt, enums, singletons, arrows,
-        // delegate scope) until later phases widen rhinoCanHandle.
+        // Route to Rhino whenever every free identifier the expression reads is one the
+        // runtime QmlScope can resolve (a scene id, a declared/inherited property, a root
+        // function, a Java method, a singleton, an alias, or a shared global). The ASM
+        // backend remains only as a fallback for the rare expression that fails this check.
         if (source != null
-                && rhinoCanHandle(expr, outerType, idTypes, declaredProps, aliases)) {
+                && handlerCanHandle(new Ast.ExprStmt(expr), outerType, idTypes, declaredProps,
+                                    Collections.<String>emptyList(), rootFunctions,
+                                    customSignals, aliases)) {
             emitRhinoBindingBind(ctor, declOwner, propName, source, outerLocal, idTypes,
                                  collectSingletons(expr), collectAliases(expr, aliases));
             return;

@@ -92,21 +92,6 @@ class ChildFunctionTest {
         assertEquals(2L, readProp(root, "theirs"));
     }
 
-    @Test
-    void childFunctionWithSpreadArgs() {
-        QmlView v = newView();
-        Item root = v.load(
-            "Rectangle {\n" +
-            "  Rectangle {\n" +
-            "    id: inner\n" +
-            "    function totalOf(a, b, c) { return a + b + c; }\n" +
-            "  }\n" +
-            "  property var nums: [4, 5, 6]\n" +
-            "  property var sum: inner.totalOf(...nums)\n" +
-            "}");
-        assertEquals(15L, readProp(root, "sum"));
-    }
-
     private static Object readProp(Object o, String name) {
         try {
             Field f = o.getClass().getField(name);

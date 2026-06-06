@@ -8,6 +8,9 @@ import org.mozilla.javascript.Context;
 import org.mozilla.javascript.NativeArray;
 import org.mozilla.javascript.NativeObject;
 import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.Symbol;
+import org.mozilla.javascript.SymbolKey;
+import org.mozilla.javascript.SymbolScriptable;
 import org.mozilla.javascript.Undefined;
 import org.mozilla.javascript.Wrapper;
 
@@ -29,8 +32,26 @@ public final class JsWrap {
     public static Object toJs(Object v, Scriptable scope) {
         if (v == null) return null;
         if (v instanceof Number || v instanceof Boolean) return v;
-        if (v instanceof CharSequence) return v.toString();
+        if (v instanceof CharSequence) {
+            String s = v.toString();
+            // A color value is a "#rrggbb" string, but QML exposes .r/.g/.b/.a channels on
+            // it. Wrap so member access resolves the channel while every string use (concat,
+            // template, assignment back to a color property) coerces to the hex string.
+            if (isColorHex(s)) return new JsColor(s, scope);
+            return s;
+        }
         return new JavaMember(v, scope);
+    }
+
+    private static boolean isColorHex(String s) {
+        int n = s.length();
+        if (n == 0 || s.charAt(0) != '#') return false;
+        int hex = n - 1;
+        if (hex != 3 && hex != 4 && hex != 6 && hex != 8) return false;
+        for (int i = 1; i < n; i++) {
+            if (Character.digit(s.charAt(i), 16) < 0) return false;
+        }
+        return true;
     }
 
     public static Object toJava(Object v) {
@@ -38,15 +59,17 @@ public final class JsWrap {
         if (v instanceof Wrapper) return ((Wrapper) v).unwrap();
         if (v instanceof CharSequence) return v.toString();
         if (v instanceof Boolean) return v;
-        if (v instanceof Double) {
-            double d = (Double) v;
+        if (v instanceof Double || v instanceof Float) {
+            double d = ((Number) v).doubleValue();
             if (!Double.isInfinite(d) && !Double.isNaN(d) && d == Math.rint(d)
                     && Math.abs(d) < 9.007199254740992e15) {
                 return (long) d;
             }
             return d;
         }
-        if (v instanceof Number) return v;
+        // Rhino 1.9 represents small integers as java.lang.Integer; the engine's
+        // canonical integer type is Long, so widen every integral Number to it.
+        if (v instanceof Number) return ((Number) v).longValue();
         if (v instanceof NativeArray) {
             NativeArray a = (NativeArray) v;
             List<Object> out = new ArrayList<>();
@@ -64,12 +87,39 @@ public final class JsWrap {
             }
             return out;
         }
+        // A JS function escaping into Java (e.g. `property var fn: x => x * 2`) becomes a
+        // Callable so QML/Java callers can invoke it like any other function value.
+        if (v instanceof org.mozilla.javascript.Function) {
+            return new RhinoFunctionValue((org.mozilla.javascript.Function) v);
+        }
         return v;
+    }
+
+    // A Rhino function value held on the Java side, invokable through io.qml4j's Callable.
+    // Each call re-enters a Rhino context and runs the function against its captured scope.
+    static final class RhinoFunctionValue implements io.qml4j.engine.Callable, Wrapper {
+        private final org.mozilla.javascript.Function fn;
+
+        RhinoFunctionValue(org.mozilla.javascript.Function fn) { this.fn = fn; }
+
+        @Override public Object unwrap() { return fn; }
+
+        @Override public Object call(Object[] args) {
+            Context cx = JsRuntime.enter();
+            try {
+                Scriptable home = fn.getParentScope();
+                Object[] ja = new Object[args == null ? 0 : args.length];
+                for (int i = 0; i < ja.length; i++) ja[i] = toJs(args[i], home);
+                return toJava(fn.call(cx, home, home, ja));
+            } finally {
+                Context.exit();
+            }
+        }
     }
 
     // A Rhino view over an arbitrary Java object, delegating member/index reads and
     // writes to RuntimeHelpers (same semantics as the ASM backend's readMember etc).
-    static final class JavaMember implements Scriptable, Wrapper {
+    static final class JavaMember implements Scriptable, SymbolScriptable, Wrapper {
         private final Object target;
         private final Scriptable parent;
 
@@ -121,6 +171,39 @@ public final class JsWrap {
 
         @Override public boolean has(int index, Scriptable start) { return true; }
 
+        // Spread / for-of over a wrapped Java iterable: expose Symbol.iterator as a JS
+        // iterator backed by the Java Iterator, wrapping each element through toJs (so a
+        // nested map/object keeps the same JavaMember view). Member and index access still
+        // route through us unchanged.
+        @Override public Object get(Symbol key, Scriptable start) {
+            if (key == SymbolKey.ITERATOR && target instanceof Iterable) {
+                return new BaseFunction() {
+                    @Override public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+                        java.util.Iterator<?> it = ((Iterable<?>) target).iterator();
+                        NativeObject iter = new NativeObject();
+                        iter.put("next", iter, new BaseFunction() {
+                            @Override public Object call(Context c, Scriptable s, Scriptable t, Object[] a) {
+                                NativeObject r = new NativeObject();
+                                boolean more = it.hasNext();
+                                r.put("value", r, more ? toJs(it.next(), parent) : Undefined.instance);
+                                r.put("done", r, !more);
+                                return r;
+                            }
+                        });
+                        return iter;
+                    }
+                };
+            }
+            return NOT_FOUND;
+        }
+
+        @Override public boolean has(Symbol key, Scriptable start) {
+            return key == SymbolKey.ITERATOR && target instanceof Iterable;
+        }
+
+        @Override public void put(Symbol key, Scriptable start, Object value) {}
+        @Override public void delete(Symbol key) {}
+
         // Whether `name` reads as a data member -- a map key, or a reflective/virtual
         // member RuntimeHelpers.readMember resolves. Map keys are not reflective
         // fields, so they must be checked against the map directly or for-in / `in`
@@ -144,6 +227,44 @@ public final class JsWrap {
         @Override public void put(int index, Scriptable start, Object value) {}
         @Override public void delete(String name) {}
         @Override public void delete(int index) {}
+        @Override public boolean hasInstance(Scriptable instance) { return false; }
+    }
+
+    // A color value ("#rrggbb") exposed to JS: `.r/.g/.b/.a` resolve the channel (0..1),
+    // and every other use coerces to the hex string (getDefaultValue / unwrap), so a color
+    // read from a property both exposes channels and assigns back as a plain color string.
+    static final class JsColor implements Scriptable, Wrapper {
+        private final String hex;
+        private Scriptable parent;
+
+        JsColor(String hex, Scriptable parent) { this.hex = hex; this.parent = parent; }
+
+        @Override public Object unwrap() { return hex; }
+
+        @Override public Object get(String name, Scriptable start) {
+            if (name.length() == 1 && "rgba".contains(name)) {
+                return RuntimeHelpers.readMember(hex, name);
+            }
+            return NOT_FOUND;
+        }
+
+        @Override public boolean has(String name, Scriptable start) {
+            return name.length() == 1 && "rgba".contains(name);
+        }
+
+        @Override public Object getDefaultValue(Class<?> hint) { return hex; }
+        @Override public String getClassName() { return "JsColor"; }
+        @Override public Object get(int index, Scriptable start) { return NOT_FOUND; }
+        @Override public boolean has(int index, Scriptable start) { return false; }
+        @Override public void put(String name, Scriptable start, Object value) {}
+        @Override public void put(int index, Scriptable start, Object value) {}
+        @Override public void delete(String name) {}
+        @Override public void delete(int index) {}
+        @Override public Scriptable getParentScope() { return parent; }
+        @Override public void setParentScope(Scriptable s) { this.parent = s; }
+        @Override public Scriptable getPrototype() { return null; }
+        @Override public void setPrototype(Scriptable s) {}
+        @Override public Object[] getIds() { return new Object[0]; }
         @Override public boolean hasInstance(Scriptable instance) { return false; }
     }
 
