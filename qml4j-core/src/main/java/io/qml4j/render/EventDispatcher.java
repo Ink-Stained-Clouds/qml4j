@@ -468,7 +468,7 @@ final class EventDispatcher {
     }
 
     private Flickable hitTestFlickable(Item item, float x, float y) {
-        if (!item.visible.peek()) return null;
+        if (!item.isVisible()) return null;
         float ix = item.x.peekFloat();
         float iy = item.y.peekFloat();
         float w = item.width.peekFloat();
@@ -511,7 +511,7 @@ final class EventDispatcher {
     }
 
     private TextEditable hitTestTextEditable(Item item, float x, float y) {
-        if (!item.visible.peek()) return null;
+        if (!item.isVisible()) return null;
         float ix = item.x.peekFloat();
         float iy = item.y.peekFloat();
         float w = item.width.peekFloat();
@@ -535,7 +535,7 @@ final class EventDispatcher {
     }
 
     private AbstractButton hitTestButton(Item item, float x, float y) {
-        if (!item.visible.peek()) return null;
+        if (!item.isVisible()) return null;
         float ix = item.x.peekFloat();
         float iy = item.y.peekFloat();
         float w = item.width.peekFloat();
@@ -559,7 +559,7 @@ final class EventDispatcher {
     }
 
     private MouseArea hitTestMouseArea(Item item, float x, float y) {
-        if (!item.visible.peek()) return null;
+        if (!item.isVisible()) return null;
         float ix = item.x.peekFloat();
         float iy = item.y.peekFloat();
         float w = item.width.peekFloat();

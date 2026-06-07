@@ -12,7 +12,7 @@ public class Row extends Item {
         double s = spacing.peekDouble();
         double maxH = 0;
         for (Item c : children) {
-            if (!c.visible.peek()) continue;
+            if (!c.isVisible()) continue;
             c.x.set(x);
             double w = c.width.peekDouble();
             x += w + s;

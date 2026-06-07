@@ -104,6 +104,12 @@ public class Item extends QObject {
         for (Item c : children) c.initStateBindingsTree();
     }
 
+    // A `visible:` binding may evaluate to undefined (peek() == null); treat that as the
+    // default (visible) so layout/hit-test/paint don't NPE on the unboxed boolean.
+    public boolean isVisible() {
+        return !Boolean.FALSE.equals(visible.peek());
+    }
+
     // Container layout hook, invoked by the Renderer layout pass. Default no-op;
     // layout containers (Row/Column/*Layout) override to position their children.
     public void layout() {}

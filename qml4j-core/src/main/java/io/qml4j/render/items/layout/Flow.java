@@ -24,7 +24,7 @@ public class Flow extends Item {
         double bound = width.peekDouble();
         double x = 0, y = 0, rowH = 0, maxRowW = 0;
         for (Item c : children) {
-            if (!c.visible.peek()) continue;
+            if (!c.isVisible()) continue;
             double cw = c.width.peekDouble();
             double ch = c.height.peekDouble();
             if (x > 0 && bound > 0 && x + cw > bound) {
@@ -48,7 +48,7 @@ public class Flow extends Item {
         double bound = height.peekDouble();
         double x = 0, y = 0, colW = 0, maxColH = 0;
         for (Item c : children) {
-            if (!c.visible.peek()) continue;
+            if (!c.isVisible()) continue;
             double cw = c.width.peekDouble();
             double ch = c.height.peekDouble();
             if (y > 0 && bound > 0 && y + ch > bound) {

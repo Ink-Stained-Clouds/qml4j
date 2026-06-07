@@ -15,7 +15,7 @@ public class ColumnLayout extends Item {
     @Override
     public void layout() {
         List<Item> vis = new ArrayList<>();
-        for (Item c : children) if (c.visible.peek()) vis.add(c);
+        for (Item c : children) if (c.isVisible()) vis.add(c);
         if (vis.isEmpty()) { implicitWidth.set(0); implicitHeight.set(0); return; }
 
         double s = spacing.peekDouble();

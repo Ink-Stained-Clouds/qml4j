@@ -62,7 +62,7 @@ public class GridLayout extends Item {
         int[] cursor = {0, 0};
         List<Cell> cells = new ArrayList<>();
         for (Item it : children) {
-            if (!it.visible.peek()) continue;
+            if (!it.isVisible()) continue;
             Cell cell = new Cell(it);
             cell.rowSpan = Math.max(1, it.Layout.rowSpan.peekInt());
             cell.colSpan = Math.max(1, it.Layout.columnSpan.peekInt());

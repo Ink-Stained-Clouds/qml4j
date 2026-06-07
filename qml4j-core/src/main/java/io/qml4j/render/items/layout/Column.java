@@ -12,7 +12,7 @@ public class Column extends Item {
         double s = spacing.peekDouble();
         double maxW = 0;
         for (Item c : children) {
-            if (!c.visible.peek()) continue;
+            if (!c.isVisible()) continue;
             c.y.set(y);
             double h = c.height.peekDouble();
             y += h + s;
