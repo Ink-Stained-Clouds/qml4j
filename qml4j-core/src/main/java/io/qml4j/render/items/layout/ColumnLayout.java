@@ -38,8 +38,8 @@ public class ColumnLayout extends Item {
             if (fill[i]) fillCount++;
             sumMain += top[i] + h[i] + bottom[i];
             double cross = LayoutSizing.margin(la.leftMargin, la.margins)
-                + LayoutSizing.crossSize(la.preferredWidth, c.implicitWidth, c.width,
-                    Boolean.TRUE.equals(la.fillWidth.peek()))
+                + LayoutSizing.capMax(LayoutSizing.crossSize(la.preferredWidth, c.implicitWidth, c.width,
+                    Boolean.TRUE.equals(la.fillWidth.peek())), la.maximumWidth)
                 + LayoutSizing.margin(la.rightMargin, la.margins);
             if (cross > maxCross) maxCross = cross;
         }
@@ -73,6 +73,9 @@ public class ColumnLayout extends Item {
                 c.width.set(boxW - leftM - rightM);
             } else {
                 double cw = LayoutSizing.crossSize(la.preferredWidth, c.implicitWidth, c.width);
+                double capped = LayoutSizing.capMax(cw, la.maximumWidth);
+                if (capped < cw) c.width.set(capped); // enforce the cap so an eliding label honours it
+                cw = capped;
                 int align = la.alignment.peekInt();
                 if (align == 0) {
                     // Qt default (no fillWidth, no Layout.alignment): the child starts at

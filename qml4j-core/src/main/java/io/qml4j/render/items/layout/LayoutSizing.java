@@ -47,6 +47,14 @@ final class LayoutSizing {
         return iw > 0 ? iw : explicit.peekDouble();
     }
 
+    // Clamp a size to Layout.maximum{Width,Height} when set (>= 0). Qt caps a child at
+    // its maximum even when it has no fill, so a label with Layout.maximumWidth elides
+    // rather than overflowing.
+    static double capMax(double size, Property<Number> max) {
+        double m = max.peekDouble();
+        return m >= 0 && size > m ? m : size;
+    }
+
     // A specific margin (leftMargin/...) overrides the general `margins` only
     // when explicitly non-zero.
     static double margin(Property<Number> specific, Property<Number> general) {

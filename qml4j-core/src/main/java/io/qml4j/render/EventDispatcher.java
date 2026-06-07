@@ -455,8 +455,11 @@ final class EventDispatcher {
         float h = f.height.peekFloat();
         float cw = f.contentWidth.peekFloat();
         float ch = f.contentHeight.peekFloat();
-        float maxX = Math.max(0f, cw - w);
-        float maxY = Math.max(0f, ch - h);
+        // Flickable.bottomMargin/rightMargin extend the scrollable range past the content
+        // so trailing content (e.g. a page's last row under a 32px bottom margin) can be
+        // brought fully into view.
+        float maxX = Math.max(0f, cw + f.rightMargin.peekFloat() - w);
+        float maxY = Math.max(0f, ch + f.bottomMargin.peekFloat() - h);
         if (allowX) {
             float nx = clamp(scrollStartContentX - (rootX - captureRootX), 0f, maxX);
             f.contentX.set(nx);
