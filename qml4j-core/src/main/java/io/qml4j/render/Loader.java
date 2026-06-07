@@ -49,8 +49,14 @@ final class Loader {
     }
 
     Item instantiate(String qml) {
+        return instantiate(qml, "");
+    }
+
+    // baseDir is the importing document's directory (relative to the resource root);
+    // relative file imports (import "../widgets") resolve against it.
+    Item instantiate(String qml, String baseDir) {
         Ast.QmlDocument doc = Qml4j.parse(qml);
-        Class<? extends QObject> rootClass = compileAndDefine(doc);
+        Class<? extends QObject> rootClass = compileAndDefine(doc, baseDir);
         Object inst;
         try {
             inst = rootClass.getDeclaredConstructor().newInstance();
@@ -64,8 +70,8 @@ final class Loader {
         return (Item) inst;
     }
 
-    private Class<? extends QObject> compileAndDefine(Ast.QmlDocument doc) {
-        List<String> prefixes = stringImportPrefixes(doc);
+    private Class<? extends QObject> compileAndDefine(Ast.QmlDocument doc, String baseDir) {
+        List<String> prefixes = stringImportPrefixes(doc, baseDir);
         Set<String> moduleProvided = new HashSet<>();
         for (String p : prefixes) moduleProvided.addAll(loadQmldir(p).keySet());
         TypeRegistry docTypes = types.copy()
@@ -122,7 +128,9 @@ final class Loader {
                 Ast.QmlDocument subDoc = Qml4j.parse(new String(bytes, StandardCharsets.UTF_8));
                 boolean singleton = (entry != null && entry.singleton) || subDoc.hasPragma("Singleton");
                 if (singleton) subDoc.addPragma("Singleton");
-                Class<? extends QObject> rootClass = compileAndDefine(subDoc);
+                // The imported file's own directory is this prefix; its relative imports
+                // resolve against it.
+                Class<? extends QObject> rootClass = compileAndDefine(subDoc, p);
                 importedTypes.put(path, rootClass);
                 if (singleton) {
                     singletonsByPrefix.computeIfAbsent(p, k -> new HashMap<>()).put(name, rootClass);
@@ -194,15 +202,17 @@ final class Loader {
         return out;
     }
 
-    private static List<String> stringImportPrefixes(Ast.QmlDocument doc) {
+    private static List<String> stringImportPrefixes(Ast.QmlDocument doc, String baseDir) {
         List<String> out = new ArrayList<>();
         for (Ast.ImportNode imp : doc.imports) {
             String p = imp.moduleOrPath;
             if (p == null) continue;
             if (imp.isStringPath) {
-                if (".".equals(p)) out.add("");
-                else if (p.startsWith("./")) out.add(p.substring(2));
-                else out.add(p);
+                // A string import is a file path relative to the importing document
+                // (import "../widgets"); resolve it against baseDir so `../` escapes the
+                // importing file's directory rather than the resource root.
+                String rel = ".".equals(p) ? "" : p;
+                out.add(joinPath(baseDir, rel));
             } else {
                 // Module URI (import md3.Core) maps to a resource dir md3/Core.
                 // Built-in modules (QtQuick) just won't resolve any file.
@@ -210,5 +220,20 @@ final class Loader {
             }
         }
         return out;
+    }
+
+    // Normalise `base/rel`, collapsing `.`/`..` segments. A leading `..` is kept (the
+    // resource loader resolves it against its own root), matching Qt's file imports.
+    static String joinPath(String base, String rel) {
+        java.util.Deque<String> stack = new java.util.ArrayDeque<>();
+        for (String seg : (base + "/" + rel).split("/")) {
+            if (seg.isEmpty() || ".".equals(seg)) continue;
+            if ("..".equals(seg) && !stack.isEmpty() && !"..".equals(stack.peekLast())) {
+                stack.removeLast();
+            } else {
+                stack.addLast(seg);
+            }
+        }
+        return String.join("/", stack);
     }
 }

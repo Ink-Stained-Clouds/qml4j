@@ -76,12 +76,14 @@ class ColorPropNameTest {
     void twoModulesWithSameSingletonNameDoNotCollide() {
         QmlView v = newView();
         Map<String, byte[]> files = new HashMap<>();
-        files.put("flat/qmldir", "singleton Theme 1.0 Theme.qml\n".getBytes());
-        files.put("flat/Theme.qml",
+        // A string import is relative to the importing file's directory (Qt), so the
+        // modules sit under comps/ next to the components that import them.
+        files.put("comps/flat/qmldir", "singleton Theme 1.0 Theme.qml\n".getBytes());
+        files.put("comps/flat/Theme.qml",
             ("pragma Singleton\nimport QtQuick\n" +
              "QtObject { property color primary: \"#112233\" }").getBytes());
-        files.put("nested/qmldir", "singleton Theme 1.0 Theme.qml\n".getBytes());
-        files.put("nested/Theme.qml",
+        files.put("comps/nested/qmldir", "singleton Theme 1.0 Theme.qml\n".getBytes());
+        files.put("comps/nested/Theme.qml",
             ("pragma Singleton\nimport QtQuick\n" +
              "QtObject { property QtObject color: QtObject { property color outline: \"#79747e\" } }").getBytes());
         files.put("comps/UsesFlat.qml",

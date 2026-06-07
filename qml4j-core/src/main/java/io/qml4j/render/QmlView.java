@@ -25,7 +25,7 @@ public final class QmlView {
 
     public QmlView(QmlEngine engine, TypeRegistry types) {
         this.loader = new Loader(engine, types);
-        renderer.setComponentFactory(loader::instantiate);
+        renderer.setComponentFactory((qml, baseDir) -> loader.instantiate(qml, baseDir));
     }
 
     public static QmlView withStockTypes(QmlEngine engine) {
@@ -47,7 +47,13 @@ public final class QmlView {
     }
 
     public Item load(String qml) {
-        root = loader.instantiate(qml);
+        return load(qml, "");
+    }
+
+    // baseDir is the document's directory (relative to the resource root), so its
+    // relative file imports resolve correctly -- e.g. loading "pages/X.qml" passes "pages".
+    public Item load(String qml, String baseDir) {
+        root = loader.instantiate(qml, baseDir);
         focus.setRoot(root);
         events.setRoot(root);
         root.installFocusHook(focus::setFocus);

@@ -39,7 +39,7 @@ objectMember
     ;
 
 functionDeclaration
-    : 'function' Identifier '(' (Identifier (',' Identifier)*)? ')' '{' statement* '}'
+    : 'function' Identifier '(' (Identifier ('=' assignmentExpr)? (',' Identifier ('=' assignmentExpr)?)*)? ')' '{' statement* '}'
     ;
 
 behaviorDeclaration
@@ -179,7 +179,7 @@ assignOp
 
 arrowFunction
     : Identifier '=>' arrowBody
-    | '(' (Identifier (',' Identifier)*)? ')' '=>' arrowBody
+    | '(' (Identifier ('=' assignmentExpr)? (',' Identifier ('=' assignmentExpr)?)*)? ')' '=>' arrowBody
     ;
 
 arrowBody
@@ -284,7 +284,7 @@ primaryExpr
     ;
 
 functionExpr
-    : 'function' name=Identifier? '(' (params+=Identifier (',' params+=Identifier)*)? ')' '{' statement* '}'
+    : 'function' name=Identifier? '(' (params+=Identifier ('=' assignmentExpr)? (',' params+=Identifier ('=' assignmentExpr)?)*)? ')' '{' statement* '}'
     ;
 
 newExpr

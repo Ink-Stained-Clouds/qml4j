@@ -483,7 +483,9 @@ public final class Renderer {
         String qml = new String(bytes, StandardCharsets.UTF_8);
         Item child;
         try {
-            child = factory.create(qml);
+            // The loaded file's own directory is the base for its relative imports.
+            int slash = src.lastIndexOf('/');
+            child = factory.create(qml, slash < 0 ? "" : src.substring(0, slash));
         } catch (Throwable t) {
             return;
         }

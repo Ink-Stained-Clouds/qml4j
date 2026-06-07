@@ -3,5 +3,7 @@ package io.qml4j.render;
 import io.qml4j.render.items.core.Item;
 
 public interface ComponentFactory {
-    Item create(String qmlSource);
+    // baseDir is the importing document's directory (relative to the resource root),
+    // used to resolve relative file imports (import "../widgets"). Empty for the root.
+    Item create(String qmlSource, String baseDir);
 }
