@@ -9,6 +9,7 @@ public class Loader extends Item {
     public final Property<Component> sourceComponent = new Property<>(null);
     public final Property<Item> item = new Property<>(null);
     public final Property<Boolean> active = new Property<>(Boolean.TRUE);
+    public final Property<Boolean> asynchronous = new Property<>(Boolean.FALSE);
     public final Signal loaded = new Signal();
 
     public String loadedSource;

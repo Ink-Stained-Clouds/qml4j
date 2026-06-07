@@ -3,8 +3,10 @@ package io.qml4j.compiler.bytecode.ast;
 import io.qml4j.compiler.TypeRegistry;
 import io.qml4j.engine.DelegateHost;
 import io.qml4j.engine.QObject;
+import io.qml4j.engine.binding.Property;
 import io.qml4j.parser.ast.Ast;
 
+import java.lang.reflect.Field;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -36,6 +38,23 @@ public final class Ids {
         return null;
     }
 
+    // Whether `name` is a group-property field on ownerType (a non-Property field whose
+    // type itself exposes Property sub-fields, e.g. Rotation.axis / Rotation.origin) --
+    // mirrors QmlCompiler.groupAssignTypeOrNull, used to tell a grouped block from a child.
+    private static boolean isGroupField(Class<?> ownerType, String name) {
+        Field f;
+        try {
+            f = ownerType.getField(name);
+        } catch (NoSuchFieldException e) {
+            return false;
+        }
+        if (Property.class.isAssignableFrom(f.getType())) return false;
+        for (Field sub : f.getType().getFields()) {
+            if (Property.class.isAssignableFrom(sub.getType())) return true;
+        }
+        return false;
+    }
+
     public static void collectIds(Ast.ObjectNode obj, TypeRegistry registry,
                                   Map<String, Class<? extends QObject>> out,
                                   boolean insideDelegate) {
@@ -49,8 +68,11 @@ public final class Ids {
         boolean childIsDelegate = DelegateHost.class.isAssignableFrom(selfType);
         for (Ast.ObjectMember m : obj.members) {
             if (m instanceof Ast.ChildObject) {
-                collectIds(((Ast.ChildObject) m).object, registry, out,
-                           insideDelegate || childIsDelegate);
+                Ast.ObjectNode childObj = ((Ast.ChildObject) m).object;
+                // A grouped-property block (`axis { x: 0 }`) is not a child type and holds
+                // no ids; its name resolves to a group field, not a registered type.
+                if (isGroupField(selfType, childObj.typeName)) continue;
+                collectIds(childObj, registry, out, insideDelegate || childIsDelegate);
             } else if (m instanceof Ast.PropertyBinding) {
                 Ast.Value v = ((Ast.PropertyBinding) m).value;
                 if (v instanceof Ast.ObjectValue) {

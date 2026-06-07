@@ -13,6 +13,7 @@ public class ShaderEffectSource extends Item {
     public final Property<Boolean> hideSource = new Property<>(Boolean.FALSE);
     public final Property<Boolean> mipmap = new Property<>(Boolean.FALSE);
     public final Property<Object> textureSize = new Property<>(null);
+    public final Property<Object> sourceRect = new Property<>(null);
     public final Property<String> wrapMode = new Property<>("ClampToEdge");
     public final Property<String> format = new Property<>("RGBA8");
     public final Property<Number> samples = new Property<>(0);

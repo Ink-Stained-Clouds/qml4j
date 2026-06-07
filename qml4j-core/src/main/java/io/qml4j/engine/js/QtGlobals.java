@@ -54,6 +54,7 @@ public final class QtGlobals {
         scope.put("TapHandler", scope, enumObject(TAP_HANDLER));
         scope.put("PointerHandler", scope, enumObject(POINTER_HANDLER));
         scope.put("Image", scope, enumObject(IMAGE));
+        scope.put("Drag", scope, enumObject(DRAG));
 
         NativeObject console = new NativeObject();
         console.put("log", console, fn("log", 1, a -> { System.out.println(join(a)); return null; }));
@@ -208,6 +209,9 @@ public final class QtGlobals {
 
     // Gradient.orientation.
     private static final Map<String, Long> GRADIENT = map("Vertical", 0L, "Horizontal", 1L);
+
+    // Drag.axis (drag-and-drop axis constraint).
+    private static final Map<String, Long> DRAG = map("XAxis", 1L, "YAxis", 2L, "XAndYAxis", 3L);
 
     // TapHandler.gesturePolicy.
     private static final Map<String, Long> TAP_HANDLER = map(

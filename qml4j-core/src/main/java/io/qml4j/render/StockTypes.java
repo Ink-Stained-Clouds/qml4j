@@ -48,6 +48,9 @@ import io.qml4j.render.items.layout.ColumnLayout;
 import io.qml4j.render.items.layout.StackLayout;
 import io.qml4j.render.items.effect.MultiEffect;
 import io.qml4j.render.items.effect.ShaderEffectSource;
+import io.qml4j.render.items.transform.Rotation;
+import io.qml4j.render.items.transform.Scale;
+import io.qml4j.render.items.transform.Translate;
 import io.qml4j.render.items.dialog.FileDialog;
 import io.qml4j.render.items.handler.TapHandler;
 import io.qml4j.render.items.handler.DragHandler;
@@ -87,6 +90,9 @@ public final class StockTypes {
             .register("Flow", Flow.class)
             .register("MultiEffect", MultiEffect.class)
             .register("ShaderEffectSource", ShaderEffectSource.class)
+            .register("Translate", Translate.class)
+            .register("Rotation", Rotation.class)
+            .register("Scale", Scale.class)
             .register("FileDialog", FileDialog.class)
             .register("TapHandler", TapHandler.class)
             .register("DragHandler", DragHandler.class)

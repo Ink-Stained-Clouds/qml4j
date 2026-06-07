@@ -7,6 +7,10 @@ import io.qml4j.render.items.view.Component;
 import io.qml4j.render.items.core.Flickable;
 import io.qml4j.render.items.core.Item;
 import io.qml4j.render.items.core.Rectangle;
+import io.qml4j.render.items.transform.Rotation;
+import io.qml4j.render.items.transform.Scale;
+import io.qml4j.render.items.transform.Transform;
+import io.qml4j.render.items.transform.Translate;
 import io.qml4j.render.items.view.Loader;
 import io.qml4j.render.items.effect.ColorOverlay;
 import io.qml4j.render.items.effect.DropShadow;
@@ -239,16 +243,59 @@ public final class Renderer {
     }
 
     private static void applyTransform(Canvas canvas, Item node, float w, float h, float rot, float sc) {
-        if (rot == 0f && sc == 1f) return;
-        // Item.TransformOrigin: 0..8 row-major (TopLeft..BottomRight); col=origin%3,
-        // row=origin/3 each map 0/1/2 -> start/center/end. Default 4 = Center.
-        int origin = node.transformOrigin.peek().intValue();
-        float px = pivot(origin % 3, w);
-        float py = pivot(origin / 3, h);
-        canvas.translate(px, py);
-        if (rot != 0f) canvas.rotate(rot);
-        if (sc != 1f) canvas.scale(sc, sc);
-        canvas.translate(-px, -py);
+        if (rot != 0f || sc != 1f) {
+            // Item.TransformOrigin: 0..8 row-major (TopLeft..BottomRight); col=origin%3,
+            // row=origin/3 each map 0/1/2 -> start/center/end. Default 4 = Center.
+            int origin = node.transformOrigin.peek().intValue();
+            float px = pivot(origin % 3, w);
+            float py = pivot(origin / 3, h);
+            canvas.translate(px, py);
+            if (rot != 0f) canvas.rotate(rot);
+            if (sc != 1f) canvas.scale(sc, sc);
+            canvas.translate(-px, -py);
+        }
+        if (!node.transform.isEmpty()) applyTransformList(canvas, node);
+    }
+
+    // Item.transform: a list of Translate/Rotation/Scale applied in order. A Rotation about
+    // the x/y axis is a 3D flip; the 2D renderer approximates it by foreshortening along the
+    // perpendicular axis (cos angle), which collapses the item edge-on like the real flip.
+    private static void applyTransformList(Canvas canvas, Item node) {
+        for (Transform t : node.transform) {
+            if (t instanceof Translate) {
+                Translate tr = (Translate) t;
+                canvas.translate(tr.x.peekFloat(), tr.y.peekFloat());
+            } else if (t instanceof Scale) {
+                Scale s = (Scale) t;
+                float ox = s.origin.x.peekFloat();
+                float oy = s.origin.y.peekFloat();
+                canvas.translate(ox, oy);
+                canvas.scale(s.xScale.peekFloat(), s.yScale.peekFloat());
+                canvas.translate(-ox, -oy);
+            } else if (t instanceof Rotation) {
+                applyRotation(canvas, (Rotation) t);
+            }
+        }
+    }
+
+    private static void applyRotation(Canvas canvas, Rotation r) {
+        float angle = r.angle.peekFloat();
+        if (angle == 0f) return;
+        float ox = r.origin.x.peekFloat();
+        float oy = r.origin.y.peekFloat();
+        float ax = r.axis.x.peekFloat();
+        float ay = r.axis.y.peekFloat();
+        float az = r.axis.z.peekFloat();
+        canvas.translate(ox, oy);
+        if (ax == 0f && ay == 0f) {
+            canvas.rotate(angle);
+        } else {
+            double c = Math.abs(Math.cos(Math.toRadians(angle)));
+            if (ay != 0f) canvas.scale((float) c, 1f); // flip about the vertical axis
+            else canvas.scale(1f, (float) c);          // flip about the horizontal axis
+        }
+        if (az != 0f && (ax != 0f || ay != 0f)) canvas.rotate(angle * az);
+        canvas.translate(-ox, -oy);
     }
 
     private static float pivot(int axis, float extent) {

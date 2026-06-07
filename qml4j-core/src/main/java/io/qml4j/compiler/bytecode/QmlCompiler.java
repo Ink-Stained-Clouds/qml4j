@@ -146,10 +146,9 @@ public final class QmlCompiler {
             Map<String, byte[]> classes = new LinkedHashMap<>();
 
             ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
-            // An inline component may be used as a Repeater delegate's base type (which
-            // the delegate factory subclasses), so it must not be final.
-            int access = Opcodes.ACC_PUBLIC | (delegateScoped ? 0 : Opcodes.ACC_FINAL);
-            cw.visit(Opcodes.V1_8, access, componentInternal, null, rootInternal, null);
+            // Never final: a component (inline or a whole .qml type) may be used as a
+            // Repeater/ListView delegate's base type, which the delegate factory subclasses.
+            cw.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC, componentInternal, null, rootInternal, null);
             // Save/restore: a compile can nest (resolving a compound type mid-emit
             // triggers another compile of that type). A bare null-reset here would
             // clobber the enclosing compile's writer/counter.
@@ -654,9 +653,31 @@ public final class QmlCompiler {
     }
 
     private void emitChildObjectMember(Ast.ObjectMember m, EmitContext ctx) {
-        emitChildObject(ctx.ctor, ctx.outerType, ctx.outerLocal, ((Ast.ChildObject) m).object, ctx.registry,
+        Ast.ObjectNode obj = ((Ast.ChildObject) m).object;
+        // A lower-case block naming a group field (`axis { x: 0; y: 1 }` on a Rotation)
+        // is a grouped-property block, not a child type -- expand it to `axis.x: 0` ...
+        // and reuse the dotted grouped-binding path.
+        if (groupAssignTypeOrNull(ctx.outerType, obj.typeName) != null) {
+            emitGroupBlock(obj, ctx);
+            return;
+        }
+        emitChildObject(ctx.ctor, ctx.outerType, ctx.outerLocal, obj, ctx.registry,
                         ctx.localCounter, ctx.bindingCounter, ctx.handlerCounter, ctx.classes, ctx.componentBinaryName,
                         ctx.idTypes, ctx.customSignalParams, ctx.declaredProps, ctx.rootFunctions);
+    }
+
+    private void emitGroupBlock(Ast.ObjectNode group, EmitContext ctx) {
+        for (Ast.ObjectMember sub : group.members) {
+            if (!(sub instanceof Ast.PropertyBinding)) {
+                throw new UnsupportedOperationException(
+                    "grouped property block '" + group.typeName + "' supports only property bindings");
+            }
+            Ast.PropertyBinding pb = (Ast.PropertyBinding) sub;
+            List<String> nested = new ArrayList<>();
+            nested.add(group.typeName);
+            nested.addAll(pb.path);
+            emitPropertyBinding(new Ast.PropertyBinding(nested, pb.value), ctx);
+        }
     }
 
     private void emitBehaviorMemberMember(Ast.ObjectMember m, EmitContext ctx) {

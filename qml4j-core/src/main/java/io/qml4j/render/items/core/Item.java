@@ -5,6 +5,7 @@ import io.qml4j.render.items.layout.LayoutAttached;
 import io.qml4j.render.items.animation.State;
 import io.qml4j.render.items.animation.StateController;
 import io.qml4j.render.items.animation.Transition;
+import io.qml4j.render.items.transform.Transform;
 
 import io.qml4j.render.AnchorLine;
 import io.qml4j.render.Anchors;
@@ -58,6 +59,7 @@ public class Item extends QObject {
     public final Property<String> state = new Property<>(null);
     public final List<State> states = new ArrayList<>();
     public final List<Transition> transitions = new ArrayList<>();
+    public final List<Transform> transform = new ArrayList<>();
 
     public final Property<Boolean> focus = new Property<>(Boolean.FALSE);
     public final Property<Boolean> activeFocus = new Property<>(Boolean.FALSE);
