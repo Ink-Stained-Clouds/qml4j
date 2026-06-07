@@ -13,12 +13,18 @@ import java.util.List;
 
 public class Repeater extends Item implements DelegateHost {
     public final Property<Object> model = new Property<>(0);
+
     private DelegateFactory factory;
     private final List<Item> instances = new ArrayList<>();
     private ListModel boundModel;
     private SignalHandler modelListener;
 
     public Repeater() {
+        // A Repeater is non-visual (Qt): it inserts its delegates as siblings in its
+        // parent and takes no space itself, so a layout must not give it a slot + spacing
+        // between the items before and after it. Invisible -> the layout's visible-child
+        // filter skips it; its delegates lay out normally as separate children.
+        visible.set(Boolean.FALSE);
         model.addListener(v -> {
             attachModelSignals(v);
             rebuild();

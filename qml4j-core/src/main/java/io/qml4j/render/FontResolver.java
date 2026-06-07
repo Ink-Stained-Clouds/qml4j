@@ -15,6 +15,8 @@ import java.util.Map;
 final class FontResolver {
 
     private Typeface defaultTypeface;
+    private Typeface boldTypeface;
+    private boolean boldLookupFailed;
     private Typeface cjkTypeface;
     private boolean cjkLookupFailed;
     private Typeface iconTypeface;
@@ -42,16 +44,18 @@ final class FontResolver {
         return fontFor(size, text, false);
     }
 
-    // `bold` synthesizes weight via Skija's emboldening (our bundled faces are single
-    // weight, so there is no real bold variant to match).
+    // Bold uses the bundled Roboto-Bold face when available (real bold matches Qt's
+    // metrics); for CJK/symbol/system-fallback faces there is no bold variant, so
+    // synthesize weight via Skija's emboldening.
     Font fontFor(float size, String text, boolean bold) {
-        Typeface tf;
+        Typeface tf = null;
+        boolean realBold = false;
         if (isSymbol(text)) tf = symbolTypeface(text.codePointAt(0));
         else if (needsCjk(text)) tf = cjkTypeface();
-        else tf = null;
+        else if (bold) { tf = boldTypeface(); realBold = tf != null; }
         if (tf == null) tf = defaultTypeface();
         Font f = tf != null ? new Font(tf, size) : new Font().setSize(size);
-        return bold ? f.setEmboldened(true) : f;
+        return (bold && !realBold) ? f.setEmboldened(true) : f;
     }
 
     Font font(float size) {
@@ -79,6 +83,12 @@ final class FontResolver {
 
     private Typeface defaultTypeface() {
         if (defaultTypeface != null) return defaultTypeface;
+        // Prefer the bundled Roboto (the family the MD3 app designs against, so glyphs and
+        // line metrics match Qt). Only fall back to a system face if it isn't on the
+        // resource path -- the system default here is often a CJK face with much looser
+        // line metrics.
+        defaultTypeface = loadBundled("fonts/Roboto-Regular.ttf");
+        if (defaultTypeface != null) return defaultTypeface;
         FontMgr mgr = FontMgr.getDefault();
         if (mgr != null) {
             for (String name : LATIN_CANDIDATES) {
@@ -87,6 +97,26 @@ final class FontResolver {
             }
         }
         return null;
+    }
+
+    private Typeface boldTypeface() {
+        if (boldTypeface != null) return boldTypeface;
+        if (boldLookupFailed) return null;
+        boldTypeface = loadBundled("fonts/Roboto-Bold.ttf");
+        if (boldTypeface == null) boldLookupFailed = true;
+        return boldTypeface;
+    }
+
+    private Typeface loadBundled(String path) {
+        if (resources == null) return null;
+        byte[] bytes = resources.load(path);
+        FontMgr mgr = FontMgr.getDefault();
+        if (bytes == null || mgr == null) return null;
+        try {
+            return mgr.makeFromData(Data.makeFromBytes(bytes));
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     private Typeface cjkTypeface() {
