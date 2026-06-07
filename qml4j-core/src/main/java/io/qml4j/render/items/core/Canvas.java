@@ -37,7 +37,7 @@ public class Canvas extends Item {
         if (!available.peek()) return;
         ctx = p.context2D();
         try {
-            paint.emit();
+            p.inLayer(w, h, alpha, paint::emit);
         } finally {
             ctx = null;
         }

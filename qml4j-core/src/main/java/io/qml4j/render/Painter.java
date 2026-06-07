@@ -61,6 +61,19 @@ public final class Painter {
         return new Context2D(canvas, renderer);
     }
 
+    // Paint a Canvas item's onPaint into an offscreen layer (the item rect) and composite
+    // it back at `alpha`. The layer is what makes clearRect (BlendMode.CLEAR) erase only
+    // the canvas instead of punching a transparent hole through the scene to the
+    // framebuffer -- which shows as black on a GL backend.
+    public void inLayer(float w, float h, float alpha, Runnable body) {
+        int save = canvas.saveLayerAlpha(Rect.makeXYWH(0, 0, w, h), Math.round(alpha * 255));
+        try {
+            body.run();
+        } finally {
+            canvas.restoreToCount(save);
+        }
+    }
+
     public int alphaColor(String color, float alpha) {
         return Renderer.applyAlpha(Renderer.parseColor(color), alpha);
     }
