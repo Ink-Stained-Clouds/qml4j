@@ -245,6 +245,7 @@ multiplicativeOp
 
 unaryExpr
     : unaryOp unaryExpr
+    | incDecOp unaryExpr
     | postfixExpr
     ;
 

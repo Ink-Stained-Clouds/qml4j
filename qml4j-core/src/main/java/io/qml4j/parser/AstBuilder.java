@@ -432,6 +432,14 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
         if (ctx.unaryOp() != null) {
             return new Ast.UnaryExpr(ctx.unaryOp().getText(), (Ast.Expression) visit(ctx.unaryExpr()));
         }
+        if (ctx.incDecOp() != null) {
+            // ++i / --i desugars to `i = i +/- 1`, like the postfix form in for-loop
+            // update context. The Rhino backend executes the captured source directly.
+            Ast.Expression target = (Ast.Expression) visit(ctx.unaryExpr());
+            String bin = ctx.incDecOp().getText().equals("++") ? "+" : "-";
+            Ast.Expression one = new Ast.LiteralExpr(Ast.LiteralKind.INT, 1L);
+            return new Ast.AssignmentExpr(target, new Ast.BinaryExpr(bin, target, one));
+        }
         return (Ast.Expression) visit(ctx.postfixExpr());
     }
 
