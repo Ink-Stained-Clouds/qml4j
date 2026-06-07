@@ -9,6 +9,7 @@ import io.qml4j.render.items.core.Item;
 import io.qml4j.render.items.view.Loader;
 import io.qml4j.render.items.effect.ColorOverlay;
 import io.qml4j.render.items.effect.DropShadow;
+import io.qml4j.render.items.effect.MultiEffect;
 import io.qml4j.render.items.effect.Glow;
 import io.qml4j.render.items.window.ApplicationWindow;
 import io.qml4j.render.items.input.TextField;
@@ -103,7 +104,11 @@ public final class Renderer {
     // run implicit-size following, container layout and anchors across the whole
     // tree so size-driven bindings can settle BEFORE painting.
     private void measure(Item node) {
-        if (node == null || !node.visible.peek()) return;
+        // Invisible subtrees are still laid out (Qt computes geometry regardless of
+        // visibility) -- only painting is skipped. A SideSheet that parks its panel at
+        // `x: parent.width` while hidden needs parent.width resolved, else it parks at 0
+        // and the first open slides in from the left.
+        if (node == null) return;
         // Resolve a Loader before measuring its children so the loaded item is in the
         // tree + measured, and the Loader can size to it in this same layout pass.
         if (node instanceof Loader) resolveLoader((Loader) node);
@@ -607,6 +612,14 @@ public final class Renderer {
         } else if (effect instanceof ColorOverlay) {
             ColorOverlay c = (ColorOverlay) effect;
             p.setColorFilter(ColorFilter.makeBlend(parseColor(c.color.peek()), BlendMode.SRC_IN));
+        } else if (effect instanceof MultiEffect && Boolean.TRUE.equals(((MultiEffect) effect).shadowEnabled.peek())) {
+            // A MultiEffect used as layer.effect for its drop shadow (MD3 SideSheet casts
+            // a shadow to its left over the page). Same shadow knobs as drawMultiEffect.
+            MultiEffect me = (MultiEffect) effect;
+            int sc = applyAlpha(parseColor(me.shadowColor.peek()), (float) me.shadowOpacity.peekDouble());
+            float sg = sigma(me.shadowBlur.peekFloat() * 32f); // Qt blur is 0..1
+            p.setImageFilter(ImageFilter.makeDropShadow(
+                me.shadowHorizontalOffset.peekFloat(), me.shadowVerticalOffset.peekFloat(), sg, sg, sc));
         } else {
             p.close();
             return null;
@@ -625,6 +638,13 @@ public final class Renderer {
         }
         if (effect instanceof Glow) {
             return ((Glow) effect).radius.peekFloat() + 4f;
+        }
+        if (effect instanceof MultiEffect && Boolean.TRUE.equals(((MultiEffect) effect).shadowEnabled.peek())) {
+            MultiEffect me = (MultiEffect) effect;
+            float r = me.shadowBlur.peekFloat() * 32f;
+            float ox = Math.abs(me.shadowHorizontalOffset.peekFloat());
+            float oy = Math.abs(me.shadowVerticalOffset.peekFloat());
+            return r + Math.max(ox, oy) + 4f;
         }
         return 0f;
     }

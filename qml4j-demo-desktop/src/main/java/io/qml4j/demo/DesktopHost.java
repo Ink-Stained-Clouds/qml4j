@@ -60,8 +60,9 @@ final class DesktopHost {
             return;
         }
         inLauncher = false;
+        boolean dark = !"false".equals(System.getProperty("qml4j.dark", "true"));
         ((io.qml4j.runtime.color.StyleManager) io.qml4j.runtime.color.StyleManager.__instance())
-            .isDarkTheme.set(Boolean.TRUE);
+            .isDarkTheme.set(dark);
         if (view != null) view.dispose();
         QmlEngine engine = new QmlEngine();
         view = QmlView.withStockTypes(engine).resources(appLoader);
