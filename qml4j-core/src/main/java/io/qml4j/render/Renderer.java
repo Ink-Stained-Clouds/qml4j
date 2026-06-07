@@ -127,7 +127,9 @@ public final class Renderer {
         float maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE;
         boolean any = false;
         for (Item c : node.children) {
-            if (!c.visible.peek()) continue;
+            // A `visible:` binding can evaluate to undefined (null here); treat it as the
+            // default (visible) rather than NPE on the unboxed boolean.
+            if (Boolean.FALSE.equals(c.visible.peek())) continue;
             float cx = c.x.peekFloat(), cy = c.y.peekFloat();
             float cw = c.width.peekFloat(), ch = c.height.peekFloat();
             minX = Math.min(minX, cx); minY = Math.min(minY, cy);
@@ -146,7 +148,7 @@ public final class Renderer {
     }
 
     private void draw(Canvas canvas, Item node, float inheritedAlpha) {
-        if (!node.visible.peek()) return;
+        if (Boolean.FALSE.equals(node.visible.peek())) return;
         drawForced(canvas, node, inheritedAlpha);
     }
 

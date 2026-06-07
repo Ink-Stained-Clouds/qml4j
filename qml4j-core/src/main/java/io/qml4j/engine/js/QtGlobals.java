@@ -50,6 +50,7 @@ public final class QtGlobals {
         scope.put("ListView", scope, enumObject(LISTVIEW));
         scope.put("GridView", scope, enumObject(LISTVIEW));
         scope.put("RotationAnimation", scope, enumObject(ROTATION_ANIMATION));
+        scope.put("Gradient", scope, enumObject(GRADIENT));
         scope.put("Image", scope, enumObject(TEXT));
 
         NativeObject console = new NativeObject();
@@ -192,6 +193,9 @@ public final class QtGlobals {
     private static final Map<String, Long> LISTVIEW = map(
         "Beginning", 0L, "Center", 1L, "End", 2L, "Visible", 3L, "Contain", 4L, "SnapPosition", 5L,
         "NoSnap", 0L, "SnapToItem", 1L, "SnapOneItem", 2L);
+
+    // Gradient.orientation.
+    private static final Map<String, Long> GRADIENT = map("Vertical", 0L, "Horizontal", 1L);
 
     // RotationAnimation.direction.
     private static final Map<String, Long> ROTATION_ANIMATION = map(

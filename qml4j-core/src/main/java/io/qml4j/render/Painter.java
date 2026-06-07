@@ -201,7 +201,10 @@ public final class Painter {
             colors[i] = Renderer.parseColor(s.color.peek());
             positions[i] = s.position.peekFloat();
         }
-        return Shader.makeLinearGradient(0, 0, 0, h, colors, positions);
+        boolean horizontal = g.orientation.peekDouble() == 1;
+        return horizontal
+            ? Shader.makeLinearGradient(0, 0, w, 0, colors, positions)
+            : Shader.makeLinearGradient(0, 0, 0, h, colors, positions);
     }
 
     // Image is its own subsystem: source loading/decoding, intrinsic-size probe,

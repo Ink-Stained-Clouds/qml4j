@@ -47,6 +47,8 @@ import io.qml4j.render.items.layout.RowLayout;
 import io.qml4j.render.items.layout.ColumnLayout;
 import io.qml4j.render.items.layout.StackLayout;
 import io.qml4j.render.items.effect.MultiEffect;
+import io.qml4j.render.items.effect.ShaderEffectSource;
+import io.qml4j.render.items.dialog.FileDialog;
 import io.qml4j.render.items.animation.State;
 import io.qml4j.render.items.core.Text;
 import io.qml4j.render.items.input.TextEdit;
@@ -82,6 +84,8 @@ public final class StockTypes {
             .register("GridLayout", GridLayout.class)
             .register("Flow", Flow.class)
             .register("MultiEffect", MultiEffect.class)
+            .register("ShaderEffectSource", ShaderEffectSource.class)
+            .register("FileDialog", FileDialog.class)
             .register("Timer", Timer.class)
             .register("MouseArea", MouseArea.class)
             .register("Image", Image.class)

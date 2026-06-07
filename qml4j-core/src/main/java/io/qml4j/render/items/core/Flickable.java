@@ -11,4 +11,10 @@ public class Flickable extends Item {
     public final Property<Boolean> interactive = new Property<>(Boolean.TRUE);
     public final Property<Boolean> moving = new Property<>(Boolean.FALSE);
     public final Property<Number> boundsBehavior = new Property<>(3); // DragAndOvershootBounds
+    // Content margins (Qt Flickable.topMargin/...): accepted so documents load; the
+    // content is laid out by its own anchors/size here, so these are not yet applied.
+    public final Property<Number> topMargin = new Property<>(0);
+    public final Property<Number> bottomMargin = new Property<>(0);
+    public final Property<Number> leftMargin = new Property<>(0);
+    public final Property<Number> rightMargin = new Property<>(0);
 }
