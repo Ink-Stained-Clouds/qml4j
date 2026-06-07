@@ -102,7 +102,7 @@ public final class Context2D {
 
     public void arcTo(double x1, double y1, double x2, double y2, double r) {
         float a = (float) x1, b1 = (float) y1, c = (float) x2, d = (float) y2, rr = (float) r;
-        ops.add(b -> b.tangentArcTo(rr, a, b1, c, d));
+        ops.add(b -> b.tangentArcTo(a, b1, c, d, rr));
     }
 
     // ---- fills / strokes ----

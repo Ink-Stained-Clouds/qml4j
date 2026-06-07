@@ -52,7 +52,23 @@ public final class JsWrap {
         if (v instanceof Function) return v;
         if (v instanceof RhinoFunctionValue) return ((RhinoFunctionValue) v).unwrap();
         if (v instanceof Callable) return callableToFunction((Callable) v);
+        // A `var` array (a JS literal stored as a Java List, see toJava) must round-trip
+        // as a real JS Array so Array.isArray / .map / .indexOf work, not as a JavaMember
+        // proxy. The snapshot is acceptable: var-array reads dominate and nothing here
+        // relies on writing back through the wrapper.
+        if (v instanceof List) {
+            Scriptable arr = toNativeArray((List<?>) v, scope);
+            if (arr != null) return arr;
+        }
         return new JavaMember(v, scope);
+    }
+
+    private static Scriptable toNativeArray(List<?> list, Scriptable scope) {
+        Context cx = Context.getCurrentContext();
+        if (cx == null) return null;
+        Object[] elems = new Object[list.size()];
+        for (int i = 0; i < elems.length; i++) elems[i] = toJs(list.get(i), scope);
+        return cx.newArray(scope, elems);
     }
 
     private static Function callableToFunction(Callable c) {

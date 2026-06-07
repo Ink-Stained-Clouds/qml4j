@@ -9,6 +9,7 @@ import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Function;
@@ -33,6 +34,8 @@ public final class QtGlobals {
         qt.put("color", qt, fn("color", 1, a -> QtColorFactory.qtColor(arg(a, 0))));
         qt.put("callLater", qt, callLater());
         qt.put("binding", qt, qtBinding());
+        qt.put("fontFamilies", qt, fn("fontFamilies", 0, a -> new ArrayList<>()));
+        qt.put("application", qt, application());
         scope.put("Qt", scope, qt);
 
         scope.put("Text", scope, enumObject(TEXT));
@@ -82,6 +85,18 @@ public final class QtGlobals {
             @Override public int getArity() { return 1; }
             @Override public String getFunctionName() { return "callLater"; }
         };
+    }
+
+    // Qt.application.font: the application's default font. Only `.family` is read by
+    // current consumers (the Canvas charts' font fallback); the resolver maps an unknown
+    // family to its sans-serif default.
+    private static NativeObject application() {
+        NativeObject font = new NativeObject();
+        font.put("family", font, "sans-serif");
+        font.put("pixelSize", font, 14);
+        NativeObject application = new NativeObject();
+        application.put("font", application, font);
+        return application;
     }
 
     // Qt.binding(() => expr): wrap the arrow as a RhinoJsBinding. Assigning the result

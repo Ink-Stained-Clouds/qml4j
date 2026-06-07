@@ -19,6 +19,8 @@ QtObject {
         property color surfaceContainer: "#f3edf7"
         property color surfaceContainerLow: "#f7f2fa"
         property color secondary: "#625b71"
+        property color tertiary: "#7d5260"
+        property color error: "#b3261e"
         property color surfaceVariant: "#e7e0ec"
         property color secondaryContainer: "#e8def8"
         property color onSecondaryContainerColor: "#1d192b"
@@ -53,6 +55,11 @@ QtObject {
         property QtObject labelMedium: QtObject {
             property string family: "Roboto"
             property int size: 12
+            property int weight: 57
+        }
+        property QtObject labelSmall: QtObject {
+            property string family: "Roboto"
+            property int size: 11
             property int weight: 57
         }
         property QtObject headlineSmall: QtObject {
