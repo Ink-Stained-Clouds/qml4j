@@ -91,6 +91,12 @@ public class Repeater extends Item implements DelegateHost {
 
         for (Item it : instances) visualParent.children.remove(it);
         instances.clear();
+        // Insert delegates at the Repeater's own position in the parent (Qt), so siblings
+        // declared after the Repeater (e.g. a trailing spacer) stay after the rows -- not
+        // appended to the end, which would reorder them before the rows.
+        int at = visualParent.children.indexOf(this);
+        if (at < 0) at = visualParent.children.size();
+        else at++;
         for (int i = 0; i < desired; i++) {
             Object data = dataAt(m, i);
             QObject created = factory.create(i, data, visualParent);
@@ -101,7 +107,7 @@ public class Repeater extends Item implements DelegateHost {
             Item item = (Item) created;
             // parent was already set inside create() (before the delegate's bindings
             // were flushed, so outer-scope names resolve); just attach to the scene.
-            visualParent.children.add(item);
+            visualParent.children.add(at + i, item);
             instances.add(item);
             item.initStateBindingsTree();
         }
