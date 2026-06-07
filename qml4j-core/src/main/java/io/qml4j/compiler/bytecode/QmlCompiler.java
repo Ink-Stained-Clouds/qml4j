@@ -101,7 +101,10 @@ public final class QmlCompiler {
         Ast.BehaviorMember.class, this::emitBehaviorMemberMember,
         Ast.PropertyDeclaration.class, this::emitPropertyDeclarationMember,
         Ast.SignalDeclaration.class, this::rejectSignalDeclaration,
-        Ast.FunctionDeclaration.class, this::rejectFunctionDeclaration);
+        Ast.FunctionDeclaration.class, this::rejectFunctionDeclaration,
+        // Inline components are compiled to their own classes + registered by the
+        // Loader before this document compiles; nothing to emit into the enclosing body.
+        Ast.InlineComponent.class, (m, ctx) -> { });
 
 
     private static final String SCHEDULER_INTERNAL = Type.getInternalName(Scheduler.class);

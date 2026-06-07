@@ -110,6 +110,17 @@ public final class Ast {
         @Override public String toString() { return object.toString(); }
     }
 
+    // `component Name: Base { ... }` -- a named inline type usable within the document.
+    public static final class InlineComponent extends ObjectMember {
+        public final String name;
+        public final ObjectNode body;
+        public InlineComponent(String name, ObjectNode body) {
+            this.name = name;
+            this.body = body;
+        }
+        @Override public String toString() { return "component " + name + ": " + body; }
+    }
+
     public static final class FunctionDeclaration extends ObjectMember {
         public final String name;
         public final List<String> paramNames;

@@ -34,8 +34,13 @@ objectMember
     | signalDeclaration
     | functionDeclaration
     | behaviorDeclaration
+    | inlineComponentDeclaration
     | propertyBinding
     | objectDeclaration
+    ;
+
+inlineComponentDeclaration
+    : 'component' Identifier ':' objectDeclaration
     ;
 
 functionDeclaration

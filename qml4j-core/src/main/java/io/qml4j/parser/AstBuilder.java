@@ -60,9 +60,19 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
         if (ctx.signalDeclaration() != null) return (Ast.ObjectMember) visit(ctx.signalDeclaration());
         if (ctx.functionDeclaration() != null) return (Ast.ObjectMember) visit(ctx.functionDeclaration());
         if (ctx.behaviorDeclaration() != null) return (Ast.ObjectMember) visit(ctx.behaviorDeclaration());
+        if (ctx.inlineComponentDeclaration() != null) {
+            return (Ast.ObjectMember) visit(ctx.inlineComponentDeclaration());
+        }
         if (ctx.propertyBinding() != null) return (Ast.ObjectMember) visit(ctx.propertyBinding());
         Ast.ObjectNode child = (Ast.ObjectNode) visit(ctx.objectDeclaration());
         return new Ast.ChildObject(child);
+    }
+
+    @Override
+    public Ast.ObjectMember visitInlineComponentDeclaration(
+            QmlParser.InlineComponentDeclarationContext ctx) {
+        Ast.ObjectNode body = (Ast.ObjectNode) visit(ctx.objectDeclaration());
+        return new Ast.InlineComponent(ctx.Identifier().getText(), body);
     }
 
     @Override

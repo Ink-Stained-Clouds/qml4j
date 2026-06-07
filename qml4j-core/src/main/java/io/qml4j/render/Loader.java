@@ -79,6 +79,7 @@ final class Loader {
             .withAliases(importAliases(doc))
             .withModuleProvided(moduleProvided);
         registerKnownSingletons(docTypes, prefixes);
+        defineInlineComponents(doc, docTypes);
         CompiledUnit unit = compiler.compile(doc, docTypes);
         ClassLoaderBackend backend = engine.backend();
         Map<String, Class<?>> defined = backend.defineClasses(unit.classes());
@@ -93,6 +94,31 @@ final class Loader {
         @SuppressWarnings("unchecked")
         Class<? extends QObject> qc = (Class<? extends QObject>) rootClass;
         return qc;
+    }
+
+    // `component Name: Base { ... }`: compile each inline component against the SAME doc
+    // scope (shared imports + earlier siblings) and register it as a document-level type,
+    // so any object can instantiate `Name { }`. Inline components are document-scoped in
+    // Qt regardless of where they nest (ColorPage declares them inside a Flickable), so
+    // walk the whole tree in document order -- a later inline (SchemeColumn) may use an
+    // earlier one (ColorStrip).
+    private void defineInlineComponents(Ast.QmlDocument doc, TypeRegistry docTypes) {
+        registerInlines(doc.root, doc.imports, docTypes);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void registerInlines(Ast.ObjectNode obj, List<Ast.ImportNode> imports,
+                                 TypeRegistry docTypes) {
+        for (Ast.ObjectMember m : obj.members) {
+            if (m instanceof Ast.InlineComponent) {
+                Ast.InlineComponent ic = (Ast.InlineComponent) m;
+                CompiledUnit unit = compiler.compile(new Ast.QmlDocument(imports, ic.body), docTypes);
+                Map<String, Class<?>> defined = engine.backend().defineClasses(unit.classes());
+                docTypes.register(ic.name, (Class<? extends QObject>) defined.get(unit.rootClassName()));
+            } else if (m instanceof Ast.ChildObject) {
+                registerInlines(((Ast.ChildObject) m).object, imports, docTypes);
+            }
+        }
     }
 
     private void registerKnownSingletons(TypeRegistry docTypes, List<String> prefixes) {
