@@ -497,6 +497,7 @@ public final class Renderer {
         child.parent.set(node);
         node.children.add(child);
         node.item.set(child);
+        child.initStateBindingsTree();
     }
 
     private void clearLoadedItem(Loader node) {

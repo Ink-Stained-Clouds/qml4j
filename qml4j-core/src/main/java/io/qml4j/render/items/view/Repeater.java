@@ -97,6 +97,7 @@ public class Repeater extends Item implements DelegateHost {
             // were flushed, so outer-scope names resolve); just attach to the scene.
             visualParent.children.add(item);
             instances.add(item);
+            item.initStateBindingsTree();
         }
     }
 

@@ -66,6 +66,7 @@ public class Item extends QObject {
     public final Layer layer = new Layer();
 
     private final StateController stateController = new StateController(this);
+    private boolean stateBindingsInited;
     private Keys keys;
     private Consumer<Item> focusHook;
 
@@ -86,9 +87,21 @@ public class Item extends QObject {
         focusHook = hook;
     }
 
-    // Activate declarative State.when bindings once the tree is built.
+    // Activate declarative State.when bindings once the tree is built. Idempotent:
+    // dynamically-instantiated subtrees (Loader pages, Repeater delegates) are walked
+    // when attached, and a node already inited during the top-level walk is skipped.
     public void initStateBindings() {
+        if (stateBindingsInited) return;
+        stateBindingsInited = true;
         if (!states.isEmpty()) stateController.initWhen();
+    }
+
+    // Activate state bindings for a freshly-attached subtree. Loader/Repeater create
+    // their content during a render pass, after the top-level QmlView.load walk, so
+    // their `when`-driven states would otherwise never engage.
+    public void initStateBindingsTree() {
+        initStateBindings();
+        for (Item c : children) c.initStateBindingsTree();
     }
 
     // Container layout hook, invoked by the Renderer layout pass. Default no-op;
