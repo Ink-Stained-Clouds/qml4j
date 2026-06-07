@@ -12,6 +12,7 @@ import io.qml4j.engine.binding.Property;
 public class Flow extends Item {
     public final Property<Number> spacing = new Property<>(0);
     public final Property<Number> flow = new Property<>(0); // 0 LeftToRight, 1 TopToBottom
+    public final Property<Number> padding = new Property<>(0);
 
     @Override
     public void layout() {
@@ -21,7 +22,8 @@ public class Flow extends Item {
 
     private void layoutLeftToRight() {
         double s = spacing.peekDouble();
-        double bound = width.peekDouble();
+        double p = padding.peekDouble();
+        double bound = width.peekDouble() - 2 * p;
         double x = 0, y = 0, rowH = 0, maxRowW = 0;
         for (Item c : children) {
             if (!c.isVisible()) continue;
@@ -31,21 +33,22 @@ public class Flow extends Item {
                 maxRowW = Math.max(maxRowW, x - s);
                 x = 0; y += rowH + s; rowH = 0;
             }
-            c.x.set(x);
-            c.y.set(y);
+            c.x.set(x + p);
+            c.y.set(y + p);
             x += cw + s;
             if (ch > rowH) rowH = ch;
         }
         maxRowW = Math.max(maxRowW, x > 0 ? x - s : 0);
-        implicitWidth.set(maxRowW);
-        double total = y + rowH;
+        implicitWidth.set(maxRowW + 2 * p);
+        double total = y + rowH + 2 * p;
         implicitHeight.set(total);
         if (total > height.peekDouble()) height.set(total);
     }
 
     private void layoutTopToBottom() {
         double s = spacing.peekDouble();
-        double bound = height.peekDouble();
+        double p = padding.peekDouble();
+        double bound = height.peekDouble() - 2 * p;
         double x = 0, y = 0, colW = 0, maxColH = 0;
         for (Item c : children) {
             if (!c.isVisible()) continue;
@@ -55,14 +58,14 @@ public class Flow extends Item {
                 maxColH = Math.max(maxColH, y - s);
                 y = 0; x += colW + s; colW = 0;
             }
-            c.x.set(x);
-            c.y.set(y);
+            c.x.set(x + p);
+            c.y.set(y + p);
             y += ch + s;
             if (cw > colW) colW = cw;
         }
         maxColH = Math.max(maxColH, y > 0 ? y - s : 0);
-        implicitHeight.set(maxColH);
-        double total = x + colW;
+        implicitHeight.set(maxColH + 2 * p);
+        double total = x + colW + 2 * p;
         implicitWidth.set(total);
         if (total > width.peekDouble()) width.set(total);
     }

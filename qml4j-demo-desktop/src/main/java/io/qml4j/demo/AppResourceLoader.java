@@ -34,7 +34,11 @@ final class AppResourceLoader implements ResourceLoader {
             }
         }
         if (path.startsWith("md3/Core/")) {
-            return readFile(CORE.resolve("Controls").resolve(path.substring("md3/Core/".length())));
+            String rel = path.substring("md3/Core/".length());
+            // The qmldir flattens Controls/*.qml to md3/Core/*; other subdirs (Styles/assets)
+            // map straight under src/Core.
+            byte[] direct = readFile(CORE.resolve(rel));
+            return direct != null ? direct : readFile(CORE.resolve("Controls").resolve(rel));
         }
         byte[] fromApp = readFile(APP.resolve(path));
         // Fall back to the classpath for bundled resources (e.g. fonts/) the app expects.

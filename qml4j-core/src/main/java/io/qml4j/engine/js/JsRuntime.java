@@ -105,6 +105,22 @@ public final class JsRuntime {
         }
     }
 
+    // Evaluate a `.js` library imported as a namespace (`import "x.js" as Foo`) and return
+    // its scope, whose top-level `var`s are the module's members (`Foo.icons`). The scope's
+    // prototype is the shared globals so the module sees Math/JSON/etc.
+    public static Scriptable evalModule(String source) {
+        Context cx = enter();
+        try {
+            Scriptable scope = cx.newObject(globals());
+            scope.setPrototype(globals());
+            scope.setParentScope(null);
+            cx.evaluateString(scope, JsConstRepair.toLet(source), "qml-js-module", 1, null);
+            return scope;
+        } finally {
+            Context.exit();
+        }
+    }
+
     public static Scriptable globals() {
         Scriptable g = globals;
         if (g != null) return g;

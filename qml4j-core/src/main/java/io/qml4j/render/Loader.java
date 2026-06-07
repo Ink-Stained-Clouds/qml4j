@@ -4,12 +4,16 @@ import io.qml4j.compiler.CompiledUnit;
 import io.qml4j.compiler.TypeRegistry;
 import io.qml4j.compiler.bytecode.CompileScope;
 import io.qml4j.compiler.bytecode.QmlCompiler;
+import io.qml4j.compiler.bytecode.rhino.RhinoScope;
 import io.qml4j.engine.QObject;
 import io.qml4j.engine.QmlEngine;
 import io.qml4j.engine.classloader.ClassLoaderBackend;
+import io.qml4j.engine.js.JsRuntime;
 import io.qml4j.parser.Qml4j;
 import io.qml4j.parser.ast.Ast;
 import io.qml4j.render.items.core.Item;
+
+import org.mozilla.javascript.Scriptable;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -71,6 +75,7 @@ final class Loader {
     }
 
     private Class<? extends QObject> compileAndDefine(Ast.QmlDocument doc, String baseDir) {
+        processJsImports(doc, baseDir);
         List<String> prefixes = stringImportPrefixes(doc, baseDir);
         Set<String> moduleProvided = new HashSet<>();
         for (String p : prefixes) moduleProvided.addAll(loadQmldir(p).keySet());
@@ -240,16 +245,45 @@ final class Loader {
     private static Set<String> importAliases(Ast.QmlDocument doc) {
         Set<String> out = new LinkedHashSet<>();
         for (Ast.ImportNode imp : doc.imports) {
-            if (imp.alias != null) out.add(imp.alias);
+            if (imp.alias != null && !isJsImport(imp)) out.add(imp.alias);
         }
         return out;
+    }
+
+    private static boolean isJsImport(Ast.ImportNode imp) {
+        return imp.isStringPath && imp.moduleOrPath != null && imp.moduleOrPath.endsWith(".js");
+    }
+
+    // A `.js` library imported as a namespace (`import "IconData.js" as IconData`): evaluate
+    // it once, expose its scope as a shared global under the alias, and register the alias so
+    // bindings reading `IconData.icons` compile. The path resolves like any QML resource (qrc
+    // scheme stripped to a module-relative path; a bare relative path against baseDir).
+    private void processJsImports(Ast.QmlDocument doc, String baseDir) {
+        for (Ast.ImportNode imp : doc.imports) {
+            if (!isJsImport(imp) || imp.alias == null) continue;
+            String path = resolveJsPath(imp.moduleOrPath, baseDir);
+            byte[] bytes = resources != null ? resources.load(path) : null;
+            if (bytes == null) {
+                throw new IllegalArgumentException("JS import not found: " + imp.moduleOrPath);
+            }
+            Scriptable ns = JsRuntime.evalModule(new String(bytes, StandardCharsets.UTF_8));
+            JsRuntime.putGlobal(imp.alias, ns);
+            RhinoScope.registerContextProperty(imp.alias);
+        }
+    }
+
+    private static String resolveJsPath(String path, String baseDir) {
+        if (path.startsWith("qrc:/qt/qml/")) return path.substring("qrc:/qt/qml/".length());
+        if (path.startsWith("qrc:/")) return path.substring("qrc:/".length());
+        if (path.startsWith("/")) return path.substring(1);
+        return joinPath(baseDir, path);
     }
 
     private static List<String> stringImportPrefixes(Ast.QmlDocument doc, String baseDir) {
         List<String> out = new ArrayList<>();
         for (Ast.ImportNode imp : doc.imports) {
             String p = imp.moduleOrPath;
-            if (p == null) continue;
+            if (p == null || isJsImport(imp)) continue;
             if (imp.isStringPath) {
                 // A string import is a file path relative to the importing document
                 // (import "../widgets"); resolve it against baseDir so `../` escapes the
