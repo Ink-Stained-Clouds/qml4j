@@ -69,6 +69,14 @@ public class Behavior extends Item implements Animatable, Property.WriteIntercep
             writeBack(newValue);
             return;
         }
+        // No prior value to tween from (e.g. anchors.*Margin defaults to NaN as "unset"):
+        // assign directly, like Qt's un-animated initial assignment. Interpolating from
+        // NaN yields NaN, which writeBack would then drop -- freezing the property.
+        if (isUnset(lastDisplayed)) {
+            lastDisplayed = null;
+            writeBack(newValue);
+            return;
+        }
         if (!canTween(lastDisplayed, newValue)) {
             writeBack(newValue);
             return;
@@ -81,11 +89,20 @@ public class Behavior extends Item implements Animatable, Property.WriteIntercep
         pFrom = template.preparedFrom;
         pTo = template.preparedTo;
         if (!running && Objects.equals(pFrom, pTo)) return;
+        // A bound property re-delivers its value every time a dependency settles; if we
+        // are already animating to this exact target, keep going instead of restarting
+        // (which would re-write the start value and freeze progress).
+        if (running && Objects.equals(preparedTo, pTo)) return;
         preparedFrom = pFrom;
         preparedTo = pTo;
         running = true;
         startNanos = -1L;
         writeBack(template.interpolate(pFrom, pTo, 0.0));
+    }
+
+    private static boolean isUnset(Object v) {
+        return v == null || (v instanceof Double && ((Double) v).isNaN())
+            || (v instanceof Float && ((Float) v).isNaN());
     }
 
     @Override
