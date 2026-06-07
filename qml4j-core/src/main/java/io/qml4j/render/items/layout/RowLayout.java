@@ -39,7 +39,8 @@ public class RowLayout extends Item {
             if (fill[i]) fillCount++;
             sumMain += left[i] + w[i] + right[i];
             double cross = LayoutSizing.margin(la.topMargin, la.margins)
-                + LayoutSizing.crossSize(la.preferredHeight, c.implicitHeight, c.height)
+                + LayoutSizing.crossSize(la.preferredHeight, c.implicitHeight, c.height,
+                    Boolean.TRUE.equals(la.fillHeight.peek()))
                 + LayoutSizing.margin(la.bottomMargin, la.margins);
             if (cross > maxCross) maxCross = cross;
         }

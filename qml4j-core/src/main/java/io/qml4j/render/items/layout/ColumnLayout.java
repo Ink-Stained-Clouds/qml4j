@@ -38,7 +38,8 @@ public class ColumnLayout extends Item {
             if (fill[i]) fillCount++;
             sumMain += top[i] + h[i] + bottom[i];
             double cross = LayoutSizing.margin(la.leftMargin, la.margins)
-                + LayoutSizing.crossSize(la.preferredWidth, c.implicitWidth, c.width)
+                + LayoutSizing.crossSize(la.preferredWidth, c.implicitWidth, c.width,
+                    Boolean.TRUE.equals(la.fillWidth.peek()))
                 + LayoutSizing.margin(la.rightMargin, la.margins);
             if (cross > maxCross) maxCross = cross;
         }

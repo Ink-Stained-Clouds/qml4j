@@ -25,6 +25,20 @@ final class LayoutSizing {
         return sizeFor(preferred, implicit, explicit);
     }
 
+    // Cross-axis intrinsic size, fill-aware. A child that fills the cross axis
+    // (fillHeight in a RowLayout / fillWidth in a ColumnLayout) has NO intrinsic cross
+    // size -- its cross size is the layout's OUTPUT, so it must never fall back to its
+    // already-filled explicit size, or the parent's implicit cross size ratchets up
+    // pass over pass (an empty fill wrapper balloons the layout off-screen).
+    static double crossSize(Property<Number> preferred, Property<Number> implicit,
+                            Property<Number> explicit, boolean isFill) {
+        double pref = preferred.peekDouble();
+        if (pref >= 0) return pref;
+        double iw = implicit.peekDouble();
+        if (iw > 0) return iw;
+        return isFill ? 0 : explicit.peekDouble();
+    }
+
     private static double sizeFor(Property<Number> preferred, Property<Number> implicit,
                                   Property<Number> explicit) {
         double pref = preferred.peekDouble();
