@@ -40,9 +40,11 @@ public class Flow extends Item {
         }
         maxRowW = Math.max(maxRowW, x > 0 ? x - s : 0);
         implicitWidth.set(maxRowW + 2 * p);
-        double total = y + rowH + 2 * p;
-        implicitHeight.set(total);
-        if (total > height.peekDouble()) height.set(total);
+        // Only publish implicitHeight; the Renderer's followImplicitSize tracks it onto
+        // height (and shrinks it). Setting height here directly was grow-only, so a wide
+        // window that re-wrapped to fewer rows kept the taller initial height -- leaving
+        // empty space the Flickable could still scroll into past the last row.
+        implicitHeight.set(y + rowH + 2 * p);
     }
 
     private void layoutTopToBottom() {
@@ -65,8 +67,6 @@ public class Flow extends Item {
         }
         maxColH = Math.max(maxColH, y > 0 ? y - s : 0);
         implicitHeight.set(maxColH + 2 * p);
-        double total = x + colW + 2 * p;
-        implicitWidth.set(total);
-        if (total > width.peekDouble()) width.set(total);
+        implicitWidth.set(x + colW + 2 * p);
     }
 }
