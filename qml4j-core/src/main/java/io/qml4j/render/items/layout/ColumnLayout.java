@@ -72,7 +72,20 @@ public class ColumnLayout extends Item {
                 c.width.set(boxW - leftM - rightM);
             } else {
                 double cw = LayoutSizing.crossSize(la.preferredWidth, c.implicitWidth, c.width);
-                c.x.set(LayoutSizing.crossPos(la.alignment.peekInt(), boxW, cw, leftM, rightM, true));
+                int align = la.alignment.peekInt();
+                if (align == 0) {
+                    // Qt default (no fillWidth, no Layout.alignment): the child starts at
+                    // the left of the column -- it is NOT centred. Upstream sets
+                    // Qt.AlignHCenter explicitly where it wants centring; the absence of
+                    // alignment means left. A zero-width child (a bare container holding
+                    // anchored content, e.g. a drawer header with a left-anchored title)
+                    // additionally fills the width so its anchored children resolve
+                    // against the full column rather than a collapsed 0 box.
+                    c.x.set(leftM);
+                    if (cw <= 0) c.width.set(boxW - leftM - rightM);
+                } else {
+                    c.x.set(LayoutSizing.crossPos(align, boxW, cw, leftM, rightM, true));
+                }
             }
             y += h[i] + bottom[i] + s;
         }

@@ -37,6 +37,31 @@ public final class DelegateScope {
         return false;
     }
 
+    // The object up the delegate's parent chain that owns settable property `name`:
+    // the delegate's DelegateRoot, then the enclosing scene. Mirrors delegateLookup so a
+    // free-identifier WRITE lands on the same object a READ resolves to -- Qt's
+    // `isRail = !isRail` in a Loader/Repeater-scoped handler writes the enclosing
+    // component's property. Null if no ancestor declares it. Properties only: a write
+    // never targets a method/id.
+    public static Object delegateOwner(Object start, String name) {
+        Object cur = start;
+        Object delegateRoot = null;
+        while (cur != null) {
+            if (cur instanceof DelegateRoot) {
+                delegateRoot = cur;
+                if (MemberAccess.hasProperty(cur, name)) return cur;
+                break;
+            }
+            cur = parentOf(cur);
+        }
+        Object outer = parentOf(delegateRoot != null ? delegateRoot : start);
+        while (outer != null) {
+            if (MemberAccess.hasProperty(outer, name)) return outer;
+            outer = parentOf(outer);
+        }
+        return null;
+    }
+
     public static Object delegateLookup(Object start, String name) {
         Object cur = start;
         Object delegateRoot = null;

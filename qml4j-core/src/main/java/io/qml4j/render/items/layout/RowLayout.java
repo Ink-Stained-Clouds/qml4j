@@ -68,12 +68,20 @@ public class RowLayout extends Item {
                 c.height.set(boxH - top - bottom);
             } else {
                 double ch = LayoutSizing.crossSize(la.preferredHeight, c.implicitHeight, c.height);
-                // Apply the cross size to the child, not just position it: a child
-                // with only Layout.preferredHeight (e.g. a bare Item holding a
-                // centred icon) would otherwise keep its 0 height and its centred
-                // content would collapse to the top edge.
-                c.height.set(ch);
-                c.y.set(LayoutSizing.crossPos(la.alignment.peekInt(), boxH, ch, top, bottom, false));
+                int align = la.alignment.peekInt();
+                if (ch <= 0 && align == 0) {
+                    // No natural cross size and no explicit alignment: Qt stretches to
+                    // fill the cell rather than collapsing to 0 height and centring.
+                    c.y.set(top);
+                    c.height.set(boxH - top - bottom);
+                } else {
+                    // Apply the cross size to the child, not just position it: a child
+                    // with only Layout.preferredHeight (e.g. a bare Item holding a
+                    // centred icon) would otherwise keep its 0 height and its centred
+                    // content would collapse to the top edge.
+                    c.height.set(ch);
+                    c.y.set(LayoutSizing.crossPos(align, boxH, ch, top, bottom, false));
+                }
             }
             x += w[i] + right[i] + s;
         }

@@ -177,7 +177,13 @@ public final class QmlScope implements Scriptable {
         if (delegate) {
             if (MemberAccess.hasProperty(outer, name)) {
                 MemberAccess.writeMember(outer, name, JsWrap.toJava(value));
+                return;
             }
+            // A bare-identifier write must reach the enclosing scope the read came from
+            // (delegateLookup), not vanish: `isRail = !isRail` in a Loader/Repeater
+            // header writes the enclosing component's property.
+            Object o = DelegateScope.delegateOwner(outer, name);
+            if (o != null) MemberAccess.writeMember(o, name, JsWrap.toJava(value));
             return;
         }
         if (aliases.containsKey(name)) {

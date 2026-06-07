@@ -21,40 +21,95 @@ QtObject {
         property string name: "Material Symbols Outlined"
     }
     property QtObject typography: QtObject {
-        property QtObject bodySmall: QtObject {
+        property QtObject displayLarge: QtObject {
             property string family: "Roboto"
-            property int size: 12
+            property int size: 57
             property int weight: 50
+            property real lineHeight: 64
         }
-        property QtObject labelLarge: QtObject {
+        property QtObject displayMedium: QtObject {
             property string family: "Roboto"
-            property int size: 14
-            property int weight: 57
+            property int size: 45
+            property int weight: 50
+            property real lineHeight: 52
         }
-        property QtObject labelMedium: QtObject {
+        property QtObject displaySmall: QtObject {
             property string family: "Roboto"
-            property int size: 12
-            property int weight: 57
+            property int size: 36
+            property int weight: 50
+            property real lineHeight: 44
         }
-        property QtObject labelSmall: QtObject {
+        property QtObject headlineLarge: QtObject {
             property string family: "Roboto"
-            property int size: 11
-            property int weight: 57
+            property int size: 32
+            property int weight: 50
+            property real lineHeight: 40
+        }
+        property QtObject headlineMedium: QtObject {
+            property string family: "Roboto"
+            property int size: 28
+            property int weight: 50
+            property real lineHeight: 36
         }
         property QtObject headlineSmall: QtObject {
             property string family: "Roboto"
             property int size: 24
             property int weight: 50
-        }
-        property QtObject bodyMedium: QtObject {
-            property string family: "Roboto"
-            property int size: 14
-            property int weight: 50
+            property real lineHeight: 32
         }
         property QtObject titleLarge: QtObject {
             property string family: "Roboto"
             property int size: 22
             property int weight: 50
+            property real lineHeight: 28
+        }
+        property QtObject titleMedium: QtObject {
+            property string family: "Roboto"
+            property int size: 16
+            property int weight: 57
+            property real lineHeight: 24
+        }
+        property QtObject titleSmall: QtObject {
+            property string family: "Roboto"
+            property int size: 14
+            property int weight: 57
+            property real lineHeight: 20
+        }
+        property QtObject labelLarge: QtObject {
+            property string family: "Roboto"
+            property int size: 14
+            property int weight: 57
+            property real lineHeight: 20
+        }
+        property QtObject labelMedium: QtObject {
+            property string family: "Roboto"
+            property int size: 12
+            property int weight: 57
+            property real lineHeight: 16
+        }
+        property QtObject labelSmall: QtObject {
+            property string family: "Roboto"
+            property int size: 11
+            property int weight: 57
+            property real lineHeight: 16
+        }
+        property QtObject bodyLarge: QtObject {
+            property string family: "Roboto"
+            property int size: 16
+            property int weight: 50
+            property real lineHeight: 24
+        }
+        property QtObject bodyMedium: QtObject {
+            property string family: "Roboto"
+            property int size: 14
+            property int weight: 50
+            property real lineHeight: 20
+        }
+        property QtObject bodySmall: QtObject {
+            property string family: "Roboto"
+            property int size: 12
+            property int weight: 50
+            property real lineHeight: 16
         }
     }
     property QtObject shape: QtObject {
