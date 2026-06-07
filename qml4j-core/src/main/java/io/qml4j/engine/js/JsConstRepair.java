@@ -13,35 +13,36 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-// Works around a Rhino 1.9.1 parser bug: `const` is registered on the enclosing
-// function/script scope (Parser.defineSymbol -> currentScriptOrFn.putSymbol) instead
-// of the current block scope, the way `let` is. So two sibling blocks each declaring
-// `const v` -- legal ES6, distinct block scopes -- are rejected as a redeclaration.
-// `let` with the identical structure parses fine. Since QML binding/handler bodies
-// never rely on const's reassignment-throws semantics, rewriting the offending
-// `const` keywords to `let` is behaviorally equivalent and restores block scoping.
-//
-// Repair is a fallback invoked only when a parse/compile has already failed: the
-// happy path pays nothing, and the trigger is the failure itself (not a localized
-// error message), so it is locale-independent.
+// Rewrites every `const` declaration to `let` to work around Rhino 1.9.1, which scopes
+// `const` to the enclosing function/script (Parser.defineSymbol -> currentScriptOrFn)
+// instead of the block, the way `let` is scoped. Two consequences, both fixed by the
+// rewrite:
+//   1. Two sibling blocks each declaring `const v` -- legal ES6 -- are rejected as a
+//      redeclaration at parse time.
+//   2. Worse and silent: a `const` declared in a loop body binds once at function scope,
+//      so re-executing the declaration cannot rebind it -- every iteration keeps the
+//      FIRST value (`for (i) { const v = data[i]; }` leaves v === data[0] throughout).
+// `let` restores correct block scoping. QML binding/handler bodies never rely on const's
+// reassignment-throws semantics, so the rewrite is behaviorally transparent for valid
+// code, and it is AST-driven so `const` inside strings/comments/identifiers is untouched.
 public final class JsConstRepair {
 
     private JsConstRepair() {}
 
-    // Returns `source` with every `const` declaration keyword rewritten to `let`, or
-    // null when there is nothing to repair (no const decls, or the source has a real
-    // syntax error that survives error-recovery parsing) -- in which case the caller
-    // should surface its original failure.
-    public static String repair(String source) {
+    // Returns `source` with every `const` declaration keyword rewritten to `let`, or the
+    // input unchanged when there is no `const` to rewrite (or the source cannot be parsed
+    // even in error-recovery mode -- then the caller's own compile surfaces the error).
+    public static String toLet(String source) {
+        if (source == null || !source.contains("const")) return source;
         CompilerEnvirons env = new CompilerEnvirons();
         env.setLanguageVersion(Context.VERSION_ES6);
         env.setRecoverFromErrors(true);
         env.setIdeMode(true);
         AstRoot root;
         try {
-            root = new Parser(env, new ErrorCollector()).parse(source, "qml-const-repair", 1);
+            root = new Parser(env, new ErrorCollector()).parse(source, "qml-const-rewrite", 1);
         } catch (RhinoException e) {
-            return null;
+            return source;
         }
         List<Integer> positions = new ArrayList<>();
         root.visitAll(node -> {
@@ -50,7 +51,7 @@ public final class JsConstRepair {
             }
             return true;
         });
-        if (positions.isEmpty()) return null;
+        if (positions.isEmpty()) return source;
         // Splice right-to-left so earlier offsets stay valid as "const" (5) -> "let" (3).
         positions.sort(Comparator.reverseOrder());
         StringBuilder sb = new StringBuilder(source);

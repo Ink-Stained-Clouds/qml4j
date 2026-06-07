@@ -97,26 +97,20 @@ public final class RhinoFreeVars {
     // (an expression binding, or `{ ... }` wrapped in an IIFE), so a top-level
     // `return`/`var` is legal and var/function hoisting matches runtime scoping.
     private static FunctionNode parseAsFunctionBody(String source) {
-        String wrapped = "(function(){\n" + source + "\n})";
-        AstRoot root;
-        try {
-            root = parseStrict(wrapped);
-        } catch (RhinoException e) {
-            String repaired = JsConstRepair.repair(wrapped);
-            if (repaired == null) throw new IllegalArgumentException("invalid JS: " + e.getMessage(), e);
-            root = parseStrict(repaired);
-        }
-        ExpressionStatement st = (ExpressionStatement) root.getFirstChild();
-        ParenthesizedExpression pe = (ParenthesizedExpression) st.getExpression();
-        return (FunctionNode) pe.getExpression();
-    }
-
-    private static AstRoot parseStrict(String wrapped) {
+        String wrapped = JsConstRepair.toLet("(function(){\n" + source + "\n})");
         CompilerEnvirons env = new CompilerEnvirons();
         env.setLanguageVersion(Context.VERSION_ES6);
         env.setRecordingComments(false);
         env.setIdeMode(false);
-        return new Parser(env).parse(wrapped, "qml-binding", 1);
+        AstRoot root;
+        try {
+            root = new Parser(env).parse(wrapped, "qml-binding", 1);
+        } catch (RhinoException e) {
+            throw new IllegalArgumentException("invalid JS: " + e.getMessage(), e);
+        }
+        ExpressionStatement st = (ExpressionStatement) root.getFirstChild();
+        ParenthesizedExpression pe = (ParenthesizedExpression) st.getExpression();
+        return (FunctionNode) pe.getExpression();
     }
 
     // Walk a function/script/block scope: hoist its declarations into `bound` first
