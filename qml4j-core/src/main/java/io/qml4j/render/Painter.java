@@ -211,9 +211,43 @@ public final class Painter {
     // ImageFill plan, and the draw/tile blit. It lives here (not on the Image item)
     // because it touches skija decoding and the resource loader. skija's Image is
     // FQN'd throughout this section: its simple name clashes with the QML Image item.
+    // Image.fillMode may be the string form or the Image.* enum (a Long); map to the
+    // string ImageFill understands.
+    private static String fillModeString(Object o) {
+        if (o instanceof String) return (String) o;
+        if (o instanceof Number) {
+            switch (((Number) o).intValue()) {
+                case 1: return "PreserveAspectFit";
+                case 2: return "PreserveAspectCrop";
+                case 3: return "Tile";
+                case 4: return "TileVertically";
+                case 5: return "TileHorizontally";
+                case 6: return "Pad";
+                default: return "Stretch";
+            }
+        }
+        return "Stretch";
+    }
+
+    // Decode encoded image bytes into the node's Skija image (render thread only) and set
+    // status Ready/Error. bytes == null -> Error.
+    private void decodeInto(Image node, byte[] bytes) {
+        if (bytes != null) {
+            int[] dim = peekImageDimensions(bytes);
+            node.intrinsicWidth = dim[0];
+            node.intrinsicHeight = dim[1];
+            try {
+                node.skiaImage = io.github.humbleui.skija.Image.makeFromEncoded(bytes);
+            } catch (Throwable t) {
+                node.skiaImage = null;
+            }
+        }
+        node.status.set(node.skiaImage != null ? 1 : 3);
+    }
+
     public void drawImage(Image node, float w, float h) {
         String src = node.source.peek();
-        if (src == null || src.isEmpty()) return;
+        if (src == null || src.isEmpty()) { node.status.set(0); return; }
         if (!src.equals(node.loadedSource)) {
             if (node.skiaImage != null) {
                 node.skiaImage.close();
@@ -222,19 +256,25 @@ public final class Painter {
             node.loadedSource = src;
             node.intrinsicWidth = 0;
             node.intrinsicHeight = 0;
-            ResourceLoader resources = renderer.resources();
-            if (resources != null) {
-                byte[] bytes = resources.load(src);
-                if (bytes != null) {
-                    int[] dim = peekImageDimensions(bytes);
-                    node.intrinsicWidth = dim[0];
-                    node.intrinsicHeight = dim[1];
-                    try {
-                        node.skiaImage = io.github.humbleui.skija.Image.makeFromEncoded(bytes);
-                    } catch (Throwable t) {
-                        node.skiaImage = null;
-                    }
-                }
+            node.fetchedBytes = null;
+            node.fetchDone = false;
+            node.fetchStarted = false;
+            if (ImageLoader.isRemote(src)) {
+                node.status.set(2); // Loading -- decoded on the render thread once fetched
+            } else {
+                ResourceLoader resources = renderer.resources();
+                decodeInto(node, resources != null ? resources.load(src) : null);
+            }
+        }
+        // A remote source fetches on a background thread; consume the bytes here (on the
+        // render thread) once they arrive, so the spinner stops and the image appears.
+        if (ImageLoader.isRemote(src)) {
+            if (!node.fetchStarted) {
+                node.fetchStarted = true;
+                ImageLoader.fetch(node, src);
+            }
+            if (node.fetchDone && node.status.peek().intValue() == 2) {
+                decodeInto(node, node.fetchedBytes);
             }
         }
         if (node.skiaImage == null) return;
@@ -243,7 +283,7 @@ public final class Painter {
         if (iw <= 0 || ih <= 0) return;
         if (w <= 0) w = iw;
         if (h <= 0) h = ih;
-        ImageFill.Plan plan = ImageFill.compute(node.fillMode.peek(), iw, ih, w, h);
+        ImageFill.Plan plan = ImageFill.compute(fillModeString(node.fillMode.peek()), iw, ih, w, h);
         if (plan == null) return;
         node.paintedWidth.set(plan.paintedWidth);
         node.paintedHeight.set(plan.paintedHeight);

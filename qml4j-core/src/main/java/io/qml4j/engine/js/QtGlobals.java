@@ -53,7 +53,7 @@ public final class QtGlobals {
         scope.put("Gradient", scope, enumObject(GRADIENT));
         scope.put("TapHandler", scope, enumObject(TAP_HANDLER));
         scope.put("PointerHandler", scope, enumObject(POINTER_HANDLER));
-        scope.put("Image", scope, enumObject(TEXT));
+        scope.put("Image", scope, enumObject(IMAGE));
 
         NativeObject console = new NativeObject();
         console.put("log", console, fn("log", 1, a -> { System.out.println(join(a)); return null; }));
@@ -197,6 +197,14 @@ public final class QtGlobals {
         "NoSnap", 0L, "SnapToItem", 1L, "SnapOneItem", 2L,
         // ListView.orientation
         "Horizontal", 0L, "Vertical", 1L);
+
+    // Image.status + fillMode.
+    private static final Map<String, Long> IMAGE = map(
+        "Null", 0L, "Ready", 1L, "Loading", 2L, "Error", 3L,
+        "Stretch", 0L, "PreserveAspectFit", 1L, "PreserveAspectCrop", 2L,
+        "Tile", 3L, "TileVertically", 4L, "TileHorizontally", 5L, "Pad", 6L,
+        "AlignLeft", 1L, "AlignRight", 2L, "AlignHCenter", 4L,
+        "AlignTop", 32L, "AlignBottom", 64L, "AlignVCenter", 128L);
 
     // Gradient.orientation.
     private static final Map<String, Long> GRADIENT = map("Vertical", 0L, "Horizontal", 1L);
