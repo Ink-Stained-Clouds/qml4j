@@ -43,7 +43,7 @@ class CardLoadTest {
         try {
             java.lang.reflect.Field f = card.getClass().getField("containerColor");
             Object cc = ((io.qml4j.engine.binding.Property<?>) f.get(card)).peek();
-            org.junit.jupiter.api.Assertions.assertEquals("#f7f2fa", cc, "elevated containerColor");
+            org.junit.jupiter.api.Assertions.assertEquals("#f8f2fa", cc, "elevated containerColor");
         } catch (Exception e) { throw new RuntimeException(e); }
     }
 }

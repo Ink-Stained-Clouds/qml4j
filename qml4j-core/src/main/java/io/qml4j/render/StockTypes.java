@@ -61,6 +61,7 @@ import io.qml4j.render.items.window.Control;
 import io.qml4j.render.items.window.Label;
 import io.qml4j.render.items.input.TextField;
 import io.qml4j.engine.QtObject;
+import io.qml4j.runtime.color.StyleManager;
 
 import io.qml4j.compiler.TypeRegistry;
 
@@ -130,6 +131,7 @@ public final class StockTypes {
             .register("Button", Button.class)
             .register("Label", Label.class)
             .register("TextField", TextField.class)
-            .register("QtObject", QtObject.class);
+            .register("QtObject", QtObject.class)
+            .registerSingleton("StyleManager", StyleManager.class);
     }
 }

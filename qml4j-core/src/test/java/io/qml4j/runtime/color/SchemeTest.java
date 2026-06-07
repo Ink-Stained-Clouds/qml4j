@@ -9,24 +9,24 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class SchemeTest {
 
     // The TonalSpot scheme for the MD3 baseline seed #6750A4. Values match Google's
-    // SchemeTonalSpot (primary is chroma-capped to 36, hence #65558F not the raw seed).
+    // SchemeTonalSpot (primary is chroma-capped to 36, hence #65558f not the raw seed).
     @Test
     void lightSchemeForBaselineSeed() {
         Map<String, String> light = Scheme.generate(0xFF6750A4, false);
-        assertEquals("#65558F", light.get("primary"));
-        assertEquals("#FFFFFF", light.get("onPrimaryColor"));
-        assertEquals("#E9DDFF", light.get("primaryContainer"));
-        assertEquals("#7D5260", light.get("tertiary"));
-        assertEquals("#FFFBFE", light.get("background"));
+        assertEquals("#65558f", light.get("primary"));
+        assertEquals("#ffffff", light.get("onPrimaryColor"));
+        assertEquals("#e9ddff", light.get("primaryContainer"));
+        assertEquals("#7d5260", light.get("tertiary"));
+        assertEquals("#fffbfe", light.get("background"));
     }
 
     @Test
     void darkSchemeForBaselineSeed() {
         Map<String, String> dark = Scheme.generate(0xFF6750A4, true);
-        assertEquals("#CFBDFD", dark.get("primary"));
+        assertEquals("#cfbdfd", dark.get("primary"));
         assertEquals("#141218", dark.get("surface"));
-        assertEquals("#FFB3AA", dark.get("error"));
-        assertEquals("#E6E0E8", dark.get("onSurfaceColor"));
+        assertEquals("#ffb3aa", dark.get("error"));
+        assertEquals("#e6e0e8", dark.get("onSurfaceColor"));
     }
 
     @Test

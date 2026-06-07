@@ -2,30 +2,9 @@ pragma Singleton
 import QtQuick
 
 QtObject {
-    property QtObject color: QtObject {
-        property color outline: "#79747e"
-        property color primary: "#6750a4"
-        property color inverseSurface: "#322f35"
-        property color inverseOnSurface: "#f5eff7"
-        property color inversePrimary: "#d0bcff"
-        property color surface: "#fef7ff"
-        property color onSurfaceColor: "#1d1b20"
-        property color onSurfaceVariantColor: "#49454f"
-        property color onPrimaryColor: "#ffffff"
-        property color primaryContainer: "#eaddff"
-        property color onPrimaryContainerColor: "#21005d"
-        property color surfaceContainerHighest: "#e6e0e9"
-        property color surfaceContainerHigh: "#ece6f0"
-        property color surfaceContainer: "#f3edf7"
-        property color surfaceContainerLow: "#f7f2fa"
-        property color secondary: "#625b71"
-        property color tertiary: "#7d5260"
-        property color error: "#b3261e"
-        property color surfaceVariant: "#e7e0ec"
-        property color secondaryContainer: "#e8def8"
-        property color onSecondaryContainerColor: "#1d192b"
-        property color shadow: "#000000"
-    }
+    // MD3 dynamic color: the active (light/dark) scheme from the StyleManager singleton,
+    // a role -> hex map. Theme.color.primary etc. read map keys.
+    property var color: StyleManager.currentScheme
     property QtObject elevation: QtObject {
         property real level0: 0
         property real level1: 1

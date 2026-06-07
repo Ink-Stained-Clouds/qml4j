@@ -34,7 +34,7 @@ class ButtonMd3LoadTest {
         try {
             java.lang.reflect.Field f = b.getClass().getField("containerColor");
             Object cc = ((io.qml4j.engine.binding.Property<?>) f.get(b)).peek();
-            assertEquals("#6750a4", cc, "filled -> primary");
+            assertEquals("#65558f", cc, "filled -> primary");
         } catch (Exception e) { throw new RuntimeException(e); }
     }
 }

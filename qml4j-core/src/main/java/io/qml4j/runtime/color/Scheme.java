@@ -76,6 +76,6 @@ public final class Scheme {
     }
 
     private static String hex(int argb) {
-        return String.format("#%06X", argb & 0xFFFFFF);
+        return String.format("#%06x", argb & 0xFFFFFF);
     }
 }
