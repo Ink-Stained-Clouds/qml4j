@@ -115,6 +115,20 @@ public final class QmlCompiler {
     private int factoryCounter;
 
     public CompiledUnit compile(Ast.QmlDocument doc, TypeRegistry registry) {
+        return compile(doc, registry, java.util.Collections.emptyMap());
+    }
+
+    // extraSceneIds: names visible from an enclosing document -- an inline component
+    // (`component X: Base {}`) sees the file's root-level ids and properties. They are
+    // added to this unit's scene ids so its bindings compile, and the unit is compiled
+    // DELEGATE-SCOPED: those names resolve at runtime by walking the parent chain to the
+    // enclosing root, and the constructor does NOT flush its bindings (it leaves them in
+    // the enclosing component's deferred batch, flushed AFTER the parent is set -- so the
+    // parent-chain walk reaches the enclosing root).
+    public CompiledUnit compile(Ast.QmlDocument doc, TypeRegistry registry,
+                                Map<String, Class<? extends QObject>> extraSceneIds) {
+        boolean delegateScoped = !extraSceneIds.isEmpty();
+        if (delegateScoped) CompileScope.enterDelegateScope();
         CompileScope.pushRegistry(registry);
         try {
             Class<? extends QObject> rootType = registry.resolve(doc.root.typeName);
@@ -125,12 +139,17 @@ public final class QmlCompiler {
 
             Map<String, Class<? extends QObject>> idTypes = new LinkedHashMap<>();
             collectIds(doc.root, registry, idTypes, false);
+            for (Map.Entry<String, Class<? extends QObject>> e : extraSceneIds.entrySet()) {
+                idTypes.putIfAbsent(e.getKey(), e.getValue());
+            }
 
             Map<String, byte[]> classes = new LinkedHashMap<>();
 
             ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
-            cw.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
-                     componentInternal, null, rootInternal, null);
+            // An inline component may be used as a Repeater delegate's base type (which
+            // the delegate factory subclasses), so it must not be final.
+            int access = Opcodes.ACC_PUBLIC | (delegateScoped ? 0 : Opcodes.ACC_FINAL);
+            cw.visit(Opcodes.V1_8, access, componentInternal, null, rootInternal, null);
             // Save/restore: a compile can nest (resolving a compound type mid-emit
             // triggers another compile of that type). A bare null-reset here would
             // clobber the enclosing compile's writer/counter.
@@ -143,13 +162,15 @@ public final class QmlCompiler {
                     emitSingletonAccessor(cw, componentInternal);
                 }
                 return compileBody(doc, registry, rootType, componentBinaryName,
-                                   componentInternal, rootInternal, idTypes, classes, cw);
+                                   componentInternal, rootInternal, idTypes, classes, cw,
+                                   delegateScoped, extraSceneIds);
             } finally {
                 this.activeComponentCw = prevCw;
                 this.factoryCounter = prevFactoryCounter;
             }
         } finally {
             CompileScope.popRegistry();
+            if (delegateScoped) CompileScope.exitDelegateScope();
         }
     }
 
@@ -182,12 +203,19 @@ public final class QmlCompiler {
                                      String componentBinaryName, String componentInternal,
                                      String rootInternal,
                                      Map<String, Class<? extends QObject>> idTypes,
-                                     Map<String, byte[]> classes, ClassWriter cw) {
+                                     Map<String, byte[]> classes, ClassWriter cw,
+                                     boolean delegateScoped,
+                                     Map<String, Class<? extends QObject>> extraSceneIds) {
         int[] bindingCounter = {0};
         int[] handlerCounter = {0};
         int[] localCounter = {1};
 
         for (Map.Entry<String, Class<? extends QObject>> e : idTypes.entrySet()) {
+            // An enclosing-scope name (inline component's view of the file's ids/props) is
+            // NOT a field here -- a null field would shadow the real one when the runtime
+            // parent-chain walk passes through this instance. It stays in the scene-id list
+            // (so bindings resolve it) and is found on the enclosing root at runtime.
+            if (extraSceneIds.containsKey(e.getKey())) continue;
             cw.visitField(Opcodes.ACC_PUBLIC,
                           e.getKey(), "L" + Type.getInternalName(e.getValue()) + ";",
                           null, null).visitEnd();
@@ -280,8 +308,14 @@ public final class QmlCompiler {
         ctor.visitCode();
         ctor.visitVarInsn(Opcodes.ALOAD, 0);
         ctor.visitMethodInsn(Opcodes.INVOKESPECIAL, rootInternal, "<init>", "()V", false);
-        ctor.visitMethodInsn(Opcodes.INVOKESTATIC, PROPERTY_INTERNAL,
-                             "pushDeferred", "()V", false);
+        // An inline component leaves its bindings in the ENCLOSING component's deferred
+        // batch (it does not push/flush its own), so they evaluate after the enclosing has
+        // set this instance's parent -- only then does the parent-chain walk reach the
+        // enclosing root to resolve the file's ids/properties.
+        if (!delegateScoped) {
+            ctor.visitMethodInsn(Opcodes.INVOKESTATIC, PROPERTY_INTERNAL,
+                                 "pushDeferred", "()V", false);
+        }
         for (String sig : rootSignalNames) {
             ctor.visitVarInsn(Opcodes.ALOAD, 0);
             ctor.visitTypeInsn(Opcodes.NEW, SIGNAL_INTERNAL);
@@ -317,8 +351,10 @@ public final class QmlCompiler {
                           idTypes, rootDeclaredProps, ad);
         }
 
-        ctor.visitMethodInsn(Opcodes.INVOKESTATIC, PROPERTY_INTERNAL,
-                             "flushDeferred", "()V", false);
+        if (!delegateScoped) {
+            ctor.visitMethodInsn(Opcodes.INVOKESTATIC, PROPERTY_INTERNAL,
+                                 "flushDeferred", "()V", false);
+        }
         ctor.visitInsn(Opcodes.RETURN);
         ctor.visitMaxs(0, 0);
         ctor.visitEnd();

@@ -96,27 +96,44 @@ final class Loader {
         return qc;
     }
 
-    // `component Name: Base { ... }`: compile each inline component against the SAME doc
-    // scope (shared imports + earlier siblings) and register it as a document-level type,
-    // so any object can instantiate `Name { }`. Inline components are document-scoped in
-    // Qt regardless of where they nest (ColorPage declares them inside a Flickable), so
-    // walk the whole tree in document order -- a later inline (SchemeColumn) may use an
-    // earlier one (ColorStrip).
+    // `component Name: Base { ... }`: compile each inline component into its own class and
+    // register it as a document-level type so any object can instantiate `Name { }`. They
+    // are document-scoped in Qt regardless of where they nest (ColorPage declares them
+    // inside a Flickable) and may reference the file's root-level ids/properties.
+    @SuppressWarnings("unchecked")
     private void defineInlineComponents(Ast.QmlDocument doc, TypeRegistry docTypes) {
-        registerInlines(doc.root, doc.imports, docTypes);
+        List<Ast.InlineComponent> inlines = new ArrayList<>();
+        collectInlineDecls(doc.root, inlines);
+        if (inlines.isEmpty()) return;
+        // Pass 1: forward-declare each inline as its base type so collectIds can resolve
+        // their usages while gathering the file's root-level scene ids/properties (visible
+        // inside the inline components, resolved at runtime via the parent chain).
+        for (Ast.InlineComponent ic : inlines) {
+            docTypes.register(ic.name, docTypes.resolve(ic.body.typeName));
+        }
+        Map<String, Class<? extends QObject>> sceneIds = new LinkedHashMap<>();
+        io.qml4j.compiler.bytecode.ast.Ids.collectIds(doc.root, docTypes, sceneIds, false);
+        for (Ast.ObjectMember m : doc.root.members) {
+            if (m instanceof Ast.PropertyDeclaration) {
+                sceneIds.putIfAbsent(((Ast.PropertyDeclaration) m).name, QObject.class);
+            }
+        }
+        // Pass 2: compile each against the doc scope (+ those scene ids) and register the
+        // real class; a later inline (SchemeColumn) may instantiate an earlier one.
+        for (Ast.InlineComponent ic : inlines) {
+            CompiledUnit unit = compiler.compile(
+                new Ast.QmlDocument(doc.imports, ic.body), docTypes, sceneIds);
+            Map<String, Class<?>> defined = engine.backend().defineClasses(unit.classes());
+            docTypes.register(ic.name, (Class<? extends QObject>) defined.get(unit.rootClassName()));
+        }
     }
 
-    @SuppressWarnings("unchecked")
-    private void registerInlines(Ast.ObjectNode obj, List<Ast.ImportNode> imports,
-                                 TypeRegistry docTypes) {
+    private static void collectInlineDecls(Ast.ObjectNode obj, List<Ast.InlineComponent> out) {
         for (Ast.ObjectMember m : obj.members) {
             if (m instanceof Ast.InlineComponent) {
-                Ast.InlineComponent ic = (Ast.InlineComponent) m;
-                CompiledUnit unit = compiler.compile(new Ast.QmlDocument(imports, ic.body), docTypes);
-                Map<String, Class<?>> defined = engine.backend().defineClasses(unit.classes());
-                docTypes.register(ic.name, (Class<? extends QObject>) defined.get(unit.rootClassName()));
+                out.add((Ast.InlineComponent) m);
             } else if (m instanceof Ast.ChildObject) {
-                registerInlines(((Ast.ChildObject) m).object, imports, docTypes);
+                collectInlineDecls(((Ast.ChildObject) m).object, out);
             }
         }
     }

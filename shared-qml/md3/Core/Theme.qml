@@ -5,6 +5,11 @@ QtObject {
     // MD3 dynamic color: the active (light/dark) scheme from the StyleManager singleton,
     // a role -> hex map. Theme.color.primary etc. read map keys.
     property var color: StyleManager.currentScheme
+    // Both schemes (role -> hex map), e.g. the Color page shows light and dark side by side.
+    property QtObject schemes: QtObject {
+        property var light: StyleManager.lightScheme
+        property var dark: StyleManager.darkScheme
+    }
     property QtObject elevation: QtObject {
         property real level0: 0
         property real level1: 1
