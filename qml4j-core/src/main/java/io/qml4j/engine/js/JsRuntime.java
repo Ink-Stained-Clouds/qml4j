@@ -3,6 +3,7 @@ package io.qml4j.engine.js;
 import io.qml4j.engine.classloader.ScriptCache;
 import org.mozilla.javascript.Context;
 import org.mozilla.javascript.ContextFactory;
+import org.mozilla.javascript.RhinoException;
 import org.mozilla.javascript.Script;
 import org.mozilla.javascript.Scriptable;
 
@@ -72,7 +73,13 @@ public final class JsRuntime {
         Context cx = enter();
         try {
             if (cl != null) cx.setApplicationClassLoader(cl);
-            return cx.compileString(source, "qml-binding", 1, null);
+            try {
+                return cx.compileString(source, "qml-binding", 1, null);
+            } catch (RhinoException e) {
+                String repaired = JsConstRepair.repair(source);
+                if (repaired == null) throw e;
+                return cx.compileString(repaired, "qml-binding", 1, null);
+            }
         } finally {
             Context.exit();
         }
@@ -86,7 +93,13 @@ public final class JsRuntime {
         int prev = cx.getOptimizationLevel();
         try {
             cx.setOptimizationLevel(-1);
-            cx.compileString(source, "qml-validate", 1, null);
+            try {
+                cx.compileString(source, "qml-validate", 1, null);
+            } catch (RhinoException e) {
+                String repaired = JsConstRepair.repair(source);
+                if (repaired == null) throw e;
+                cx.compileString(repaired, "qml-validate", 1, null);
+            }
         } finally {
             cx.setOptimizationLevel(prev);
             Context.exit();
