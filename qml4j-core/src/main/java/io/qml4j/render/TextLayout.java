@@ -2,6 +2,7 @@ package io.qml4j.render;
 
 import io.github.humbleui.skija.Font;
 import io.github.humbleui.skija.FontMetrics;
+import io.github.humbleui.skija.TextLine;
 import io.qml4j.render.items.core.Text;
 import io.qml4j.render.items.core.TextWrap;
 import io.qml4j.render.items.input.TextEdit;
@@ -30,7 +31,13 @@ public final class TextLayout {
         if (ig != null) {
             float w, h;
             try (Font f = new Font(fonts.iconTypeface(), size)) {
-                w = ig.isEmpty() ? 0f : f.measureTextWidth(ig);
+                if (ig.isEmpty()) {
+                    w = 0f;
+                } else {
+                    try (TextLine tl = TextLine.make(ig, f)) {
+                        w = tl.getWidth();
+                    }
+                }
                 h = lineHeight(f);
             }
             if (!t.implicitWidth.isBound()) t.implicitWidth.set(w);

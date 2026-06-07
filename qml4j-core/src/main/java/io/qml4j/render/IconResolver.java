@@ -51,40 +51,19 @@ final class IconResolver {
         return m;
     }
 
-    // Material Symbols icon name -> private-use codepoint, drawn by codepoint
-    // with the icon typeface (plain drawString). A simple fast path that needs
-    // no text shaping.
-    private static final Map<String, Integer> ICON_CODEPOINTS = buildIconCodepoints();
-
-    private static Map<String, Integer> buildIconCodepoints() {
-        Map<String, Integer> m = new HashMap<>();
-        m.put("add", 0xe145); m.put("arrow_back", 0xe5c4); m.put("arrow_downward", 0xe5db);
-        m.put("arrow_forward", 0xe5c8); m.put("arrow_upward", 0xe5d8); m.put("check", 0xe5ca);
-        m.put("chevron_left", 0xe5cb); m.put("chevron_right", 0xe5cc); m.put("close", 0xe5cd);
-        m.put("done", 0xe876); m.put("expand_less", 0xe5ce); m.put("expand_more", 0xe5cf);
-        m.put("favorite", 0xe87e); m.put("home", 0xe9b2); m.put("info", 0xe88e);
-        m.put("menu", 0xe5d2); m.put("more_horiz", 0xe5d3); m.put("more_vert", 0xe5d4);
-        m.put("remove", 0xe15b); m.put("search", 0xe8b6); m.put("settings", 0xe8b8);
-        m.put("star", 0xf09a); m.put("warning", 0xf083);
-        m.put("edit", 0xf097); m.put("delete", 0xe92e); m.put("share", 0xe80d);
-        m.put("person", 0xe7fd);
-        return m;
-    }
-
     static boolean isIconFamily(String family) {
         return family != null && (family.contains("Symbols") || family.contains("Material"));
     }
 
-    // For an icon-font Text with the real Material Symbols face: the glyph string
-    // (a PUA codepoint) to draw with the icon typeface. "" = unknown name (drawn
-    // blank). null = not an icon font / font unavailable -> use the Unicode map.
+    // For an icon-font Text with the real Material Symbols face: the ligature name to
+    // shape with the icon typeface (the font's GSUB turns "widgets" into its glyph), so
+    // any Material Symbols name renders without a curated codepoint table. "" when there
+    // is no name; null = not an icon font / font unavailable -> use the Unicode map.
     String iconGlyph(Text t) {
         if (!isIconFamily(t.font.family.peek())) return null;
         if (fonts.iconTypeface() == null) return null;
         String name = rawText(t);
-        if (name == null) return "";
-        Integer cp = ICON_CODEPOINTS.get(name.trim());
-        return cp == null ? "" : new String(Character.toChars(cp));
+        return name == null ? "" : name.trim();
     }
 
     String displayText(Text t) {

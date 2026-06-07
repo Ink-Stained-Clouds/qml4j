@@ -14,6 +14,7 @@ import io.github.humbleui.skija.PathDirection;
 import io.github.humbleui.skija.PathEllipseArc;
 import io.github.humbleui.skija.PathFillMode;
 import io.github.humbleui.skija.Shader;
+import io.github.humbleui.skija.TextLine;
 import io.github.humbleui.types.RRect;
 import io.github.humbleui.types.Rect;
 import io.qml4j.render.items.core.Gradient;
@@ -86,24 +87,26 @@ public final class Painter {
         return renderer.icons().displayText(t);
     }
 
-    // A single icon glyph, vertically centred in the box via real font metrics.
-    public void drawIconGlyph(String glyph, float boxH, int argb, float size) {
-        try (Font f = new Font(renderer.fonts().iconTypeface(), size)) {
+    // A single Material Symbols icon, shaped from its ligature name (so the font's GSUB
+    // forms the glyph) and vertically centred in the box via real font metrics.
+    public void drawIconGlyph(String name, float boxH, int argb, float size) {
+        try (Font f = new Font(renderer.fonts().iconTypeface(), size);
+             TextLine line = TextLine.make(name, f)) {
             FontMetrics fm = f.getMetrics();
             float baseline = boxH / 2f - (fm.getAscent() + fm.getDescent()) / 2f;
             Paint p = renderer.paint();
             p.setMode(PaintMode.FILL);
             p.setShader(null);
             p.setColor(argb);
-            canvas.drawString(glyph, 0, baseline, f, p);
+            canvas.drawTextLine(line, 0, baseline, p);
         }
     }
 
     // Multi-line text: optional wrap to boxW, optional right-elision, from y=0.
     public void drawWrappedText(String s, float boxW, int argb, float size,
-                                int wrapModeEnum, boolean elideRight) {
+                                int wrapModeEnum, boolean elideRight, boolean bold) {
         String wrapMode = TextLayout.wrapModeString(wrapModeEnum);
-        try (Font font = renderer.fonts().fontFor(size, s)) {
+        try (Font font = renderer.fonts().fontFor(size, s, bold)) {
             String[] lines = (wrapMode != null && boxW > 0f)
                 ? TextWrap.wrap(s, wrapMode, boxW, seg -> font.measureTextWidth(seg))
                       .lines.toArray(new String[0])

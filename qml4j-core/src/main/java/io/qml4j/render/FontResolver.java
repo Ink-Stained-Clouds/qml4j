@@ -39,13 +39,19 @@ final class FontResolver {
     }
 
     Font fontFor(float size, String text) {
+        return fontFor(size, text, false);
+    }
+
+    // `bold` synthesizes weight via Skija's emboldening (our bundled faces are single
+    // weight, so there is no real bold variant to match).
+    Font fontFor(float size, String text, boolean bold) {
         Typeface tf;
         if (isSymbol(text)) tf = symbolTypeface(text.codePointAt(0));
         else if (needsCjk(text)) tf = cjkTypeface();
         else tf = null;
         if (tf == null) tf = defaultTypeface();
-        if (tf != null) return new Font(tf, size);
-        return new Font().setSize(size);
+        Font f = tf != null ? new Font(tf, size) : new Font().setSize(size);
+        return bold ? f.setEmboldened(true) : f;
     }
 
     Font font(float size) {
