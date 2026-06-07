@@ -50,6 +50,34 @@ final class DesktopHost {
         setView(launcher.qml());
     }
 
+    // Run the upstream MD3 app (src/App/Main.qml) instead of a showcase: its own
+    // resource loader + the host context properties, started in the dark scheme.
+    void startApp() {
+        AppResourceLoader appLoader = new AppResourceLoader();
+        byte[] bytes = appLoader.load("Main.qml");
+        if (bytes == null) {
+            setView(errorQml("App", new IllegalStateException("Main.qml not found at /tmp/mcq")));
+            return;
+        }
+        inLauncher = false;
+        ((io.qml4j.runtime.color.StyleManager) io.qml4j.runtime.color.StyleManager.__instance())
+            .isDarkTheme.set(Boolean.TRUE);
+        if (view != null) view.dispose();
+        QmlEngine engine = new QmlEngine();
+        view = QmlView.withStockTypes(engine).resources(appLoader);
+        view.setClipboard(new AwtClipboard());
+        view.context("AppFeatures", new java.util.HashMap<String, Object>());
+        view.context("HotReloadEnabled", Boolean.FALSE);
+        view.context("ProjectSourceDir", "");
+        try {
+            view.load(new String(bytes, StandardCharsets.UTF_8));
+        } catch (RuntimeException e) {
+            setView(errorQml("App", e));
+            return;
+        }
+        sizeRoot();
+    }
+
     private void openShowcase(int index) {
         Showcase sc = showcases.get(index);
         byte[] bytes = loader.load(sc.resource);

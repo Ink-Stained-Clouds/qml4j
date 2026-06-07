@@ -49,7 +49,11 @@ public final class DesktopMain {
         updateScale(fw[0], fh[0]);
 
         host = new DesktopHost(new DesktopResourceLoader(), fw[0], fh[0]);
-        host.start(initial);
+        if ("app".equals(initial)) {
+            host.startApp();
+        } else {
+            host.start(initial);
+        }
 
         installCallbacks();
 
