@@ -150,12 +150,29 @@ public final class Context2D {
     public void fillText(String text, double x, double y) {
         if (text == null) return;
         try (Font f = renderer.fonts().fontFor(fontSize(), text)) {
-            float tx = (float) x;
-            if ("center".equals(textAlign)) tx -= f.measureTextWidth(text) / 2f;
-            else if ("right".equals(textAlign) || "end".equals(textAlign)) tx -= f.measureTextWidth(text);
-            float bx = tx;
-            float by = (float) y;
+            float ax = (float) x;
+            if ("center".equals(textAlign)) ax -= f.measureTextWidth(text) / 2f;
+            else if ("right".equals(textAlign) || "end".equals(textAlign)) ax -= f.measureTextWidth(text);
+            final float bx = ax;
+            final float by = (float) y + baselineOffset(f);
             fillWith(fillStyle, p -> canvas.drawString(text, bx, by, f, p));
+        }
+    }
+
+    // drawString places the baseline at `y`; shift so `y` means the edge the HTML
+    // textBaseline names (default "alphabetic" already is the baseline).
+    private float baselineOffset(Font f) {
+        switch (textBaseline) {
+            case "top":
+            case "hanging":
+                return -f.getMetrics().getAscent();
+            case "middle":
+                return -(f.getMetrics().getAscent() + f.getMetrics().getDescent()) / 2f;
+            case "bottom":
+            case "ideographic":
+                return -f.getMetrics().getDescent();
+            default:
+                return 0f;
         }
     }
 
