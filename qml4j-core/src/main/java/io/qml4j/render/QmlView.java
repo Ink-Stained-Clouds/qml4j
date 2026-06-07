@@ -9,7 +9,9 @@ import io.qml4j.render.items.input.TextInput;
 
 import io.github.humbleui.skija.Canvas;
 import io.qml4j.compiler.TypeRegistry;
+import io.qml4j.compiler.bytecode.rhino.RhinoScope;
 import io.qml4j.engine.QmlEngine;
+import io.qml4j.engine.js.JsRuntime;
 import io.qml4j.engine.binding.DirtyQueue;
 
 public final class QmlView {
@@ -33,6 +35,14 @@ public final class QmlView {
     public QmlView resources(ResourceLoader res) {
         loader.setResources(res);
         renderer.setResourceLoader(res);
+        return this;
+    }
+
+    // Expose a host value to QML under `name` (QML's setContextProperty): bindings resolve
+    // it as a free identifier. Register before load() so the compiler accepts it.
+    public QmlView context(String name, Object value) {
+        RhinoScope.registerContextProperty(name);
+        JsRuntime.putGlobal(name, value);
         return this;
     }
 

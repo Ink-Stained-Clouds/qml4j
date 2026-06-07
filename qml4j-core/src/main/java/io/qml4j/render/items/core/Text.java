@@ -13,6 +13,8 @@ public class Text extends Item {
     public final Property<Number> horizontalAlignment = new Property<>(1); // Text.AlignLeft
     public final Property<Number> verticalAlignment = new Property<>(32);  // Text.AlignTop
     public final Property<Number> elide = new Property<>(0);                // Text.ElideNone
+    public final Property<Number> lineHeight = new Property<>(1);
+    public final Property<Number> lineHeightMode = new Property<>(0);       // ProportionalHeight
 
     // Effective pixel size: Qt's font.pixelSize wins when set, else flat fontSize.
     // Either may be null (a binding that evaluated to undefined -- QML-tolerant).

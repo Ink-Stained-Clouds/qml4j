@@ -13,6 +13,8 @@ import java.util.Map;
 
 public class Connections extends Item implements SignalRelay {
     public final Property<QObject> target = new Property<>(null);
+    // We already skip handlers whose signal is absent, so this is accepted but unused.
+    public final Property<Object> ignoreUnknownSignals = new Property<>(Boolean.FALSE);
     private final Map<String, SignalHandler> handlers = new LinkedHashMap<>();
     private QObject boundTarget;
 

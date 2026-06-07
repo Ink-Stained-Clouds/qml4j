@@ -19,6 +19,13 @@ public class ListView extends Flickable implements DelegateHost {
     public final Property<Number> cacheBuffer = new Property<>(0);
     public final Property<Number> currentIndex = new Property<>(0);
     public final Property<Number> highlightMoveDuration = new Property<>(0);
+    // Snap/highlight-range are accepted for layout compatibility; the snap-scroll
+    // behavior itself is not yet modeled.
+    public final Property<Object> snapMode = new Property<>(0L);
+    public final Property<Object> highlightRangeMode = new Property<>(0L);
+    public final Property<Number> preferredHighlightBegin = new Property<>(0);
+    public final Property<Number> preferredHighlightEnd = new Property<>(0);
+    public final Property<Number> count = new Property<>(0);
 
     private DelegateFactory factory;
     private final List<Item> instances = new ArrayList<>();
@@ -87,6 +94,7 @@ public class ListView extends Flickable implements DelegateHost {
             children.add(item);
             instances.add(item);
         }
+        count.set(instances.size());
         relayout();
     }
 

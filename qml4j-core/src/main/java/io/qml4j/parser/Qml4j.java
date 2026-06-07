@@ -13,6 +13,10 @@ public final class Qml4j {
     private Qml4j() {}
 
     public static Ast.QmlDocument parse(String source) {
+        // Upstream .qml files often carry a UTF-8 BOM; strip it so the lexer starts clean.
+        if (!source.isEmpty() && source.charAt(0) == '﻿') {
+            source = source.substring(1);
+        }
         return parse(CharStreams.fromString(source));
     }
 

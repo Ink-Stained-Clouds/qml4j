@@ -93,6 +93,18 @@ public final class JsRuntime {
         }
     }
 
+    // Install a host context property into the shared globals scope, where a binding's
+    // QmlScope reaches it via the parent chain after its own lookups miss.
+    public static void putGlobal(String name, Object value) {
+        Scriptable g = globals();
+        enter();
+        try {
+            g.put(name, g, JsWrap.toJs(value, g));
+        } finally {
+            Context.exit();
+        }
+    }
+
     public static Scriptable globals() {
         Scriptable g = globals;
         if (g != null) return g;
