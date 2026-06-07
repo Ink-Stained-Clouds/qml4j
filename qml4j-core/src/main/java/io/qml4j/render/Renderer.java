@@ -169,7 +169,7 @@ public final class Renderer {
         Paint layerPaint = layerEffectPaint(node);
         try {
             canvas.translate(x, y);
-            applyTransform(canvas, w, h, rot, sc);
+            applyTransform(canvas, node, w, h, rot, sc);
             if (layerPaint != null) {
                 float m = layerEffectMargin(node);
                 canvas.saveLayer(Rect.makeXYWH(-m, -m, w + 2 * m, h + 2 * m), layerPaint);
@@ -207,14 +207,21 @@ public final class Renderer {
         }
     }
 
-    private static void applyTransform(Canvas canvas, float w, float h, float rot, float sc) {
+    private static void applyTransform(Canvas canvas, Item node, float w, float h, float rot, float sc) {
         if (rot == 0f && sc == 1f) return;
-        float cx = w / 2f;
-        float cy = h / 2f;
-        canvas.translate(cx, cy);
+        // Item.TransformOrigin: 0..8 row-major (TopLeft..BottomRight); col=origin%3,
+        // row=origin/3 each map 0/1/2 -> start/center/end. Default 4 = Center.
+        int origin = node.transformOrigin.peek().intValue();
+        float px = pivot(origin % 3, w);
+        float py = pivot(origin / 3, h);
+        canvas.translate(px, py);
         if (rot != 0f) canvas.rotate(rot);
         if (sc != 1f) canvas.scale(sc, sc);
-        canvas.translate(-cx, -cy);
+        canvas.translate(-px, -py);
+    }
+
+    private static float pivot(int axis, float extent) {
+        return axis == 0 ? 0f : axis == 1 ? extent / 2f : extent;
     }
 
     static List<Item> zOrdered(List<Item> children) {
