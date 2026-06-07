@@ -70,7 +70,11 @@ The build runs offline-friendly; iteration commonly uses `mvn -o install -DskipT
 ```sh
 ./run.sh                    # launcher
 ./run.sh ButtonShowcase     # one showcase
+./run.sh app                # the upstream MD3 app (dark scheme)
+./run.sh app light          # the upstream MD3 app (light scheme)
 ```
+
+`./run.sh app` runs the upstream [material-components-qml](https://github.com/sudoevolve/material-components-qml) app, expected at `../mcq` (override with `$MCQ_DIR`); clone it once: `git clone https://github.com/sudoevolve/material-components-qml ../mcq`. The scheme defaults to dark; append `light` for the light scheme.
 
 `run.sh` recompiles `qml4j-core` + the desktop module from source (`-am`) and launches `java` directly with the freshly-built `target/classes` ahead of any `~/.m2` jar on the classpath — no `mvn install` after editing the engine, and a stale `~/.m2/qml4j-core` can't shadow your changes. (Plain `mvn -pl qml4j-demo-desktop exec:java` resolves `qml4j-core` from `~/.m2` and silently runs a stale engine, e.g. "unknown QML type" for a freshly-registered item.)
 
