@@ -132,4 +132,4 @@ The `android-shell` module is a frozen separate Gradle project (AGP 8.5, Gradle 
 
 ## License
 
-TBD.
+AGPL-3
