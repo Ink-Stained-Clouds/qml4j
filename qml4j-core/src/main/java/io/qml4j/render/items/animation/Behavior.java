@@ -19,11 +19,16 @@ public class Behavior extends Item implements Animatable, Property.WriteIntercep
     private Object preparedTo;
     private Object lastDisplayed;
     private boolean writing;
-    // Qt semantics: a Behavior does not animate the initial value assignment. Here
-    // that initial value can arrive across the first few frames as a layout-driven
-    // binding (implicitWidth) settles, so suppress animation during that startup
-    // window and only animate later changes (e.g. a real selection). Without this a
-    // Chip animates its width up from 0/min on load.
+    // Qt semantics: a Behavior is inactive during component construction -- it does not
+    // animate the initial value assignment, only genuine changes after the object is
+    // complete. We enable it from the construction-complete tree walk (initStateBindings),
+    // run at load and for each dynamically-instantiated subtree. Without this an MD3
+    // NavigationRail item's pill flashes its colour up from the default white and fades.
+    private boolean enabled;
+    // An implicit/preferred size is layout-driven: its value keeps settling across the
+    // first frames AFTER construction completes, so suppress those too (the rail items
+    // would otherwise grow from 0 and the column would slide in). Direct properties
+    // settle during construction and need no frame window.
     private boolean suppressStartup;
     private int frames;
     private static final int SETTLE_FRAMES = 3;
@@ -39,12 +44,18 @@ public class Behavior extends Item implements Animatable, Property.WriteIntercep
         Property<Object> raw = (Property) p;
         bound = raw;
         lastDisplayed = raw.peek();
-        // Only an implicit size is layout-driven and settles across the first frames;
-        // suppress its startup animation. Direct properties (color/opacity/width) keep
-        // the normal "animate from the value at change time" behaviour.
-        suppressStartup = "implicitWidth".equals(propName) || "implicitHeight".equals(propName);
+        suppressStartup = "implicitWidth".equals(propName) || "implicitHeight".equals(propName)
+            || propName.endsWith("preferredWidth") || propName.endsWith("preferredHeight");
         readTemplate();
         raw.setInterceptor(this);
+    }
+
+    // Called by the construction-complete tree walk (Item.initStateBindings); a Behavior
+    // has no states, so it just arms itself here.
+    @Override
+    public void initStateBindings() {
+        super.initStateBindings();
+        enabled = true;
     }
 
     private void readTemplate() {
@@ -65,7 +76,9 @@ public class Behavior extends Item implements Animatable, Property.WriteIntercep
             property.setBypassInterceptor(newValue);
             return;
         }
-        if (suppressStartup && frames < SETTLE_FRAMES) {
+        // Inactive until construction completes (the initial binding assignment), and
+        // for layout-driven sizes a few frames longer while they settle.
+        if (!enabled || (suppressStartup && frames < SETTLE_FRAMES)) {
             writeBack(newValue);
             return;
         }
@@ -107,6 +120,10 @@ public class Behavior extends Item implements Animatable, Property.WriteIntercep
 
     @Override
     public void tick(long nowNanos) {
+        // Safety net: a Behavior that reaches a tick is past construction even if no
+        // construction-complete walk reached it (an uncommon dynamic-instantiation path).
+        // Its initial writes already happened (and were suppressed) before any tick.
+        enabled = true;
         if (suppressStartup && frames < SETTLE_FRAMES) frames++;
         if (!running || bound == null) return;
         if (startNanos < 0L) startNanos = nowNanos;

@@ -26,8 +26,10 @@ public class Loader extends Item {
         double ih = it.implicitHeight.peekDouble();
         if (iw > 0) implicitWidth.set(iw);
         if (ih > 0) implicitHeight.set(ih);
-        it.x.set(0);
-        it.y.set(0);
+        // Qt's Loader sizes its item to fill but does NOT keep pinning x/y -- the item
+        // defaults to (0,0) (the fill origin) yet stays free to be offset, e.g. the MD3
+        // page switcher animates the new page's y from 50 to 0. Forcing y=0 every layout
+        // fought that animation and the page snapped in.
         double w = width.peekDouble();
         double h = height.peekDouble();
         if (w > 0) it.width.set(w);

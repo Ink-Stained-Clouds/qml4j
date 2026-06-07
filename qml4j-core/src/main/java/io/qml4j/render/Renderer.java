@@ -273,10 +273,17 @@ public final class Renderer {
         float tm = marginOr(a.topMargin.peek(), baseM);
         float bm = marginOr(a.bottomMargin.peek(), baseM);
 
+        // Anchors live in the parent's coordinate space: filling/centering on a SIBLING
+        // (not the parent) coincides with that sibling's box, so offset by its x/y. The
+        // parent sits at the origin, so its offset is 0. Without this a Ripple
+        // `anchors.fill: indicator` ignored the centred pill's x and sat at the left.
+        Item parent = node.parent.peek();
         Item fill = a.fill.peek();
         if (fill != null) {
-            node.x.set(lm);
-            node.y.set(tm);
+            float fx = fill == parent ? 0f : fill.x.peekFloat();
+            float fy = fill == parent ? 0f : fill.y.peekFloat();
+            node.x.set(fx + lm);
+            node.y.set(fy + tm);
             node.width.set(fill.width.peekFloat() - lm - rm);
             node.height.set(fill.height.peekFloat() - tm - bm);
             return;
@@ -285,8 +292,10 @@ public final class Renderer {
         if (ci != null) {
             float w = node.width.peekFloat();
             float h = node.height.peekFloat();
-            node.x.set((ci.width.peekFloat() - w) / 2f);
-            node.y.set((ci.height.peekFloat() - h) / 2f);
+            float cx = ci == parent ? 0f : ci.x.peekFloat();
+            float cy = ci == parent ? 0f : ci.y.peekFloat();
+            node.x.set(cx + (ci.width.peekFloat() - w) / 2f);
+            node.y.set(cy + (ci.height.peekFloat() - h) / 2f);
             return;
         }
         applyHorizontalAnchors(node, lm, rm, a);
@@ -498,6 +507,10 @@ public final class Renderer {
         node.children.add(child);
         node.item.set(child);
         child.initStateBindingsTree();
+        // Qt fires Loader.onLoaded once the item exists; the MD3 app hangs its page
+        // enter animation (slide-up + fade-in) off it. Emit after item/state are set
+        // so the handler sees a fully-formed item.
+        node.loaded.emit();
     }
 
     private void clearLoadedItem(Loader node) {
