@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -101,7 +102,11 @@ class Es6ExpressionTest {
             "}");
         Object all = readProp(root, "all");
         assertTrue(all instanceof List);
-        assertEquals(List.of(0L, 1L, 2L, 3L, 4L, 5L, 6L), all);
+        // A var array is the live NativeArray (a List, but its equals is identity, and
+        // elements stay JS-typed), so compare contents by numeric value.
+        List<Long> nums = new ArrayList<>();
+        for (Object o : (List<?>) all) nums.add(((Number) o).longValue());
+        assertEquals(List.of(0L, 1L, 2L, 3L, 4L, 5L, 6L), nums);
     }
 
     // ---- Arrow functions ----

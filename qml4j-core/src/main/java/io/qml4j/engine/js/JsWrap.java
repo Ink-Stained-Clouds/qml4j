@@ -17,9 +17,7 @@ import org.mozilla.javascript.SymbolScriptable;
 import org.mozilla.javascript.Undefined;
 import org.mozilla.javascript.Wrapper;
 
-import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -51,10 +49,13 @@ public final class JsWrap {
         if (v instanceof Function) return v;
         if (v instanceof RhinoFunctionValue) return ((RhinoFunctionValue) v).unwrap();
         if (v instanceof Callable) return callableToFunction((Callable) v);
-        // A `var` array (a JS literal stored as a Java List, see toJava) must round-trip
-        // as a real JS Array so Array.isArray / .map / .indexOf work, not as a JavaMember
-        // proxy. The snapshot is acceptable: var-array reads dominate and nothing here
-        // relies on writing back through the wrapper.
+        // A natively-stored var object/array (see toJava) is a live Rhino object; return
+        // it as itself so JS sees the same identity and reaches it through Rhino directly
+        // -- no per-read copy, no JavaMember proxy -- and mutations (arr.push, p.x = ...)
+        // persist as QML var semantics require.
+        if (v instanceof Scriptable) return v;
+        // A Java-produced list (a model, a Java API result) becomes a real JS Array so
+        // Array.isArray / .map / .indexOf work, not a JavaMember proxy.
         if (v instanceof List) {
             Scriptable arr = toNativeArray((List<?>) v, scope);
             if (arr != null) return arr;
@@ -107,22 +108,13 @@ public final class JsWrap {
         // Rhino 1.9 represents small integers as java.lang.Integer; the engine's
         // canonical integer type is Long, so widen every integral Number to it.
         if (v instanceof Number) return ((Number) v).longValue();
-        if (v instanceof NativeArray) {
-            NativeArray a = (NativeArray) v;
-            List<Object> out = new ArrayList<>();
-            for (Object id : a.getIds()) {
-                if (id instanceof Integer) out.add(toJava(a.get((Integer) id, a)));
-            }
-            return out;
-        }
-        if (v instanceof NativeObject) {
-            NativeObject o = (NativeObject) v;
-            Map<String, Object> out = new LinkedHashMap<>();
-            for (Object id : o.getIds()) {
-                String k = String.valueOf(id);
-                out.put(k, toJava(o.get(k, o)));
-            }
-            return out;
+        // A JS array/object assigned to a `var` property stays the live Rhino object:
+        // NativeArray is a java.util.List and NativeObject is a java.util.Map, so Java
+        // consumers (Repeater/ListView models, MemberAccess) still see collections, while
+        // reads round-trip without a deep copy and in-place mutation persists. Element
+        // values stay JS-typed; that is fine -- they convert at their own use boundary.
+        if (v instanceof NativeArray || v instanceof NativeObject) {
+            return v;
         }
         // A JS function escaping into Java (e.g. `property var fn: x => x * 2`) becomes a
         // Callable so QML/Java callers can invoke it like any other function value.
