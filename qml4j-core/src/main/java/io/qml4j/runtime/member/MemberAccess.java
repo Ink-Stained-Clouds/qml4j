@@ -8,6 +8,7 @@ import io.qml4j.runtime.qt.QtColorFactory;
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 // Reflective member and index access over QObjects, Maps, Lists and Strings.
 // Property fields are transparently read/written; a color's .r/.g/.b/.a and a
@@ -16,18 +17,52 @@ public final class MemberAccess {
 
     private MemberAccess() {}
 
+    // Public-field lookup is on the hot path: every JS member read/write resolves a
+    // field by name, and has/resolves probes it before each access. getField walks the
+    // type hierarchy and allocates each call, so cache the result per (class, name).
+    // ClassValue keys on Class identity -- correct across per-component classloaders
+    // that mint same-named classes -- and releases entries when a class unloads, so it
+    // never pins a hot-reloaded component.
+    private static final ClassValue<ConcurrentHashMap<String, Field>> FIELDS =
+        new ClassValue<ConcurrentHashMap<String, Field>>() {
+            @Override protected ConcurrentHashMap<String, Field> computeValue(Class<?> type) {
+                return new ConcurrentHashMap<>();
+            }
+        };
+
+    // Cached for names with no matching field, so absence is a cache hit too.
+    private static final Field ABSENT = absentSentinel();
+
+    private static Field absentSentinel() {
+        try {
+            return MemberAccess.class.getDeclaredField("ABSENT");
+        } catch (NoSuchFieldException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
+    private static Field field(Class<?> type, String name) {
+        Field f = FIELDS.get(type).computeIfAbsent(name, n -> lookupField(type, n));
+        return f == ABSENT ? null : f;
+    }
+
+    private static Field lookupField(Class<?> type, String name) {
+        try {
+            return type.getField(name);
+        } catch (NoSuchFieldException e) {
+            return ABSENT;
+        }
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static Object writeMember(Object target, String name, Object value) {
         if (target == null) {
             throw new NullPointerException("cannot assign '" + name + "' on null target");
         }
         Class<?> c = target.getClass();
-        Field f;
-        try {
-            f = c.getField(name);
-        } catch (NoSuchFieldException e) {
-            throw new IllegalArgumentException(
-                "no member '" + name + "' on " + c.getName());
+        Field f = field(c, name);
+        if (f == null) {
+            throw new IllegalArgumentException("no member '" + name + "' on " + c.getName());
         }
         try {
             Object cur = f.get(target);
@@ -60,11 +95,12 @@ public final class MemberAccess {
     @SuppressWarnings("unchecked")
     private static List<Object> childrenOf(Object item) {
         if (item == null) return null;
+        Field cf = field(item.getClass(), "children");
+        if (cf == null) return null;
         try {
-            Field cf = item.getClass().getField("children");
             Object v = cf.get(item);
             return v instanceof List ? (List<Object>) v : null;
-        } catch (NoSuchFieldException | IllegalAccessException e) {
+        } catch (IllegalAccessException e) {
             return null;
         }
     }
@@ -94,12 +130,9 @@ public final class MemberAccess {
             return ((Map<?, ?>) target).get(name);
         }
         Class<?> c = target.getClass();
-        Field f;
-        try {
-            f = c.getField(name);
-        } catch (NoSuchFieldException e) {
-            throw new IllegalArgumentException(
-                "no member '" + name + "' on " + c.getName());
+        Field f = field(c, name);
+        if (f == null) {
+            throw new IllegalArgumentException("no member '" + name + "' on " + c.getName());
         }
         Object val;
         try {
@@ -138,12 +171,7 @@ public final class MemberAccess {
 
     public static boolean hasMember(Object o, String name) {
         if (o == null) return false;
-        try {
-            o.getClass().getField(name);
-            return true;
-        } catch (NoSuchFieldException e) {
-            return false;
-        }
+        return field(o.getClass(), name) != null;
     }
 
     // Whether `name` is a Property field on `o` (not an id/signal/group field). The
@@ -152,10 +180,7 @@ public final class MemberAccess {
     // not shadow the enclosing component's same-named id.
     public static boolean hasProperty(Object o, String name) {
         if (o == null) return false;
-        try {
-            return Property.class.isAssignableFrom(o.getClass().getField(name).getType());
-        } catch (NoSuchFieldException e) {
-            return false;
-        }
+        Field f = field(o.getClass(), name);
+        return f != null && Property.class.isAssignableFrom(f.getType());
     }
 }

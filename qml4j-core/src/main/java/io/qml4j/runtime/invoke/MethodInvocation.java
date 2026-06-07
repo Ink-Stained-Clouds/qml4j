@@ -8,9 +8,15 @@ import io.qml4j.runtime.convert.Coercion;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 // Reflective method dispatch on a receiver: exact then varargs Java methods,
-// falling back to a QML function, then to emitting a same-named signal.
+// falling back to a QML function, then to emitting a same-named signal. Method
+// resolution is cached per (class, name, arity) -- the JS->Java call path runs
+// thousands of times per frame (Canvas ctx.lineTo/arc), and an uncached getMethods
+// scan allocates the whole method array each call.
 public final class MethodInvocation {
 
     private MethodInvocation() {}
@@ -21,33 +27,24 @@ public final class MethodInvocation {
         }
         Class<?> cls = receiver.getClass();
         int n = args.length;
-        Method exact = null;
-        Method varargs = null;
-        for (Method m : cls.getMethods()) {
-            if (!m.getName().equals(name)) continue;
-            int pc = m.getParameterCount();
-            if (pc == n && !m.isVarArgs()) { exact = m; break; }
-            if (m.isVarArgs() && pc - 1 <= n) varargs = m;
-        }
-        if (exact == null && varargs == null && receiver instanceof QObject) {
+        Resolved r = resolve(cls, name, n);
+        if (r.exact == null && r.varargs == null && receiver instanceof QObject) {
             Callable c = ((QObject) receiver).__getFunction(name);
             if (c != null) return c.call(args);
         }
         try {
-            if (exact != null) {
-                Object[] coerced = Coercion.coerceArgs(args, exact.getParameterTypes());
-                return exact.invoke(receiver, coerced);
+            if (r.exact != null) {
+                Object[] coerced = Coercion.coerceArgs(args, r.exactParams);
+                return r.exact.invoke(receiver, coerced);
             }
-            if (varargs != null) {
-                int fixed = varargs.getParameterCount() - 1;
-                Class<?>[] paramTypes = varargs.getParameterTypes();
+            if (r.varargs != null) {
+                int fixed = r.varargsFixed;
                 Object[] reshaped = new Object[fixed + 1];
-                for (int i = 0; i < fixed; i++) reshaped[i] = Coercion.coerce(args[i], paramTypes[i]);
-                Class<?> varElem = paramTypes[fixed].getComponentType();
+                for (int i = 0; i < fixed; i++) reshaped[i] = Coercion.coerce(args[i], r.varargsParams[i]);
                 Object[] rest = new Object[n - fixed];
-                for (int i = 0; i < rest.length; i++) rest[i] = Coercion.coerce(args[fixed + i], varElem);
+                for (int i = 0; i < rest.length; i++) rest[i] = Coercion.coerce(args[fixed + i], r.varElem);
                 reshaped[fixed] = rest;
-                return varargs.invoke(receiver, reshaped);
+                return r.varargs.invoke(receiver, reshaped);
             }
         } catch (InvocationTargetException e) {
             Throwable cause = e.getCause();
@@ -68,5 +65,76 @@ public final class MethodInvocation {
         }
         throw new IllegalArgumentException(
             "no method '" + name + "' with " + n + " args on " + cls.getName());
+    }
+
+    // Whether `cls` has any public method named `name`. JS member access probes this
+    // for every `obj.name` that isn't a field, so the scan must not be per-access.
+    public static boolean hasMethod(Class<?> cls, String name) {
+        return METHOD_NAMES.get(cls).contains(name);
+    }
+
+    // Per-class resolution cache. ClassValue keys on Class identity -- correct across
+    // per-component classloaders that mint same-named classes (a name key would collide
+    // into "object is not an instance of declaring class") -- and its entries are
+    // released when the class unloads, so it never pins a hot-reloaded component.
+    private static final ClassValue<ConcurrentHashMap<String, ConcurrentHashMap<Integer, Resolved>>> METHODS =
+        new ClassValue<ConcurrentHashMap<String, ConcurrentHashMap<Integer, Resolved>>>() {
+            @Override protected ConcurrentHashMap<String, ConcurrentHashMap<Integer, Resolved>> computeValue(
+                    Class<?> type) {
+                return new ConcurrentHashMap<>();
+            }
+        };
+
+    private static final ClassValue<Set<String>> METHOD_NAMES =
+        new ClassValue<Set<String>>() {
+            @Override protected Set<String> computeValue(Class<?> type) {
+                Set<String> names = new HashSet<>();
+                for (Method m : type.getMethods()) names.add(m.getName());
+                return names;
+            }
+        };
+
+    private static Resolved resolve(Class<?> cls, String name, int argc) {
+        return METHODS.get(cls)
+            .computeIfAbsent(name, n -> new ConcurrentHashMap<>())
+            .computeIfAbsent(argc, ac -> scan(cls, name, ac));
+    }
+
+    private static Resolved scan(Class<?> cls, String name, int argc) {
+        Method exact = null;
+        Method varargs = null;
+        for (Method m : cls.getMethods()) {
+            if (!m.getName().equals(name)) continue;
+            int pc = m.getParameterCount();
+            if (pc == argc && !m.isVarArgs()) { exact = m; break; }
+            if (m.isVarArgs() && pc - 1 <= argc) varargs = m;
+        }
+        return new Resolved(exact, varargs);
+    }
+
+    // A resolved overload pair plus its parameter types, so the call path never calls
+    // getParameterTypes (which clones the array) again.
+    private static final class Resolved {
+        final Method exact;
+        final Class<?>[] exactParams;
+        final Method varargs;
+        final Class<?>[] varargsParams;
+        final int varargsFixed;
+        final Class<?> varElem;
+
+        Resolved(Method exact, Method varargs) {
+            this.exact = exact;
+            this.exactParams = exact != null ? exact.getParameterTypes() : null;
+            this.varargs = varargs;
+            if (varargs != null) {
+                this.varargsParams = varargs.getParameterTypes();
+                this.varargsFixed = varargs.getParameterCount() - 1;
+                this.varElem = varargsParams[varargsFixed].getComponentType();
+            } else {
+                this.varargsParams = null;
+                this.varargsFixed = 0;
+                this.varElem = null;
+            }
+        }
     }
 }

@@ -17,7 +17,6 @@ import org.mozilla.javascript.SymbolScriptable;
 import org.mozilla.javascript.Undefined;
 import org.mozilla.javascript.Wrapper;
 
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -311,10 +310,7 @@ public final class JsWrap {
     // bare-call resolution.
     static boolean isCallable(Object target, String name) {
         if (target instanceof QObject && ((QObject) target).__getFunction(name) != null) return true;
-        for (Method m : target.getClass().getMethods()) {
-            if (m.getName().equals(name)) return true;
-        }
-        return false;
+        return MethodInvocation.hasMethod(target.getClass(), name);
     }
 
     // A method reference obtained from a JavaMember (obj.method); calling it routes to
