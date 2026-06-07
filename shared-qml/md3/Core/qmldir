@@ -30,3 +30,6 @@ TimePicker 1.0 TimePicker.qml
 CircularProgress 1.0 CircularProgress.qml
 LinearProgress 1.0 LinearProgress.qml
 LoadingIndicator 1.0 LoadingIndicator.qml
+CanvasBarChart 1.0 CanvasBarChart.qml
+CanvasLineChart 1.0 CanvasLineChart.qml
+CanvasPieChart 1.0 CanvasPieChart.qml

@@ -44,6 +44,7 @@ final class Showcase {
             of("GridLayout / Flow", "GridFlowShowcase"),
             of("Shapes", "ShapeShowcase"),
             of("Canvas", "CanvasShowcase"),
+            of("Charts", "ChartShowcase"),
             of("Qt.color", "ColorShowcase"),
             of("LayerEffect", "LayerEffectShowcase"),
             of("Animations", "AnimShowcase"),

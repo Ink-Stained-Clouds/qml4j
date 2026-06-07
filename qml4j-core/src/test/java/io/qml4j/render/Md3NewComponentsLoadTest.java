@@ -21,7 +21,8 @@ class Md3NewComponentsLoadTest {
     private static final String[] COMPONENTS = {
         "Breadcrumb", "ComboBox", "Menu", "DataTable", "NavigationRail", "SideSheet", "Tabs",
         "TextField", "NavigationDrawer", "DatePicker", "TimePicker",
-        "CircularProgress", "LinearProgress", "LoadingIndicator"
+        "CircularProgress", "LinearProgress", "LoadingIndicator",
+        "CanvasBarChart", "CanvasLineChart", "CanvasPieChart"
     };
 
     private static byte[] res(String path) {
@@ -69,5 +70,17 @@ class Md3NewComponentsLoadTest {
         dq.install();
         try { dq.flush(); } finally { dq.uninstall(); }
         assertFalse(root.children.isEmpty(), "MD3 gallery showcase should instantiate");
+    }
+
+    @Test
+    void loadsChartShowcase() {
+        Map<String, byte[]> files = md3Files();
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        v.resources(files::get);
+        Item root = v.load(new String(res("showcases/ChartShowcase.qml"), StandardCharsets.UTF_8));
+        DirtyQueue dq = v.dirtyQueue();
+        dq.install();
+        try { dq.flush(); } finally { dq.uninstall(); }
+        assertFalse(root.children.isEmpty(), "chart showcase should instantiate");
     }
 }
