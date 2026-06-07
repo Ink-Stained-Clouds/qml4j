@@ -51,6 +51,8 @@ public final class QtGlobals {
         scope.put("GridView", scope, enumObject(LISTVIEW));
         scope.put("RotationAnimation", scope, enumObject(ROTATION_ANIMATION));
         scope.put("Gradient", scope, enumObject(GRADIENT));
+        scope.put("TapHandler", scope, enumObject(TAP_HANDLER));
+        scope.put("PointerHandler", scope, enumObject(POINTER_HANDLER));
         scope.put("Image", scope, enumObject(TEXT));
 
         NativeObject console = new NativeObject();
@@ -196,6 +198,18 @@ public final class QtGlobals {
 
     // Gradient.orientation.
     private static final Map<String, Long> GRADIENT = map("Vertical", 0L, "Horizontal", 1L);
+
+    // TapHandler.gesturePolicy.
+    private static final Map<String, Long> TAP_HANDLER = map(
+        "DragThreshold", 0L, "WithinBounds", 1L, "ReleaseWithinBounds", 2L, "DragWithinBounds", 3L);
+
+    // PointerHandler.grabPermissions (a bit-flag set).
+    private static final Map<String, Long> POINTER_HANDLER = map(
+        "TakeOverForbidden", 0L, "CanTakeOverFromHandlersOfSameType", 1L,
+        "CanTakeOverFromHandlersOfDifferentType", 2L, "CanTakeOverFromItems", 4L,
+        "CanTakeOverFromAnything", 15L, "ApprovesTakeOverByHandlersOfSameType", 16L,
+        "ApprovesTakeOverByHandlersOfDifferentType", 32L, "ApprovesTakeOverByItems", 64L,
+        "ApprovesCancellation", 128L, "ApprovesTakeOverByAnything", 240L);
 
     // RotationAnimation.direction.
     private static final Map<String, Long> ROTATION_ANIMATION = map(
