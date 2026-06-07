@@ -6,6 +6,7 @@ import io.qml4j.engine.binding.DirtyQueue;
 import io.qml4j.render.items.view.Component;
 import io.qml4j.render.items.core.Flickable;
 import io.qml4j.render.items.core.Item;
+import io.qml4j.render.items.core.Rectangle;
 import io.qml4j.render.items.view.Loader;
 import io.qml4j.render.items.effect.ColorOverlay;
 import io.qml4j.render.items.effect.DropShadow;
@@ -23,6 +24,9 @@ import io.github.humbleui.skija.BlendMode;
 import io.github.humbleui.skija.ColorFilter;
 import io.github.humbleui.skija.ImageFilter;
 import io.github.humbleui.skija.Paint;
+import io.github.humbleui.skija.Path;
+import io.github.humbleui.skija.PathOp;
+import io.github.humbleui.types.RRect;
 import io.github.humbleui.types.Rect;
 
 import java.nio.charset.StandardCharsets;
@@ -181,7 +185,15 @@ public final class Renderer {
                 float m = layerEffectMargin(node);
                 canvas.saveLayer(Rect.makeXYWH(-m, -m, w + 2 * m, h + 2 * m), layerPaint);
             }
-            if (clip) canvas.clipRect(Rect.makeXYWH(0, 0, w, h));
+            // A layer.effect mask rounds the item by rendering its content into an offscreen
+            // and erasing the corners with an antialiased path -- a drawn AA shape stays smooth
+            // on the GPU backend, where an antialiased rounded clip can fall back to hard edges.
+            float[] maskR = maskClipRadii(node);
+            if (maskR != null) {
+                canvas.saveLayer(Rect.makeXYWH(0, 0, w, h), null);
+            } else if (clip) {
+                canvas.clipRect(Rect.makeXYWH(0, 0, w, h));
+            }
             node.paint(painter, w, h, alpha);
             if (node instanceof Flickable) {
                 Flickable f = (Flickable) node;
@@ -208,9 +220,21 @@ public final class Renderer {
                     draw(canvas, child, alpha);
                 }
             }
+            if (maskR != null) eraseOutsideRoundRect(canvas, w, h, maskR);
         } finally {
             canvas.restoreToCount(savedCount);
             if (layerPaint != null) layerPaint.close();
+        }
+    }
+
+    // Clear the four corners outside the rounded rect with an antialiased path, so the
+    // offscreen layer composites back with smooth rounded edges (the layer.effect mask).
+    private void eraseOutsideRoundRect(Canvas canvas, float w, float h, float[] r) {
+        try (Path bounds = Path.makeRect(Rect.makeXYWH(0, 0, w, h));
+             Path rounded = Path.makeRRect(RRect.makeComplexXYWH(0, 0, w, h, r));
+             Path corners = Path.makeCombining(bounds, rounded, PathOp.DIFFERENCE);
+             Paint clear = new Paint().setBlendMode(BlendMode.CLEAR).setAntiAlias(true)) {
+            canvas.drawPath(corners, clear);
         }
     }
 
@@ -595,6 +619,36 @@ public final class Renderer {
 
     static float sigma(float radius) {
         return radius <= 0f ? 0f : radius / 2f;
+    }
+
+    // A layer.effect MultiEffect with maskEnabled rounds the item to its mask's shape
+    // (the carousel masks its image to the card's corner radius this way). Returns the
+    // four corner radii (tl,tr,br,bl) for an antialiased rounded clip, or null when
+    // there is no rounded mask.
+    private static float[] maskClipRadii(Item node) {
+        if (!Boolean.TRUE.equals(node.layer.enabled.peek())) return null;
+        Object effect = node.layer.effect.peek();
+        if (!(effect instanceof MultiEffect)) return null;
+        MultiEffect me = (MultiEffect) effect;
+        if (!Boolean.TRUE.equals(me.maskEnabled.peek())) return null;
+        Rectangle mr = firstRectangle(me.maskSource.peek());
+        if (mr == null) return null;
+        float tl = mr.cornerRadius(mr.topLeftRadius.peekFloat());
+        float tr = mr.cornerRadius(mr.topRightRadius.peekFloat());
+        float br = mr.cornerRadius(mr.bottomRightRadius.peekFloat());
+        float bl = mr.cornerRadius(mr.bottomLeftRadius.peekFloat());
+        if (tl <= 0 && tr <= 0 && br <= 0 && bl <= 0) return null;
+        return new float[]{tl, tr, br, bl};
+    }
+
+    private static Rectangle firstRectangle(Object maskSource) {
+        if (!(maskSource instanceof Item)) return null;
+        if (maskSource instanceof Rectangle) return (Rectangle) maskSource;
+        for (Item n : ((Item) maskSource).children) {
+            Rectangle r = firstRectangle(n);
+            if (r != null) return r;
+        }
+        return null;
     }
 
     private Paint layerEffectPaint(Item node) {

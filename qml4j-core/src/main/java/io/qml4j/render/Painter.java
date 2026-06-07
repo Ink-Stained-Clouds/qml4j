@@ -8,12 +8,17 @@ import io.github.humbleui.skija.Paint;
 import io.github.humbleui.skija.PaintMode;
 import io.github.humbleui.skija.PaintStrokeCap;
 import io.github.humbleui.skija.PaintStrokeJoin;
+import io.github.humbleui.skija.FilterMipmap;
+import io.github.humbleui.skija.FilterMode;
+import io.github.humbleui.skija.MipmapMode;
+import io.github.humbleui.skija.SamplingMode;
 import io.github.humbleui.skija.Path;
 import io.github.humbleui.skija.PathBuilder;
 import io.github.humbleui.skija.PathDirection;
 import io.github.humbleui.skija.PathEllipseArc;
 import io.github.humbleui.skija.PathFillMode;
 import io.github.humbleui.skija.Shader;
+import io.github.humbleui.skija.Surface;
 import io.github.humbleui.skija.TextLine;
 import io.github.humbleui.types.RRect;
 import io.github.humbleui.types.Rect;
@@ -237,12 +242,51 @@ public final class Painter {
             node.intrinsicWidth = dim[0];
             node.intrinsicHeight = dim[1];
             try {
-                node.skiaImage = io.github.humbleui.skija.Image.makeFromEncoded(bytes);
+                io.github.humbleui.skija.Image full = io.github.humbleui.skija.Image.makeFromEncoded(bytes);
+                node.skiaImage = downscaleToSourceSize(node, full);
             } catch (Throwable t) {
                 node.skiaImage = null;
             }
         }
         node.status.set(node.skiaImage != null ? 1 : 3);
+    }
+
+    // Honour Image.sourceSize like Qt: decode-then-shrink to roughly the on-screen size so
+    // a multi-megapixel photo isn't sampled down by 4x+ every frame (which reads as blurry).
+    // Shrink by the LARGER ratio so both dimensions stay >= the target -- a PreserveAspectCrop
+    // image still has enough pixels to cover its box without upscaling (which would re-blur).
+    private io.github.humbleui.skija.Image downscaleToSourceSize(Image node,
+                                                                io.github.humbleui.skija.Image full) {
+        int iw = full.getWidth();
+        int ih = full.getHeight();
+        int sw = node.sourceSize.width.peek().intValue();
+        int sh = node.sourceSize.height.peek().intValue();
+        float f;
+        if (sw > 0 && sh > 0) {
+            f = Math.max((float) sw / iw, (float) sh / ih);
+        } else if (sw > 0) {
+            f = (float) sw / iw;
+        } else if (sh > 0) {
+            f = (float) sh / ih;
+        } else {
+            f = 1f;
+        }
+        if (f >= 1f) return full;
+        int tw = Math.max(1, Math.round(iw * f));
+        int th = Math.max(1, Math.round(ih * f));
+        try (Surface surf = Surface.makeRasterN32Premul(tw, th)) {
+            // Trilinear (mipmap) for the large one-time shrink: box-averaged mip levels
+            // antialias the downscale cleanly, where a single bilinear pass would skip
+            // source pixels and a bicubic pass would ring at edges.
+            surf.getCanvas().drawImageRect(full,
+                Rect.makeXYWH(0, 0, iw, ih), Rect.makeXYWH(0, 0, tw, th),
+                new FilterMipmap(FilterMode.LINEAR, MipmapMode.LINEAR), null, true);
+            io.github.humbleui.skija.Image scaled = surf.makeImageSnapshot();
+            full.close();
+            node.intrinsicWidth = tw;
+            node.intrinsicHeight = th;
+            return scaled;
+        }
     }
 
     public void drawImage(Image node, float w, float h) {
@@ -299,10 +343,15 @@ public final class Painter {
         }
     }
 
+    // Bilinear for the on-screen draw: the carousel image is pre-shrunk near its display
+    // size in decodeInto, so this only resolves a small residual scale. Bicubic (Mitchell)
+    // overshoots at high-contrast edges -- visible ringing/jaggies -- so linear stays clean.
+    private static final SamplingMode IMAGE_SAMPLING = SamplingMode.LINEAR;
+
     private void drawImagePlan(io.github.humbleui.skija.Image img, ImageFill.Plan plan) {
         Rect src = Rect.makeXYWH(plan.srcX, plan.srcY, plan.srcW, plan.srcH);
         Rect dst = Rect.makeXYWH(plan.dstX, plan.dstY, plan.dstW, plan.dstH);
-        canvas.drawImageRect(img, src, dst);
+        canvas.drawImageRect(img, src, dst, IMAGE_SAMPLING, null, true);
     }
 
     private void drawTilePlan(io.github.humbleui.skija.Image img,
@@ -316,7 +365,7 @@ public final class Painter {
             for (float y = 0; y < boundsH; y += stepY) {
                 for (float x = 0; x < boundsW; x += stepX) {
                     Rect dst = Rect.makeXYWH(x, y, plan.dstW, plan.dstH);
-                    canvas.drawImageRect(img, src, dst);
+                    canvas.drawImageRect(img, src, dst, IMAGE_SAMPLING, null, true);
                 }
             }
         } finally {

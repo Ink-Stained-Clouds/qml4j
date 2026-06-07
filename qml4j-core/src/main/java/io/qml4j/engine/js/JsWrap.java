@@ -11,6 +11,7 @@ import org.mozilla.javascript.Function;
 import org.mozilla.javascript.NativeArray;
 import org.mozilla.javascript.NativeObject;
 import org.mozilla.javascript.Scriptable;
+import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.Symbol;
 import org.mozilla.javascript.SymbolKey;
 import org.mozilla.javascript.SymbolScriptable;
@@ -251,7 +252,12 @@ public final class JsWrap {
         @Override public Object getDefaultValue(Class<?> hint) { return target.toString(); }
         @Override public Scriptable getParentScope() { return parent; }
         @Override public void setParentScope(Scriptable s) {}
-        @Override public Scriptable getPrototype() { return null; }
+        // Expose the standard Object prototype so generic JS methods QML uses on objects
+        // -- hasOwnProperty, toString, isPrototypeOf -- resolve. hasOwnProperty in turn
+        // calls back through has(name), which already reflects our members/map keys.
+        @Override public Scriptable getPrototype() {
+            return parent != null ? ScriptableObject.getObjectPrototype(parent) : null;
+        }
         @Override public void setPrototype(Scriptable s) {}
         @Override public void put(int index, Scriptable start, Object value) {}
         @Override public void delete(String name) {}
