@@ -15,7 +15,9 @@ public class ListView extends Flickable implements DelegateHost {
 
     public final Property<Object> model = new Property<>(0);
     public final Property<Number> spacing = new Property<>(0);
-    public final Property<String> orientation = new Property<>("Vertical");
+    // String ("Vertical"/"Horizontal") or the ListView.Horizontal/Vertical enum (0/1);
+    // Object so a Long enum value doesn't fail the typed listener's bridge cast.
+    public final Property<Object> orientation = new Property<>("Vertical");
     public final Property<Number> cacheBuffer = new Property<>(0);
     public final Property<Number> currentIndex = new Property<>(0);
     public final Property<Number> highlightMoveDuration = new Property<>(0);
@@ -100,7 +102,10 @@ public class ListView extends Flickable implements DelegateHost {
 
     private void relayout() {
         float sp = spacing.peekFloat();
-        boolean horizontal = "Horizontal".equals(orientation.peek());
+        // orientation may be the string "Horizontal" or the ListView.Horizontal enum (0).
+        Object o = orientation.peek();
+        boolean horizontal = "Horizontal".equals(o)
+            || (o instanceof Number && ((Number) o).intValue() == 0);
         float cursor = 0f;
         for (Item it : instances) {
             if (horizontal) {

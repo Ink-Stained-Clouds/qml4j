@@ -194,7 +194,9 @@ public final class QtGlobals {
     // ListView/GridView.positionViewAtIndex PositionMode + snapMode.
     private static final Map<String, Long> LISTVIEW = map(
         "Beginning", 0L, "Center", 1L, "End", 2L, "Visible", 3L, "Contain", 4L, "SnapPosition", 5L,
-        "NoSnap", 0L, "SnapToItem", 1L, "SnapOneItem", 2L);
+        "NoSnap", 0L, "SnapToItem", 1L, "SnapOneItem", 2L,
+        // ListView.orientation
+        "Horizontal", 0L, "Vertical", 1L);
 
     // Gradient.orientation.
     private static final Map<String, Long> GRADIENT = map("Vertical", 0L, "Horizontal", 1L);
