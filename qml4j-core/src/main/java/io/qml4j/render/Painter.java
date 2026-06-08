@@ -100,7 +100,21 @@ public final class Painter {
         return Surface.makeRasterN32Premul(w, h);
     }
 
+    // Escape hatch: -Dqml4j.canvasCache=false re-runs onPaint straight to the main canvas
+    // every frame (the original behaviour), bypassing the offscreen cache if it ever
+    // misbehaves on a given GPU backend.
+    private static final boolean CANVAS_CACHE = !"false".equals(System.getProperty("qml4j.canvasCache", "true"));
+
     public void paintCanvas(io.qml4j.render.items.core.Canvas node, float w, float h, float alpha) {
+        if (!CANVAS_CACHE) {
+            node.bindContext(context2D());
+            try {
+                inLayer(w, h, alpha, node.paint::emit);
+            } finally {
+                node.bindContext(null);
+            }
+            return;
+        }
         int iw = Math.max(1, Math.round(w));
         int ih = Math.max(1, Math.round(h));
         if (node.backing == null || node.backingW != iw || node.backingH != ih) {
