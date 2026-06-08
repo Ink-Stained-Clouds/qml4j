@@ -65,8 +65,22 @@
     </dependencies>
 
     <build>
-        <!-- No bundled QML: the runner is pointed at a project directory at runtime
-             (DirResourceLoader), quickshell-style. -->
+        <!-- No bundled QML for the runner (it's pointed at a project dir at runtime,
+             DirResourceLoader). The one exception: the `app` mode's loader serves
+             md3.Core's Theme from our StyleManager-driven Theme.qml, which must be on
+             the classpath (dev runs and the dist jar alike). -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <resource>
+                <directory>${project.basedir}/../shared-qml/md3/Core</directory>
+                <targetPath>md3/Core</targetPath>
+                <includes>
+                    <include>Theme.qml</include>
+                </includes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
