@@ -152,6 +152,15 @@ public class Item extends QObject {
         for (Item it = this; it != null; it = it.parent.peek()) {
             sx += it.x.peekDouble();
             sy += it.y.peekDouble();
+            // A Flickable renders its content translated by (-contentX, -contentY), so a
+            // descendant's on-screen position is offset by the scroll of each ancestor
+            // Flickable (else mapFromItem/mapToItem return content, not screen, coords --
+            // a popup anchored to the scene then lands off-screen).
+            Item p = it.parent.peek();
+            if (p instanceof Flickable) {
+                sx -= ((Flickable) p).contentX.peekDouble();
+                sy -= ((Flickable) p).contentY.peekDouble();
+            }
         }
         return new double[]{sx, sy};
     }
