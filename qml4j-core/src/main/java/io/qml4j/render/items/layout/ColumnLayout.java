@@ -69,14 +69,23 @@ public class ColumnLayout extends Item {
             double leftM = LayoutSizing.margin(la.leftMargin, la.margins);
             double rightM = LayoutSizing.margin(la.rightMargin, la.margins);
             if (Boolean.TRUE.equals(la.fillWidth.peek())) {
-                // fillWidth still honours Layout.maximumWidth (Qt): a capped fill child is
-                // its max, positioned per Layout.alignment in the remaining space rather than
-                // stretched edge-to-edge.
+                // fillWidth fills the column, but Layout.maximumWidth caps it (a square widget
+                // stays square) and -- with no cap but a horizontal Layout.alignment -- it
+                // shrinks to its content and aligns instead (Qt: a centred fillWidth RowLayout
+                // of buttons centres as a group rather than left-packing across the full width).
                 double avail = boxW - leftM - rightM;
-                double capped = LayoutSizing.capMax(avail, la.maximumWidth);
-                c.width.set(capped);
-                c.x.set(capped < avail
-                    ? LayoutSizing.crossPos(la.alignment.peekInt(), boxW, capped, leftM, rightM, true)
+                int align = la.alignment.peekInt();
+                double target = avail;
+                double maxW = la.maximumWidth.peekDouble();
+                if (maxW >= 0) {
+                    if (target > maxW) target = maxW;
+                } else if ((align & (1 | 2 | 4)) != 0) {
+                    double impl = LayoutSizing.crossSize(la.preferredWidth, c.implicitWidth, c.width);
+                    if (impl > 0 && impl < target) target = impl;
+                }
+                c.width.set(target);
+                c.x.set(target < avail
+                    ? LayoutSizing.crossPos(align, boxW, target, leftM, rightM, true)
                     : leftM);
             } else {
                 double cw = LayoutSizing.crossSize(la.preferredWidth, c.implicitWidth, c.width);

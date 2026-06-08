@@ -50,4 +50,24 @@ class ColumnLayoutConstraintTest {
         assertEquals(320.0, box.width.peek().doubleValue(), 1e-6, "fillWidth capped at maximumWidth");
         assertEquals(140.0, box.x.peek().doubleValue(), 1e-6, "capped fill centres in the column");
     }
+
+    // fillWidth + a horizontal Layout.alignment and NO maximumWidth: the child shrinks to
+    // its content and aligns, instead of stretching edge-to-edge (a centred RowLayout of
+    // buttons centres as a group rather than left-packing). Qt parity.
+    @Test
+    void fillWidthWithAlignmentShrinksToContent() {
+        ColumnLayout col = new ColumnLayout();
+        col.width.set(600.0);
+
+        Rectangle group = new Rectangle();
+        group.implicitWidth.set(450.0);
+        group.Layout.fillWidth.set(Boolean.TRUE);
+        group.Layout.alignment.set(4); // Qt.AlignHCenter, no maximumWidth
+        col.children.add(group); group.parent.set(col);
+
+        col.layout();
+
+        assertEquals(450.0, group.width.peek().doubleValue(), 1e-6, "shrinks to content, not full column");
+        assertEquals(75.0, group.x.peek().doubleValue(), 1e-6, "centres the shrunk content");
+    }
 }
