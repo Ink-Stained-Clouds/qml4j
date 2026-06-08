@@ -5,14 +5,17 @@
     <parent>
         <groupId>io.github.timer-err</groupId>
         <artifactId>qml4j-parent</artifactId>
-        <version>0.1.0</version>
+        <version>0.1.1</version>
     </parent>
 
     <artifactId>qml4j-demo-desktop</artifactId>
 
-    <!-- Demo app, not a published library: never deploy it to Central. -->
+    <!-- Demo app, not a published library: never deploy it to Central. It is not
+         constrained to Java 8 (Skija itself needs the JDK 9+ Cleanable), so it
+         overrides the parent's release=8 and may use newer JDK API. -->
     <properties>
         <maven.deploy.skip>true</maven.deploy.skip>
+        <maven.compiler.release>11</maven.compiler.release>
     </properties>
 
     <dependencies>

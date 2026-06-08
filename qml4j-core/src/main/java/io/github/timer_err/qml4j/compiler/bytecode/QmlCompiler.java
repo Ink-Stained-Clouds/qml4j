@@ -99,16 +99,21 @@ public final class QmlCompiler {
     }
     private final Deque<IdSink> idSinks = new ArrayDeque<>();
 
-    private final Map<Class<?>, MemberEmitter> memberEmitters = Map.of(
-        Ast.PropertyBinding.class, this::emitPropertyBinding,
-        Ast.ChildObject.class, this::emitChildObjectMember,
-        Ast.BehaviorMember.class, this::emitBehaviorMemberMember,
-        Ast.PropertyDeclaration.class, this::emitPropertyDeclarationMember,
-        Ast.SignalDeclaration.class, this::rejectSignalDeclaration,
-        Ast.FunctionDeclaration.class, this::rejectFunctionDeclaration,
+    private final Map<Class<?>, MemberEmitter> memberEmitters = buildMemberEmitters();
+
+    private Map<Class<?>, MemberEmitter> buildMemberEmitters() {
+        Map<Class<?>, MemberEmitter> m = new LinkedHashMap<>();
+        m.put(Ast.PropertyBinding.class, this::emitPropertyBinding);
+        m.put(Ast.ChildObject.class, this::emitChildObjectMember);
+        m.put(Ast.BehaviorMember.class, this::emitBehaviorMemberMember);
+        m.put(Ast.PropertyDeclaration.class, this::emitPropertyDeclarationMember);
+        m.put(Ast.SignalDeclaration.class, this::rejectSignalDeclaration);
+        m.put(Ast.FunctionDeclaration.class, this::rejectFunctionDeclaration);
         // Inline components are compiled to their own classes + registered by the
         // Loader before this document compiles; nothing to emit into the enclosing body.
-        Ast.InlineComponent.class, (m, ctx) -> { });
+        m.put(Ast.InlineComponent.class, (member, ctx) -> { });
+        return Collections.unmodifiableMap(m);
+    }
 
 
     private static final String SCHEDULER_INTERNAL = Type.getInternalName(Scheduler.class);

@@ -2,6 +2,7 @@ package io.github.timer_err.qml4j.render;
 
 import io.github.timer_err.qml4j.render.items.core.Image;
 
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
@@ -80,7 +81,11 @@ final class ImageLoader {
         }
         if (code != 200) return null;
         try (InputStream in = conn.getInputStream()) {
-            return in.readAllBytes();
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+            return out.toByteArray();
         }
     }
 }

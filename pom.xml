@@ -6,7 +6,7 @@
 
     <groupId>io.github.timer-err</groupId>
     <artifactId>qml4j-parent</artifactId>
-    <version>0.1.0</version>
+    <version>0.1.1</version>
     <packaging>pom</packaging>
 
     <name>qml4j</name>
@@ -36,8 +36,11 @@
     </scm>
 
     <properties>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
+        <!-- release=8 makes javac reject any JDK 9+ API at compile time, so the
+             published bytecode is genuinely Java 8 compatible. Tests run on the build
+             JDK and may use newer API. -->
+        <maven.compiler.release>8</maven.compiler.release>
+        <maven.compiler.testRelease>11</maven.compiler.testRelease>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
         <skija.version>0.143.16</skija.version>

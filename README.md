@@ -16,7 +16,7 @@ Maven:
 <dependency>
     <groupId>io.github.timer-err</groupId>
     <artifactId>qml4j-core</artifactId>
-    <version>0.1.0</version>
+    <version>0.1.1</version>
 </dependency>
 <!-- Skija is a `provided` dependency of the engine; add the native bundle for your platform. -->
 <dependency>
@@ -29,7 +29,7 @@ Maven:
 Gradle:
 
 ```kotlin
-implementation("io.github.timer-err:qml4j-core:0.1.0")
+implementation("io.github.timer-err:qml4j-core:0.1.1")
 // pick your platform: skija-linux-x64 / skija-windows-x64 / skija-macos-x64 / skija-macos-arm64
 runtimeOnly("io.github.humbleui:skija-linux-x64:0.143.16")
 ```
