@@ -80,6 +80,44 @@ public final class Painter {
         }
     }
 
+    // A QtQuick Canvas: run onPaint into an offscreen backing surface only when dirty
+    // (requestPaint / resize), then blit the cached image every frame. Without this the
+    // onPaint handler -- particle sims, gradients -- re-runs every render frame regardless
+    // of requestPaint, far above the widget's intended fps. (The QML Canvas item is FQN'd:
+    // its simple name clashes with the imported skija Canvas this Painter draws through.)
+    public void paintCanvas(io.qml4j.render.items.core.Canvas node, float w, float h, float alpha) {
+        int iw = Math.max(1, Math.round(w));
+        int ih = Math.max(1, Math.round(h));
+        if (node.backing == null || node.backingW != iw || node.backingH != ih) {
+            if (node.cachedImage != null) { node.cachedImage.close(); node.cachedImage = null; }
+            if (node.backing != null) node.backing.close();
+            node.backing = Surface.makeRasterN32Premul(iw, ih);
+            node.backingW = iw;
+            node.backingH = ih;
+            node.dirty = true;
+        }
+        if (node.dirty) {
+            io.github.humbleui.skija.Canvas bc = node.backing.getCanvas();
+            bc.clear(0x00000000);
+            node.bindContext(new Context2D(bc, renderer));
+            try {
+                node.paint.emit();
+            } finally {
+                node.bindContext(null);
+            }
+            if (node.cachedImage != null) node.cachedImage.close();
+            node.cachedImage = node.backing.makeImageSnapshot();
+            node.dirty = false;
+        }
+        if (node.cachedImage == null) return;
+        Paint p = renderer.paint();
+        p.setMode(PaintMode.FILL);
+        p.setShader(null);
+        p.setColor(Renderer.applyAlpha(0xFFFFFFFF, alpha));
+        canvas.drawImageRect(node.cachedImage,
+            Rect.makeXYWH(0, 0, iw, ih), Rect.makeXYWH(0, 0, w, h), IMAGE_SAMPLING, p, true);
+    }
+
     public int alphaColor(String color, float alpha) {
         return Renderer.applyAlpha(Renderer.parseColor(color), alpha);
     }

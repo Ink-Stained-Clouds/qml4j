@@ -5,9 +5,10 @@ import io.qml4j.engine.binding.Property;
 import io.qml4j.render.Context2D;
 import io.qml4j.render.Painter;
 
-// QtQuick Canvas: an imperative 2D drawing surface. The `onPaint` handler runs each
-// frame with a 2D context (`getContext('2d')`) whose ops draw through Skija. Local
-// coordinates -- the Renderer has already translated to this item's origin.
+// QtQuick Canvas: an imperative 2D drawing surface. The `onPaint` handler runs into an
+// offscreen backing surface only when dirty (requestPaint / resize); every frame just
+// blits the cached image, so an animated canvas's JS runs at its own fps, not the render
+// loop's. Local coordinates -- the Renderer has already translated to this item's origin.
 public class Canvas extends Item {
 
     public final Signal paint = new Signal(); // onPaint
@@ -16,30 +17,39 @@ public class Canvas extends Item {
     public final Property<String> renderStrategy = new Property<>("Immediate");
     public final Property<String> renderTarget = new Property<>("Image");
 
+    // Offscreen backing store, managed by Painter.paintCanvas (skija handles are kept as
+    // fields, like Image.skiaImage -- the only skija an Item is allowed to hold).
+    public io.github.humbleui.skija.Surface backing;
+    public io.github.humbleui.skija.Image cachedImage;
+    public int backingW = -1;
+    public int backingH = -1;
+    public boolean dirty = true;
+
     // Set for the duration of a paint pass so the onPaint handler's getContext() returns
-    // a context bound to the current frame's canvas.
+    // a context bound to the backing surface.
     private Context2D ctx;
 
     public Object getContext(String type) {
         return ctx;
     }
 
-    // The desktop/host render loop repaints every frame, so a repaint request just needs
-    // the next frame -- no explicit invalidation queue yet.
+    public void bindContext(Context2D c) {
+        this.ctx = c;
+    }
+
+    // A repaint request re-runs onPaint on the next frame; until then the cached image is
+    // blitted. The Timer/animation in an animated canvas calls this at its target fps.
     public void requestPaint() {
+        dirty = true;
     }
 
     public void markDirty() {
+        dirty = true;
     }
 
     @Override
     public void paint(Painter p, float w, float h, float alpha) {
         if (!available.peek()) return;
-        ctx = p.context2D();
-        try {
-            p.inLayer(w, h, alpha, paint::emit);
-        } finally {
-            ctx = null;
-        }
+        p.paintCanvas(this, w, h, alpha);
     }
 }
