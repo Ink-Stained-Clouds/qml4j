@@ -1,5 +1,6 @@
 package io.qml4j.runtime.member;
 
+import io.qml4j.engine.DelegateHost;
 import io.qml4j.engine.DelegateRoot;
 import io.qml4j.engine.QObject;
 import io.qml4j.engine.binding.Property;
@@ -59,6 +60,16 @@ public final class DelegateScope {
         while (outer != null) {
             if (MemberAccess.hasProperty(outer, name)) return outer;
             outer = parentOf(outer);
+        }
+        return null;
+    }
+
+    // The view hosting this delegate: the nearest DelegateHost up the parent chain
+    // (ListView/GridView/Repeater). Backs the `ListView.view`/`GridView.view` attached
+    // property a delegate uses to size to its view (`width: ListView.view.width`).
+    public static Object hostView(Object start) {
+        for (Object cur = start; cur != null; cur = parentOf(cur)) {
+            if (cur instanceof DelegateHost) return cur;
         }
         return null;
     }

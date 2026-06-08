@@ -332,6 +332,21 @@ public final class JsWrap {
         }
     }
 
+    // The ListView/GridView attached object seen inside a delegate: `.view` is the hosting
+    // view, every other member (Center, isCurrentItem, ...) falls through to the type's enum
+    // namespace so `ListView.Center` still resolves.
+    static Scriptable viewAttached(Object host, Scriptable enumObj, Scriptable parent) {
+        return new BaseFunction() {
+            @Override public Object get(String name, Scriptable start) {
+                if ("view".equals(name)) return toJs(host, parent);
+                return enumObj != null ? enumObj.get(name, enumObj) : NOT_FOUND;
+            }
+            @Override public boolean has(String name, Scriptable start) {
+                return "view".equals(name) || (enumObj != null && enumObj.has(name, enumObj));
+            }
+        };
+    }
+
     // A no-arg JS function that emits Qt's implicit <prop>Changed() signal: calling it
     // re-fires the property's dependents (bindings/onXChanged handlers) without altering
     // the value, matching a manual `propChanged()` emit in QML.

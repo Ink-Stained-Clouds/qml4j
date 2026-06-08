@@ -8,7 +8,7 @@ import io.github.humbleui.skija.*;
 import java.nio.charset.StandardCharsets;import java.nio.file.*;
 final class DlgProbe {
   public static void main(String[] a) throws Exception {
-    String prop=a[0]; // _tempHour for TimePicker, _displayDate? for DatePicker
+    String prop=a[0]; String setProp=a.length>1?a[1]:null; long setVal=a.length>2?Long.parseLong(a[2]):0;
     AppResourceLoader loader=new AppResourceLoader();
     QmlView v=QmlView.withStockTypes(new QmlEngine()).resources(loader);
     v.context("AppFeatures",AppFeaturesMap.all());v.context("HotReloadEnabled",Boolean.FALSE);v.context("ProjectSourceDir","");
@@ -20,8 +20,9 @@ final class DlgProbe {
     for(int i=0;i<20;i++){s.getCanvas().clear(0xFFFFFFFF);v.renderFrame(bk);Thread.sleep(12);}
     Item dlg=find(v.root(),prop);
     if(dlg!=null){ System.out.println("found "+dlg.getClass().getSimpleName()); MethodInvocation.callMethod(dlg,"open",new Object[0]); }
-    else System.out.println("not found "+prop);
-    for(int i=0;i<40;i++){s.getCanvas().clear(0xFFFFFFFF);v.renderFrame(bk);Thread.sleep(12);}
+    for(int i=0;i<25;i++){s.getCanvas().clear(0xFFFFFFFF);v.renderFrame(bk);Thread.sleep(12);}
+    if(setProp!=null && dlg!=null){ MemberAccess.writeMember(dlg,setProp,setVal); }
+    for(int i=0;i<25;i++){s.getCanvas().clear(0xFFFFFFFF);v.renderFrame(bk);Thread.sleep(12);}
     Files.write(java.nio.file.Path.of("/tmp/dlg.png"),s.makeImageSnapshot().encodeToData(EncodedImageFormat.PNG).getBytes());
     System.out.println("wrote /tmp/dlg.png");
   }

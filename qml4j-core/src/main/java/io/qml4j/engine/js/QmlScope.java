@@ -129,7 +129,20 @@ public final class QmlScope implements Scriptable {
         if (s != null) return JsWrap.toJs(s, this);
         Object ch = changedSignal(name);
         if (ch != null) return ch;
+        Object va = viewAttached(name);
+        if (va != null) return va;
         return NOT_FOUND;
+    }
+
+    // ListView.view / GridView.view inside a delegate: resolve to the hosting view, with
+    // other members (Center, ...) falling through to the type's enum namespace.
+    private Object viewAttached(String name) {
+        if (!"ListView".equals(name) && !"GridView".equals(name)) return null;
+        Object host = DelegateScope.hostView(outer);
+        if (host == null) return null;
+        Object e = parent != null ? parent.get(name, parent) : NOT_FOUND;
+        Scriptable enumObj = e instanceof Scriptable ? (Scriptable) e : null;
+        return JsWrap.viewAttached(host, enumObj, this);
     }
 
     // Qt's implicit per-property <prop>Changed() emit, resolved as a bare callable last
