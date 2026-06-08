@@ -66,9 +66,10 @@
 
     <build>
         <!-- No bundled QML for the runner (it's pointed at a project dir at runtime,
-             DirResourceLoader). The one exception: the `app` mode's loader serves
-             md3.Core's Theme from our StyleManager-driven Theme.qml, which must be on
-             the classpath (dev runs and the dist jar alike). -->
+             DirResourceLoader). Exceptions are what the `app` mode's classpath loader
+             needs and a project dir wouldn't supply: our StyleManager-driven Theme.qml
+             and the engine's fonts (Material Symbols icons + Roboto). On the classpath
+             for dev runs and the dist jar alike. -->
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
@@ -79,6 +80,10 @@
                 <includes>
                     <include>Theme.qml</include>
                 </includes>
+            </resource>
+            <resource>
+                <directory>${project.basedir}/../shared-qml/fonts</directory>
+                <targetPath>fonts</targetPath>
             </resource>
         </resources>
         <plugins>
