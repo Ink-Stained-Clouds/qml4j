@@ -9,6 +9,8 @@
     </parent>
 
     <artifactId>qml4j-core</artifactId>
+    <name>qml4j-core</name>
+    <description>qml4j core engine: QML parsing, JIT bytecode compilation, binding/signal runtime and Skia rendering, in pure Java.</description>
 
     <dependencies>
         <dependency>
