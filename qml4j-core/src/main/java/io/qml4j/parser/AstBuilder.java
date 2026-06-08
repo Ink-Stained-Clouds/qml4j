@@ -72,7 +72,8 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     public Ast.ObjectMember visitInlineComponentDeclaration(
             QmlParser.InlineComponentDeclarationContext ctx) {
         Ast.ObjectNode body = (Ast.ObjectNode) visit(ctx.objectDeclaration());
-        return new Ast.InlineComponent(ctx.Identifier().getText(), body);
+        // Identifier(0) is the soft keyword "component"; Identifier(1) is the type name.
+        return new Ast.InlineComponent(ctx.Identifier(1).getText(), body);
     }
 
     @Override

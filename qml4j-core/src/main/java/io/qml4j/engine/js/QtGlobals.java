@@ -67,7 +67,11 @@ public final class QtGlobals {
         NativeObject console = new NativeObject();
         console.put("log", console, fn("log", 1, a -> { System.out.println(join(a)); return null; }));
         console.put("warn", console, fn("warn", 1, a -> { System.out.println(join(a)); return null; }));
+        console.put("error", console, fn("error", 1, a -> { System.out.println(join(a)); return null; }));
         scope.put("console", scope, console);
+
+        // Component.status enum, for code that probes Qt.createComponent(...).status.
+        scope.put("Component", scope, enumObject(COMPONENT));
 
         return scope;
     }
@@ -220,6 +224,10 @@ public final class QtGlobals {
 
     // Drag.axis (drag-and-drop axis constraint).
     private static final Map<String, Long> DRAG = map("XAxis", 1L, "YAxis", 2L, "XAndYAxis", 3L);
+
+    // QQmlComponent::Status: Null, Ready, Loading, Error.
+    private static final Map<String, Long> COMPONENT = map(
+        "Null", 0L, "Ready", 1L, "Loading", 2L, "Error", 3L);
 
     // TapHandler.gesturePolicy.
     private static final Map<String, Long> TAP_HANDLER = map(

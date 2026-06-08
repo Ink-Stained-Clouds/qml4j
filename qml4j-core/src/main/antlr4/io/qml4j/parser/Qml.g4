@@ -39,8 +39,11 @@ objectMember
     | objectDeclaration
     ;
 
+// `component` is a soft keyword: a plain Identifier gated by a predicate, never a lexer
+// token, so JS bodies can still use `component` as a variable name (var component = ...).
 inlineComponentDeclaration
-    : 'component' Identifier ':' objectDeclaration
+    : {"component".equals(_input.LT(1).getText()) && _input.LT(2).getType() == Identifier}?
+      Identifier Identifier ':' objectDeclaration
     ;
 
 functionDeclaration

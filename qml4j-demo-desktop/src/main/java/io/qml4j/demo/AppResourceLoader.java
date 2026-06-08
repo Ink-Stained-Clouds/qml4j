@@ -40,6 +40,16 @@ final class AppResourceLoader implements ResourceLoader {
             byte[] direct = readFile(CORE.resolve(rel));
             return direct != null ? direct : readFile(CORE.resolve("Controls").resolve(rel));
         }
+        // `import md3.App`: the App's own QML module. Only its singletons need declaring
+        // (DesktopWidgetManager); plain types resolve via relative-dir imports. Files map
+        // straight under src/App.
+        if (path.equals("md3/App/qmldir")) {
+            return "singleton DesktopWidgetManager 1.0 widgets/DesktopWidgetManager.qml\n"
+                .getBytes(StandardCharsets.UTF_8);
+        }
+        if (path.startsWith("md3/App/")) {
+            return readFile(APP.resolve(path.substring("md3/App/".length())));
+        }
         byte[] fromApp = readFile(APP.resolve(path));
         // Fall back to the classpath for bundled resources (e.g. fonts/) the app expects.
         return fromApp != null ? fromApp : fromClasspath(path);

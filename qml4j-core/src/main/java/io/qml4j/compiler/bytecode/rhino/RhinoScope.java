@@ -37,7 +37,7 @@ public final class RhinoScope {
     private static final Set<String> JS_GLOBALS = new HashSet<>(Arrays.asList(
         "Qt", "Math", "JSON", "console", "Easing", "Text", "TextInput", "TextEdit",
         "Font", "Item", "Flickable", "Animation", "Canvas", "ListView", "GridView", "RotationAnimation",
-        "Image", "Gradient", "TapHandler", "PointerHandler", "Drag", "Window",
+        "Image", "Gradient", "TapHandler", "PointerHandler", "Drag", "Window", "Component",
         "Object", "Array", "String", "Number", "Boolean", "Date", "RegExp",
         "parseInt", "parseFloat", "isNaN", "isFinite", "NaN", "Infinity", "undefined"));
 

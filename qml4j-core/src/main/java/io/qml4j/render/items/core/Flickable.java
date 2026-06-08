@@ -17,4 +17,7 @@ public class Flickable extends Item {
     public final Property<Number> bottomMargin = new Property<>(0);
     public final Property<Number> leftMargin = new Property<>(0);
     public final Property<Number> rightMargin = new Property<>(0);
+    // Touch press-delay before the flick steals the press from children; accepted so
+    // documents load (no delayed-press synthesis here).
+    public final Property<Number> pressDelay = new Property<>(0);
 }

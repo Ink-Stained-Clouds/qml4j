@@ -186,6 +186,30 @@ class QmlParserTest {
         assertEquals(Ast.LiteralKind.UNDEFINED, litOf(ms.get(4)).kind);
     }
 
+    // `component` is a soft keyword: still parses an inline component declaration...
+    @Test
+    void inlineComponentDeclarationParses() {
+        Ast.QmlDocument doc = Qml4j.parse("Item { component Foo: Rectangle {} }");
+        Ast.InlineComponent ic = null;
+        for (Ast.ObjectMember m : doc.root.members) {
+            if (m instanceof Ast.InlineComponent) ic = (Ast.InlineComponent) m;
+        }
+        assertNotNull(ic);
+        assertEquals("Foo", ic.name);
+    }
+
+    // ...but is also usable as a plain identifier in a JS body (var component = ...).
+    @Test
+    void componentUsableAsIdentifierInFunctionBody() {
+        Ast.QmlDocument doc = Qml4j.parse(
+            "Item { function f() { var component = 5; return component } }");
+        boolean hasFn = false;
+        for (Ast.ObjectMember m : doc.root.members) {
+            if (m instanceof Ast.FunctionDeclaration) hasFn = true;
+        }
+        assertTrue(hasFn, "function with `var component` should parse");
+    }
+
     @Test
     void syntaxErrorThrowsWithPosition() {
         Qml4j.QmlSyntaxException ex = assertThrows(
