@@ -1,6 +1,7 @@
 package io.qml4j.render.items.layout;
 
 import io.qml4j.engine.binding.Property;
+import io.qml4j.render.items.core.Item;
 
 // Shared sizing/margin/alignment helpers for RowLayout and ColumnLayout.
 final class LayoutSizing {
@@ -53,6 +54,16 @@ final class LayoutSizing {
     static double capMax(double size, Property<Number> max) {
         double m = max.peekDouble();
         return m >= 0 && size > m ? m : size;
+    }
+
+    // Whether any visible child of `c` requests Layout.fillWidth -- i.e. `c` (a nested
+    // layout) has content that wants to expand horizontally, so it should fill rather than
+    // shrink-to-content when its own fillWidth meets a horizontal alignment.
+    static boolean anyChildFillsWidth(Item c) {
+        for (Item k : c.children) {
+            if (k.isVisible() && Boolean.TRUE.equals(k.Layout.fillWidth.peek())) return true;
+        }
+        return false;
     }
 
     // A specific margin (leftMargin/...) overrides the general `margins` only
