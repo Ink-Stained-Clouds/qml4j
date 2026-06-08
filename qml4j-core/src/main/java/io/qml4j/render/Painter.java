@@ -100,10 +100,11 @@ public final class Painter {
         return Surface.makeRasterN32Premul(w, h);
     }
 
-    // Escape hatch: -Dqml4j.canvasCache=false re-runs onPaint straight to the main canvas
-    // every frame (the original behaviour), bypassing the offscreen cache if it ever
-    // misbehaves on a given GPU backend.
-    private static final boolean CANVAS_CACHE = !"false".equals(System.getProperty("qml4j.canvasCache", "true"));
+    // Default: re-run onPaint straight to the main canvas each frame (always correct on
+    // every backend). The offscreen cache (-Dqml4j.canvasCache=true) avoids re-running
+    // onPaint when a canvas is unchanged, but its GPU blit is unreliable on some GL drivers
+    // (an animated canvas vanished after one frame), so it is opt-in.
+    private static final boolean CANVAS_CACHE = "true".equals(System.getProperty("qml4j.canvasCache", "false"));
 
     public void paintCanvas(io.qml4j.render.items.core.Canvas node, float w, float h, float alpha) {
         if (!CANVAS_CACHE) {
