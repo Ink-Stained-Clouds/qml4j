@@ -83,12 +83,13 @@ public class ColumnLayout extends Item {
                 double maxW = la.maximumWidth.peekDouble();
                 if (maxW >= 0) {
                     if (target > maxW) target = maxW;
-                } else if ((align & (1 | 2 | 4)) != 0 && !LayoutSizing.anyChildFillsWidth(c)) {
-                    // Shrink-to-content + align only when the child has no fillWidth grandchild
-                    // wanting the width (a centred FAB row). A child that DOES (a NavigationRail
-                    // item column whose rows fillWidth) must fill so those rows span the column.
-                    double impl = LayoutSizing.crossSize(la.preferredWidth, c.implicitWidth, c.width);
-                    if (impl > 0 && impl < target) target = impl;
+                } else if ((align & (1 | 2 | 4)) != 0 && c.implicitWidth.peekDouble() > 0) {
+                    // Shrink-to-content + align only when the child has a real content width (a
+                    // centred RowLayout of buttons). A fillWidth child with no implicit width --
+                    // a plain Item whose content anchors to fill (a NavigationRail item whose
+                    // pill is `parent.width - 24`) -- must FILL, not collapse to a stale size.
+                    double impl = c.implicitWidth.peekDouble();
+                    if (impl < target) target = impl;
                 }
                 c.width.set(target);
                 c.x.set(target < avail

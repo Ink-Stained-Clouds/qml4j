@@ -71,27 +71,22 @@ class ColumnLayoutConstraintTest {
         assertEquals(75.0, group.x.peek().doubleValue(), 1e-6, "centres the shrunk content");
     }
 
-    // A fillWidth + AlignHCenter child that itself contains a fillWidth child (a
-    // NavigationRail's item column whose rows fillWidth) must FILL, not shrink-to-content --
-    // otherwise the rows/pills collapse to the icon width.
+    // A fillWidth + AlignHCenter child with NO implicit content width (a plain Item whose
+    // content anchors to fill -- a NavigationRail item whose pill is `parent.width - 24`)
+    // must FILL, not shrink: shrink-to-content applies only to a real content width.
     @Test
-    void fillWidthWithAlignmentStillFillsWhenItHasAFillWidthChild() {
+    void fillWidthWithAlignmentFillsWhenNoImplicitWidth() {
         ColumnLayout col = new ColumnLayout();
         col.width.set(600.0);
 
-        ColumnLayout inner = new ColumnLayout();
-        inner.Layout.fillWidth.set(Boolean.TRUE);
-        inner.Layout.alignment.set(4); // Qt.AlignHCenter, no maximumWidth
-        col.children.add(inner); inner.parent.set(col);
-
-        Rectangle row = new Rectangle();
-        row.implicitWidth.set(120.0);
-        row.Layout.fillWidth.set(Boolean.TRUE);   // a row that wants the full width
-        inner.children.add(row); row.parent.set(inner);
+        Rectangle box = new Rectangle();   // implicitWidth defaults to 0
+        box.Layout.fillWidth.set(Boolean.TRUE);
+        box.Layout.alignment.set(4); // Qt.AlignHCenter, no maximumWidth
+        col.children.add(box); box.parent.set(col);
 
         col.layout();
 
-        assertEquals(600.0, inner.width.peek().doubleValue(), 1e-6, "fills since a child wants the width");
-        assertEquals(0.0, inner.x.peek().doubleValue(), 1e-6);
+        assertEquals(600.0, box.width.peek().doubleValue(), 1e-6, "fills since it has no content width");
+        assertEquals(0.0, box.x.peek().doubleValue(), 1e-6);
     }
 }
