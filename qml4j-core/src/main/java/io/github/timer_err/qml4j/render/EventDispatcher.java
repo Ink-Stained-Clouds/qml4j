@@ -37,6 +37,9 @@ final class EventDispatcher {
     private Flickable scrolling;
     private float scrollStartContentX;
     private float scrollStartContentY;
+
+    // Pixels of content moved per mouse-wheel notch (GLFW reports ~±1 per notch).
+    private static final float WHEEL_STEP = 48f;
     private TextEditable textCapturing;
     private Clipboard clipboard;
 
@@ -468,6 +471,33 @@ final class EventDispatcher {
             float ny = clamp(scrollStartContentY - (rootY - captureRootY), 0f, maxY);
             f.contentY.set(ny);
         }
+    }
+
+    // Mouse wheel over the innermost interactive Flickable at (x, y): dx/dy are wheel
+    // offsets (GLFW convention, +y = scroll up). A vertical wheel scrolls Y, or X when
+    // the Flickable only scrolls horizontally (wheel over a horizontal list).
+    boolean dispatchWheel(float x, float y, float dx, float dy) {
+        Flickable f = hitTestFlickable(root, x, y);
+        if (f == null) return false;
+        String dir = f.flickableDirection.peek();
+        boolean allowX = !"VerticalFlick".equals(dir);
+        boolean allowY = !"HorizontalFlick".equals(dir);
+        float maxX = Math.max(0f, f.contentWidth.peekFloat() + f.rightMargin.peekFloat() - f.width.peekFloat());
+        float maxY = Math.max(0f, f.contentHeight.peekFloat() + f.bottomMargin.peekFloat() - f.height.peekFloat());
+        boolean scrolled = false;
+        float vy = -dy * WHEEL_STEP;
+        if (allowY && maxY > 0f) {
+            f.contentY.set(clamp(f.contentY.peekFloat() + vy, 0f, maxY));
+            scrolled = true;
+        } else if (allowX && maxX > 0f) {
+            f.contentX.set(clamp(f.contentX.peekFloat() + vy, 0f, maxX));
+            scrolled = true;
+        }
+        if (allowX && maxX > 0f && dx != 0f) {
+            f.contentX.set(clamp(f.contentX.peekFloat() - dx * WHEEL_STEP, 0f, maxX));
+            scrolled = true;
+        }
+        return scrolled;
     }
 
     private Flickable hitTestFlickable(Item item, float x, float y) {

@@ -139,6 +139,10 @@ public final class QmlView {
         return events.dispatchPointerUp(x, y);
     }
 
+    public boolean dispatchWheel(float x, float y, float dx, float dy) {
+        return events.dispatchWheel(x, y, dx, dy);
+    }
+
     public TextEditable pickTextEditable(float x, float y) {
         return events.pickTextEditable(x, y);
     }

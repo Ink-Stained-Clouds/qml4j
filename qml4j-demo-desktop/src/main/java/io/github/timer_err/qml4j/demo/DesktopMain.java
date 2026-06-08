@@ -10,6 +10,7 @@ import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.glfw.GLFWFramebufferSizeCallback;
 import org.lwjgl.glfw.GLFWKeyCallback;
 import org.lwjgl.glfw.GLFWMouseButtonCallback;
+import org.lwjgl.glfw.GLFWScrollCallback;
 import org.lwjgl.system.MemoryUtil;
 
 import java.io.IOException;
@@ -151,6 +152,11 @@ public final class DesktopMain {
         GLFW.glfwSetCharCallback(window, new GLFWCharCallback() {
             @Override public void invoke(long win, int codepoint) {
                 host.text(new String(Character.toChars(codepoint)));
+            }
+        });
+        GLFW.glfwSetScrollCallback(window, new GLFWScrollCallback() {
+            @Override public void invoke(long win, double xoffset, double yoffset) {
+                host.wheel((float) cursorX, (float) cursorY, (float) xoffset, (float) yoffset);
             }
         });
     }

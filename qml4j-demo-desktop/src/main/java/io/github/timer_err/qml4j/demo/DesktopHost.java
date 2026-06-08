@@ -116,6 +116,10 @@ final class DesktopHost {
         if (view != null) view.dispatchPointerUp(x, y);
     }
 
+    void wheel(float x, float y, float dx, float dy) {
+        if (view != null) view.dispatchWheel(x, y, dx, dy);
+    }
+
     void key(int code, String text, boolean down, boolean shift) {
         if (view != null) view.dispatchKey(code, text, down, shift);
     }
