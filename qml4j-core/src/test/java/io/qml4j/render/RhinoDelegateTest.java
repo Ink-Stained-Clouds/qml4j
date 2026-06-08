@@ -235,4 +235,48 @@ class RhinoDelegateTest {
             (io.qml4j.engine.binding.Property<?>) root.getClass().getField("sum").get(root);
         assertEquals(12, ((Number) sum.peek()).intValue());   // (0*10+1) + (1*10+1) = 1 + 11
     }
+
+    // A delegate's bare call to a root function must keep resolving after the delegate
+    // subtree is reparented away from the component (a Menu/DatePicker pops its overlay
+    // onto the scene root). The parent walk then misses the root, so resolution falls back
+    // to the captured component root -- like a scene id.
+    @Test
+    void delegateBareCallResolvesViaCapturedRootAfterReparent() throws Exception {
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        Item root = v.load(
+            "import QtQuick\n" +
+            "Item { id: root\n" +
+            "  function dbl(x) { return x * 2 }\n" +
+            "  property int sel: 1\n" +
+            "  Item { id: holder\n" +
+            "    Repeater { id: rep; model: 2\n" +
+            "      Rectangle { property int vv: dbl(index) + root.sel }\n" +
+            "    }\n" +
+            "  }\n" +
+            "}");
+        DirtyQueue dq = v.dirtyQueue();
+        dq.install();
+        try { dq.flush(); } finally { dq.uninstall(); }
+
+        io.qml4j.render.items.view.Repeater rep =
+            (io.qml4j.render.items.view.Repeater) root.getClass().getField("rep").get(root);
+        Item holder = (Item) root.getClass().getField("holder").get(root);
+        // Detach the delegate subtree from the component (overlay reparented to scene root).
+        Item detached = new io.qml4j.render.items.core.Item();
+        root.children.remove(holder);
+        detached.children.add(holder);
+        holder.parent.set(detached);
+
+        // Change the root property the delegate binding depends on -> re-evaluate.
+        io.qml4j.engine.binding.Property<Object> sel =
+            (io.qml4j.engine.binding.Property<Object>) (io.qml4j.engine.binding.Property<?>)
+                root.getClass().getField("sel").get(root);
+        dq.install();
+        try { sel.set(5L); dq.flush(); } finally { dq.uninstall(); }
+
+        Item d1 = rep.instances().get(1);
+        io.qml4j.engine.binding.Property<?> vv =
+            (io.qml4j.engine.binding.Property<?>) d1.getClass().getField("vv").get(d1);
+        assertEquals(7, ((Number) vv.peek()).intValue());  // dbl(1)=2 + sel 5 = 7
+    }
 }

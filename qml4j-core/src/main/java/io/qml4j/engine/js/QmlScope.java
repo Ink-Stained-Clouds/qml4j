@@ -125,6 +125,13 @@ public final class QmlScope implements Scriptable {
         if (sceneIds.contains(name)) return wrap(MemberAccess.readMember(root, name));
         Object co = DelegateScope.delegateCallableOwner(outer, name);
         if (co != null) return new JsWrap.BoundMethod(co, name, this);
+        // A free function call (`isSameDay(...)`) is lexical like a scene id: fall back to
+        // the captured component root when the parent walk can't reach it -- a reparented
+        // overlay (DatePicker/Menu pop onto the scene root) detaches the delegate from the
+        // component, so the parent chain no longer finds the root's functions.
+        if (root != null && JsWrap.isCallable(root, name)) {
+            return new JsWrap.BoundMethod(root, name, this);
+        }
         Object s = singleton(name);
         if (s != null) return JsWrap.toJs(s, this);
         Object ch = changedSignal(name);
@@ -197,6 +204,7 @@ public final class QmlScope implements Scriptable {
                 || DelegateScope.delegateLookup(outer, name) != DelegateScope.DELEGATE_ABSENT
                 || sceneIds.contains(name)
                 || DelegateScope.delegateCallableOwner(outer, name) != null
+                || (root != null && JsWrap.isCallable(root, name))
                 || singletonClasses.containsKey(name)
                 || changedSignal(name) != null;
         }
