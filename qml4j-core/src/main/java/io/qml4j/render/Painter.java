@@ -712,8 +712,25 @@ public final class Painter {
         }
     }
 
+    // The string shown for a TextInput honouring echoMode: Password masks each char with
+    // passwordCharacter, NoEcho shows nothing, else the raw text.
+    private static String echoDisplay(TextInput ti) {
+        String raw = ti.text.peek();
+        if (raw == null) raw = "";
+        int mode = ti.echoMode.peekInt();
+        if (mode == 1) return "";                 // NoEcho
+        if (mode == 2) {                           // Password
+            String pc = ti.passwordCharacter.peek();
+            char c = pc == null || pc.isEmpty() ? '•' : pc.charAt(0);
+            StringBuilder b = new StringBuilder(raw.length());
+            for (int i = 0; i < raw.length(); i++) b.append(c);
+            return b.toString();
+        }
+        return raw;
+    }
+
     public void drawTextInput(TextInput ti, float w, float h, float alpha) {
-        String s = ti.text.peek();
+        String s = echoDisplay(ti);
         if (s == null) s = "";
         float size = ti.fontSize.peekFloat();
         try (Font font = renderer.fonts().fontFor(size, s)) {

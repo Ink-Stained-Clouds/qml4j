@@ -63,6 +63,12 @@ public final class MemberAccess {
         Class<?> c = target.getClass();
         Field f = field(c, name);
         if (f == null) {
+            // A keyed row (ListModel ListElement / JS object) takes role writes as map puts:
+            // `model.isSelected = true` in a delegate sets the role on the row.
+            if (target instanceof Map) {
+                ((Map<String, Object>) target).put(name, value);
+                return value;
+            }
             throw new IllegalArgumentException("no member '" + name + "' on " + c.getName());
         }
         try {

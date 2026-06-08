@@ -69,6 +69,11 @@ public final class DelegateScope {
         while (cur != null) {
             if (cur instanceof DelegateRoot) {
                 delegateRoot = cur;
+                // `model` in a delegate is the row's model object (Qt), shadowing any `model`
+                // property further up the chain (a ListView's own `model`): return modelData.
+                if ("model".equals(name) && MemberAccess.hasMember(cur, "modelData")) {
+                    return MemberAccess.readMember(cur, "modelData");
+                }
                 if (MemberAccess.hasMember(cur, name)) return MemberAccess.readMember(cur, name);
                 // A ListModel/JS-object row exposes its roles by bare name in the delegate
                 // (Qt's named-role context): `text: name` reads modelData["name"].

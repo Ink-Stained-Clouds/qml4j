@@ -247,6 +247,11 @@ public final class Renderer {
             } else if (clip) {
                 canvas.clipRect(Rect.makeXYWH(0, 0, w, h));
             }
+            // Children with z < 0 render BEHIND the node's own content (Qt); the rest on top.
+            List<Item> ordered = zOrdered(node.children);
+            for (Item child : ordered) {
+                if (child.z.peekFloat() < 0f) draw(canvas, child, alpha);
+            }
             node.paint(painter, w, h, alpha);
             if (node instanceof Flickable) {
                 Flickable f = (Flickable) node;
@@ -261,16 +266,16 @@ public final class Renderer {
                 try {
                     canvas.clipRect(Rect.makeXYWH(0, top, w, Math.max(0f, bottom - top)));
                     canvas.translate(0, top);
-                    for (Item child : zOrdered(node.children)) {
-                        draw(canvas, child, alpha);
+                    for (Item child : ordered) {
+                        if (child.z.peekFloat() >= 0f) draw(canvas, child, alpha);
                     }
                 } finally {
                     canvas.restoreToCount(contentSave);
                 }
                 drawChrome(canvas, win, w, h, alpha);
             } else {
-                for (Item child : zOrdered(node.children)) {
-                    draw(canvas, child, alpha);
+                for (Item child : ordered) {
+                    if (child.z.peekFloat() >= 0f) draw(canvas, child, alpha);
                 }
             }
             if (maskR != null) eraseOutsideRoundRect(canvas, w, h, maskR);

@@ -55,6 +55,13 @@ public class ListModel extends QObject {
         rowsChanged.emit();
     }
 
+    // Qt ListModel.setProperty(index, role, value): set a single role on an existing row.
+    public void setProperty(int i, String role, Object value) {
+        if (i < 0 || i >= rows.size()) return;
+        rows.get(i).put(role, value);
+        rowsChanged.emit();
+    }
+
     private void syncCount() {
         count.set(rows.size());
     }

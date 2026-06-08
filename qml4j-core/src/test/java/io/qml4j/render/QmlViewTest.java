@@ -2127,6 +2127,35 @@ class QmlViewTest {
         assertEquals(30L, ((Number) r0.get("age")).longValue());
     }
 
+    // A delegate's `model` is the row's model object (Qt), shadowing a ListView/outer
+    // `model` property; reading a role and writing it back (model.flag = !model.flag) work,
+    // and ListModel.setProperty updates a role. This is the DataTable selection path.
+    @Test
+    void delegateModelIsRowAndRoleIsWritable() {
+        Item root = newView().load(
+            "Column {\n" +
+            "  Repeater {\n" +
+            "    id: rep\n" +
+            "    model: ListModel { id: lm; ListElement { label: \"a\"; flag: false } }\n" +
+            "    Text { text: model.label; signal go()\n" +
+            "      onGo: model.flag = !model.flag\n" +
+            "    }\n" +
+            "  }\n" +
+            "}");
+        Repeater rep = (Repeater) reflectField(root, "rep");
+        io.qml4j.render.items.core.Text t = (io.qml4j.render.items.core.Text) rep.instances().get(0);
+        assertEquals("a", t.text.peek());          // model.label reads the row's role
+        try {
+            ((io.qml4j.engine.Signal) t.getClass().getField("go").get(t)).emit();
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
+        ListModel lm = (ListModel) reflectField(root, "lm");
+        assertEquals(Boolean.TRUE, lm.get(0).get("flag"));   // model.flag = ... wrote the role
+        lm.setProperty(0, "flag", Boolean.FALSE);
+        assertEquals(Boolean.FALSE, lm.get(0).get("flag"));
+    }
+
     @Test
     void repeaterListModelDelegatesAccessRoles() {
         Item root = newView().load(
