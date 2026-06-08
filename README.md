@@ -80,14 +80,14 @@ The four original `qml4j-{parser,engine,compiler,render}` modules were merged in
 - **Dependency tracking is automatic.** `Property.get()` registers itself with the active `BindingEvaluationContext` thread-local, so re-evaluation only needs to re-run the binding to refresh its subscription set; `DirtyQueue` coalesces redundant re-evaluations per frame.
 - **Polymorphic dispatch, not type switches.** Drawable items override `Item.paint(Painter)`; items with intrinsic size override `Item.measure(TextLayout)`; layout containers override `Item.layout()`. The compiler dispatches member emission through a `MemberEmitter` strategy map. See `CLAUDE.md` § *Dispatch & polymorphism*.
 - **Generated types are erased to `Object`/`Number`.** No type inference; runtime `convert` utilities coerce.
-- `source/target = 1.8` to stay friendly to Android dexing without desugar.
+- Compiled with `--release 8` (the published bytecode is genuinely Java 8 — no JDK 9+ API), to stay friendly to Android dexing without desugar.
 
 ## Build
 
 Requires JDK 8+ (built with a JDK 21 toolchain), Maven 3.9+.
 
 ```sh
-mvn verify      # compile + 574 tests + checkstyle guard, all modules
+mvn verify      # compile + 583 tests + checkstyle guard, all modules
 ```
 
 ```sh
@@ -97,16 +97,35 @@ mvn -pl qml4j-core test -Dtest=DialogLoadTest    # one test
 
 The build runs offline-friendly; iteration commonly uses `mvn -o install -DskipTests` then `mvn -o -pl qml4j-core test`. A checkstyle guard (`config/checkstyle/checkstyle.xml`) is bound to `verify` and fails on unused/redundant imports and unused locals.
 
-### Run the desktop showcases
+### Run a QML project (desktop)
+
+The desktop module is a generic QML runner, quickshell-style: point it at a project
+directory and an entry `.qml`, and it loads everything — the entry, its `import md3.Core`,
+icon fonts — from that directory on disk. Nothing is bundled into the jar.
 
 ```sh
-./run.sh                    # launcher
-./run.sh ButtonShowcase     # one showcase
-./run.sh app                # the upstream MD3 app (dark scheme)
-./run.sh app light          # the upstream MD3 app (light scheme)
+./run.sh <projectDir> <entry.qml>
+./run.sh shared-qml showcases/NavigationBarShowcase.qml   # example
+./run.sh app                                              # bundled upstream MD3 app (dark)
+./run.sh app light                                        # ... light scheme
 ```
 
-`./run.sh app` runs the upstream [material-components-qml](https://github.com/sudoevolve/material-components-qml) app, expected at `../mcq` (override with `$MCQ_DIR`); clone it once: `git clone https://github.com/sudoevolve/material-components-qml ../mcq`. The scheme defaults to dark; append `light` for the light scheme.
+Every import is resolved under that single project directory, so it must contain the
+libraries the QML imports: `import md3.Core` → `<projectDir>/md3/Core/*.qml`, icon fonts →
+`<projectDir>/fonts/`. The repo ships two usable roots:
+
+- `shared-qml/` — has `md3/Core` (the engine-adapted component subset), `showcases/` and `fonts/`, so `./run.sh shared-qml showcases/ButtonShowcase.qml` just works.
+- `md3/Core/` — the full md3.Core library extracted verbatim from upstream (our StyleManager-driven Theme, no C++); drop it (and a `fonts/`) next to your own `.qml`.
+
+To run a `.qml` kept elsewhere, put or symlink `md3` and `fonts` beside it:
+
+```sh
+ln -sfn "$PWD/shared-qml/md3" ~/myproj/md3
+ln -sfn "$PWD/shared-qml/fonts" ~/myproj/fonts
+./run.sh ~/myproj Main.qml
+```
+
+`./run.sh app` runs the upstream [material-components-qml](https://github.com/sudoevolve/material-components-qml) app, expected at `../mcq` (override with `$MCQ_DIR`); clone it once: `git clone https://github.com/sudoevolve/material-components-qml ../mcq`. It uses a dedicated loader that maps `md3.Core` to our Theme plus the upstream Controls and injects the app's context properties, so the generic dir+entry mode can't run it directly.
 
 Env-var options (set before the command, e.g. `QML4J_FPS=true ./run.sh app`):
 
