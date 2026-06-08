@@ -42,10 +42,10 @@ class AnimationTypesTest {
     void colorAnimationLerpsRedToGreenInHsv() {
         QmlView v = newView();
         Item root = v.load(
-            "Rectangle {\n" +
+            "Rectangle { id: r\n" +
             "  color: \"#ff0000\"\n" +
             "  ColorAnimation {\n" +
-            "    target: parent\n" +
+            "    target: r\n" +
             "    from: \"#ff0000\"; to: \"#00ff00\"; duration: 100\n" +
             "    running: true\n" +
             "  }\n" +
@@ -88,10 +88,10 @@ class AnimationTypesTest {
     void rotationAnimationShortestPicksNegativePath() {
         QmlView v = newView();
         Item root = v.load(
-            "Rectangle {\n" +
+            "Rectangle { id: r\n" +
             "  rotation: 350\n" +
             "  RotationAnimation {\n" +
-            "    target: parent\n" +
+            "    target: r\n" +
             "    from: 350; to: 10; duration: 100\n" +
             "    direction: \"Shortest\"\n" +
             "    running: true\n" +
@@ -111,10 +111,10 @@ class AnimationTypesTest {
     void rotationAnimationClockwiseGoesForward() {
         QmlView v = newView();
         Item root = v.load(
-            "Rectangle {\n" +
+            "Rectangle { id: r\n" +
             "  rotation: 350\n" +
             "  RotationAnimation {\n" +
-            "    target: parent\n" +
+            "    target: r\n" +
             "    from: 350; to: 10; duration: 100\n" +
             "    direction: \"Clockwise\"\n" +
             "    running: true\n" +
@@ -171,10 +171,10 @@ class AnimationTypesTest {
     void opacityAnimationAppliesOpacityWhenPropertyOmitted() {
         QmlView v = newView();
         Item root = v.load(
-            "Rectangle {\n" +
+            "Rectangle { id: r\n" +
             "  opacity: 0\n" +
             "  OpacityAnimation {\n" +
-            "    target: parent\n" +
+            "    target: r\n" +
             "    from: 0; to: 1; duration: 100\n" +
             "    running: true\n" +
             "  }\n" +

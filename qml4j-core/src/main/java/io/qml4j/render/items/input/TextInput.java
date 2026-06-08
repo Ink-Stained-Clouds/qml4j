@@ -31,7 +31,7 @@ public class TextInput extends Item implements TextEditable {
     public int selectionAnchor = -1;
 
     @Override public String text() { return text.peek(); }
-    @Override public void setText(String t) { text.set(t); }
+    @Override public void setText(String t) { text.setFromEdit(t); }
     @Override public int cursorPosition() { return cursorPosition.peekInt(); }
     @Override public void setCursorPosition(int p) { cursorPosition.set(p); }
     @Override public int selectionStart() { return selectionStart.peekInt(); }

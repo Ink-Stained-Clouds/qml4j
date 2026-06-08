@@ -374,10 +374,10 @@ class QmlViewTest {
     void numberAnimationLinearTicksTowardTarget() {
         QmlView v = newView();
         Item root = v.load(
-            "Rectangle {\n" +
+            "Rectangle { id: r\n" +
             "  width: 100; height: 100\n" +
             "  NumberAnimation {\n" +
-            "    target: parent\n" +
+            "    target: r\n" +
             "    from: 0; to: 1000; duration: 100\n" +
             "    running: true\n" +
             "  }\n" +
@@ -399,10 +399,10 @@ class QmlViewTest {
     void numberAnimationZeroDurationJumps() {
         QmlView v = newView();
         Item root = v.load(
-            "Rectangle {\n" +
+            "Rectangle { id: r\n" +
             "  width: 10; height: 10\n" +
             "  NumberAnimation {\n" +
-            "    target: parent\n" +
+            "    target: r\n" +
             "    from: 0; to: 42; duration: 0\n" +
             "    running: true\n" +
             "  }\n" +
@@ -420,9 +420,9 @@ class QmlViewTest {
     void numberAnimationNotRunningSkips() {
         QmlView v = newView();
         Item root = v.load(
-            "Rectangle {\n" +
+            "Rectangle { id: r\n" +
             "  width: 7; height: 7\n" +
-            "  NumberAnimation { target: parent; from: 0; to: 99; duration: 100 }\n" +
+            "  NumberAnimation { target: r; from: 0; to: 99; duration: 100 }\n" +
             "}");
         Rectangle r = (Rectangle) root;
         io.qml4j.render.items.animation.NumberAnimation anim =
@@ -437,10 +437,10 @@ class QmlViewTest {
     void numberAnimationEaseOutQuadEndsAtTarget() {
         QmlView v = newView();
         Item root = v.load(
-            "Rectangle {\n" +
+            "Rectangle { id: r\n" +
             "  width: 0; height: 10\n" +
             "  NumberAnimation {\n" +
-            "    target: parent\n" +
+            "    target: r\n" +
             "    from: 0; to: 100; duration: 100\n" +
             "    easing.type: Easing.OutQuad\n" +
             "    running: true\n" +

@@ -33,7 +33,7 @@ public class TextEdit extends Item implements TextEditable {
     public float cachedFontSize;
 
     @Override public String text() { return text.peek(); }
-    @Override public void setText(String t) { text.set(t); }
+    @Override public void setText(String t) { text.setFromEdit(t); }
     @Override public int cursorPosition() { return cursorPosition.peekInt(); }
     @Override public void setCursorPosition(int p) { cursorPosition.set(p); }
     @Override public int selectionStart() { return selectionStart.peekInt(); }

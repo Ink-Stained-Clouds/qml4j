@@ -1,5 +1,6 @@
 package io.qml4j.runtime.member;
 
+import io.qml4j.engine.ParentTransparent;
 import io.qml4j.engine.binding.Property;
 import io.qml4j.engine.binding.ObservableList;
 import io.qml4j.runtime.convert.Coercion;
@@ -114,6 +115,11 @@ public final class MemberAccess {
 
     public static Object readMember(Object target, String name) {
         if (target == null) return null;
+        // `parent` written inside an animation skips it (Qt: animations are not Items),
+        // resolving to the enclosing visual item's parent.
+        if ("parent".equals(name) && target instanceof ParentTransparent) {
+            return ((ParentTransparent) target).qmlParent();
+        }
         if ("length".equals(name)) {
             if (target instanceof String) return (long) ((String) target).length();
             if (target instanceof List) return (long) ((List<?>) target).size();

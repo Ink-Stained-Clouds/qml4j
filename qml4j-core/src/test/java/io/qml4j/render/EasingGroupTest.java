@@ -20,10 +20,10 @@ class EasingGroupTest {
     void easingTypeGroupDrivesCurve() {
         QmlView v = newView();
         Item root = v.load(
-            "Rectangle {\n" +
+            "Rectangle { id: r\n" +
             "  width: 0; height: 10\n" +
             "  NumberAnimation {\n" +
-            "    target: parent\n" +
+            "    target: r\n" +
             "    from: 0; to: 100; duration: 100\n" +
             "    easing.type: Easing.OutQuad\n" +
             "    running: true\n" +
@@ -41,10 +41,10 @@ class EasingGroupTest {
     void easingTypeDefaultsToLinear() {
         QmlView v = newView();
         Item root = v.load(
-            "Rectangle {\n" +
+            "Rectangle { id: r\n" +
             "  width: 0; height: 10\n" +
             "  NumberAnimation {\n" +
-            "    target: parent\n" +
+            "    target: r\n" +
             "    from: 0; to: 100; duration: 100\n" +
             "    running: true\n" +
             "  }\n" +

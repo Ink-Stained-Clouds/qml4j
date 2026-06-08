@@ -74,6 +74,17 @@ public final class Property<T> {
         setInternal(newValue);
     }
 
+    // A change that originates from the widget itself (the user typing into a TextInput),
+    // not a QML imperative assignment. Unlike set(), it PRESERVES any binding so a two-way
+    // `text: control.text` + `onTextChanged: control.text = text` pattern keeps working: the
+    // keystroke updates the value and notifies (the handler writes back to the source), and a
+    // later external change to the source still propagates through the still-live binding --
+    // else a clear button that sets the source has no effect once the user has typed once.
+    public void setFromEdit(T newValue) {
+        if (interceptor != null) interceptor.write(this, newValue);
+        else setInternal(newValue);
+    }
+
     public void setInterceptor(WriteInterceptor<T> i) {
         this.interceptor = i;
     }
