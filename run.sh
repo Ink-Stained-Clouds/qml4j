@@ -27,4 +27,4 @@ DARK=true
 exec java -cp "$CP" -Dqml4j.mcq="${MCQ_DIR:-$PWD/../mcq}" -Dqml4j.dark="$DARK" \
     -Dqml4j.fps="${QML4J_FPS:-false}" -Dqml4j.vsync="${QML4J_VSYNC:-true}" \
     -Dqml4j.canvasCache="${QML4J_CANVAS_CACHE:-true}" \
-    io.qml4j.demo.DesktopMain ${1:+"$1"}
+    io.github.timer_err.qml4j.demo.DesktopMain ${1:+"$1"}

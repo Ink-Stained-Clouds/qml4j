@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace = "io.qml4j.android"
+    namespace = "io.github.timer_err.qml4j.android"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "io.qml4j.android"
+        applicationId = "io.github.timer_err.qml4j.android"
         minSdk = 26
         targetSdk = 34
         versionCode = 1
@@ -70,10 +70,10 @@ android {
 dependencies {
     skijaNative("io.github.humbleui:skija-android-arm64:0.143.16")
 
-    implementation("io.qml4j:qml4j-parser:0.1.0-SNAPSHOT")
-    implementation("io.qml4j:qml4j-engine:0.1.0-SNAPSHOT")
-    implementation("io.qml4j:qml4j-compiler:0.1.0-SNAPSHOT")
-    implementation("io.qml4j:qml4j-render:0.1.0-SNAPSHOT")
+    implementation("io.github.timer_err.qml4j:qml4j-parser:0.1.0-SNAPSHOT")
+    implementation("io.github.timer_err.qml4j:qml4j-engine:0.1.0-SNAPSHOT")
+    implementation("io.github.timer_err.qml4j:qml4j-compiler:0.1.0-SNAPSHOT")
+    implementation("io.github.timer_err.qml4j:qml4j-render:0.1.0-SNAPSHOT")
 
     implementation("io.github.humbleui:skija-shared:0.143.16")
     implementation("io.github.humbleui:skija-android-arm64:0.143.16")

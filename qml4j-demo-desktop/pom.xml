@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>io.github.t1m3</groupId>
+        <groupId>io.github.timer-err</groupId>
         <artifactId>qml4j-parent</artifactId>
         <version>0.1.0</version>
     </parent>
@@ -17,7 +17,7 @@
 
     <dependencies>
         <dependency>
-            <groupId>io.github.t1m3</groupId>
+            <groupId>io.github.timer-err</groupId>
             <artifactId>qml4j-core</artifactId>
         </dependency>
         <dependency>
@@ -80,7 +80,7 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.3.0</version>
                 <configuration>
-                    <mainClass>io.qml4j.demo.DesktopMain</mainClass>
+                    <mainClass>io.github.timer_err.qml4j.demo.DesktopMain</mainClass>
                 </configuration>
             </plugin>
             <!-- Excluded from the Central bundle (config merges with the parent's
@@ -196,7 +196,7 @@
                                     </filters>
                                     <transformers>
                                         <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                            <mainClass>io.qml4j.demo.DistMain</mainClass>
+                                            <mainClass>io.github.timer_err.qml4j.demo.DistMain</mainClass>
                                             <manifestEntries>
                                                 <Multi-Release>true</Multi-Release>
                                             </manifestEntries>
