@@ -1,5 +1,7 @@
 # qml4j
 
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.timer-err/qml4j-core?label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.timer-err/qml4j-core)
+
 A pure-Java QML engine: parse `.qml` → JIT-compile the object tree to JVM bytecode (ASM) → evaluate bindings/expressions on embedded Rhino → render with Skia (Skija). Targets x86-64 desktop today; Android (D8 → DEX → `InMemoryDexClassLoader`) remains a milestone.
 
 > Status: pre-alpha, but capable. **All 10 pages of the unmodified upstream MD3 (Material Design 3) showcase app render** (Home, Color, Navigation, Settings, Typography, Icon, Pro, Components, Widgets, About) — dozens of MD3 components, carousels, animated canvas widgets, charts. 574 tests green; checkstyle CI guard. The whole engine was refactored to polymorphic dispatch + single-responsibility modules (the long-term conventions are in `CLAUDE.md` § *Dispatch & polymorphism*).
