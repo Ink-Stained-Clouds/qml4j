@@ -4,6 +4,36 @@ A pure-Java QML engine: parse `.qml` → JIT-compile the object tree to JVM byte
 
 > Status: pre-alpha, but capable. **All 10 pages of the unmodified upstream MD3 (Material Design 3) showcase app render** (Home, Color, Navigation, Settings, Typography, Icon, Pro, Components, Widgets, About) — dozens of MD3 components, carousels, animated canvas widgets, charts. 574 tests green; checkstyle CI guard. The whole engine was refactored to polymorphic dispatch + single-responsibility modules (the long-term conventions are in `CLAUDE.md` § *Dispatch & polymorphism*).
 
+## Install
+
+`qml4j-core` is on Maven Central under the `io.github.timer-err` namespace.
+
+Maven:
+
+```xml
+<dependency>
+    <groupId>io.github.timer-err</groupId>
+    <artifactId>qml4j-core</artifactId>
+    <version>0.1.0</version>
+</dependency>
+<!-- Skija is a `provided` dependency of the engine; add the native bundle for your platform. -->
+<dependency>
+    <groupId>io.github.humbleui</groupId>
+    <artifactId>skija-linux-x64</artifactId>
+    <version>0.143.16</version>
+</dependency>
+```
+
+Gradle:
+
+```kotlin
+implementation("io.github.timer-err:qml4j-core:0.1.0")
+// pick your platform: skija-linux-x64 / skija-windows-x64 / skija-macos-x64 / skija-macos-arm64
+runtimeOnly("io.github.humbleui:skija-linux-x64:0.143.16")
+```
+
+The engine keeps Skija `provided` so you choose the platform-native artifact yourself; it transitively pulls in the ANTLR runtime, Rhino and ASM. Java 8+.
+
 ## Why
 
 Existing options have gaps:
