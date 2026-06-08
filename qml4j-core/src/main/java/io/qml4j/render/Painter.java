@@ -93,8 +93,12 @@ public final class Painter {
     private Surface makeBackingSurface(int w, int h) {
         io.github.humbleui.skija.DirectContext ctx = renderer.gpuContext();
         if (ctx != null) {
+            // Match the GL window surface's BOTTOM_LEFT origin: a TOP_LEFT offscreen blitted
+            // onto a BOTTOM_LEFT canvas is vertically flipped, displacing small transformed
+            // content (a centred, rotated loading spinner) off its own bounds -- it vanished.
             Surface gpu = Surface.makeRenderTarget(ctx, true,
-                io.github.humbleui.skija.ImageInfo.makeN32Premul(w, h));
+                io.github.humbleui.skija.ImageInfo.makeN32Premul(w, h), 0,
+                io.github.humbleui.skija.SurfaceOrigin.BOTTOM_LEFT, null);
             if (gpu != null) return gpu;
         }
         return Surface.makeRasterN32Premul(w, h);
