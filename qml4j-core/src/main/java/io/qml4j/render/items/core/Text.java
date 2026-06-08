@@ -15,6 +15,10 @@ public class Text extends Item {
     public final Property<Number> elide = new Property<>(0);                // Text.ElideNone
     public final Property<Number> lineHeight = new Property<>(1);
     public final Property<Number> lineHeightMode = new Property<>(0);       // ProportionalHeight
+    // Qt Text.contentWidth/contentHeight: the painted text's natural size (== the measured
+    // implicit size). A bubble sized to `label.contentWidth + pad` reads these.
+    public final Property<Number> contentWidth = new Property<>(0);
+    public final Property<Number> contentHeight = new Property<>(0);
 
     // Effective pixel size: Qt's font.pixelSize wins when set, else flat fontSize.
     // Either may be null (a binding that evaluated to undefined -- QML-tolerant).

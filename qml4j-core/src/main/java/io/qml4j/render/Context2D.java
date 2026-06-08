@@ -13,6 +13,7 @@ import io.github.humbleui.skija.PathEffect;
 import io.github.humbleui.skija.PathFillMode;
 import io.github.humbleui.skija.Shader;
 import io.github.humbleui.types.Rect;
+import io.github.humbleui.types.RRect;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -75,6 +76,12 @@ public final class Context2D {
     public void rect(double x, double y, double w, double h) {
         Rect r = Rect.makeXYWH((float) x, (float) y, (float) w, (float) h);
         ops.add(b -> b.addRect(r));
+    }
+
+    // Qt Context2D.roundedRect(x, y, w, h, xRadius, yRadius) -- rounded-rect subpath.
+    public void roundedRect(double x, double y, double w, double h, double xr, double yr) {
+        RRect rr = RRect.makeXYWH((float) x, (float) y, (float) w, (float) h, (float) xr, (float) yr);
+        ops.add(b -> b.addRRect(rr));
     }
 
     // HTML arc(cx, cy, r, startRad, endRad, counterclockwise=false).

@@ -75,6 +75,8 @@ public final class TextLayout {
             // binds to label.implicitWidth).
             if (!t.implicitWidth.isBound()) t.implicitWidth.set(w);
             if (!t.implicitHeight.isBound()) t.implicitHeight.set(h);
+            t.contentWidth.set(w);
+            t.contentHeight.set(h);
             if (canMeasureW) {
                 t.width.set(w);
                 t.lastSetWidth = w;
