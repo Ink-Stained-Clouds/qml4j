@@ -53,10 +53,14 @@ public class ColumnLayout extends Item {
         // (centred icon, right-aligned actions) off the real bounds.
         double ownW = width.peekDouble();
         double boxW = ownW > 0 ? ownW : maxCross;
-        double boxH = Math.max(height.peekDouble(), sumMain);
-        if (fillCount > 0 && boxH > sumMain) {
-            double extra = (boxH - sumMain) / fillCount;
-            for (int i = 0; i < n; i++) if (fill[i]) h[i] += extra;
+        // Constrained shorter than content (an outer layout/anchor set our height below
+        // sumMain): fillHeight children SHRINK to absorb the deficit -- a fillHeight chart
+        // in a fixed-height card fits instead of overflowing. When taller, they grow.
+        double availH = height.peekDouble();
+        double boxH = availH > 0 ? availH : sumMain;
+        if (fillCount > 0 && boxH != sumMain) {
+            double delta = (boxH - sumMain) / fillCount;
+            for (int i = 0; i < n; i++) if (fill[i]) h[i] = Math.max(0, h[i] + delta);
         }
 
         double y = 0;

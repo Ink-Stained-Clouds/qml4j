@@ -53,7 +53,11 @@ public class RowLayout extends Item {
         // fillWidth wrapping label then wraps instead of overflowing. When wider, they grow.
         double avail = width.peekDouble();
         double boxW = avail > 0 ? avail : sumMain;
-        double boxH = Math.max(height.peekDouble(), maxCross);
+        // Cross axis (height): when our own height is constrained (anchored/explicit), a
+        // fillHeight child fills THAT, not the tallest child's natural size -- else a
+        // fillHeight chart grows the cell past a fixed-height card and overflows.
+        double availH = height.peekDouble();
+        double boxH = availH > 0 ? availH : maxCross;
         if (fillCount > 0 && boxW != sumMain) {
             double delta = (boxW - sumMain) / fillCount;
             for (int i = 0; i < n; i++) if (fill[i]) w[i] = Math.max(0, w[i] + delta);

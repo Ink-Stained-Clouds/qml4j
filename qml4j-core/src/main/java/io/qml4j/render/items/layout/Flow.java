@@ -20,10 +20,23 @@ public class Flow extends Item {
         else layoutLeftToRight();
     }
 
+    // A self-derived size (the item follows its own implicitWidth/Height, with no external
+    // width/height anchor or Layout) gives no constraint to wrap against -- a legend Flow
+    // whose container sizes to it would otherwise self-reinforce down to one item per row.
+    private boolean ownsWidth() {
+        if (Double.isNaN(lastImplicitWidth)) return width.peekDouble() == 0.0;
+        return width.peekDouble() == lastImplicitWidth;
+    }
+
+    private boolean ownsHeight() {
+        if (Double.isNaN(lastImplicitHeight)) return height.peekDouble() == 0.0;
+        return height.peekDouble() == lastImplicitHeight;
+    }
+
     private void layoutLeftToRight() {
         double s = spacing.peekDouble();
         double p = padding.peekDouble();
-        double bound = width.peekDouble() - 2 * p;
+        double bound = ownsWidth() ? 0 : width.peekDouble() - 2 * p;
         double x = 0, y = 0, rowH = 0, maxRowW = 0;
         for (Item c : children) {
             if (!c.isVisible()) continue;
@@ -50,7 +63,7 @@ public class Flow extends Item {
     private void layoutTopToBottom() {
         double s = spacing.peekDouble();
         double p = padding.peekDouble();
-        double bound = height.peekDouble() - 2 * p;
+        double bound = ownsHeight() ? 0 : height.peekDouble() - 2 * p;
         double x = 0, y = 0, colW = 0, maxColH = 0;
         for (Item c : children) {
             if (!c.isVisible()) continue;
