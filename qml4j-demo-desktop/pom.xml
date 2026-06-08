@@ -80,4 +80,120 @@
             </plugin>
         </plugins>
     </build>
+
+    <!-- `mvn -pl qml4j-demo-desktop -Pdist package` builds a self-contained, cross-platform
+         fat jar (target/qml4j-app.jar) that runs the bundled MD3 app. It carries both Linux
+         and Windows natives (Skija + LWJGL), bundles the upstream app source from ${mcq.dir}
+         under /mcq/**, and is a multi-release jar (Skija needs its JDK 9+ Cleanable). The app
+         source clone is not in this repo; point mcq.dir at it (default ../../mcq). -->
+    <profiles>
+        <profile>
+            <id>dist</id>
+            <properties>
+                <mcq.dir>${project.basedir}/../../mcq</mcq.dir>
+            </properties>
+            <dependencies>
+                <!-- Linux natives come from the base deps; add the Windows ones so the one
+                     jar runs on both. Each native loader picks its platform's lib at runtime. -->
+                <dependency>
+                    <groupId>io.github.humbleui</groupId>
+                    <artifactId>skija-windows-x64</artifactId>
+                    <version>${skija.version}</version>
+                    <scope>runtime</scope>
+                </dependency>
+                <dependency>
+                    <groupId>org.lwjgl</groupId>
+                    <artifactId>lwjgl</artifactId>
+                    <classifier>natives-windows</classifier>
+                    <scope>runtime</scope>
+                </dependency>
+                <dependency>
+                    <groupId>org.lwjgl</groupId>
+                    <artifactId>lwjgl-glfw</artifactId>
+                    <classifier>natives-windows</classifier>
+                    <scope>runtime</scope>
+                </dependency>
+                <dependency>
+                    <groupId>org.lwjgl</groupId>
+                    <artifactId>lwjgl-opengl</artifactId>
+                    <classifier>natives-windows</classifier>
+                    <scope>runtime</scope>
+                </dependency>
+            </dependencies>
+            <build>
+                <plugins>
+                    <!-- Bundle the upstream app source under /mcq/** and write the Controls
+                         index the bundled AppResourceLoader reads (a jar entry can't be listed
+                         like a directory at runtime). -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <version>3.1.0</version>
+                        <executions>
+                            <execution>
+                                <id>bundle-mcq</id>
+                                <phase>prepare-package</phase>
+                                <goals><goal>run</goal></goals>
+                                <configuration>
+                                    <target>
+                                        <property name="out" value="${project.build.outputDirectory}/mcq"/>
+                                        <copy todir="${out}/App">
+                                            <fileset dir="${mcq.dir}/src/App"
+                                                     excludes="**/CMakeLists.txt,**/*.cpp,**/*.h,**/*.rc"/>
+                                        </copy>
+                                        <copy todir="${out}/Core/Controls">
+                                            <fileset dir="${mcq.dir}/src/Core/Controls" includes="**/*.qml"/>
+                                        </copy>
+                                        <copy todir="${out}/Core/Styles">
+                                            <fileset dir="${mcq.dir}/src/Core/Styles"/>
+                                        </copy>
+                                        <fileset id="ctrls" dir="${out}/Core/Controls" includes="*.qml"/>
+                                        <pathconvert property="ctrl.index" refid="ctrls" pathsep="&#10;">
+                                            <mapper type="flatten"/>
+                                        </pathconvert>
+                                        <echo file="${out}/Core/Controls.index" message="${ctrl.index}&#10;"/>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-shade-plugin</artifactId>
+                        <version>3.5.3</version>
+                        <executions>
+                            <execution>
+                                <phase>package</phase>
+                                <goals><goal>shade</goal></goals>
+                                <configuration>
+                                    <createDependencyReducedPom>false</createDependencyReducedPom>
+                                    <finalName>qml4j-app</finalName>
+                                    <filters>
+                                        <filter>
+                                            <artifact>*:*</artifact>
+                                            <excludes>
+                                                <exclude>META-INF/*.SF</exclude>
+                                                <exclude>META-INF/*.DSA</exclude>
+                                                <exclude>META-INF/*.RSA</exclude>
+                                                <exclude>module-info.class</exclude>
+                                                <exclude>META-INF/versions/*/module-info.class</exclude>
+                                            </excludes>
+                                        </filter>
+                                    </filters>
+                                    <transformers>
+                                        <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                            <mainClass>io.qml4j.demo.DistMain</mainClass>
+                                            <manifestEntries>
+                                                <Multi-Release>true</Multi-Release>
+                                            </manifestEntries>
+                                        </transformer>
+                                    </transformers>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

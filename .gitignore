@@ -12,3 +12,5 @@ m0-smoke/out.png
 build/
 .gradle/
 local.properties
+dist/
+hs_err_pid*.log
