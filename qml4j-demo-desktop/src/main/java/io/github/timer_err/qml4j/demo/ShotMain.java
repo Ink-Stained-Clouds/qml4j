@@ -6,42 +6,44 @@ import io.github.humbleui.skija.EncodedImageFormat;
 import io.github.timer_err.qml4j.engine.QmlEngine;
 import io.github.timer_err.qml4j.render.QmlView;
 import io.github.timer_err.qml4j.render.SurfaceBackend;
-import io.github.timer_err.qml4j.runtime.color.StyleManager;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-// Headless raster of a single /showcases/*.qml to /tmp/shot-<name><tag>.png, for
-// visual verification without a display. Sibling of AppPng (which renders the mcq app).
-//   args: <name> [w] [h] [tag] [frames] [dark|light] [seedColor]
-//   e.g. ShotMain FisProxyShowcase 1280 872 _light 30 light "#2196F3"
+// Headless raster of a project dir's entry .qml to /tmp/shot-<tag>.png, for visual
+// verification without a display. Sibling of AppPng (which renders the mcq app).
+//   args: <dir> <entry.qml> [w] [h] [tag] [frames] [dark|light] [seedColor]
+//   e.g. ShotMain shared-qml showcases/FisProxyShowcase.qml 1280 872 _x 30 dark "#2196F3"
 final class ShotMain {
     public static void main(String[] a) throws Exception {
-        String name = a.length > 0 ? a[0] : "FisProxyShowcase";
-        int w = a.length > 1 ? Integer.parseInt(a[1]) : 1280;
-        int h = a.length > 2 ? Integer.parseInt(a[2]) : 872;
-        String tag = a.length > 3 ? a[3] : "";
-        int frames = a.length > 4 ? Integer.parseInt(a[4]) : 30;
-        boolean dark = a.length > 5 ? a[5].equals("dark") : true;
-        String seed = a.length > 6 ? a[6] : null;
-        StyleManager sm = (StyleManager) StyleManager.__instance();
+        if (a.length < 2) { System.out.println("usage: <dir> <entry.qml> [w h tag frames dark|light seed]"); return; }
+        String dir = a[0];
+        String entry = a[1];
+        int w = a.length > 2 ? Integer.parseInt(a[2]) : 1280;
+        int h = a.length > 3 ? Integer.parseInt(a[3]) : 872;
+        String tag = a.length > 4 ? a[4] : "";
+        int frames = a.length > 5 ? Integer.parseInt(a[5]) : 30;
+        boolean dark = a.length > 6 ? a[6].equals("dark") : true;
+        String seed = a.length > 7 ? a[7] : null;
+        io.github.timer_err.qml4j.runtime.color.StyleManager sm =
+            (io.github.timer_err.qml4j.runtime.color.StyleManager) io.github.timer_err.qml4j.runtime.color.StyleManager.__instance();
         sm.isDarkTheme.set(dark);
         if (seed != null) sm.seedColor.set(seed);
-        DesktopResourceLoader loader = new DesktopResourceLoader();
+        DirResourceLoader loader = new DirResourceLoader(Paths.get(dir));
         QmlView v = QmlView.withStockTypes(new QmlEngine()).resources(loader);
-        byte[] b = loader.load("/showcases/" + name + ".qml");
-        try { v.load(new String(b, StandardCharsets.UTF_8), "showcases"); }
+        byte[] b = loader.load(entry);
+        if (b == null) { System.out.println("entry not found: " + entry); return; }
+        try { v.load(new String(b, StandardCharsets.UTF_8)); }
         catch (Throwable t) { System.out.println("LOAD FAIL"); t.printStackTrace(System.out); return; }
         v.root().x.set(0); v.root().y.set(0); v.root().width.set(w); v.root().height.set(h);
-        long bg = dark ? 0xFF141218L : 0xFFFEF7FFL;
         Surface s = Surface.makeRasterN32Premul(Math.max(1, w), Math.max(1, h));
         ShotBackend bk = new ShotBackend(s, Math.max(1, w), Math.max(1, h));
         for (int i = 0; i < frames; i++) { s.getCanvas().clear(0x00000000); v.renderFrame(bk); Thread.sleep(10); }
         Surface flat = Surface.makeRasterN32Premul(Math.max(1, w), Math.max(1, h));
-        flat.getCanvas().clear((int) bg);
+        flat.getCanvas().clear(dark ? 0xFF141218 : 0xFFFEF7FF);
         s.draw(flat.getCanvas(), 0, 0, null);
-        Path out = Paths.get("/tmp/shot-" + name + tag + ".png");
+        Path out = Paths.get("/tmp/shot" + tag + ".png");
         Files.write(out, flat.makeImageSnapshot().encodeToData(EncodedImageFormat.PNG).getBytes());
         System.out.println("wrote " + out);
     }

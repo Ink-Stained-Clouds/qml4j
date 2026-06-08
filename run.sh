@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Run the desktop launcher, or a single showcase: `./run.sh GridFlowShowcase`.
-# `./run.sh app` runs the upstream MD3 app from $MCQ_DIR (default ../mcq alongside
-# this repo); clone it once: git clone https://github.com/sudoevolve/material-components-qml ../mcq
-# `./run.sh app light` starts the app in the light scheme (default is dark).
+# Run a QML project, quickshell-style:  `./run.sh <projectDir> <entry.qml>`
+#   e.g.  ./run.sh shared-qml showcases/FisProxyShowcase.qml
+# `./run.sh app [light]` runs the bundled upstream MD3 app from $MCQ_DIR (default ../mcq;
+# clone once: git clone https://github.com/sudoevolve/material-components-qml ../mcq).
 #
 # Builds + installs qml4j-core (reactor, `-am`) so dependency:build-classpath can
 # resolve it, then launches java with the freshly-compiled target/classes placed
@@ -18,8 +18,8 @@ mvn -q -pl qml4j-demo-desktop dependency:build-classpath \
     -Dmdep.includeScope=runtime -Dmdep.outputFile="$CP_FILE" >/dev/null
 
 CP="$PWD/qml4j-demo-desktop/target/classes:$PWD/qml4j-core/target/classes:$(cat "$CP_FILE")"
-# `./run.sh app light` -> light scheme; anything else keeps the default dark.
-DARK=true
+# Dark by default; `./run.sh app light` or QML4J_DARK=false picks the light scheme.
+DARK="${QML4J_DARK:-true}"
 [ "${2:-}" = "light" ] && DARK=false
 # `QML4J_FPS=true ./run.sh app` shows a top-right FPS overlay; QML4J_VSYNC=false uncaps
 # the frame loop (otherwise vsync pins it to the monitor refresh, ~60fps);
@@ -27,4 +27,4 @@ DARK=true
 exec java -cp "$CP" -Dqml4j.mcq="${MCQ_DIR:-$PWD/../mcq}" -Dqml4j.dark="$DARK" \
     -Dqml4j.fps="${QML4J_FPS:-false}" -Dqml4j.vsync="${QML4J_VSYNC:-true}" \
     -Dqml4j.canvasCache="${QML4J_CANVAS_CACHE:-true}" \
-    io.github.timer_err.qml4j.demo.DesktopMain ${1:+"$1"}
+    io.github.timer_err.qml4j.demo.DesktopMain "$@"

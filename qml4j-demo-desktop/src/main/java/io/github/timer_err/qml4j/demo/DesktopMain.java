@@ -1,6 +1,7 @@
 package io.github.timer_err.qml4j.demo;
 
 import io.github.timer_err.qml4j.render.QmlView;
+import io.github.timer_err.qml4j.runtime.color.StyleManager;
 import org.lwjgl.glfw.Callbacks;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWCharCallback;
@@ -13,6 +14,7 @@ import org.lwjgl.system.MemoryUtil;
 
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.nio.file.Paths;
 
 public final class DesktopMain {
 
@@ -37,10 +39,17 @@ public final class DesktopMain {
     private boolean cursorMoved;
 
     public static void main(String[] args) {
-        new DesktopMain().run(args.length > 0 ? args[0] : null);
+        new DesktopMain().run(args);
     }
 
-    private void run(String initial) {
+    // `<projectDir> <entry.qml>` runs that QML from disk (quickshell-style); `app`
+    // runs the bundled upstream MD3 app.
+    private void run(String[] args) {
+        boolean app = args.length >= 1 && "app".equals(args[0]);
+        if (!app && args.length < 2) {
+            System.err.println("usage:  <projectDir> <entry.qml>   |   app");
+            return;
+        }
         GLFWErrorCallback.createPrint(System.err).set();
         if (!GLFW.glfwInit()) {
             throw new IllegalStateException("glfwInit failed");
@@ -55,11 +64,15 @@ public final class DesktopMain {
         backend.init(fw[0], fh[0]);
         updateScale(fw[0], fh[0]);
 
-        host = new DesktopHost(new DesktopResourceLoader(), fw[0], fh[0]);
-        if ("app".equals(initial)) {
+        boolean dark = !"false".equals(System.getProperty("qml4j.dark", "true"));
+        ((StyleManager) StyleManager.__instance()).isDarkTheme.set(dark);
+
+        if (app) {
+            host = new DesktopHost(new AppResourceLoader(), fw[0], fh[0]);
             host.startApp();
         } else {
-            host.start(initial);
+            host = new DesktopHost(new DirResourceLoader(Paths.get(args[0])), fw[0], fh[0]);
+            host.run(args[1]);
         }
 
         installCallbacks();
