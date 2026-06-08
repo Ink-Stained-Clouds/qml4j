@@ -28,6 +28,7 @@ import io.github.humbleui.skija.BlendMode;
 import io.github.humbleui.skija.ColorFilter;
 import io.github.humbleui.skija.ImageFilter;
 import io.github.humbleui.skija.Paint;
+import io.github.humbleui.skija.PaintMode;
 import io.github.humbleui.skija.Path;
 import io.github.humbleui.skija.PathOp;
 import io.github.humbleui.types.RRect;
@@ -89,6 +90,28 @@ public final class Renderer {
         painter.bind(canvas);
         settleLayout(root);
         draw(canvas, root, 1f);
+    }
+
+    // Opt-in dev FPS overlay (-Dqml4j.fps=true), drawn top-right over the scene.
+    private static final boolean FPS_OVERLAY = Boolean.getBoolean("qml4j.fps");
+
+    public boolean fpsOverlayEnabled() {
+        return FPS_OVERLAY;
+    }
+
+    public void drawFpsOverlay(Canvas canvas, float w, double fps) {
+        String s = Math.round(fps) + " FPS";
+        try (Font font = fonts.fontFor(14f, s, true)) {
+            float tw = font.measureTextWidth(s);
+            float pad = 6f, bw = tw + 2 * pad, bh = 22f, x = w - bw - 8f, y = 8f;
+            Paint p = paint();
+            p.setShader(null);
+            p.setMode(PaintMode.FILL);
+            p.setColor(0xCC000000);
+            canvas.drawRRect(RRect.makeXYWH(x, y, bw, bh, 6f), p);
+            p.setColor(0xFF00E676);
+            canvas.drawString(s, x + pad, y + 16f, font, p);
+        }
     }
 
     // Diagnostic/test hook: run the layout pre-pass without painting.

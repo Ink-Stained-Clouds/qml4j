@@ -146,17 +146,32 @@ public final class QmlView {
         return events.pickTextInput(x, y);
     }
 
+    private long fpsLastNanos;
+    private double fpsSmoothed;
+
     public void renderFrame(SurfaceBackend backend) {
         dirty.install();
         try {
-            tickAnimations(root, System.nanoTime());
+            long now = System.nanoTime();
+            tickAnimations(root, now);
             dirty.flush();
             Canvas canvas = backend.acquireCanvas();
             renderer.render(canvas, root);
+            if (renderer.fpsOverlayEnabled()) drawFpsOverlay(canvas, now);
             backend.present();
         } finally {
             dirty.uninstall();
         }
+    }
+
+    // Smooth the inter-frame interval (EMA) into an FPS reading and draw it top-right.
+    private void drawFpsOverlay(Canvas canvas, long now) {
+        if (fpsLastNanos > 0) {
+            double inst = 1e9 / Math.max(1, now - fpsLastNanos);
+            fpsSmoothed = fpsSmoothed == 0 ? inst : fpsSmoothed * 0.9 + inst * 0.1;
+        }
+        fpsLastNanos = now;
+        if (root != null) renderer.drawFpsOverlay(canvas, root.width.peekFloat(), fpsSmoothed);
     }
 
     public void tickAnimations(long nowNanos) {
