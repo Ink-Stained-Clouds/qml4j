@@ -92,9 +92,16 @@ public class ColumnLayout extends Item {
                     if (impl < target) target = impl;
                 }
                 c.width.set(target);
-                c.x.set(target < avail
-                    ? LayoutSizing.crossPos(align, boxW, target, leftM, rightM, true)
-                    : leftM);
+                // A constrained fillWidth child starts at the left unless it has an explicit
+                // horizontal alignment (Qt). crossPos would centre on no-alignment (the v0
+                // divergence) -- so a maximumWidth-capped section with no alignment must not
+                // centre here.
+                double pos = leftM;
+                if (target < avail) {
+                    if ((align & 2) != 0) pos = boxW - rightM - target;            // AlignRight
+                    else if ((align & 4) != 0) pos = leftM + (avail - target) / 2; // AlignHCenter
+                }
+                c.x.set(pos);
             } else {
                 double cw = LayoutSizing.crossSize(la.preferredWidth, c.implicitWidth, c.width);
                 double capped = LayoutSizing.capMax(cw, la.maximumWidth);

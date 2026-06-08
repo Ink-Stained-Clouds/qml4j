@@ -89,4 +89,22 @@ class ColumnLayoutConstraintTest {
         assertEquals(600.0, box.width.peek().doubleValue(), 1e-6, "fills since it has no content width");
         assertEquals(0.0, box.x.peek().doubleValue(), 1e-6);
     }
+
+    // A maximumWidth-capped fillWidth child with NO horizontal alignment starts at the left
+    // (Qt), not centred -- a Settings section capped at 400 stays left-aligned like its peers.
+    @Test
+    void cappedFillWidthWithoutAlignmentStaysLeft() {
+        ColumnLayout col = new ColumnLayout();
+        col.width.set(900.0);
+
+        Rectangle box = new Rectangle();
+        box.Layout.fillWidth.set(Boolean.TRUE);
+        box.Layout.maximumWidth.set(400.0); // no Layout.alignment
+        col.children.add(box); box.parent.set(col);
+
+        col.layout();
+
+        assertEquals(400.0, box.width.peek().doubleValue(), 1e-6, "capped at maximumWidth");
+        assertEquals(0.0, box.x.peek().doubleValue(), 1e-6, "left-aligned without an alignment");
+    }
 }
