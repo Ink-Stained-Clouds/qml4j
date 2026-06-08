@@ -42,10 +42,6 @@ public class Canvas extends Item {
         dirty = true;
     }
 
-    public void markDirty() {
-        dirty = true;
-    }
-
     @Override
     public void paint(Painter p, float w, float h, float alpha) {
         if (!available.peek()) return;
