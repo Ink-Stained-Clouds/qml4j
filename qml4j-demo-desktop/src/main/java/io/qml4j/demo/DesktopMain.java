@@ -28,6 +28,12 @@ public final class DesktopMain {
     private float scaleY = 1f;
     private double cursorX;
     private double cursorY;
+    // Latest cursor position, dispatched once per frame. GLFW delivers many cursor-move
+    // events per poll; firing pointerMove on each runs the full hit-test + handler chain
+    // (e.g. a ColorPicker slider's onMoved regenerates the whole MD3 scheme, ~6 ms) several
+    // times before a single repaint -- so coalesce to one move per frame, as Qt does with
+    // AA_CompressHighFrequencyEvents.
+    private boolean cursorMoved;
 
     public static void main(String[] args) {
         new DesktopMain().run(args.length > 0 ? args[0] : null);
@@ -60,6 +66,10 @@ public final class DesktopMain {
         while (!GLFW.glfwWindowShouldClose(window)) {
             host.renderFrame(backend);
             GLFW.glfwPollEvents();
+            if (cursorMoved) {
+                cursorMoved = false;
+                host.pointerMove((float) cursorX, (float) cursorY);
+            }
         }
 
         shutdown();
@@ -105,7 +115,7 @@ public final class DesktopMain {
             @Override public void invoke(long win, double x, double y) {
                 cursorX = x * scaleX;
                 cursorY = y * scaleY;
-                host.pointerMove((float) cursorX, (float) cursorY);
+                cursorMoved = true;
             }
         });
         GLFW.glfwSetMouseButtonCallback(window, new GLFWMouseButtonCallback() {

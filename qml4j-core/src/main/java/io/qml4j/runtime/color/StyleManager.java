@@ -3,6 +3,8 @@ package io.qml4j.runtime.color;
 import io.qml4j.engine.QObject;
 import io.qml4j.engine.binding.Property;
 
+import java.util.Objects;
+
 // Native singleton matching the upstream MD3 StyleManager: it turns a seed color into
 // the light and dark MD3 schemes (role -> hex maps) and exposes the active one. The
 // upstream Theme.qml reads currentScheme/lightScheme/darkScheme off it. Writing
@@ -34,8 +36,11 @@ public final class StyleManager extends QObject {
             updateSchemes();
         });
         seedColor.setInterceptor((p, v) -> {
+            Object old = p.peek();
             p.setBypassInterceptor(v);
-            updateSchemes();
+            // A color-picker drag re-sets the seed on every pointer move; skip the (~4 ms)
+            // scheme regeneration when the rounded hex did not actually change.
+            if (!Objects.equals(old, p.peek())) updateSchemes();
         });
         updateSchemes();
     }
