@@ -43,7 +43,9 @@ import io.qml4j.render.items.shape.PathQuad;
 import io.qml4j.render.items.shape.Shape;
 import io.qml4j.render.items.shape.ShapePath;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 // The drawing surface handed to Item.paint(): skija-backed primitives keyed by
 // geometry and colour, so item subclasses can render themselves without ever
@@ -132,17 +134,23 @@ public final class Painter {
 
     // A single Material Symbols icon, shaped from its ligature name (so the font's GSUB
     // forms the glyph) and vertically centred in the box via real font metrics.
+    // Shaping a Material Symbols ligature (name -> glyph via the font's GSUB) is expensive
+    // and re-runs every frame for every icon; cache the shaped TextLine (and per-size Font)
+    // keyed on (name, size). Native handles are long-lived and bounded by the app's distinct
+    // icon/size set, so they are intentionally not closed.
+    private final Map<Float, Font> iconFonts = new HashMap<>();
+    private final Map<String, TextLine> iconLines = new HashMap<>();
+
     public void drawIconGlyph(String name, float boxH, int argb, float size) {
-        try (Font f = new Font(renderer.fonts().iconTypeface(), size);
-             TextLine line = TextLine.make(name, f)) {
-            FontMetrics fm = f.getMetrics();
-            float baseline = boxH / 2f - (fm.getAscent() + fm.getDescent()) / 2f;
-            Paint p = renderer.paint();
-            p.setMode(PaintMode.FILL);
-            p.setShader(null);
-            p.setColor(argb);
-            canvas.drawTextLine(line, 0, baseline, p);
-        }
+        Font f = iconFonts.computeIfAbsent(size, sz -> new Font(renderer.fonts().iconTypeface(), sz));
+        TextLine line = iconLines.computeIfAbsent(name + '\0' + size, k -> TextLine.make(name, f));
+        FontMetrics fm = f.getMetrics();
+        float baseline = boxH / 2f - (fm.getAscent() + fm.getDescent()) / 2f;
+        Paint p = renderer.paint();
+        p.setMode(PaintMode.FILL);
+        p.setShader(null);
+        p.setColor(argb);
+        canvas.drawTextLine(line, 0, baseline, p);
     }
 
     // Multi-line text: optional wrap to boxW, optional right-elision, from y=0. Each line
