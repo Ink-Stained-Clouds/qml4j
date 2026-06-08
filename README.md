@@ -2,7 +2,7 @@
 
 A pure-Java QML engine: parse `.qml` → JIT-compile the object tree to JVM bytecode (ASM) → evaluate bindings/expressions on embedded Rhino → render with Skia (Skija). Targets x86-64 desktop today; Android (D8 → DEX → `InMemoryDexClassLoader`) remains a milestone.
 
-> Status: pre-alpha, but capable. **12+ unmodified third-party MD3 (Material Design 3) QML components run** (ScrollBar, ToolTip, Checkbox, Switch, RadioButton, IconButton, TopAppBar, Card, FAB, Chip, Button, Dialog, Slider, …). 489 tests green; checkstyle CI guard. The whole engine was refactored to polymorphic dispatch + single-responsibility modules (the long-term conventions are in `CLAUDE.md` § *Dispatch & polymorphism*).
+> Status: pre-alpha, but capable. **All 10 pages of the unmodified upstream MD3 (Material Design 3) showcase app render** (Home, Color, Navigation, Settings, Typography, Icon, Pro, Components, Widgets, About) — dozens of MD3 components, carousels, animated canvas widgets, charts. 574 tests green; checkstyle CI guard. The whole engine was refactored to polymorphic dispatch + single-responsibility modules (the long-term conventions are in `CLAUDE.md` § *Dispatch & polymorphism*).
 
 ## Why
 
@@ -55,7 +55,7 @@ The four original `qml4j-{parser,engine,compiler,render}` modules were merged in
 Requires JDK 8+ (built with a JDK 21 toolchain), Maven 3.9+.
 
 ```sh
-mvn verify      # compile + 489 tests + checkstyle guard, all modules
+mvn verify      # compile + 574 tests + checkstyle guard, all modules
 ```
 
 ```sh
@@ -76,9 +76,30 @@ The build runs offline-friendly; iteration commonly uses `mvn -o install -DskipT
 
 `./run.sh app` runs the upstream [material-components-qml](https://github.com/sudoevolve/material-components-qml) app, expected at `../mcq` (override with `$MCQ_DIR`); clone it once: `git clone https://github.com/sudoevolve/material-components-qml ../mcq`. The scheme defaults to dark; append `light` for the light scheme.
 
+Env-var options (set before the command, e.g. `QML4J_FPS=true ./run.sh app`):
+
+| Variable | Default | Effect |
+|---|---|---|
+| `QML4J_FPS` | `false` | Draw a top-right FPS overlay over the scene. |
+| `QML4J_VSYNC` | `true` | `false` uncaps the frame loop (`glfwSwapInterval(0)`) to measure the real frame rate; on, the loop is pinned to the monitor refresh (~60fps). |
+| `QML4J_CANVAS_CACHE` | `true` | `false` re-runs every `Canvas` `onPaint` straight to the screen each frame instead of caching it to an offscreen surface (fallback if the cache misbehaves on a given GPU). |
+| `MCQ_DIR` | `../mcq` | Path to the upstream MD3 app checkout. |
+
+These map to the `-Dqml4j.fps` / `-Dqml4j.vsync` / `-Dqml4j.canvasCache` / `-Dqml4j.mcq` system properties, which an embedder reads the same way.
+
 `run.sh` recompiles `qml4j-core` + the desktop module from source (`-am`) and launches `java` directly with the freshly-built `target/classes` ahead of any `~/.m2` jar on the classpath — no `mvn install` after editing the engine, and a stale `~/.m2/qml4j-core` can't shadow your changes. (Plain `mvn -pl qml4j-demo-desktop exec:java` resolves `qml4j-core` from `~/.m2` and silently runs a stale engine, e.g. "unknown QML type" for a freshly-registered item.)
 
 Exit code 137 on close is expected (NVIDIA libEGL teardown SIGSEGV, worked around by SIGKILL-self).
+
+## Performance
+
+The engine is built to sit inside a host render loop that calls `renderFrame` every frame (e.g. a game overlay):
+
+- **Idle frames skip layout.** `Property` bumps a global change-version on every real value change; when a frame's version is unchanged (no animation/timer/input/binding touched anything), `renderFrame` skips the whole measure+layout pass and repaints with cached geometry. A static UI costs only its paint.
+- **Inactive `Loader`s unload.** A `Loader` with `active: false` frees its item (Qt semantics), so off-screen tab/page content — and its animations — stops instead of running every frame and keeping the scene dirty.
+- **`Canvas` `onPaint` is cached.** Each `Canvas` renders into an offscreen surface only when dirty (`requestPaint` / resize) and blits the cache otherwise, so an animated canvas runs its JS at its own fps and a static one runs once. (GPU-backed offscreen on the GL backend; the blit is snapped to integer device pixels for sharpness.)
+
+Net effect on the desktop GL host (uncapped, `QML4J_VSYNC=false`): static pages run 1000–2000fps, the component-heavy "Core" page ~400–500fps; pages with a full-screen animated background are bound by that canvas (~60fps). With vsync on (default) everything is a smooth 60.
 
 ## A 10-line tour
 
