@@ -426,8 +426,10 @@ public final class Renderer {
             float h = node.height.peekFloat();
             float cx = ci == parent ? 0f : ci.x.peekFloat();
             float cy = ci == parent ? 0f : ci.y.peekFloat();
-            node.x.set(cx + (ci.width.peekFloat() - w) / 2f);
-            node.y.set(cy + (ci.height.peekFloat() - h) / 2f);
+            // centerIn honours the centre offsets (Qt): a clock-face number centred in the
+            // dial is pushed out to its position via horizontal/verticalCenterOffset.
+            node.x.set(cx + (ci.width.peekFloat() - w) / 2f + a.horizontalCenterOffset.peekFloat());
+            node.y.set(cy + (ci.height.peekFloat() - h) / 2f + a.verticalCenterOffset.peekFloat());
             return;
         }
         applyHorizontalAnchors(node, lm, rm, a);
