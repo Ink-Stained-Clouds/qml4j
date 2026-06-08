@@ -3,11 +3,13 @@ package io.github.timer_err.qml4j.demo;
 import io.github.timer_err.qml4j.render.ResourceLoader;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.stream.Stream;
 
 // Resolves the upstream MD3 app: md3.Core maps to our bundled (StyleManager-driven) Theme
@@ -18,7 +20,7 @@ import java.util.stream.Stream;
 final class AppResourceLoader implements ResourceLoader {
 
     // The upstream clone; override with -Dqml4j.mcq=/path (defaults to the usual /tmp clone).
-    static final Path MCQ = Path.of(System.getProperty("qml4j.mcq", "/tmp/mcq"));
+    static final Path MCQ = Paths.get(System.getProperty("qml4j.mcq", "/tmp/mcq"));
     static final Path APP = MCQ.resolve("src/App");
     static final Path CORE = MCQ.resolve("src/Core");
 
@@ -80,7 +82,12 @@ final class AppResourceLoader implements ResourceLoader {
 
     private static byte[] fromClasspath(String path) {
         try (InputStream in = AppResourceLoader.class.getResourceAsStream("/" + path)) {
-            return in == null ? null : in.readAllBytes();
+            if (in == null) return null;
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+            return out.toByteArray();
         } catch (Exception e) {
             return null;
         }
@@ -106,7 +113,7 @@ final class AppResourceLoader implements ResourceLoader {
             BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             String line;
             while ((line = r.readLine()) != null) {
-                if (!line.isBlank()) {
+                if (!line.trim().isEmpty()) {
                     appendControl(sb, line.trim());
                 }
             }

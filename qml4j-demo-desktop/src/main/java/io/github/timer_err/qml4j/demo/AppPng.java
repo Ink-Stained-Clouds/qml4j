@@ -33,7 +33,7 @@ final class AppPng {
         Surface flat = Surface.makeRasterN32Premul(w,h);
         flat.getCanvas().clear(dark?0xFF1c1b20:0xFFffffff);
         s.draw(flat.getCanvas(),0,0,null);
-        Files.write(Path.of("/tmp/page-"+entry.replace('/','_')+".png"),
+        Files.write(Paths.get("/tmp/page-"+entry.replace('/','_')+".png"),
             flat.makeImageSnapshot().encodeToData(EncodedImageFormat.PNG).getBytes());
         System.out.println("wrote /tmp/page-"+entry.replace('/','_')+".png");
     }

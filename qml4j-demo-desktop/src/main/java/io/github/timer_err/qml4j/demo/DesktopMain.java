@@ -12,6 +12,7 @@ import org.lwjgl.glfw.GLFWMouseButtonCallback;
 import org.lwjgl.system.MemoryUtil;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 
 public final class DesktopMain {
 
@@ -190,7 +191,9 @@ public final class DesktopMain {
     // or core dump. (It also sidesteps AwtClipboard's non-daemon AWT EDT, which would
     // otherwise keep the JVM alive past main().) Last resort for this driver bug.
     private static void killSelf() {
-        long pid = ProcessHandle.current().pid();
+        // Java 8 has no ProcessHandle; the RuntimeMXBean name is "<pid>@<host>".
+        String runtimeName = ManagementFactory.getRuntimeMXBean().getName();
+        long pid = Long.parseLong(runtimeName.substring(0, runtimeName.indexOf('@')));
         try {
             new ProcessBuilder("kill", "-9", Long.toString(pid)).start();
             Thread.sleep(10_000);

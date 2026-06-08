@@ -10,12 +10,10 @@
 
     <artifactId>qml4j-demo-desktop</artifactId>
 
-    <!-- Demo app, not a published library: never deploy it to Central. It is not
-         constrained to Java 8 (Skija itself needs the JDK 9+ Cleanable), so it
-         overrides the parent's release=8 and may use newer JDK API. -->
+    <!-- Demo app, not a published library: never deploy it to Central.
+         Inherits the parent's release=8 (Skija supports Java 8). -->
     <properties>
         <maven.deploy.skip>true</maven.deploy.skip>
-        <maven.compiler.release>11</maven.compiler.release>
     </properties>
 
     <dependencies>

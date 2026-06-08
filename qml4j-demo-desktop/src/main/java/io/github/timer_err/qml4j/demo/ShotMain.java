@@ -10,6 +10,7 @@ import io.github.timer_err.qml4j.runtime.color.StyleManager;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 // Headless raster of a single /showcases/*.qml to /tmp/shot-<name><tag>.png, for
 // visual verification without a display. Sibling of AppPng (which renders the mcq app).
@@ -40,7 +41,7 @@ final class ShotMain {
         Surface flat = Surface.makeRasterN32Premul(Math.max(1, w), Math.max(1, h));
         flat.getCanvas().clear((int) bg);
         s.draw(flat.getCanvas(), 0, 0, null);
-        Path out = Path.of("/tmp/shot-" + name + tag + ".png");
+        Path out = Paths.get("/tmp/shot-" + name + tag + ".png");
         Files.write(out, flat.makeImageSnapshot().encodeToData(EncodedImageFormat.PNG).getBytes());
         System.out.println("wrote " + out);
     }
