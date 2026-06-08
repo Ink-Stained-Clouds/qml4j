@@ -85,10 +85,22 @@ public final class Renderer {
     // chains; capped so a pathological oscillating layout can't spin forever.
     private static final int MAX_LAYOUT_PASSES = 8;
 
+    // When true, the current frame's draw reuses the geometry from the last full layout
+    // (an idle frame: nothing in the scene changed). Set by render(skipLayout=true).
+    private boolean skipLayout;
+
     public void render(Canvas canvas, Item root) {
+        render(canvas, root, false);
+    }
+
+    // skipLayout: the scene is unchanged since the last frame, so skip the layout pass and
+    // the per-node measure/layout in draw, repainting with cached geometry. The host's game
+    // loop calls renderFrame every frame; this keeps an idle UI to paint-only cost.
+    public void render(Canvas canvas, Item root, boolean skipLayout) {
         if (root == null) return;
         painter.bind(canvas);
-        settleLayout(root);
+        this.skipLayout = skipLayout;
+        if (!skipLayout) settleLayout(root);
         draw(canvas, root, 1f);
     }
 
@@ -186,13 +198,15 @@ public final class Renderer {
     // Draw a node ignoring its own `visible` flag (used to render a MultiEffect
     // source, which is normally an invisible sibling rendered only via the effect).
     void drawForced(Canvas canvas, Item node, float inheritedAlpha) {
-        node.measure(text);
-        followImplicitSize(node);
-        applyAnchors(node);
-        if (node instanceof Loader) {
-            resolveLoader((Loader) node);
+        if (!skipLayout) {
+            node.measure(text);
+            followImplicitSize(node);
+            applyAnchors(node);
+            if (node instanceof Loader) {
+                resolveLoader((Loader) node);
+            }
+            runLayout(node);
         }
-        runLayout(node);
         float x = node.x.peekFloat();
         float y = node.y.peekFloat();
         float w = node.width.peekFloat();

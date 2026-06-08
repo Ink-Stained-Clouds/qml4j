@@ -13,6 +13,7 @@ import io.qml4j.compiler.bytecode.rhino.RhinoScope;
 import io.qml4j.engine.QmlEngine;
 import io.qml4j.engine.js.JsRuntime;
 import io.qml4j.engine.binding.DirtyQueue;
+import io.qml4j.engine.binding.Property;
 
 public final class QmlView {
 
@@ -148,6 +149,7 @@ public final class QmlView {
 
     private long fpsLastNanos;
     private double fpsSmoothed;
+    private long renderedVersion = -1;
 
     public void renderFrame(SurfaceBackend backend) {
         dirty.install();
@@ -155,8 +157,14 @@ public final class QmlView {
             long now = System.nanoTime();
             tickAnimations(root, now);
             dirty.flush();
+            // Idle-frame fast path: if nothing in the scene changed since the last full
+            // layout (no animation/timer/input/binding touched a property), skip the layout
+            // pass and repaint with cached geometry -- so an idle UI over a game loop costs
+            // only its paint, not a full re-layout every frame.
+            boolean skipLayout = Property.changeVersion() == renderedVersion;
             Canvas canvas = backend.acquireCanvas();
-            renderer.render(canvas, root);
+            renderer.render(canvas, root, skipLayout);
+            renderedVersion = Property.changeVersion();
             if (renderer.fpsOverlayEnabled()) drawFpsOverlay(canvas, now);
             backend.present();
         } finally {

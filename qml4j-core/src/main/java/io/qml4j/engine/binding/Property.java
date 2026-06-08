@@ -186,6 +186,7 @@ public final class Property<T> {
     // `var` object whose fields changed but whose reference stayed equal). Re-runs the
     // same listeners a real value change would, without touching the value.
     public void notifyChanged() {
+        changeVersion++;
         for (Runnable r : new ArrayList<>(invalidationListeners)) r.run();
         for (Consumer<T> l : new ArrayList<>(valueListeners)) l.accept(value);
     }
@@ -198,8 +199,18 @@ public final class Property<T> {
         invalidationListeners.remove(r);
     }
 
+    // Bumped on every actual property change in the scene, so the renderer can detect a
+    // frame where nothing changed (idle UI) and skip the layout pass entirely -- the key to
+    // embedding the engine over a game loop that calls renderFrame at full rate.
+    private static long changeVersion;
+
+    public static long changeVersion() {
+        return changeVersion;
+    }
+
     private void setInternal(T newValue) {
         if (unchanged(value, newValue)) return;
+        changeVersion++;
         value = newValue;
         for (Runnable r : new ArrayList<>(invalidationListeners)) r.run();
         for (Consumer<T> l : new ArrayList<>(valueListeners)) l.accept(value);
