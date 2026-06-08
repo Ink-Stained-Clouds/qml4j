@@ -153,7 +153,17 @@ public final class Painter {
         p.setShader(null);
         p.setMode(PaintMode.FILL);
         p.setColor(Renderer.applyAlpha(0xFFFFFFFF, alpha));
+        // Snap the blit to an integer device pixel: a canvas centred at a fractional device
+        // position (a small spinner inside a container) would otherwise resample the backing
+        // bitmap and look blurry, where direct vector drawing stays crisp.
+        float[] m = canvas.getLocalToDevice().getMat();
+        float sx = m[0], sy = m[5], tx = m[3], ty = m[7];
+        int save = canvas.save();
+        if (sx != 0 && sy != 0) {
+            canvas.translate((Math.round(tx) - tx) / sx, (Math.round(ty) - ty) / sy);
+        }
         node.backing.draw(canvas, 0, 0, p);
+        canvas.restoreToCount(save);
     }
 
     public int alphaColor(String color, float alpha) {
