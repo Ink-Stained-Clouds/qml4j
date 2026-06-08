@@ -236,16 +236,18 @@ public final class Renderer {
             applyTransform(canvas, node, w, h, rot, sc);
             if (layerPaint != null) {
                 float m = layerEffectMargin(node);
-                canvas.saveLayer(Rect.makeXYWH(-m, -m, w + 2 * m, h + 2 * m), layerPaint);
+                // A reparent/resize frame can hand a node a transient negative size; Skija's
+                // Rect throws on negative extents, so clamp at the native boundary (Qt no-ops).
+                canvas.saveLayer(Rect.makeXYWH(-m, -m, Math.max(0f, w + 2 * m), Math.max(0f, h + 2 * m)), layerPaint);
             }
             // A layer.effect mask rounds the item by rendering its content into an offscreen
             // and erasing the corners with an antialiased path -- a drawn AA shape stays smooth
             // on the GPU backend, where an antialiased rounded clip can fall back to hard edges.
             float[] maskR = maskClipRadii(node);
             if (maskR != null) {
-                canvas.saveLayer(Rect.makeXYWH(0, 0, w, h), null);
+                canvas.saveLayer(Rect.makeXYWH(0, 0, Math.max(0f, w), Math.max(0f, h)), null);
             } else if (clip) {
-                canvas.clipRect(Rect.makeXYWH(0, 0, w, h));
+                canvas.clipRect(Rect.makeXYWH(0, 0, Math.max(0f, w), Math.max(0f, h)));
             }
             // Children with z < 0 render BEHIND the node's own content (Qt); the rest on top.
             List<Item> ordered = zOrdered(node.children);
@@ -255,7 +257,7 @@ public final class Renderer {
             node.paint(painter, w, h, alpha);
             if (node instanceof Flickable) {
                 Flickable f = (Flickable) node;
-                canvas.clipRect(Rect.makeXYWH(0, 0, w, h));
+                canvas.clipRect(Rect.makeXYWH(0, 0, Math.max(0f, w), Math.max(0f, h)));
                 canvas.translate(-f.contentX.peekFloat(), -f.contentY.peekFloat());
             }
             if (node instanceof ApplicationWindow) {
@@ -264,7 +266,7 @@ public final class Renderer {
                 float bottom = win.contentBottom(h);
                 int contentSave = canvas.save();
                 try {
-                    canvas.clipRect(Rect.makeXYWH(0, top, w, Math.max(0f, bottom - top)));
+                    canvas.clipRect(Rect.makeXYWH(0, top, Math.max(0f, w), Math.max(0f, bottom - top)));
                     canvas.translate(0, top);
                     for (Item child : ordered) {
                         if (child.z.peekFloat() >= 0f) draw(canvas, child, alpha);

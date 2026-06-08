@@ -74,7 +74,7 @@ public final class Painter {
     // the canvas instead of punching a transparent hole through the scene to the
     // framebuffer -- which shows as black on a GL backend.
     public void inLayer(float w, float h, float alpha, Runnable body) {
-        int save = canvas.saveLayerAlpha(Rect.makeXYWH(0, 0, w, h), Math.round(alpha * 255));
+        int save = canvas.saveLayerAlpha(Rect.makeXYWH(0, 0, Math.max(0f, w), Math.max(0f, h)), Math.round(alpha * 255));
         try {
             body.run();
         } finally {
@@ -249,6 +249,7 @@ public final class Painter {
     }
 
     public void fillRect(float x, float y, float w, float h, int argb) {
+        if (w <= 0f || h <= 0f) return;
         Paint p = renderer.paint();
         p.setMode(PaintMode.FILL);
         p.setShader(null);
@@ -257,6 +258,7 @@ public final class Painter {
     }
 
     public void fillRoundRect(float x, float y, float w, float h, float radius, int argb) {
+        if (w <= 0f || h <= 0f) return;
         Paint p = renderer.paint();
         p.setMode(PaintMode.FILL);
         p.setShader(null);
@@ -270,6 +272,7 @@ public final class Painter {
 
     public void fillGradientRoundRect(float x, float y, float w, float h, float radius,
                                       Gradient gradient, float alpha) {
+        if (w <= 0f || h <= 0f) return;
         Shader shader = buildLinearGradient(gradient, w, h);
         Paint p = renderer.paint();
         p.setMode(PaintMode.FILL);
@@ -286,6 +289,7 @@ public final class Painter {
 
     public void strokeRoundRect(float x, float y, float w, float h, float radius,
                                 int argb, float strokeWidth) {
+        if (w <= 0f || h <= 0f) return;
         Paint p = renderer.paint();
         p.setMode(PaintMode.STROKE);
         p.setStrokeWidth(strokeWidth);
