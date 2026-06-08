@@ -563,6 +563,15 @@ public final class Renderer {
     }
 
     void resolveLoader(Loader node) {
+        // An inactive Loader holds no item (Qt frees it). Unload so an off-screen tab's
+        // content -- and its animations -- stops, instead of running every frame and keeping
+        // the whole scene dirty. Reactivating reloads (loadedSource/Component cleared).
+        if (!Boolean.TRUE.equals(node.active.peek())) {
+            if (node.loadedItem != null) clearLoadedItem(node);
+            node.loadedComponent = null;
+            node.loadedSource = null;
+            return;
+        }
         Component sc = node.sourceComponent.peek();
         if (sc != null) {
             resolveLoaderComponent(node, sc);
