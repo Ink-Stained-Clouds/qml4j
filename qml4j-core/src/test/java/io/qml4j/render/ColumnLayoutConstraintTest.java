@@ -30,4 +30,24 @@ class ColumnLayoutConstraintTest {
         assertEquals(200.0, wide.width.peek().doubleValue(), 1e-6, "fillWidth clamps to column width");
         assertEquals(80.0, dot.x.peek().doubleValue(), 1e-6, "HCenter centres within column width");
     }
+
+    // A fillWidth child with Layout.maximumWidth caps at the max (a square widget in a wide
+    // column stays square) and centres in the remaining space.
+    @Test
+    void fillWidthHonoursMaximumWidth() {
+        ColumnLayout col = new ColumnLayout();
+        col.width.set(600.0);
+
+        Rectangle box = new Rectangle();
+        box.implicitWidth.set(300.0);
+        box.Layout.fillWidth.set(Boolean.TRUE);
+        box.Layout.maximumWidth.set(320.0);
+        box.Layout.alignment.set(4); // Qt.AlignHCenter
+        col.children.add(box); box.parent.set(col);
+
+        col.layout();
+
+        assertEquals(320.0, box.width.peek().doubleValue(), 1e-6, "fillWidth capped at maximumWidth");
+        assertEquals(140.0, box.x.peek().doubleValue(), 1e-6, "capped fill centres in the column");
+    }
 }

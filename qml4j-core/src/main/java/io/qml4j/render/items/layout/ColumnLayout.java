@@ -69,8 +69,15 @@ public class ColumnLayout extends Item {
             double leftM = LayoutSizing.margin(la.leftMargin, la.margins);
             double rightM = LayoutSizing.margin(la.rightMargin, la.margins);
             if (Boolean.TRUE.equals(la.fillWidth.peek())) {
-                c.x.set(leftM);
-                c.width.set(boxW - leftM - rightM);
+                // fillWidth still honours Layout.maximumWidth (Qt): a capped fill child is
+                // its max, positioned per Layout.alignment in the remaining space rather than
+                // stretched edge-to-edge.
+                double avail = boxW - leftM - rightM;
+                double capped = LayoutSizing.capMax(avail, la.maximumWidth);
+                c.width.set(capped);
+                c.x.set(capped < avail
+                    ? LayoutSizing.crossPos(la.alignment.peekInt(), boxW, capped, leftM, rightM, true)
+                    : leftM);
             } else {
                 double cw = LayoutSizing.crossSize(la.preferredWidth, c.implicitWidth, c.width);
                 double capped = LayoutSizing.capMax(cw, la.maximumWidth);

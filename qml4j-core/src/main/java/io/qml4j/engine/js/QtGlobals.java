@@ -1,6 +1,7 @@
 package io.qml4j.engine.js;
 
 import io.qml4j.runtime.qt.QtColorFactory;
+import io.qml4j.runtime.qt.QtDateFormat;
 import io.qml4j.runtime.invoke.Scheduler;
 import org.mozilla.javascript.BaseFunction;
 import org.mozilla.javascript.Context;
@@ -36,6 +37,9 @@ public final class QtGlobals {
         qt.put("binding", qt, qtBinding());
         qt.put("fontFamilies", qt, fn("fontFamilies", 0, a -> new ArrayList<>()));
         qt.put("application", qt, application());
+        qt.put("formatDateTime", qt, dateFormat("yyyy-MM-dd hh:mm:ss"));
+        qt.put("formatDate", qt, dateFormat("yyyy-MM-dd"));
+        qt.put("formatTime", qt, dateFormat("hh:mm:ss"));
         scope.put("Qt", scope, qt);
 
         scope.put("Text", scope, enumObject(TEXT));
@@ -106,6 +110,22 @@ public final class QtGlobals {
     // Qt.application.font: the application's default font. Only `.family` is read by
     // current consumers (the Canvas charts' font fallback); the resolver maps an unknown
     // family to its sans-serif default.
+    // Qt.formatDate/formatTime/formatDateTime(date[, fmt]): format a date value (coerced to
+    // epoch millis, so a JS Date works) with a Qt format string, defaulting to `defaultFmt`.
+    private static BaseFunction dateFormat(String defaultFmt) {
+        return new BaseFunction() {
+            @Override public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+                if (args.length == 0) return "";
+                double millis = ScriptRuntime.toNumber(args[0]);
+                String fmt = args.length > 1 && args[1] != null
+                    ? ScriptRuntime.toString(args[1]) : defaultFmt;
+                return QtDateFormat.format(millis, fmt);
+            }
+            @Override public int getArity() { return 2; }
+            @Override public String getFunctionName() { return "formatDateTime"; }
+        };
+    }
+
     private static NativeObject application() {
         NativeObject font = new NativeObject();
         font.put("family", font, "sans-serif");
