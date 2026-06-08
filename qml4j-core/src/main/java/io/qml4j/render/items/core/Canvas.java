@@ -17,10 +17,9 @@ public class Canvas extends Item {
     public final Property<String> renderStrategy = new Property<>("Immediate");
     public final Property<String> renderTarget = new Property<>("Image");
 
-    // Offscreen backing store, managed by Painter.paintCanvas (skija handles are kept as
-    // fields, like Image.skiaImage -- the only skija an Item is allowed to hold).
+    // Offscreen backing store, managed by Painter.paintCanvas (a skija handle kept as a
+    // field, like Image.skiaImage -- the only skija an Item is allowed to hold).
     public io.github.humbleui.skija.Surface backing;
-    public io.github.humbleui.skija.Image cachedImage;
     public int backingW = -1;
     public int backingH = -1;
     public boolean dirty = true;

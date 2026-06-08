@@ -91,7 +91,6 @@ public final class Painter {
         int iw = Math.max(1, Math.round(w));
         int ih = Math.max(1, Math.round(h));
         if (node.backing == null || node.backingW != iw || node.backingH != ih) {
-            if (node.cachedImage != null) { node.cachedImage.close(); node.cachedImage = null; }
             if (node.backing != null) node.backing.close();
             node.backing = Surface.makeRasterN32Premul(iw, ih);
             node.backingW = iw;
@@ -107,17 +106,17 @@ public final class Painter {
             } finally {
                 node.bindContext(null);
             }
-            if (node.cachedImage != null) node.cachedImage.close();
-            node.cachedImage = node.backing.makeImageSnapshot();
             node.dirty = false;
         }
-        if (node.cachedImage == null) return;
+        // Surface.draw blits the backing onto the main canvas (the matrix already carries
+        // this item's scale/position) without the makeImageSnapshot/close churn -- closing a
+        // just-snapshotted raster Image while its blit is still queued on the GPU backend
+        // blanked the canvas a frame after it appeared.
         Paint p = renderer.paint();
-        p.setMode(PaintMode.FILL);
         p.setShader(null);
+        p.setMode(PaintMode.FILL);
         p.setColor(Renderer.applyAlpha(0xFFFFFFFF, alpha));
-        canvas.drawImageRect(node.cachedImage,
-            Rect.makeXYWH(0, 0, iw, ih), Rect.makeXYWH(0, 0, w, h), IMAGE_SAMPLING, p, true);
+        node.backing.draw(canvas, 0, 0, p);
     }
 
     public int alphaColor(String color, float alpha) {
