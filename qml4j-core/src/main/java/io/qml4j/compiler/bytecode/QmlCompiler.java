@@ -22,6 +22,8 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.ParameterizedType;
+import io.qml4j.render.items.view.Component;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -35,6 +37,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.qml4j.compiler.bytecode.asm.Bytecode.loadLiteral;
+import static io.qml4j.compiler.bytecode.asm.Descriptors.propertyFieldSignature;
 import static io.qml4j.compiler.bytecode.asm.Descriptors.DELEGATE_FACTORY_INTERNAL;
 import static io.qml4j.compiler.bytecode.asm.Descriptors.DELEGATE_HOST_INTERNAL;
 import static io.qml4j.compiler.bytecode.asm.Descriptors.LIST_DESC;
@@ -273,7 +276,8 @@ public final class QmlCompiler {
                 // a binding to the inherited field (emitPropertyDeclarationInitializer).
                 rootRegularDecls.add(dp);
             } else {
-                cw.visitField(Opcodes.ACC_PUBLIC, dp.name, PROPERTY_DESC, null, null).visitEnd();
+                cw.visitField(Opcodes.ACC_PUBLIC, dp.name, PROPERTY_DESC,
+                              propertyFieldSignature(dp.typeName), null).visitEnd();
                 rootRegularDecls.add(dp);
                 rootDeclaredProps.put(dp.name, componentInternal);
             }
@@ -1198,8 +1202,19 @@ public final class QmlCompiler {
         }
         Field propField = findPropertyField(outerType, propName);
         String propOwner = Type.getInternalName(propField.getDeclaringClass());
+        // Qt implicit Component wrapping: an object assigned to a `property Component`
+        // (e.g. Carousel's `delegate: Card {}`) is the template of a Component, not a live
+        // child. Wrap it as `Component { <node> }` so the property holds a Component, not
+        // the bare item -- the consumer (Loader.sourceComponent) needs a Component.
+        Ast.ObjectNode assigned = node;
+        if (isComponentProperty(propField)
+                && !Component.class.isAssignableFrom(registry.resolve(node.typeName))) {
+            List<Ast.ObjectMember> wrap = new ArrayList<>();
+            wrap.add(new Ast.ChildObject(node));
+            assigned = new Ast.ObjectNode("Component", wrap);
+        }
         int childLocal = localCounter[0];
-        emitChildObjectInto(ctor, outerType, outerLocal, node, registry,
+        emitChildObjectInto(ctor, outerType, outerLocal, assigned, registry,
                             localCounter, bindingCounter, handlerCounter, classes,
                             componentBinaryName, idTypes, customSignalParams, "",
                             declaredProps, rootFunctions);
@@ -1208,6 +1223,17 @@ public final class QmlCompiler {
         ctor.visitVarInsn(Opcodes.ALOAD, childLocal);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, PROPERTY_INTERNAL,
                              "set", "(Ljava/lang/Object;)V", false);
+    }
+
+    // Whether `f` is a `Property<Component>` field -- a declared `property Component` (its
+    // field carries the generic signature) or a built-in one (Loader.sourceComponent).
+    private static boolean isComponentProperty(Field f) {
+        // java.lang.reflect.Type is FQN'd: its simple name clashes with the imported
+        // org.objectweb.asm.Type used throughout this file.
+        java.lang.reflect.Type g = f.getGenericType();
+        if (!(g instanceof ParameterizedType)) return false;
+        java.lang.reflect.Type[] args = ((ParameterizedType) g).getActualTypeArguments();
+        return args.length == 1 && args[0] == Component.class;
     }
 
     private void emitGroupedObjectAssignment(MethodVisitor ctor, Class<? extends QObject> outerType,

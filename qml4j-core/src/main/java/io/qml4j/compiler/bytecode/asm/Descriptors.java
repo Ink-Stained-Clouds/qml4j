@@ -22,4 +22,17 @@ public final class Descriptors {
     public static final String DELEGATE_FACTORY_INTERNAL = "io/qml4j/engine/DelegateFactory";
     public static final String DELEGATE_HOST_INTERNAL = "io/qml4j/engine/DelegateHost";
     public static final String SIGNAL_RELAY_INTERNAL = "io/qml4j/engine/SignalRelay";
+    public static final String COMPONENT_INTERNAL = "io/qml4j/render/items/view/Component";
+
+    // Generic signature for a `property Component x` field, so cross-component resolution
+    // (an object assigned to it from another file) can detect the Component type and apply
+    // Qt's implicit Component wrapping. Plain Property fields carry no signature.
+    public static final String COMPONENT_PROPERTY_SIGNATURE =
+        "L" + PROPERTY_INTERNAL + "<L" + COMPONENT_INTERNAL + ";>;";
+
+    // The field generic signature for a declared property of QML `typeName`, or null when
+    // no signature is needed (only Component is special today).
+    public static String propertyFieldSignature(String typeName) {
+        return "Component".equals(typeName) ? COMPONENT_PROPERTY_SIGNATURE : null;
+    }
 }

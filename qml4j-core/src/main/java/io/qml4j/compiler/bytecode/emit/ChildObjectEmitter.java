@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import io.qml4j.compiler.bytecode.asm.Descriptors;
 import static io.qml4j.compiler.bytecode.asm.Descriptors.PROPERTY_DESC;
 import static io.qml4j.compiler.bytecode.asm.Descriptors.SIGNAL_DESC;
 
@@ -40,7 +41,8 @@ public final class ChildObjectEmitter {
             cw.visitField(Opcodes.ACC_PUBLIC, sig, SIGNAL_DESC, null, null).visitEnd();
         }
         for (DeclaredProp dp : propDecls) {
-            cw.visitField(Opcodes.ACC_PUBLIC, dp.name, PROPERTY_DESC, null, null).visitEnd();
+            cw.visitField(Opcodes.ACC_PUBLIC, dp.name, PROPERTY_DESC,
+                          Descriptors.propertyFieldSignature(dp.typeName), null).visitEnd();
         }
         if (idFields != null) {
             for (Map.Entry<String, Class<? extends QObject>> e : idFields.entrySet()) {
