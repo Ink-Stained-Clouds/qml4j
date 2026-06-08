@@ -79,7 +79,9 @@ public final class DesktopMain {
             throw new IllegalStateException("glfwCreateWindow failed");
         }
         GLFW.glfwMakeContextCurrent(window);
-        GLFW.glfwSwapInterval(1);
+        // vsync on by default; -Dqml4j.vsync=false uncaps the loop to measure real FPS.
+        boolean vsync = !"false".equals(System.getProperty("qml4j.vsync", "true"));
+        GLFW.glfwSwapInterval(vsync ? 1 : 0);
     }
 
     private void updateScale(int fbW, int fbH) {

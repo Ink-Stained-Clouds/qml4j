@@ -21,6 +21,8 @@ CP="$PWD/qml4j-demo-desktop/target/classes:$PWD/qml4j-core/target/classes:$(cat 
 # `./run.sh app light` -> light scheme; anything else keeps the default dark.
 DARK=true
 [ "${2:-}" = "light" ] && DARK=false
-# `QML4J_FPS=true ./run.sh app` shows a top-right FPS overlay.
+# `QML4J_FPS=true ./run.sh app` shows a top-right FPS overlay; QML4J_VSYNC=false uncaps
+# the frame loop (otherwise vsync pins it to the monitor refresh, ~60fps).
 exec java -cp "$CP" -Dqml4j.mcq="${MCQ_DIR:-$PWD/../mcq}" -Dqml4j.dark="$DARK" \
-    -Dqml4j.fps="${QML4J_FPS:-false}" io.qml4j.demo.DesktopMain ${1:+"$1"}
+    -Dqml4j.fps="${QML4J_FPS:-false}" -Dqml4j.vsync="${QML4J_VSYNC:-true}" \
+    io.qml4j.demo.DesktopMain ${1:+"$1"}
