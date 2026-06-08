@@ -6,6 +6,7 @@ import io.qml4j.engine.binding.Property;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.Map;
 
 // Delegate-scope name resolution shared by the Rhino QmlScope: walk to the
 // DelegateRoot for index/modelData/delegate-local ids, then above it to the
@@ -69,6 +70,10 @@ public final class DelegateScope {
             if (cur instanceof DelegateRoot) {
                 delegateRoot = cur;
                 if (MemberAccess.hasMember(cur, name)) return MemberAccess.readMember(cur, name);
+                // A ListModel/JS-object row exposes its roles by bare name in the delegate
+                // (Qt's named-role context): `text: name` reads modelData["name"].
+                Object role = roleFromModelData(cur, name);
+                if (role != DELEGATE_ABSENT) return role;
                 break;
             }
             cur = parentOf(cur);
@@ -77,6 +82,18 @@ public final class DelegateScope {
         while (outer != null) {
             if (MemberAccess.hasMember(outer, name)) return MemberAccess.readMember(outer, name);
             outer = parentOf(outer);
+        }
+        return DELEGATE_ABSENT;
+    }
+
+    // A named model role read off the delegate root's modelData when it is a keyed row
+    // (a ListModel ListElement or a JS object), or DELEGATE_ABSENT if modelData is not a
+    // map or has no such key. A plain-value modelData (number/string) has no roles.
+    private static Object roleFromModelData(Object delegateRoot, String name) {
+        if (!MemberAccess.hasMember(delegateRoot, "modelData")) return DELEGATE_ABSENT;
+        Object data = MemberAccess.readMember(delegateRoot, "modelData");
+        if (data instanceof Map && ((Map<?, ?>) data).containsKey(name)) {
+            return ((Map<?, ?>) data).get(name);
         }
         return DELEGATE_ABSENT;
     }

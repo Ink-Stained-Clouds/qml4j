@@ -174,6 +174,19 @@ public final class MemberAccess {
         return field(o.getClass(), name) != null;
     }
 
+    // The Property field named `name` on `o`, or null if `o` has no such Property field.
+    // Used to emit Qt's implicit <prop>Changed() signal off a bare identifier.
+    public static Property<?> propertyOf(Object o, String name) {
+        if (o == null) return null;
+        Field f = field(o.getClass(), name);
+        if (f == null || !Property.class.isAssignableFrom(f.getType())) return null;
+        try {
+            return (Property<?>) f.get(o);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     // Whether `name` is a Property field on `o` (not an id/signal/group field). The
     // delegate scope resolves a name to the binding's own item only when it's a real
     // property -- so a compound child's leaked internal id (Ripple's `id: root`) does

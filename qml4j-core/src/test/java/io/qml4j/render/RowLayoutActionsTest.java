@@ -33,4 +33,26 @@ class RowLayoutActionsTest {
         assertTrue(delRight <= 315.0 + 1e-6, "last button stays within row width, right=" + delRight);
         assertEquals(315.0, delRight, 0.5, "last button flush to the right edge");
     }
+
+    // A fillWidth child shrinks below its implicit width when the row is constrained
+    // narrower than its content, so a wrapping label wraps instead of overflowing.
+    @Test
+    void fillWidthChildShrinksWhenRowNarrowerThanContent() {
+        RowLayout row = new RowLayout();
+        row.width.set(100.0);
+
+        Rectangle fixed = new Rectangle();
+        fixed.implicitWidth.set(40.0); fixed.width.set(40.0);
+        row.children.add(fixed); fixed.parent.set(row);
+
+        Rectangle fill = new Rectangle();
+        fill.Layout.fillWidth.set(Boolean.TRUE);
+        fill.implicitWidth.set(200.0);
+        row.children.add(fill); fill.parent.set(row);
+
+        row.layout();
+
+        assertEquals(40.0, fixed.width.peek().doubleValue(), 1e-6);
+        assertEquals(60.0, fill.width.peek().doubleValue(), 1e-6, "fill shrinks to available width");
+    }
 }

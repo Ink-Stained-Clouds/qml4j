@@ -94,6 +94,10 @@ public final class Property<T> {
     }
 
     private static final ThreadLocal<Deque<List<Property<?>>>> deferStack = new ThreadLocal<>();
+    // Callbacks (Component.onCompleted handlers) to run after the current deferred batch's
+    // bindings evaluate -- so a handler reading a deferred-bound property sees its final
+    // value, not the construction-time default. One list per batch, mirroring deferStack.
+    private static final ThreadLocal<Deque<List<Runnable>>> afterFlushStack = new ThreadLocal<>();
 
     public static void pushDeferred() {
         Deque<List<Property<?>>> st = deferStack.get();
@@ -102,6 +106,12 @@ public final class Property<T> {
             deferStack.set(st);
         }
         st.push(new ArrayList<>());
+        Deque<List<Runnable>> as = afterFlushStack.get();
+        if (as == null) {
+            as = new ArrayDeque<>();
+            afterFlushStack.set(as);
+        }
+        as.push(new ArrayList<>());
     }
 
     public static void flushDeferred() {
@@ -109,6 +119,26 @@ public final class Property<T> {
         if (st == null || st.isEmpty()) return;
         List<Property<?>> pending = st.pop();
         evaluatePending(pending);
+        Deque<List<Runnable>> as = afterFlushStack.get();
+        if (as != null && !as.isEmpty()) {
+            for (Runnable r : as.pop()) r.run();
+        }
+    }
+
+    public static boolean hasDeferredBatch() {
+        Deque<List<Property<?>>> st = deferStack.get();
+        return st != null && !st.isEmpty();
+    }
+
+    // Run `r` after the current deferred batch flushes (Component.onCompleted ordering),
+    // or immediately when no batch is active.
+    public static void runAfterFlush(Runnable r) {
+        Deque<List<Runnable>> as = afterFlushStack.get();
+        if (as != null && !as.isEmpty()) {
+            as.peek().add(r);
+        } else {
+            r.run();
+        }
     }
 
     public static void drainDeferred() {
@@ -149,6 +179,15 @@ public final class Property<T> {
 
     public void removeListener(Consumer<T> l) {
         valueListeners.remove(l);
+    }
+
+    // Qt's implicit per-property <prop>Changed() signal, emitted manually from QML to
+    // force dependents to re-read after an in-place mutation the setter never saw (a
+    // `var` object whose fields changed but whose reference stayed equal). Re-runs the
+    // same listeners a real value change would, without touching the value.
+    public void notifyChanged() {
+        for (Runnable r : new ArrayList<>(invalidationListeners)) r.run();
+        for (Consumer<T> l : new ArrayList<>(valueListeners)) l.accept(value);
     }
 
     public void addInvalidationListener(Runnable r) {

@@ -2,6 +2,7 @@ package io.qml4j.engine.js;
 
 import io.qml4j.runtime.member.MemberAccess;
 import io.qml4j.runtime.invoke.MethodInvocation;
+import io.qml4j.engine.binding.Property;
 import io.qml4j.engine.Callable;
 import io.qml4j.engine.QObject;
 import io.qml4j.engine.Signal;
@@ -329,6 +330,18 @@ public final class JsWrap {
             for (int i = 0; i < args.length; i++) ja[i] = toJava(args[i]);
             return toJs(MethodInvocation.callMethod(target, name, ja), parent);
         }
+    }
+
+    // A no-arg JS function that emits Qt's implicit <prop>Changed() signal: calling it
+    // re-fires the property's dependents (bindings/onXChanged handlers) without altering
+    // the value, matching a manual `propChanged()` emit in QML.
+    static Function changedNotifier(Property<?> p) {
+        return new BaseFunction() {
+            @Override public Object call(Context cx, Scriptable scope, Scriptable thisObj, Object[] args) {
+                p.notifyChanged();
+                return Undefined.instance;
+            }
+        };
     }
 
     // A QML signal exposed to JS so both forms work: calling it emits

@@ -25,7 +25,11 @@ public final class TextWrap {
         List<Integer> starts = new ArrayList<>();
         if (text == null) text = "";
         boolean wrapAny = "WrapAnywhere".equals(mode);
-        boolean wrap = "Wrap".equals(mode) || "WordWrap".equals(mode) || wrapAny;
+        // WordWrap breaks at word boundaries only; a word wider than the box overflows
+        // rather than being split (Qt). Wrap falls back to a mid-word break when a single
+        // word does not fit.
+        boolean wordOnly = "WordWrap".equals(mode);
+        boolean wrap = "Wrap".equals(mode) || wordOnly || wrapAny;
         int start = 0;
         int n = text.length();
         while (start <= n) {
@@ -36,7 +40,7 @@ public final class TextWrap {
                 starts.add(start);
                 lines.add(seg);
             } else {
-                wrapSegment(seg, start, maxWidth, m, wrapAny, lines, starts);
+                wrapSegment(seg, start, maxWidth, m, wrapAny, wordOnly, lines, starts);
             }
             if (hardBreak < 0) break;
             start = hardBreak + 1;
@@ -57,12 +61,12 @@ public final class TextWrap {
     }
 
     private static void wrapSegment(String seg, int origin, float maxWidth, Measure m,
-                                    boolean wrapAny, List<String> outLines,
+                                    boolean wrapAny, boolean wordOnly, List<String> outLines,
                                     List<Integer> outStarts) {
         int i = 0;
         int n = seg.length();
         while (i < n) {
-            int hi = findBreakIndex(seg, i, n, maxWidth, m, wrapAny);
+            int hi = findBreakIndex(seg, i, n, maxWidth, m, wrapAny, wordOnly);
             if (hi == i) hi = i + 1;
             outStarts.add(origin + i);
             outLines.add(seg.substring(i, hi));
@@ -75,7 +79,7 @@ public final class TextWrap {
     }
 
     private static int findBreakIndex(String seg, int from, int end, float maxWidth,
-                                      Measure m, boolean wrapAny) {
+                                      Measure m, boolean wrapAny, boolean wordOnly) {
         int lo = from + 1;
         int hi = end;
         int best = from + 1;
@@ -91,6 +95,12 @@ public final class TextWrap {
         if (wrapAny || best == end) return best;
         int ws = seg.lastIndexOf(' ', best - 1);
         if (ws > from) return ws + 1;
+        // No word boundary fits: the first word is wider than the box. WordWrap keeps it
+        // whole on its own line (overflow); Wrap breaks it mid-word at `best`.
+        if (wordOnly) {
+            int sp = seg.indexOf(' ', best);
+            return sp < 0 ? end : sp + 1;
+        }
         return best;
     }
 

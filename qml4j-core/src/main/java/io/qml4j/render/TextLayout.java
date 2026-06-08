@@ -55,7 +55,10 @@ public final class TextLayout {
         // line count grows; report the wrapped height so containers size to it.
         float wrapW = (wrapMode != null && (t.width.isBound() || !ownsWidth(t)))
             ? t.width.peekFloat() : 0f;
-        try (Font font = fonts.fontFor(size, s)) {
+        // Measure with the same weight paint uses, or a bold label wraps to more lines at
+        // render than measure reserved height for, spilling past the laid-out box.
+        boolean bold = Boolean.TRUE.equals(t.font.bold.peek()) || t.font.weight.peekInt() >= 63;
+        try (Font font = fonts.fontFor(size, s, bold)) {
             float w = 0f;
             for (String line : lines) {
                 float lw = font.measureTextWidth(line);

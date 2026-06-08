@@ -48,11 +48,15 @@ public class RowLayout extends Item {
         implicitWidth.set(sumMain);
         implicitHeight.set(maxCross);
 
-        double boxW = Math.max(width.peekDouble(), sumMain);
+        // When the layout is constrained narrower than its content (an outer layout/anchor
+        // set our width below sumMain), fill children SHRINK to absorb the deficit -- a
+        // fillWidth wrapping label then wraps instead of overflowing. When wider, they grow.
+        double avail = width.peekDouble();
+        double boxW = avail > 0 ? avail : sumMain;
         double boxH = Math.max(height.peekDouble(), maxCross);
-        if (fillCount > 0 && boxW > sumMain) {
-            double extra = (boxW - sumMain) / fillCount;
-            for (int i = 0; i < n; i++) if (fill[i]) w[i] += extra;
+        if (fillCount > 0 && boxW != sumMain) {
+            double delta = (boxW - sumMain) / fillCount;
+            for (int i = 0; i < n; i++) if (fill[i]) w[i] = Math.max(0, w[i] + delta);
         }
 
         double x = 0;

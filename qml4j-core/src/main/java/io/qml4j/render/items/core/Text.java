@@ -48,6 +48,7 @@ public class Text extends Item {
         if (s.isEmpty()) return;
         boolean elideRight = elide.peekInt() == 3; // Text.ElideRight
         boolean bold = Boolean.TRUE.equals(font.bold.peek()) || font.weight.peekInt() >= 63;
-        p.drawWrappedText(s, w, argb, size, wrapMode.peekInt(), elideRight, bold);
+        p.drawWrappedText(s, w, argb, size, wrapMode.peekInt(), elideRight, bold,
+                          horizontalAlignment.peekInt());
     }
 }

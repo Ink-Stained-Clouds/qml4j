@@ -28,6 +28,25 @@ class TextWrapTest {
         assertEquals("jumps", r.lines.get(2));
     }
 
+    // WordWrap breaks only at word boundaries; a word wider than the box stays whole and
+    // overflows (Qt), unlike Wrap which falls back to a mid-word break.
+    @Test
+    void wordWrapKeepsLongWordWhole() {
+        TextWrap.Result r = TextWrap.wrap("hi enormousword", "WordWrap", 50, FIXED);
+        assertEquals(2, r.lines.size());
+        assertEquals("hi ", r.lines.get(0));
+        assertEquals("enormousword", r.lines.get(1));
+    }
+
+    @Test
+    void wrapFallsBackToMidWordForLongWord() {
+        TextWrap.Result r = TextWrap.wrap("enormousword", "Wrap", 50, FIXED);
+        assertEquals(3, r.lines.size());
+        assertEquals("enorm", r.lines.get(0));
+        assertEquals("ouswo", r.lines.get(1));
+        assertEquals("rd", r.lines.get(2));
+    }
+
     @Test
     void wrapAnywhereBreaksMidWord() {
         TextWrap.Result r = TextWrap.wrap("abcdefghij", "WrapAnywhere", 50, FIXED);

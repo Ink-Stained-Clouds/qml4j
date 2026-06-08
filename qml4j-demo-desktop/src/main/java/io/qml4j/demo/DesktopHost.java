@@ -67,7 +67,7 @@ final class DesktopHost {
         QmlEngine engine = new QmlEngine();
         view = QmlView.withStockTypes(engine).resources(appLoader);
         view.setClipboard(new AwtClipboard());
-        view.context("AppFeatures", new java.util.HashMap<String, Object>());
+        view.context("AppFeatures", AppFeaturesMap.all());
         view.context("HotReloadEnabled", Boolean.FALSE);
         view.context("ProjectSourceDir", "");
         try {

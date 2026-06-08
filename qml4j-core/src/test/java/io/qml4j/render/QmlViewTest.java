@@ -2148,6 +2148,67 @@ class QmlViewTest {
         assertEquals("c", ((io.qml4j.render.items.core.Text) rep.instances().get(2)).text.peek());
     }
 
+    // Qt named-role context: a ListModel row's roles are readable by BARE name in the
+    // delegate (`text: label`), not only via `modelData.label`.
+    @Test
+    void repeaterListModelDelegateResolvesRoleByBareName() {
+        Item root = newView().load(
+            "Column {\n" +
+            "  Repeater {\n" +
+            "    id: rep\n" +
+            "    model: ListModel {\n" +
+            "      ListElement { label: \"a\" }\n" +
+            "      ListElement { label: \"b\" }\n" +
+            "    }\n" +
+            "    Text { text: label }\n" +
+            "  }\n" +
+            "}");
+        Repeater rep = (Repeater) reflectField(root, "rep");
+        assertEquals(2, rep.instances().size());
+        assertEquals("a", ((Text) rep.instances().get(0)).text.peek());
+        assertEquals("b", ((Text) rep.instances().get(1)).text.peek());
+    }
+
+    // Qt's implicit per-property <prop>Changed() emit: manually called after an in-place
+    // mutation the setter never saw (a `var` object's field changed, reference unchanged),
+    // it re-evaluates dependents.
+    @Test
+    void implicitChangedSignalReEvaluatesDependents() {
+        Item root = newView().load(
+            "Item {\n" +
+            "  property var box: ({ n: 5 })\n" +
+            "  property int mirror: box.n\n" +
+            "  signal poke()\n" +
+            "  onPoke: { box.n = 99; boxChanged() }\n" +
+            "}");
+        io.qml4j.engine.binding.Property<?> mirror =
+            (io.qml4j.engine.binding.Property<?>) reflectField(root, "mirror");
+        assertEquals(5L, ((Number) mirror.peek()).longValue());
+        try {
+            ((io.qml4j.engine.Signal) root.getClass().getField("poke").get(root)).emit();
+        } catch (ReflectiveOperationException ex) {
+            throw new RuntimeException(ex);
+        }
+        assertEquals(99L, ((Number) mirror.peek()).longValue());
+    }
+
+    // Component.onCompleted runs after the construction-time deferred bindings flush, so a
+    // handler reading a bound property sees its evaluated value, not the default. (ProPage
+    // builds its card model in onCompleted off a property bound to the AppFeatures context.)
+    @Test
+    void onCompletedSeesDeferredBoundProperty() {
+        Item root = newView().load(
+            "Item {\n" +
+            "  property int base: 41\n" +
+            "  property int derived: base + 1\n" +
+            "  property int seen: -1\n" +
+            "  Component.onCompleted: seen = derived\n" +
+            "}");
+        io.qml4j.engine.binding.Property<?> seen =
+            (io.qml4j.engine.binding.Property<?>) reflectField(root, "seen");
+        assertEquals(42L, ((Number) seen.peek()).longValue());
+    }
+
     @Test
     void listModelAppendTriggersRepeaterRebuild() {
         Item root = newView().load(

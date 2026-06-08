@@ -56,6 +56,14 @@ public final class QtGlobals {
         scope.put("Image", scope, enumObject(IMAGE));
         scope.put("Drag", scope, enumObject(DRAG));
 
+        // Window attached type: only Window.window (the containing window) is read, and
+        // only to walk the live scene graph for a debug overlay we don't materialise.
+        // A single-window engine has no separate window object, so it stays null --
+        // consumers guard on it (`if (!win) return`).
+        NativeObject window = new NativeObject();
+        window.put("window", window, null);
+        scope.put("Window", scope, window);
+
         NativeObject console = new NativeObject();
         console.put("log", console, fn("log", 1, a -> { System.out.println(join(a)); return null; }));
         console.put("warn", console, fn("warn", 1, a -> { System.out.println(join(a)); return null; }));

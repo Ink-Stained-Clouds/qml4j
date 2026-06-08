@@ -3,6 +3,7 @@ package io.qml4j.engine.js;
 import io.qml4j.runtime.member.DelegateScope;
 import io.qml4j.runtime.member.MemberAccess;
 import io.qml4j.engine.Signal;
+import io.qml4j.engine.binding.Property;
 import org.mozilla.javascript.Scriptable;
 
 import java.util.Collections;
@@ -126,7 +127,21 @@ public final class QmlScope implements Scriptable {
         if (co != null) return new JsWrap.BoundMethod(co, name, this);
         Object s = singleton(name);
         if (s != null) return JsWrap.toJs(s, this);
+        Object ch = changedSignal(name);
+        if (ch != null) return ch;
         return NOT_FOUND;
+    }
+
+    // Qt's implicit per-property <prop>Changed() emit, resolved as a bare callable last
+    // -- a real signal/field/function of the same name always wins above. Returns a
+    // notifier bound to the property on outer (then root), or null if `name` is not an
+    // <prop>Changed for any property in scope.
+    private Object changedSignal(String name) {
+        if (!name.endsWith("Changed") || name.length() <= "Changed".length()) return null;
+        String base = name.substring(0, name.length() - "Changed".length());
+        Property<?> p = MemberAccess.propertyOf(outer, base);
+        if (p == null && root != outer) p = MemberAccess.propertyOf(root, base);
+        return p == null ? null : JsWrap.changedNotifier(p);
     }
 
     private Object owner(String name) {
@@ -158,6 +173,8 @@ public final class QmlScope implements Scriptable {
         if (c != null) return new JsWrap.BoundMethod(c, name, this);
         Object s = singleton(name);
         if (s != null) return JsWrap.toJs(s, this);
+        Object ch = changedSignal(name);
+        if (ch != null) return ch;
         return NOT_FOUND;
     }
 
@@ -167,10 +184,11 @@ public final class QmlScope implements Scriptable {
                 || DelegateScope.delegateLookup(outer, name) != DelegateScope.DELEGATE_ABSENT
                 || sceneIds.contains(name)
                 || DelegateScope.delegateCallableOwner(outer, name) != null
-                || singletonClasses.containsKey(name);
+                || singletonClasses.containsKey(name)
+                || changedSignal(name) != null;
         }
         return aliases.containsKey(name) || owner(name) != null || callableOwner(name) != null
-            || singletonClasses.containsKey(name);
+            || singletonClasses.containsKey(name) || changedSignal(name) != null;
     }
 
     @Override public void put(String name, Scriptable start, Object value) {

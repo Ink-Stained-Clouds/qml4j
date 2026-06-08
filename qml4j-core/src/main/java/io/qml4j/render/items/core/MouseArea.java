@@ -5,6 +5,9 @@ import io.qml4j.engine.binding.Property;
 
 public class MouseArea extends Item {
     public final Signal clicked = new Signal();
+    // Declared so onDoubleClicked handlers compile; never emitted (no press-timing
+    // detection), so it must not change single-click semantics.
+    public final Signal doubleClicked = new Signal();
     // Qt names both a bool property `pressed` and a press signal `pressed(mouse)`.
     // Java can't share the field name, so the signal lives under pressedSignal;
     // the onPressed handler resolves to it via the <name>Signal fallback.

@@ -107,9 +107,11 @@ public final class Painter {
         }
     }
 
-    // Multi-line text: optional wrap to boxW, optional right-elision, from y=0.
+    // Multi-line text: optional wrap to boxW, optional right-elision, from y=0. Each line
+    // is offset by hAlign (Text.AlignHCenter/AlignRight) within boxW, so a centred Text
+    // centres every wrapped line, not just the block.
     public void drawWrappedText(String s, float boxW, int argb, float size,
-                                int wrapModeEnum, boolean elideRight, boolean bold) {
+                                int wrapModeEnum, boolean elideRight, boolean bold, int hAlign) {
         String wrapMode = TextLayout.wrapModeString(wrapModeEnum);
         try (Font font = renderer.fonts().fontFor(size, s, bold)) {
             String[] lines = (wrapMode != null && boxW > 0f)
@@ -125,9 +127,19 @@ public final class Painter {
             for (int i = 0; i < lines.length; i++) {
                 if (lines[i].isEmpty()) continue;
                 String line = elideRight ? TextLayout.elideToWidth(lines[i], font, boxW) : lines[i];
-                canvas.drawString(line, 0, baseline0 + i * lineH, font, p);
+                float tx = lineOffset(line, font, boxW, hAlign);
+                canvas.drawString(line, tx, baseline0 + i * lineH, font, p);
             }
         }
+    }
+
+    // The x offset placing a line within boxW per its horizontal alignment.
+    // AlignHCenter (4) centres, AlignRight (2) right-aligns; AlignLeft/justify stay at 0.
+    private static float lineOffset(String line, Font font, float boxW, int hAlign) {
+        if (boxW <= 0f || hAlign == 1) return 0f;
+        if (hAlign == 4) return (boxW - font.measureTextWidth(line)) / 2f;
+        if (hAlign == 2) return boxW - font.measureTextWidth(line);
+        return 0f;
     }
 
     // A single line of text, horizontally centred and baseline-centred in the box.

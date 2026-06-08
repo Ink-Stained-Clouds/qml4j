@@ -4,6 +4,7 @@ import io.qml4j.engine.Callable;
 import io.qml4j.engine.SignalHandler;
 import io.qml4j.engine.binding.Binding;
 import io.qml4j.engine.binding.DirtyQueue;
+import io.qml4j.engine.binding.Property;
 
 // Qt.callLater: defer work to the end of the current dirty-queue flush, or run
 // it immediately when there is no active queue.
@@ -19,6 +20,13 @@ public final class Scheduler {
     public static void runLater(SignalHandler h) {
         if (h == null) return;
         Runnable r = () -> h.invoke(EMPTY_ARGS);
+        // During construction a deferred binding batch is active; onCompleted must run
+        // after it flushes so handlers see final bound values (e.g. a property bound to a
+        // context property). Outside construction, defer to the dirty-queue flush, or now.
+        if (Property.hasDeferredBatch()) {
+            Property.runAfterFlush(r);
+            return;
+        }
         DirtyQueue dq = DirtyQueue.current();
         if (dq != null) dq.enqueue(r);
         else r.run();
