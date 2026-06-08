@@ -146,14 +146,16 @@ Exit code 137 on close is expected (NVIDIA libEGL teardown SIGSEGV, worked aroun
 
 ```sh
 mvn -pl qml4j-demo-desktop -am -Pdist package
-java -jar qml4j-demo-desktop/target/qml4j-app.jar
+java -jar qml4j-demo-desktop/target/qml4j-app.jar                        # bundled MD3 app
+java -jar qml4j-demo-desktop/target/qml4j-app.jar <projectDir> <entry.qml>  # run any project
 ```
 
 `-Pdist` shades a self-contained, cross-platform fat jar (`qml4j-app.jar`): it carries both
 Linux and Windows Skija/LWJGL natives (each loader picks its platform at runtime), is a
-multi-release jar, and bundles the upstream MD3 app source under `/mcq/**` so it runs with no
-external files (Main-Class `DistMain`, which launches the `app` mode). The app source is read
-from `${mcq.dir}` at build time (default `../mcq`); override with `-Dmcq.dir=/path/to/mcq`.
+multi-release jar, and bundles the upstream MD3 app source under `/mcq/**`. With no args it
+runs that bundled app; pass `<projectDir> <entry.qml>` and it's the same on-disk runner as
+`run.sh` (those paths are resolved relative to your current directory). The bundled app source
+is read from `${mcq.dir}` at build time (default `../mcq`); override with `-Dmcq.dir=/path/to/mcq`.
 
 ## Performance
 
