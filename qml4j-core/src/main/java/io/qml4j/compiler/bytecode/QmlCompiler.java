@@ -24,6 +24,7 @@ import org.objectweb.asm.Type;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import io.qml4j.render.items.view.Component;
+import io.qml4j.render.items.transform.Transform;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -945,7 +946,12 @@ public final class QmlCompiler {
                                 "L" + parentInternal + ";");
         }
 
-        Field parentProp = findPropertyFieldOrNull(childType, "parent");
+        // `parent` is a scene relationship between Items: don't set it when the container is a
+        // Transform (a Behavior inside `transform: Translate { Behavior {} }` would otherwise
+        // get its Item parent set to the non-Item Translate, which the reparent listener
+        // would then cast to Item).
+        Field parentProp = Transform.class.isAssignableFrom(outerType)
+            ? null : findPropertyFieldOrNull(childType, "parent");
         if (parentProp != null) {
             String declOwner = Type.getInternalName(parentProp.getDeclaringClass());
             ctor.visitVarInsn(Opcodes.ALOAD, childLocal);

@@ -80,8 +80,27 @@ public class Item extends QObject {
     private Keys keys;
     private Consumer<Item> focusHook;
 
+    // The previous value of `parent`, so a change can move this between children lists.
+    private Item lastParent;
+
     public Item() {
         state.addListener(stateController::apply);
+        // Reparenting on a `parent` change (Qt): `parent: overlay` moves an item into the
+        // overlay's children so it renders there (z:9999), not at its declaration site.
+        parent.addListener(this::onParentChanged);
+    }
+
+    private void onParentChanged(Item np) {
+        Item old = lastParent;
+        lastParent = np;
+        if (old == np || old == null) return;
+        // Move only a visual child: if the old parent's children held it (a resources-parked
+        // Behavior, or an object assigned to a property, never was) move it to the new
+        // parent's children. The construction-time first set has old == null, so the item is
+        // simply recorded; a later `parent:` change then relocates it.
+        if (old.children.remove(this) && np != null && !np.children.contains(this)) {
+            np.children.add(this);
+        }
     }
 
     public Keys keys() {
