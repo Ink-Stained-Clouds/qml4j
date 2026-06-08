@@ -142,6 +142,19 @@ These map to the `-Dqml4j.fps` / `-Dqml4j.vsync` / `-Dqml4j.canvasCache` / `-Dqm
 
 Exit code 137 on close is expected (NVIDIA libEGL teardown SIGSEGV, worked around by SIGKILL-self).
 
+### Package a distributable jar
+
+```sh
+mvn -pl qml4j-demo-desktop -am -Pdist package
+java -jar qml4j-demo-desktop/target/qml4j-app.jar
+```
+
+`-Pdist` shades a self-contained, cross-platform fat jar (`qml4j-app.jar`): it carries both
+Linux and Windows Skija/LWJGL natives (each loader picks its platform at runtime), is a
+multi-release jar, and bundles the upstream MD3 app source under `/mcq/**` so it runs with no
+external files (Main-Class `DistMain`, which launches the `app` mode). The app source is read
+from `${mcq.dir}` at build time (default `../mcq`); override with `-Dmcq.dir=/path/to/mcq`.
+
 ## Performance
 
 The engine is built to sit inside a host render loop that calls `renderFrame` every frame (e.g. a game overlay):
