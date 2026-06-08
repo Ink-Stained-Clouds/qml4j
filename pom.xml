@@ -4,13 +4,36 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.qml4j</groupId>
+    <groupId>io.github.t1m3</groupId>
     <artifactId>qml4j-parent</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.1.0</version>
     <packaging>pom</packaging>
 
     <name>qml4j</name>
     <description>QML parsing, JIT bytecode compilation and Skia rendering in pure Java.</description>
+    <url>https://github.com/TIMER-err/qml4j</url>
+
+    <licenses>
+        <license>
+            <name>GNU Affero General Public License v3.0</name>
+            <url>https://www.gnu.org/licenses/agpl-3.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <id>TIMER-err</id>
+            <name>TIMER-err</name>
+            <url>https://github.com/TIMER-err</url>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:https://github.com/TIMER-err/qml4j.git</connection>
+        <developerConnection>scm:git:git@github.com:TIMER-err/qml4j.git</developerConnection>
+        <url>https://github.com/TIMER-err/qml4j</url>
+    </scm>
 
     <properties>
         <maven.compiler.source>1.8</maven.compiler.source>
@@ -34,7 +57,7 @@
     <dependencyManagement>
         <dependencies>
             <dependency>
-                <groupId>io.qml4j</groupId>
+                <groupId>io.github.t1m3</groupId>
                 <artifactId>qml4j-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -135,4 +158,73 @@
             </plugin>
         </plugins>
     </build>
+
+    <!-- `mvn -Prelease deploy` builds source+javadoc jars, GPG-signs everything,
+         and uploads the bundle to the Central Portal. Plain `mvn install` stays
+         fast (no signing/javadoc). Requires a `central` server in settings.xml
+         and a GPG key on a public keyserver. -->
+    <profiles>
+        <profile>
+            <id>release</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <version>3.3.1</version>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals>
+                                    <goal>jar-no-fork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <version>3.6.3</version>
+                        <configuration>
+                            <doclint>none</doclint>
+                            <failOnError>false</failOnError>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>3.2.4</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>0.10.0</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <publishingServerId>central</publishingServerId>
+                            <autoPublish>true</autoPublish>
+                            <waitUntil>validated</waitUntil>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
