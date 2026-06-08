@@ -34,6 +34,15 @@ public class Text extends Item {
     public double lastSetWidth = Double.NaN;
     public double lastSetHeight = Double.NaN;
 
+    // Text-measurement cache (TextLayout.measureText): the inputs that affect the shaped
+    // natural size, and the cached result, so an unchanged label skips re-shaping.
+    public String cachedText;
+    public float cachedSize = -1f;
+    public boolean cachedBold;
+    public float cachedWrapW = -1f;
+    public float cachedW;
+    public float cachedH;
+
     @Override
     public void measure(TextLayout t) {
         t.measureText(this);

@@ -58,33 +58,46 @@ public final class TextLayout {
         // Measure with the same weight paint uses, or a bold label wraps to more lines at
         // render than measure reserved height for, spilling past the laid-out box.
         boolean bold = Boolean.TRUE.equals(t.font.bold.peek()) || t.font.weight.peekInt() >= 63;
-        try (Font font = fonts.fontFor(size, s, bold)) {
-            float w = 0f;
-            for (String line : lines) {
-                float lw = font.measureTextWidth(line);
-                if (lw > w) w = lw;
+        // Text shaping (measureTextWidth / wrap) is expensive and measureText runs once per
+        // settle pass AND again per node at draw; cache the natural size keyed on the inputs
+        // that affect it, so an unchanged label re-measures for free.
+        float w, h;
+        if (s.equals(t.cachedText) && size == t.cachedSize && bold == t.cachedBold
+                && wrapW == t.cachedWrapW) {
+            w = t.cachedW;
+            h = t.cachedH;
+        } else {
+            try (Font font = fonts.fontFor(size, s, bold)) {
+                float mw = 0f;
+                for (String line : lines) {
+                    float lw = font.measureTextWidth(line);
+                    if (lw > mw) mw = lw;
+                }
+                int lineCount = lines.length;
+                if (wrapW > 0f && mw > wrapW) {
+                    lineCount = TextWrap.wrap(s, wrapMode, wrapW,
+                        seg -> font.measureTextWidth(seg)).lines.size();
+                }
+                w = mw;
+                h = lineHeight(font) * lineCount;
             }
-            int lineCount = lines.length;
-            if (wrapW > 0f && w > wrapW) {
-                lineCount = TextWrap.wrap(s, wrapMode, wrapW,
-                    seg -> font.measureTextWidth(seg)).lines.size();
-            }
-            float h = lineHeight(font) * lineCount;
-            // Natural content size always feeds implicitWidth/Height (Qt), even
-            // when width/height are bound externally (e.g. a tooltip background
-            // binds to label.implicitWidth).
-            if (!t.implicitWidth.isBound()) t.implicitWidth.set(w);
-            if (!t.implicitHeight.isBound()) t.implicitHeight.set(h);
-            t.contentWidth.set(w);
-            t.contentHeight.set(h);
-            if (canMeasureW) {
-                t.width.set(w);
-                t.lastSetWidth = w;
-            }
-            if (canMeasureH) {
-                t.height.set(h);
-                t.lastSetHeight = h;
-            }
+            t.cachedText = s; t.cachedSize = size; t.cachedBold = bold;
+            t.cachedWrapW = wrapW; t.cachedW = w; t.cachedH = h;
+        }
+        // Natural content size always feeds implicitWidth/Height (Qt), even
+        // when width/height are bound externally (e.g. a tooltip background
+        // binds to label.implicitWidth).
+        if (!t.implicitWidth.isBound()) t.implicitWidth.set(w);
+        if (!t.implicitHeight.isBound()) t.implicitHeight.set(h);
+        t.contentWidth.set(w);
+        t.contentHeight.set(h);
+        if (canMeasureW) {
+            t.width.set(w);
+            t.lastSetWidth = w;
+        }
+        if (canMeasureH) {
+            t.height.set(h);
+            t.lastSetHeight = h;
         }
     }
 
