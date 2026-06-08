@@ -160,6 +160,21 @@ class PropertyTest {
         assertEquals(2, hits.get());
     }
 
+    // Re-delivering the same number in a different box (Long 5 -> Double 5.0) is not a
+    // change: it must not fire, or a layout binding re-delivering a parent size in a
+    // different numeric type oscillates forever (the ScrollBar implicitHeight churn).
+    @Test
+    void numericReboxDoesNotFire() {
+        Property<Object> p = new Property<>(5L);
+        AtomicInteger hits = new AtomicInteger();
+        p.addInvalidationListener(hits::incrementAndGet);
+        p.set(5.0);    // same magnitude, different box
+        p.set(5);      // Integer 5
+        assertEquals(0, hits.get(), "re-boxing the same number is not a change");
+        p.set(6.0);
+        assertEquals(1, hits.get(), "a real magnitude change fires");
+    }
+
     @Test
     void writeInterceptorReceivesUserSetAndBindingPreserved() {
         Property<Integer> src = new Property<>(0);

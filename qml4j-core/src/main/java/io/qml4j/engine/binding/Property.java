@@ -199,10 +199,25 @@ public final class Property<T> {
     }
 
     private void setInternal(T newValue) {
-        if (Objects.equals(value, newValue)) return;
+        if (unchanged(value, newValue)) return;
         value = newValue;
         for (Runnable r : new ArrayList<>(invalidationListeners)) r.run();
         for (Consumer<T> l : new ArrayList<>(valueListeners)) l.accept(value);
+    }
+
+    // A value-change check that compares numbers by magnitude, not boxed identity: a
+    // layout/binding re-delivering the same number in a different box (Double 712.0 vs
+    // Long 712 vs Float 712.0f) is NOT a change. Objects.equals is type-strict, so without
+    // this such re-deliveries fire invalidation forever -- a 1-binding layout oscillation
+    // that never settles (ScrollBar implicitHeight: parent.height). NaN equals NaN here so
+    // an unset numeric (NaN) re-delivery also doesn't churn.
+    private static boolean unchanged(Object a, Object b) {
+        if (a instanceof Number && b instanceof Number) {
+            double da = ((Number) a).doubleValue();
+            double db = ((Number) b).doubleValue();
+            return da == db || (Double.isNaN(da) && Double.isNaN(db));
+        }
+        return Objects.equals(a, b);
     }
 
     private void clearBinding() {
@@ -230,7 +245,6 @@ public final class Property<T> {
             } finally {
                 BindingEvaluationContext.pop();
             }
-
             Runnable reeval = this::reevaluate;
             Runnable invalidate = () -> {
                 DirtyQueue dq = DirtyQueue.current();
