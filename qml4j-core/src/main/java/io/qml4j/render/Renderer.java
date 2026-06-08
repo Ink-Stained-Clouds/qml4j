@@ -89,6 +89,18 @@ public final class Renderer {
     // (an idle frame: nothing in the scene changed). Set by render(skipLayout=true).
     private boolean skipLayout;
 
+    // The GPU context of the surface being rendered, threaded to Painter so a Canvas item's
+    // offscreen backing is made on the same context (a raster offscreen won't blit on GPU).
+    private io.github.humbleui.skija.DirectContext gpuContext;
+
+    public void setGpuContext(io.github.humbleui.skija.DirectContext ctx) {
+        this.gpuContext = ctx;
+    }
+
+    io.github.humbleui.skija.DirectContext gpuContext() {
+        return gpuContext;
+    }
+
     public void render(Canvas canvas, Item root) {
         render(canvas, root, false);
     }

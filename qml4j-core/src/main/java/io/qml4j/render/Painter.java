@@ -87,12 +87,25 @@ public final class Painter {
     // onPaint handler -- particle sims, gradients -- re-runs every render frame regardless
     // of requestPaint, far above the widget's intended fps. (The QML Canvas item is FQN'd:
     // its simple name clashes with the imported skija Canvas this Painter draws through.)
+    // GPU-backed offscreen when rendering to a GPU surface (so the blit is GPU->GPU and
+    // composites every frame); raster when headless. Falls back to raster if the GPU
+    // surface can't be created.
+    private Surface makeBackingSurface(int w, int h) {
+        io.github.humbleui.skija.DirectContext ctx = renderer.gpuContext();
+        if (ctx != null) {
+            Surface gpu = Surface.makeRenderTarget(ctx, true,
+                io.github.humbleui.skija.ImageInfo.makeN32Premul(w, h));
+            if (gpu != null) return gpu;
+        }
+        return Surface.makeRasterN32Premul(w, h);
+    }
+
     public void paintCanvas(io.qml4j.render.items.core.Canvas node, float w, float h, float alpha) {
         int iw = Math.max(1, Math.round(w));
         int ih = Math.max(1, Math.round(h));
         if (node.backing == null || node.backingW != iw || node.backingH != ih) {
             if (node.backing != null) node.backing.close();
-            node.backing = Surface.makeRasterN32Premul(iw, ih);
+            node.backing = makeBackingSurface(iw, ih);
             node.backingW = iw;
             node.backingH = ih;
             node.dirty = true;

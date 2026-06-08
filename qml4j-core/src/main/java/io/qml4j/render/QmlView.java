@@ -163,6 +163,7 @@ public final class QmlView {
             // only its paint, not a full re-layout every frame.
             boolean skipLayout = Property.changeVersion() == renderedVersion;
             Canvas canvas = backend.acquireCanvas();
+            renderer.setGpuContext(backend.recordingContext());
             renderer.render(canvas, root, skipLayout);
             renderedVersion = Property.changeVersion();
             if (renderer.fpsOverlayEnabled()) drawFpsOverlay(canvas, now);

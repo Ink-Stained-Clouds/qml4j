@@ -48,6 +48,11 @@ public final class GlfwSurfaceBackend implements SurfaceBackend {
     }
 
     @Override
+    public DirectContext recordingContext() {
+        return context;
+    }
+
+    @Override
     public void present() {
         context.flush();
         GLFW.glfwSwapBuffers(window);
