@@ -14,6 +14,7 @@ import io.qml4j.render.TextLayout;
 
 import io.qml4j.engine.QObject;
 import io.qml4j.engine.binding.Property;
+import io.qml4j.engine.binding.ObservableList;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -41,7 +42,14 @@ public class Item extends QObject {
     public final Property<Boolean> clip = new Property<>(Boolean.FALSE);
     public final Property<Boolean> antialiasing = new Property<>(Boolean.FALSE);
     public final Property<Item> parent = new Property<>(null);
-    public final List<Item> children = new ArrayList<>();
+    // Declared List (the compiler emits children accesses with a java/util/List descriptor)
+    // but an ObservableList so structural changes re-evaluate dependent bindings.
+    public final List<Item> children = new ObservableList<>();
+    // Non-visual children (Behavior, ...) -- in the QML tree for the construction-complete
+    // arming walk, but never measured/laid-out/drawn, and not in `children` so a binding
+    // like `container.children[0]` resolves to the first real visual child (Qt: a Behavior
+    // is a property modifier, not a child).
+    public final List<Item> resources = new ArrayList<>();
     public final Anchors anchors = new Anchors();
     public final ChildrenRect childrenRect = new ChildrenRect();
     // QtQuick.Layouts attached props (Layout.fillWidth, Layout.leftMargin, ...).
@@ -104,6 +112,7 @@ public class Item extends QObject {
     public void initStateBindingsTree() {
         initStateBindings();
         for (Item c : children) c.initStateBindingsTree();
+        for (Item r : resources) r.initStateBindingsTree();
     }
 
     // A `visible:` binding may evaluate to undefined (peek() == null); treat that as the

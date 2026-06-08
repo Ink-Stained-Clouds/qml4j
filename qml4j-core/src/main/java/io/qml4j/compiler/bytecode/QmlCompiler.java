@@ -1169,9 +1169,12 @@ public final class QmlCompiler {
         verifyAttachable(behaviorType);
         Ast.ObjectNode synth = new Ast.ObjectNode(bm.typeName, bm.members);
         int behaviorLocal = localCounter[0];
+        // A Behavior is a non-visual property modifier: keep it in `resources` (still armed
+        // by the construction-complete walk) but out of `children`, so it is not measured/
+        // drawn and does not occupy a slot a `children[0]` binding would read.
         emitChildObjectInto(ctor, outerType, outerLocal, synth, registry,
                             localCounter, bindingCounter, handlerCounter, classes,
-                            componentBinaryName, idTypes, outerSignalParams, "children", declaredProps, rootFunctions);
+                            componentBinaryName, idTypes, outerSignalParams, "resources", declaredProps, rootFunctions);
 
         String behaviorInternal = Type.getInternalName(behaviorType);
         ctor.visitVarInsn(Opcodes.ALOAD, behaviorLocal);

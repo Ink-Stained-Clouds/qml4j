@@ -180,6 +180,8 @@ public final class QmlView {
                 }
             }
         }
+        // Non-visual children (Behavior) animate too, but live off the children list.
+        for (Item r : node.resources) tickAnimations(r, now);
     }
 
     public DirtyQueue dirtyQueue() {

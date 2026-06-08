@@ -1,6 +1,7 @@
 package io.qml4j.runtime.member;
 
 import io.qml4j.engine.binding.Property;
+import io.qml4j.engine.binding.ObservableList;
 import io.qml4j.runtime.convert.Coercion;
 import io.qml4j.runtime.qt.QColor;
 import io.qml4j.runtime.qt.QtColorFactory;
@@ -142,6 +143,11 @@ public final class MemberAccess {
         }
         if (val instanceof Property) {
             return ((Property<?>) val).get();
+        }
+        // A binding that reads an observable list (item.children) depends on its structure,
+        // so a child added later re-evaluates it (a container sizing to its content).
+        if (val instanceof ObservableList) {
+            ((ObservableList<?>) val).trackRead();
         }
         return val;
     }
