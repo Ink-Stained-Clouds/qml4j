@@ -3,7 +3,7 @@ package io.github.timer_err.qml4j.android;
 import android.view.KeyEvent;
 import android.view.inputmethod.BaseInputConnection;
 
-import io.github.timer_err.qml4j.render.items.TextEditable;
+import io.github.timer_err.qml4j.render.items.input.TextEditable;
 
 final class QmlInputConnection extends BaseInputConnection {
 

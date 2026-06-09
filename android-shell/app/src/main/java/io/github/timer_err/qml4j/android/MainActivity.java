@@ -73,6 +73,11 @@ public final class MainActivity extends Activity {
             new Page("Chip", "showcases/ChipShowcase.qml", d),
             new Page("Button", "showcases/ButtonShowcase.qml", d),
             new Page("Dialog", "showcases/DialogShowcase.qml", d),
+            new Page("Slider", "showcases/SliderShowcase.qml", d),
+            new Page("NavigationBar", "showcases/NavigationBarShowcase.qml", d),
+            new Page("SegmentedButton", "showcases/SegmentedButtonShowcase.qml", d),
+            new Page("Snackbar", "showcases/SnackbarShowcase.qml", d),
+            new Page("MD3 Gallery", "showcases/Md3GalleryShowcase.qml", d),
         };
     }
 

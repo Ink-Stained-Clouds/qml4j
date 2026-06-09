@@ -24,7 +24,7 @@ import io.github.timer_err.qml4j.engine.binding.DirtyQueue;
 import io.github.timer_err.qml4j.render.QmlView;
 import io.github.timer_err.qml4j.render.ResourceLoader;
 import io.github.timer_err.qml4j.render.SurfaceBackend;
-import io.github.timer_err.qml4j.render.items.TextEditable;
+import io.github.timer_err.qml4j.render.items.input.TextEditable;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
@@ -35,8 +35,6 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
     private final QmlEngine engine;
     private final ResourceLoader resources;
     private QmlView view;
-    // FQN: GLSurfaceView.Renderer (inherited) shadows imported Renderer in a subclass.
-    private final io.github.timer_err.qml4j.render.Renderer renderer = new io.github.timer_err.qml4j.render.Renderer();
     private SkijaGlSurface surface;
     // Logical-pixel scale: QML is authored in dp; render at the screen density so
     // Material components are physically sized (and the canvas drawn larger).
@@ -269,7 +267,6 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
                     }
                 });
                 view.load(qmlSource);
-                renderer.setResourceLoader(resources);
             }
             if (view.root() != null) {
                 view.root().width.set(width / uiScale);
@@ -288,6 +285,10 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
                 Canvas canvas = surface.acquireCanvas();
                 int sc = canvas.save();
                 canvas.scale(uiScale, uiScale);
+                // The view's own renderer is wired with the component factory + resource
+                // loader (via resources()); reuse it rather than a bare Renderer.
+                io.github.timer_err.qml4j.render.Renderer renderer = view.renderer();
+                renderer.setGpuContext(surface.recordingContext());
                 renderer.render(canvas, view.root());
                 canvas.restoreToCount(sc);
                 surface.present();
@@ -338,6 +339,9 @@ public final class QmlGLSurfaceView extends GLSurfaceView {
 
         @Override
         public int height() { return height; }
+
+        @Override
+        public DirectContext recordingContext() { return context; }
 
         @Override
         public void dispose() {
