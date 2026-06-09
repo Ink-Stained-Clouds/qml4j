@@ -1,10 +1,47 @@
-# qml4j
+<p align="center">
+  <img src="docs/logo.png" width="132" alt="qml4j">
+</p>
 
-[![Maven Central](https://img.shields.io/maven-central/v/io.github.timer-err/qml4j-core?label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.timer-err/qml4j-core)
+<h1 align="center">qml4j</h1>
 
-A pure-Java QML engine: parse `.qml` → JIT-compile the object tree to JVM bytecode (ASM) → evaluate bindings/expressions on embedded Rhino → render with Skia (Skija). Targets x86-64 desktop today; Android (D8 → DEX → `InMemoryDexClassLoader`) remains a milestone.
+<p align="center">
+  <b>A pure-Java QML engine.</b> Parse <code>.qml</code> → JIT to JVM bytecode → render with Skia.
+</p>
 
-> Status: pre-alpha, but capable. **All 10 pages of the unmodified upstream MD3 (Material Design 3) showcase app render** (Home, Color, Navigation, Settings, Typography, Icon, Pro, Components, Widgets, About) — dozens of MD3 components, carousels, animated canvas widgets, charts. 574 tests green; checkstyle CI guard. The whole engine was refactored to polymorphic dispatch + single-responsibility modules (the long-term conventions are in `CLAUDE.md` § *Dispatch & polymorphism*).
+<p align="center">
+  <a href="https://central.sonatype.com/artifact/io.github.timer-err/qml4j-core"><img src="https://img.shields.io/maven-central/v/io.github.timer-err/qml4j-core?label=Maven%20Central&color=7C6CF0" alt="Maven Central"></a>
+  <img src="https://img.shields.io/badge/Java-8%2B-7C6CF0" alt="Java 8+">
+  <img src="https://img.shields.io/badge/tests-585%20green-3FB950" alt="585 tests green">
+  <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache-2.0"></a>
+</p>
+
+---
+
+`.qml` source → JIT-compiled object tree (ASM bytecode) → bindings/expressions on embedded Rhino → pixels via Skija. No Qt, no C++, no codegen step — a `.qml` file becomes live JVM classes in-process. Runs on x86-64 desktop today; Android (D8 → DEX → `InMemoryDexClassLoader`) is a milestone.
+
+**Status — pre-alpha, but capable.** All 10 pages of the *unmodified* upstream MD3 (Material Design 3) showcase app render — Home, Color, Navigation, Settings, Typography, Icon, Pro, Components, Widgets, About — dozens of components, carousels, animated canvas widgets, charts. **585 tests green**, checkstyle CI guard. The engine was refactored to polymorphic dispatch + single-responsibility modules (conventions in `CLAUDE.md` § *Dispatch & polymorphism*).
+
+## Quick start
+
+```java
+import io.github.timer_err.qml4j.engine.QmlEngine;
+import io.github.timer_err.qml4j.render.QmlView;
+
+QmlView view = QmlView.withStockTypes(new QmlEngine());
+view.load(
+    "Rectangle {\n" +
+    "  width: 200; height: 100; color: \"#ff5050\"\n" +
+    "  Text { x: 8; y: 8; text: \"hello qml4j\"; color: \"#ffffff\" }\n" +
+    "}");
+// then, inside your render loop:  view.renderFrame(surfaceBackend);
+```
+
+Or run a whole QML project from disk, quickshell-style — point the desktop host at a directory and an entry file:
+
+```sh
+./run.sh shared-qml showcases/NavigationBarShowcase.qml
+./run.sh app          # the bundled upstream MD3 showcase app
+```
 
 ## Install
 
@@ -44,6 +81,21 @@ Existing options have gaps:
 
 qml4j aims to be a fully native-Java path from QML source to pixels — a drop-in engine that runs unmodified third-party QML libraries, not a hand-grown Controls clone.
 
+<p align="center">
+  <img src="https://img.shields.io/badge/parse-ANTLR4-70BF4F" alt="ANTLR4">
+  <img src="https://img.shields.io/badge/compile-ASM%20bytecode-465BA6" alt="ASM">
+  <img src="https://img.shields.io/badge/bindings-Rhino%20JS-7C6CF0" alt="Rhino">
+  <img src="https://img.shields.io/badge/render-Skija%20%E2%80%A2%20Skia-E94037" alt="Skija">
+  <img src="https://img.shields.io/badge/host-LWJGL%20%2F%20GLFW-E76F00" alt="LWJGL/GLFW">
+</p>
+
+<p align="center">
+  <a href="https://central.sonatype.com/artifact/io.github.timer-err/qml4j-core"><img src="https://img.shields.io/maven-central/v/io.github.timer-err/qml4j-core?label=Maven%20Central&color=7C6CF0" alt="Maven Central"></a>
+  <img src="https://img.shields.io/badge/desktop-Linux%20%E2%80%A2%20Windows-2BD46E" alt="Desktop">
+  <img src="https://img.shields.io/badge/Android-D8%20%E2%86%92%20DEX-A4C639" alt="Android">
+  <img src="https://img.shields.io/badge/MD3%20showcase-10%2F10%20pages-3FB950" alt="MD3 10/10 pages">
+</p>
+
 ## Architecture
 
 ```
@@ -76,7 +128,7 @@ The four original `qml4j-{parser,engine,compiler,render}` modules were merged in
 ### Design choices
 
 - **Runtime JIT, not source generation.** A `.qml` file becomes JVM classes inside the running process. On Android, the same `byte[]` is fed through D8 → DEX → `InMemoryDexClassLoader` (API 26+).
-- **The object tree is compiled; bindings are interpreted JS.** Each QML object becomes a generated `Component$N` class wired up in its constructor. Each non-literal binding/handler is JavaScript captured from source and run by **embedded Rhino** (`RhinoBinding`) against a `QmlScope` — there is no separate JS bytecode backend (the old ASM `ExpressionCodegen`/`StatementCodegen` were removed). An unresolvable identifier in a binding is a compile error.
+- **The object tree is compiled; bindings are interpreted JS.** Each QML object becomes a generated `Component$N` class wired up in its constructor. Each non-literal binding/handler is JavaScript captured from source and run by **embedded Rhino** (`RhinoBinding`) against a `QmlScope` — there is no separate JS bytecode backend (the old ASM `ExpressionCodegen`/`StatementCodegen` were removed). An unresolvable identifier in a binding is a compile error. So `Rectangle { width: parent.width / 2 }` becomes a `Component$N extends Rectangle` whose constructor binds `width` to a `RhinoBinding` carrying `"parent.width / 2"`; at evaluation Rhino resolves `parent` against the `QmlScope`, and reading `parent.width` registers the reactive dependency.
 - **Dependency tracking is automatic.** `Property.get()` registers itself with the active `BindingEvaluationContext` thread-local, so re-evaluation only needs to re-run the binding to refresh its subscription set; `DirtyQueue` coalesces redundant re-evaluations per frame.
 - **Polymorphic dispatch, not type switches.** Drawable items override `Item.paint(Painter)`; items with intrinsic size override `Item.measure(TextLayout)`; layout containers override `Item.layout()`. The compiler dispatches member emission through a `MemberEmitter` strategy map. See `CLAUDE.md` § *Dispatch & polymorphism*.
 - **Generated types are erased to `Object`/`Number`.** No type inference; runtime `convert` utilities coerce.
@@ -87,7 +139,7 @@ The four original `qml4j-{parser,engine,compiler,render}` modules were merged in
 Requires JDK 8+ (built with a JDK 21 toolchain), Maven 3.9+.
 
 ```sh
-mvn verify      # compile + 583 tests + checkstyle guard, all modules
+mvn verify      # compile + 585 tests + checkstyle guard, all modules
 ```
 
 ```sh
@@ -166,24 +218,6 @@ The engine is built to sit inside a host render loop that calls `renderFrame` ev
 - **`Canvas` `onPaint` is cached.** Each `Canvas` renders into an offscreen surface only when dirty (`requestPaint` / resize) and blits the cache otherwise, so an animated canvas runs its JS at its own fps and a static one runs once. (GPU-backed offscreen on the GL backend; the blit is snapped to integer device pixels for sharpness.)
 
 Net effect on the desktop GL host (uncapped, `QML4J_VSYNC=false`): static pages run 1000–2000fps, the component-heavy "Core" page ~400–500fps; pages with a full-screen animated background are bound by that canvas (~60fps). With vsync on (default) everything is a smooth 60.
-
-## A 10-line tour
-
-```java
-import io.github.timer_err.qml4j.engine.QmlEngine;
-import io.github.timer_err.qml4j.render.QmlView;
-
-QmlEngine engine = new QmlEngine();
-QmlView view = QmlView.withStockTypes(engine);
-view.load(
-    "Rectangle {\n" +
-    "  width: 200; height: 100; color: \"#ff5050\"\n" +
-    "  Text { x: 8; y: 8; text: \"hello qml4j\"; color: \"#ffffff\" }\n" +
-    "}");
-// view.renderFrame(surfaceBackend); per frame
-```
-
-For `Rectangle { width: parent.width / 2 }`, the compiler emits a `Component$N extends Rectangle` whose constructor binds `width` to a `RhinoBinding` carrying the source `"parent.width / 2"`; at evaluation Rhino resolves `parent` against the `QmlScope`, and reading `parent.width` registers the reactive dependency.
 
 ## Feature set
 
