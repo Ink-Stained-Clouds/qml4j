@@ -170,8 +170,8 @@ Net effect on the desktop GL host (uncapped, `QML4J_VSYNC=false`): static pages 
 ## A 10-line tour
 
 ```java
-import io.qml4j.engine.QmlEngine;
-import io.qml4j.render.QmlView;
+import io.github.timer_err.qml4j.engine.QmlEngine;
+import io.github.timer_err.qml4j.render.QmlView;
 
 QmlEngine engine = new QmlEngine();
 QmlView view = QmlView.withStockTypes(engine);
