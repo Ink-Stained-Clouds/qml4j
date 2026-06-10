@@ -37,9 +37,15 @@ final class EventDispatcher {
     private Flickable scrolling;
     private float scrollStartContentX;
     private float scrollStartContentY;
+    // The Flickable under a captured MouseArea, eligible to steal the gesture for
+    // scrolling once the drag passes DRAG_THRESHOLD (Qt's flick-steals-from-child
+    // behaviour: a press on a clickable row still scrolls the list when dragged).
+    private Flickable pendingFlick;
 
     // Pixels of content moved per mouse-wheel notch (GLFW reports ~±1 per notch).
     private static final float WHEEL_STEP = 48f;
+    // Drag distance (logical px) past which a Flickable steals from a child MouseArea.
+    private static final float DRAG_THRESHOLD = 10f;
     private TextEditable textCapturing;
     private Clipboard clipboard;
 
@@ -301,6 +307,13 @@ final class EventDispatcher {
             setContains(hit, true);
             hit.pressedSignal.emit(new MouseEvent(local[0], local[1]));
             beginDragIfRequested(hit);
+            // If the MouseArea isn't dragging its own target, remember the
+            // Flickable beneath it so a drag past threshold scrolls the list.
+            pendingFlick = dragTarget == null ? hitTestFlickable(root, x, y) : null;
+            if (pendingFlick != null) {
+                scrollStartContentX = pendingFlick.contentX.peekFloat();
+                scrollStartContentY = pendingFlick.contentY.peekFloat();
+            }
             return true;
         }
         Flickable f = hitTestFlickable(root, x, y);
@@ -320,6 +333,9 @@ final class EventDispatcher {
             return true;
         }
         if (captured != null) {
+            if (pendingFlick != null && dragTarget == null && stealsToFlick(x, y)) {
+                return true;
+            }
             float[] local = localCoords(captured, x, y);
             captured.mouseX.set(local[0]);
             captured.mouseY.set(local[1]);
@@ -376,6 +392,7 @@ final class EventDispatcher {
             return true;
         }
         if (captured != null) {
+            pendingFlick = null;
             MouseArea target = captured;
             float[] local = localCoords(target, x, y);
             target.mouseX.set(local[0]);
@@ -447,6 +464,31 @@ final class EventDispatcher {
         if (dragTarget == null) return;
         hit.drag.active.set(Boolean.FALSE);
         dragTarget = null;
+    }
+
+    // True once a captured MouseArea's drag passes the threshold along the
+    // Flickable's scroll axis: cancels the MouseArea press (no click) and hands
+    // the live gesture to the Flickable, so list rows stay tappable yet scroll.
+    private boolean stealsToFlick(float x, float y) {
+        String dir = pendingFlick.flickableDirection.peek();
+        boolean allowX = !"VerticalFlick".equals(dir);
+        boolean allowY = !"HorizontalFlick".equals(dir);
+        boolean past = (allowY && Math.abs(y - captureRootY) > DRAG_THRESHOLD)
+                    || (allowX && Math.abs(x - captureRootX) > DRAG_THRESHOLD);
+        if (!past) return false;
+        MouseArea ma = captured;
+        ma.pressed.set(Boolean.FALSE);
+        setContains(ma, false);
+        captured = null;
+        scrolling = pendingFlick;
+        pendingFlick = null;
+        scrolling.moving.set(Boolean.TRUE);
+        captureRootX = x;
+        captureRootY = y;
+        scrollStartContentX = scrolling.contentX.peekFloat();
+        scrollStartContentY = scrolling.contentY.peekFloat();
+        applyScroll(x, y);
+        return true;
     }
 
     private void applyScroll(float rootX, float rootY) {
