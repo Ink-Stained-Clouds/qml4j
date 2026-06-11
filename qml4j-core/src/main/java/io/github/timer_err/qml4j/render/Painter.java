@@ -118,8 +118,16 @@ public final class Painter {
             }
             return;
         }
-        int iw = Math.max(1, Math.round(w));
-        int ih = Math.max(1, Math.round(h));
+        // Back the canvas at DEVICE resolution: the main canvas carries the host
+        // uiScale, so a logical-sized backing (w x h) gets upsampled blurry on
+        // blit. Size the offscreen by the live logical->device scale and render
+        // onPaint into it scaled to match, then blit it back 1:1 in device px.
+        float[] m = canvas.getLocalToDevice().getMat();
+        float sx = m[0], sy = m[5], tx = m[3], ty = m[7];
+        float dsx = Math.abs(sx) < 0.01f ? 1f : Math.abs(sx);
+        float dsy = Math.abs(sy) < 0.01f ? 1f : Math.abs(sy);
+        int iw = Math.max(1, Math.round(w * dsx));
+        int ih = Math.max(1, Math.round(h * dsy));
         if (node.backing == null || node.backingW != iw || node.backingH != ih) {
             if (node.backing != null) node.backing.close();
             node.backing = makeBackingSurface(iw, ih);
@@ -136,6 +144,9 @@ public final class Painter {
             // blanks after a few frames.
             int sv = bc.save();
             bc.clear(0x00000000);
+            // onPaint draws in logical coords (0..w, 0..h); scale up to fill the
+            // device-resolution backing so the result is crisp.
+            bc.scale(dsx, dsy);
             node.bindContext(new Context2D(bc, renderer));
             try {
                 node.paint.emit();
@@ -153,15 +164,14 @@ public final class Painter {
         p.setShader(null);
         p.setMode(PaintMode.FILL);
         p.setColor(Renderer.applyAlpha(0xFFFFFFFF, alpha));
-        // Snap the blit to an integer device pixel: a canvas centred at a fractional device
-        // position (a small spinner inside a container) would otherwise resample the backing
-        // bitmap and look blurry, where direct vector drawing stays crisp.
-        float[] m = canvas.getLocalToDevice().getMat();
-        float sx = m[0], sy = m[5], tx = m[3], ty = m[7];
+        // Snap the blit to an integer device pixel (a canvas centred at a fractional
+        // device position would resample blurry), then scale the device-res backing
+        // back down so its pixels land 1:1 on device pixels.
         int save = canvas.save();
         if (sx != 0 && sy != 0) {
             canvas.translate((Math.round(tx) - tx) / sx, (Math.round(ty) - ty) / sy);
         }
+        canvas.scale(1f / dsx, 1f / dsy);
         node.backing.draw(canvas, 0, 0, p);
         canvas.restoreToCount(save);
     }
