@@ -41,6 +41,13 @@ final class EventDispatcher {
     // scrolling once the drag passes DRAG_THRESHOLD (Qt's flick-steals-from-child
     // behaviour: a press on a clickable row still scrolls the list when dragged).
     private Flickable pendingFlick;
+    // Drag velocity (content px/sec) tracked during a scroll, handed to the
+    // Flickable on release so it coasts (fling/inertia).
+    private float velX;
+    private float velY;
+    private long lastMoveNanos;
+    private float lastMoveRootX;
+    private float lastMoveRootY;
 
     // Pixels of content moved per mouse-wheel notch (GLFW reports ~±1 per notch).
     private static final float WHEEL_STEP = 48f;
@@ -311,6 +318,7 @@ final class EventDispatcher {
             // Flickable beneath it so a drag past threshold scrolls the list.
             pendingFlick = dragTarget == null ? hitTestFlickable(root, x, y) : null;
             if (pendingFlick != null) {
+                pendingFlick.stopFling();
                 scrollStartContentX = pendingFlick.contentX.peekFloat();
                 scrollStartContentY = pendingFlick.contentY.peekFloat();
             }
@@ -318,12 +326,14 @@ final class EventDispatcher {
         }
         Flickable f = hitTestFlickable(root, x, y);
         if (f == null) return false;
+        f.stopFling();
         scrolling = f;
         f.moving.set(Boolean.TRUE);
         captureRootX = x;
         captureRootY = y;
         scrollStartContentX = f.contentX.peekFloat();
         scrollStartContentY = f.contentY.peekFloat();
+        beginScrollVelocity(x, y);
         return true;
     }
 
@@ -410,7 +420,7 @@ final class EventDispatcher {
         }
         if (scrolling != null) {
             applyScroll(x, y);
-            scrolling.moving.set(Boolean.FALSE);
+            scrolling.startFling(velX, velY);
             scrolling = null;
             return true;
         }
@@ -487,11 +497,38 @@ final class EventDispatcher {
         captureRootY = y;
         scrollStartContentX = scrolling.contentX.peekFloat();
         scrollStartContentY = scrolling.contentY.peekFloat();
+        beginScrollVelocity(x, y);
         applyScroll(x, y);
         return true;
     }
 
+    // Begin (or restart) velocity tracking for a fresh drag at (x, y).
+    private void beginScrollVelocity(float x, float y) {
+        velX = 0f;
+        velY = 0f;
+        lastMoveRootX = x;
+        lastMoveRootY = y;
+        lastMoveNanos = System.nanoTime();
+    }
+
+    // Update the running drag velocity from a move. Content moves opposite the
+    // finger, so content velocity = -(finger delta)/dt; smoothed to ride out jitter.
+    private void trackScrollVelocity(float x, float y) {
+        long now = System.nanoTime();
+        float dt = (now - lastMoveNanos) / 1_000_000_000f;
+        if (dt > 0.001f) {
+            float ivx = -(x - lastMoveRootX) / dt;
+            float ivy = -(y - lastMoveRootY) / dt;
+            velX = 0.4f * velX + 0.6f * ivx;
+            velY = 0.4f * velY + 0.6f * ivy;
+            lastMoveRootX = x;
+            lastMoveRootY = y;
+            lastMoveNanos = now;
+        }
+    }
+
     private void applyScroll(float rootX, float rootY) {
+        trackScrollVelocity(rootX, rootY);
         Flickable f = scrolling;
         String dir = f.flickableDirection.peek();
         boolean allowX = !"VerticalFlick".equals(dir);
