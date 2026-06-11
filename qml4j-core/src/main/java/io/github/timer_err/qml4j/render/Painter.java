@@ -108,6 +108,13 @@ public final class Painter {
     // static canvases). -Dqml4j.canvasCache=false falls back to per-frame direct draw.
     private static final boolean CANVAS_CACHE = !"false".equals(System.getProperty("qml4j.canvasCache", "true"));
 
+    // Snap a device scale to 0.5 steps (min 1) so transient scale animations don't
+    // resize the canvas backing every frame.
+    private static float quantizeScale(float s) {
+        if (s < 0.01f) return 1f;
+        return Math.max(1f, Math.round(s * 2f) / 2f);
+    }
+
     public void paintCanvas(io.github.timer_err.qml4j.render.items.core.Canvas node, float w, float h, float alpha) {
         if (!CANVAS_CACHE) {
             node.bindContext(context2D());
@@ -124,8 +131,14 @@ public final class Painter {
         // onPaint into it scaled to match, then blit it back 1:1 in device px.
         float[] m = canvas.getLocalToDevice().getMat();
         float sx = m[0], sy = m[5], tx = m[3], ty = m[7];
-        float dsx = Math.abs(sx) < 0.01f ? 1f : Math.abs(sx);
-        float dsy = Math.abs(sy) < 0.01f ? 1f : Math.abs(sy);
+        // Quantise the backing scale (snap to 0.5 steps) so a transient item-scale
+        // animation (a dialog popping 0.9->1.0) doesn't change the offscreen size
+        // every frame -- that would recreate + repaint the backing each frame and
+        // stutter the animation. The blit below still uses the live matrix scale,
+        // so the result stays correctly sized; only the cached resolution is
+        // pinned. Residual scale just resamples the (already device-res) cache.
+        float dsx = quantizeScale(Math.abs(sx));
+        float dsy = quantizeScale(Math.abs(sy));
         int iw = Math.max(1, Math.round(w * dsx));
         int ih = Math.max(1, Math.round(h * dsy));
         if (node.backing == null || node.backingW != iw || node.backingH != ih) {
