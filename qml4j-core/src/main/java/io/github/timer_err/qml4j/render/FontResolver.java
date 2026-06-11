@@ -24,6 +24,11 @@ final class FontResolver {
     private ResourceLoader resources;
 
     private final Map<Integer, Typeface> symbolCache = new HashMap<>();
+    // Cache resolved Fonts: building a Skija Font per text per frame (this runs in
+    // both the measure pass and the draw) churned native objects and stuttered
+    // text-heavy frames. Font/Typeface are CPU objects (no GPU handle), so caching
+    // them across frames is safe; callers must NOT close the returned Font.
+    private final Map<String, Font> fontCache = new HashMap<>();
 
     private static final String[] LATIN_CANDIDATES = {
         null, "sans-serif", "Roboto", "Droid Sans", "Arial"
@@ -54,8 +59,17 @@ final class FontResolver {
         else if (needsCjk(text)) tf = cjkTypeface();
         else if (bold) { tf = boldTypeface(); realBold = tf != null; }
         if (tf == null) tf = defaultTypeface();
+        boolean embolden = bold && !realBold;
+        String key = System.identityHashCode(tf) + ":" + size + ":" + embolden;
+        Font cached = fontCache.get(key);
+        if (cached != null) return cached;
         Font f = tf != null ? new Font(tf, size) : new Font().setSize(size);
-        return (bold && !realBold) ? f.setEmboldened(true) : f;
+        // Subpixel glyph positioning: text scrolls/animates smoothly instead of
+        // snapping each glyph to the pixel grid frame to frame.
+        f.setSubpixel(true);
+        if (embolden) f.setEmboldened(true);
+        fontCache.put(key, f);
+        return f;
     }
 
     Font font(float size) {

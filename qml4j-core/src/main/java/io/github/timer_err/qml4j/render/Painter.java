@@ -228,7 +228,7 @@ public final class Painter {
     public void drawWrappedText(String s, float boxW, int argb, float size,
                                 int wrapModeEnum, boolean elideRight, boolean bold, int hAlign) {
         String wrapMode = TextLayout.wrapModeString(wrapModeEnum);
-        try (Font font = renderer.fonts().fontFor(size, s, bold)) {
+        { Font font = renderer.fonts().fontFor(size, s, bold);
             String[] lines = (wrapMode != null && boxW > 0f)
                 ? TextWrap.wrap(s, wrapMode, boxW, seg -> font.measureTextWidth(seg))
                       .lines.toArray(new String[0])
@@ -259,7 +259,7 @@ public final class Painter {
 
     // A single line of text, horizontally centred and baseline-centred in the box.
     public void drawCenteredText(String s, float boxW, float boxH, int argb, float size) {
-        try (Font font = renderer.fonts().fontFor(size, s)) {
+        { Font font = renderer.fonts().fontFor(size, s);
             float tw = font.measureTextWidth(s);
             float tx = (boxW - tw) / 2f;
             float ty = TextLayout.centeredBaseline(font, boxH);
@@ -727,7 +727,7 @@ public final class Painter {
             if (s == null || s.isEmpty()) {
                 String ph = tf.placeholderText.peek();
                 if (ph != null && !ph.isEmpty()) {
-                    try (Font font = renderer.fonts().fontFor(size, ph)) {
+                    { Font font = renderer.fonts().fontFor(size, ph);
                         p.setColor(Renderer.applyAlpha(Renderer.parseColor(tf.placeholderTextColor.peek()), alpha));
                         canvas.drawString(ph, 0, TextLayout.centeredBaseline(font, h), font, p);
                     }
@@ -760,7 +760,7 @@ public final class Painter {
         String s = echoDisplay(ti);
         if (s == null) s = "";
         float size = ti.fontSize.peekFloat();
-        try (Font font = renderer.fonts().fontFor(size, s)) {
+        { Font font = renderer.fonts().fontFor(size, s);
             float baseline = TextLayout.centeredBaseline(font, h);
             float glyphTop = baseline + TextLayout.glyphTopOffset(font);
             float glyphHeight = TextLayout.glyphExtent(font);
@@ -800,7 +800,7 @@ public final class Painter {
         String s = te.text.peek();
         if (s == null) s = "";
         float size = te.fontSize.peekFloat();
-        try (Font font = renderer.fonts().fontFor(size, s)) {
+        { Font font = renderer.fonts().fontFor(size, s);
             TextWrap.Result wrapped = renderer.textLayout().wrapFor(te, s, w, size, font);
             te.lineCount.set(wrapped.lines.size());
             float lineH = TextLayout.lineHeight(font);

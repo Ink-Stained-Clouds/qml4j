@@ -67,7 +67,7 @@ public final class TextLayout {
             w = t.cachedW;
             h = t.cachedH;
         } else {
-            try (Font font = fonts.fontFor(size, s, bold)) {
+            { Font font = fonts.fontFor(size, s, bold);
                 float mw = 0f;
                 for (String line : lines) {
                     float lw = font.measureTextWidth(line);
@@ -105,7 +105,7 @@ public final class TextLayout {
         float size = b.fontSize.peekFloat();
         String label = b.text.peek();
         float tw, textH;
-        try (Font font = fonts.fontFor(size, label == null ? "" : label)) {
+        { Font font = fonts.fontFor(size, label == null ? "" : label);
             tw = (label == null || label.isEmpty()) ? 0f : font.measureTextWidth(label);
             textH = lineHeight(font);
         }
