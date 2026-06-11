@@ -22,64 +22,124 @@ public class Flickable extends Item implements Animatable {
     // documents load (no delayed-press synthesis here).
     public final Property<Number> pressDelay = new Property<>(0);
 
-    // --- Flick / inertia -------------------------------------------------
-    // Velocity (content px/sec) after the finger releases; decays under DECEL
-    // until it falls below MIN_FLING or the content hits an edge. Stepped each
-    // frame by tick() (the render loop walks Animatable nodes).
+    // --- Eased scrolling + fling -----------------------------------------
+    // Drag/wheel/fling set a target position; the shown contentX/Y eases toward
+    // it each frame (a smoothing layer over the raw input). On release the
+    // residual velocity keeps advancing the target (inertia). Stepped by tick()
+    // since Flickable is Animatable and the render loop walks those.
+    private float targetX;
+    private float targetY;
+    private boolean smoothing;
     private float flingVX;
     private float flingVY;
     private boolean flinging;
-    private long flingLastNanos;
-    private static final float DECEL = 2200f;     // px/s^2
-    private static final float MIN_FLING = 50f;   // px/s
+    private long lastNanos;
+    private static final float DECEL = 2200f;    // px/s^2
+    private static final float MIN_FLING = 50f;  // px/s
+    private static final float EASE = 18f;       // higher = snappier follow
 
-    /** Begin coasting with the given release velocity (content px/sec). */
-    public void startFling(float vx, float vy) {
-        flingVX = vx;
-        flingVY = vy;
-        flinging = Math.abs(vx) > MIN_FLING || Math.abs(vy) > MIN_FLING;
-        flingLastNanos = 0L;
-        moving.set(flinging);
+    private float maxX() {
+        return Math.max(0f, contentWidth.peekFloat() + rightMargin.peekFloat() - width.peekFloat());
     }
 
-    /** Cancel any coast (a new touch landed on the flickable). */
+    private float maxY() {
+        return Math.max(0f, contentHeight.peekFloat() + bottomMargin.peekFloat() - height.peekFloat());
+    }
+
+    /** Set the absolute scroll target (clamped); content eases toward it. */
+    public void setScrollTarget(float x, float y) {
+        targetX = clamp(x, 0f, maxX());
+        targetY = clamp(y, 0f, maxY());
+        smoothing = true;
+    }
+
+    /** Adjust the target by a delta (wheel notches accumulate before the ease catches up). */
+    public void nudge(float dx, float dy) {
+        setScrollTarget(targetX + dx, targetY + dy);
+    }
+
+    /** Pin the target to the current (instantly-set) content position. Drag and
+     *  wheel set contentX/Y directly for a 1:1 feel; this keeps the eased target
+     *  in step so a following fling coasts from the right place. */
+    public void syncTarget() {
+        targetX = contentX.peekFloat();
+        targetY = contentY.peekFloat();
+    }
+
+    /** A fresh touch: drop any coast and pin the target to where we are now. */
+    public void stopScroll() {
+        flinging = false;
+        smoothing = false;
+        syncTarget();
+    }
+
     public void stopFling() {
         flinging = false;
     }
 
+    /** Release velocity (content px/sec) that keeps advancing the target; the
+     *  shown position eases after it (the smooth inertial glide). */
+    public void startFling(float vx, float vy) {
+        flingVX = vx;
+        flingVY = vy;
+        flinging = Math.abs(vx) > MIN_FLING || Math.abs(vy) > MIN_FLING;
+        smoothing = flinging;
+        moving.set(flinging);
+    }
+
+    public float targetX() {
+        return targetX;
+    }
+
+    public float targetY() {
+        return targetY;
+    }
+
     @Override
     public void tick(long nowNanos) {
-        if (!flinging) return;
-        if (flingLastNanos == 0L) {
-            flingLastNanos = nowNanos;
+        if (!smoothing && !flinging) return;
+        if (lastNanos == 0L) {
+            lastNanos = nowNanos;
             return;
         }
-        float dt = (nowNanos - flingLastNanos) / 1_000_000_000f;
-        flingLastNanos = nowNanos;
+        float dt = (nowNanos - lastNanos) / 1_000_000_000f;
+        lastNanos = nowNanos;
         if (dt <= 0f) return;
-        if (dt > 0.05f) dt = 0.05f; // clamp a stalled frame so a big jump doesn't teleport
+        if (dt > 0.05f) dt = 0.05f;
 
         String dir = flickableDirection.peek();
         boolean allowX = !"VerticalFlick".equals(dir);
         boolean allowY = !"HorizontalFlick".equals(dir);
-        float maxX = Math.max(0f, contentWidth.peekFloat() + rightMargin.peekFloat() - width.peekFloat());
-        float maxY = Math.max(0f, contentHeight.peekFloat() + bottomMargin.peekFloat() - height.peekFloat());
+        float mx = maxX(), my = maxY();
 
-        if (allowX && flingVX != 0f) {
-            float nx = clamp(contentX.peekFloat() + flingVX * dt, 0f, maxX);
-            contentX.set(nx);
-            if (nx <= 0f || nx >= maxX) flingVX = 0f;
-            else flingVX = decay(flingVX, dt);
-        }
-        if (allowY && flingVY != 0f) {
-            float ny = clamp(contentY.peekFloat() + flingVY * dt, 0f, maxY);
-            contentY.set(ny);
-            if (ny <= 0f || ny >= maxY) flingVY = 0f;
-            else flingVY = decay(flingVY, dt);
+        // Inertia advances the target; hitting an edge kills that axis.
+        if (flinging) {
+            if (allowX && flingVX != 0f) {
+                targetX = clamp(targetX + flingVX * dt, 0f, mx);
+                flingVX = (targetX <= 0f || targetX >= mx) ? 0f : decay(flingVX, dt);
+            }
+            if (allowY && flingVY != 0f) {
+                targetY = clamp(targetY + flingVY * dt, 0f, my);
+                flingVY = (targetY <= 0f || targetY >= my) ? 0f : decay(flingVY, dt);
+            }
+            if (Math.abs(flingVX) < MIN_FLING && Math.abs(flingVY) < MIN_FLING) {
+                flinging = false;
+            }
         }
 
-        if (Math.abs(flingVX) < MIN_FLING && Math.abs(flingVY) < MIN_FLING) {
-            flinging = false;
+        // Ease the shown position toward the target (frame-rate independent).
+        float a = 1f - (float) Math.exp(-EASE * dt);
+        float cx = contentX.peekFloat();
+        float cy = contentY.peekFloat();
+        float nx = cx + (targetX - cx) * a;
+        float ny = cy + (targetY - cy) * a;
+        if (Math.abs(targetX - nx) < 0.25f) nx = targetX;
+        if (Math.abs(targetY - ny) < 0.25f) ny = targetY;
+        if (allowX) contentX.set(nx);
+        if (allowY) contentY.set(ny);
+
+        if (!flinging && nx == targetX && ny == targetY) {
+            smoothing = false;
             moving.set(Boolean.FALSE);
         }
     }

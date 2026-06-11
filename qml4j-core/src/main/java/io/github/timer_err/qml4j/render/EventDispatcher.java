@@ -318,7 +318,7 @@ final class EventDispatcher {
             // Flickable beneath it so a drag past threshold scrolls the list.
             pendingFlick = dragTarget == null ? hitTestFlickable(root, x, y) : null;
             if (pendingFlick != null) {
-                pendingFlick.stopFling();
+                pendingFlick.stopScroll();
                 scrollStartContentX = pendingFlick.contentX.peekFloat();
                 scrollStartContentY = pendingFlick.contentY.peekFloat();
             }
@@ -326,7 +326,7 @@ final class EventDispatcher {
         }
         Flickable f = hitTestFlickable(root, x, y);
         if (f == null) return false;
-        f.stopFling();
+        f.stopScroll();
         scrolling = f;
         f.moving.set(Boolean.TRUE);
         captureRootX = x;
@@ -542,14 +542,15 @@ final class EventDispatcher {
         // brought fully into view.
         float maxX = Math.max(0f, cw + f.rightMargin.peekFloat() - w);
         float maxY = Math.max(0f, ch + f.bottomMargin.peekFloat() - h);
+        // Drag tracks the finger 1:1 (responsive); the eased glide is only the
+        // release inertia. Keep the fling target in step via syncTarget.
         if (allowX) {
-            float nx = clamp(scrollStartContentX - (rootX - captureRootX), 0f, maxX);
-            f.contentX.set(nx);
+            f.contentX.set(clamp(scrollStartContentX - (rootX - captureRootX), 0f, maxX));
         }
         if (allowY) {
-            float ny = clamp(scrollStartContentY - (rootY - captureRootY), 0f, maxY);
-            f.contentY.set(ny);
+            f.contentY.set(clamp(scrollStartContentY - (rootY - captureRootY), 0f, maxY));
         }
+        f.syncTarget();
     }
 
     // Mouse wheel over the innermost interactive Flickable at (x, y): dx/dy are wheel
@@ -576,6 +577,7 @@ final class EventDispatcher {
             f.contentX.set(clamp(f.contentX.peekFloat() - dx * WHEEL_STEP, 0f, maxX));
             scrolled = true;
         }
+        if (scrolled) f.syncTarget();
         return scrolled;
     }
 
