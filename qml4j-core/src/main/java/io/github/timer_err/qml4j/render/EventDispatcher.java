@@ -545,10 +545,10 @@ final class EventDispatcher {
         // Drag tracks the finger 1:1 (responsive); the eased glide is only the
         // release inertia. Keep the fling target in step via syncTarget.
         if (allowX) {
-            f.contentX.set(clamp(scrollStartContentX - (rootX - captureRootX), 0f, maxX));
+            f.contentX.setPaintOnly(clamp(scrollStartContentX - (rootX - captureRootX), 0f, maxX));
         }
         if (allowY) {
-            f.contentY.set(clamp(scrollStartContentY - (rootY - captureRootY), 0f, maxY));
+            f.contentY.setPaintOnly(clamp(scrollStartContentY - (rootY - captureRootY), 0f, maxY));
         }
         f.syncTarget();
     }
@@ -567,14 +567,14 @@ final class EventDispatcher {
         boolean scrolled = false;
         float vy = -dy * WHEEL_STEP;
         if (allowY && maxY > 0f) {
-            f.contentY.set(clamp(f.contentY.peekFloat() + vy, 0f, maxY));
+            f.contentY.setPaintOnly(clamp(f.contentY.peekFloat() + vy, 0f, maxY));
             scrolled = true;
         } else if (allowX && maxX > 0f) {
-            f.contentX.set(clamp(f.contentX.peekFloat() + vy, 0f, maxX));
+            f.contentX.setPaintOnly(clamp(f.contentX.peekFloat() + vy, 0f, maxX));
             scrolled = true;
         }
         if (allowX && maxX > 0f && dx != 0f) {
-            f.contentX.set(clamp(f.contentX.peekFloat() - dx * WHEEL_STEP, 0f, maxX));
+            f.contentX.setPaintOnly(clamp(f.contentX.peekFloat() - dx * WHEEL_STEP, 0f, maxX));
             scrolled = true;
         }
         if (scrolled) f.syncTarget();

@@ -170,7 +170,22 @@ public final class Renderer {
         node.measure(text);
         followImplicitSize(node);
         // Children first so a container can size itself from their measured sizes.
-        for (Item child : node.children) measure(child);
+        // An invisible child's whole subtree (e.g. the off-screen pages of a
+        // StackLayout) is never drawn; measuring it every frame is pure waste. Still
+        // resolve the hidden child's OWN size + anchors so a parked-while-hidden item
+        // (a SideSheet panel at x: parent.width) lands correctly -- just don't recurse
+        // into its descendants. They get a full measure the frame it becomes visible.
+        for (Item child : node.children) {
+            if (child.isVisible()) {
+                measure(child);
+            } else {
+                if (child instanceof Loader) resolveLoader((Loader) child);
+                child.measure(text);
+                followImplicitSize(child);
+                runLayout(child);
+                applyAnchors(child);
+            }
+        }
         runLayout(node);
         applyAnchors(node);
         updateChildrenRect(node);

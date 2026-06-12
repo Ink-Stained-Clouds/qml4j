@@ -74,6 +74,19 @@ public final class Property<T> {
         setInternal(newValue);
     }
 
+    // Set without bumping the global change-version (but still notify dependents).
+    // For paint-only state -- a Flickable's contentX/Y, which the renderer applies
+    // as a draw-time translate and which affects no item's measured geometry. A pure
+    // scroll frame thus keeps the idle layout-skip fast path: dependents (a windowed
+    // list's `first` binding) still re-evaluate and, if they actually change, bump
+    // the version themselves so the needed relayout still happens.
+    public void setPaintOnly(T newValue) {
+        if (unchanged(value, newValue)) return;
+        value = newValue;
+        for (Runnable r : new ArrayList<>(invalidationListeners)) r.run();
+        for (Consumer<T> l : new ArrayList<>(valueListeners)) l.accept(value);
+    }
+
     // A change that originates from the widget itself (the user typing into a TextInput),
     // not a QML imperative assignment. Unlike set(), it PRESERVES any binding so a two-way
     // `text: control.text` + `onTextChanged: control.text = text` pattern keeps working: the

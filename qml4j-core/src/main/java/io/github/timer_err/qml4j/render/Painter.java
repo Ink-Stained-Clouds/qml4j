@@ -235,6 +235,35 @@ public final class Painter {
         return textLine(font, s).getWidth();
     }
 
+    // Elision (…) recomputed for every label every frame measured each substring
+    // via uncached shaping -- a real per-frame draw cost on text-heavy screens.
+    // Cache the elided result per (font, width, text).
+    private final Map<String, String> elideCache =
+        new java.util.LinkedHashMap<String, String>(256, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<String, String> e) {
+                return size() > 600;
+            }
+        };
+
+    private String elideRightToWidth(Font font, String line, float boxW) {
+        if (boxW <= 0f) return line;
+        String key = System.identityHashCode(font) + "|" + Math.round(boxW) + "|" + line;
+        String hit = elideCache.get(key);
+        if (hit != null) return hit;
+        String result;
+        if (textWidth(font, line) <= boxW) {
+            result = line;
+        } else {
+            float ellW = textWidth(font, "…");
+            int end = line.length();
+            while (end > 0 && textWidth(font, line.substring(0, end)) + ellW > boxW) end--;
+            result = line.substring(0, end) + "…";
+        }
+        elideCache.put(key, result);
+        return result;
+    }
+
     public void drawIconGlyph(String name, float boxH, int argb, float size) {
         Font f = iconFonts.computeIfAbsent(size, sz -> new Font(renderer.fonts().iconTypeface(), sz));
         TextLine line = iconLines.computeIfAbsent(name + '\0' + size, k -> TextLine.make(name, f));
@@ -266,7 +295,7 @@ public final class Painter {
             p.setColor(argb);
             for (int i = 0; i < lines.length; i++) {
                 if (lines[i].isEmpty()) continue;
-                String line = elideRight ? TextLayout.elideToWidth(lines[i], font, boxW) : lines[i];
+                String line = elideRight ? elideRightToWidth(font, lines[i], boxW) : lines[i];
                 float tx = lineOffset(line, font, boxW, hAlign);
                 canvas.drawTextLine(textLine(font, line), tx, baseline0 + i * lineH, p);
             }

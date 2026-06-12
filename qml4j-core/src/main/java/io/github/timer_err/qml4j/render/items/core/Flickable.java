@@ -135,8 +135,10 @@ public class Flickable extends Item implements Animatable {
         float ny = cy + (targetY - cy) * a;
         if (Math.abs(targetX - nx) < 0.25f) nx = targetX;
         if (Math.abs(targetY - ny) < 0.25f) ny = targetY;
-        if (allowX) contentX.set(nx);
-        if (allowY) contentY.set(ny);
+        // Paint-only: a scroll offset is a draw-time translate, so it must not force
+        // a relayout -- dependents still react, but a pure scroll keeps the fast path.
+        if (allowX) contentX.setPaintOnly(nx);
+        if (allowY) contentY.setPaintOnly(ny);
 
         if (!flinging && nx == targetX && ny == targetY) {
             smoothing = false;
