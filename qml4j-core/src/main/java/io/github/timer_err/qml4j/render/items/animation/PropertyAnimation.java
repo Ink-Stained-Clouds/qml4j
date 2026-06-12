@@ -5,6 +5,7 @@ import io.github.timer_err.qml4j.render.items.core.Item;
 import io.github.timer_err.qml4j.engine.binding.Property;
 
 public class PropertyAnimation extends AbstractAnimation {
+
     public final Property<Object> target = new Property<>(null);
     public final Property<String> property = new Property<>(null);
     public final Property<String> properties = new Property<>(null);
@@ -22,11 +23,13 @@ public class PropertyAnimation extends AbstractAnimation {
     protected Object preparedTo;
 
     // `NumberAnimation on x { ... }` -- an animation attached directly to a property
-    // (the animation-as-Behavior shorthand). Targets owner.prop and runs immediately.
+    // (the animation-as-Behavior shorthand). Targets owner.prop. Auto-start is NOT
+    // done here: the compiler emits start() only when the QML didn't bind `running`
+    // itself, so an explicit `running:` binding wins (else it would spin forever
+    // ignoring its own condition, keeping the scene perpetually dirty).
     public void attach(Object owner, String prop) {
         target.set(owner);
         property.set(prop);
-        start();
     }
 
     @Override

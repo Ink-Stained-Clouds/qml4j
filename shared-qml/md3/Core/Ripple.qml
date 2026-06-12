@@ -16,12 +16,16 @@ MouseArea {
 
     // The wave currently held under the finger (fades once released).
     property var activeWave: null
+    // Live wave count. The masked MultiEffect composite + mask layer render every
+    // frame the effect exists; idle there's nothing to show, so gate both on this
+    // — otherwise many idle Ripples on a screen dominate paint time.
+    property int liveWaves: 0
 
     // Mask for clipping (defines the shape)
     Item {
         id: mask
         anchors.fill: parent
-        layer.enabled: true
+        layer.enabled: root.liveWaves > 0
         visible: false
 
         Rectangle {
@@ -42,6 +46,7 @@ MouseArea {
     MultiEffect {
         source: rippleContent
         anchors.fill: parent
+        visible: root.liveWaves > 0
         maskEnabled: true
         maskSource: mask
     }
@@ -90,12 +95,16 @@ MouseArea {
                 NumberAnimation { target: wave; property: "opacity"; to: root.rippleOpacity; duration: 60 }
                 NumberAnimation { target: wave; property: "opacity"; to: 0; duration: 300; easing.type: Easing.InQuad }
             }
-            Timer { running: !wave.held; interval: 380; repeat: false; onTriggered: wave.destroy() }
+            Timer {
+                running: !wave.held; interval: 380; repeat: false
+                onTriggered: { root.liveWaves = Math.max(0, root.liveWaves - 1); wave.destroy() }
+            }
         }
     }
 
     onPressed: (mouse) => {
         root.activeWave = waveComponent.createObject(rippleContent, { startX: mouse.x, startY: mouse.y })
+        root.liveWaves = root.liveWaves + 1
     }
 
     onReleased: { if (root.activeWave) { root.activeWave.held = false; root.activeWave = null } }

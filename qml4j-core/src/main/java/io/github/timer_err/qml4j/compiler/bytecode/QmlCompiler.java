@@ -1193,6 +1193,26 @@ public final class QmlCompiler {
         ctor.visitLdcInsn(bm.propertyName);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, behaviorInternal,
                              "attach", "(Ljava/lang/Object;Ljava/lang/String;)V", false);
+
+        // `NumberAnimation on x` is a property value-source: it auto-runs by default,
+        // but an explicit `running:` binding must win (otherwise it ignores its own
+        // condition and spins forever, keeping the scene dirty). So auto-start only
+        // when the QML didn't bind `running` itself.
+        if (io.github.timer_err.qml4j.render.items.animation.AbstractAnimation.class
+                .isAssignableFrom(behaviorType) && !bindsRunning(bm.members)) {
+            ctor.visitVarInsn(Opcodes.ALOAD, behaviorLocal);
+            ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, behaviorInternal, "start", "()V", false);
+        }
+    }
+
+    private static boolean bindsRunning(java.util.List<Ast.ObjectMember> members) {
+        for (Ast.ObjectMember m : members) {
+            if (m instanceof Ast.PropertyBinding) {
+                java.util.List<String> path = ((Ast.PropertyBinding) m).path;
+                if (path.size() == 1 && "running".equals(path.get(0))) return true;
+            }
+        }
+        return false;
     }
 
     private void emitObjectValueAssignment(MethodVisitor ctor, Class<? extends QObject> outerType,
