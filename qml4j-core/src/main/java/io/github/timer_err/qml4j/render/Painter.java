@@ -210,6 +210,31 @@ public final class Painter {
     private final Map<Float, Font> iconFonts = new HashMap<>();
     private final Map<String, TextLine> iconLines = new HashMap<>();
 
+    // Shaping a string (HarfBuzz via Skia) on every drawString/measureTextWidth
+    // re-runs for every visible label every frame -- the dominant paint cost. Cache
+    // the shaped TextLine per (font, text) and draw/measure through it. Bounded LRU
+    // (strings are unbounded), closing evicted native handles.
+    private final Map<String, TextLine> textLines =
+        new java.util.LinkedHashMap<String, TextLine>(512, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<String, TextLine> e) {
+                if (size() > 600) {
+                    e.getValue().close();
+                    return true;
+                }
+                return false;
+            }
+        };
+
+    private TextLine textLine(Font font, String s) {
+        return textLines.computeIfAbsent(System.identityHashCode(font) + " " + s,
+            k -> TextLine.make(s, font));
+    }
+
+    private float textWidth(Font font, String s) {
+        return textLine(font, s).getWidth();
+    }
+
     public void drawIconGlyph(String name, float boxH, int argb, float size) {
         Font f = iconFonts.computeIfAbsent(size, sz -> new Font(renderer.fonts().iconTypeface(), sz));
         TextLine line = iconLines.computeIfAbsent(name + '\0' + size, k -> TextLine.make(name, f));
@@ -230,7 +255,7 @@ public final class Painter {
         String wrapMode = TextLayout.wrapModeString(wrapModeEnum);
         { Font font = renderer.fonts().fontFor(size, s, bold);
             String[] lines = (wrapMode != null && boxW > 0f)
-                ? TextWrap.wrap(s, wrapMode, boxW, seg -> font.measureTextWidth(seg))
+                ? TextWrap.wrap(s, wrapMode, boxW, seg -> textWidth(font, seg))
                       .lines.toArray(new String[0])
                 : TextLayout.splitLines(s);
             float lineH = TextLayout.lineHeight(font);
@@ -243,31 +268,31 @@ public final class Painter {
                 if (lines[i].isEmpty()) continue;
                 String line = elideRight ? TextLayout.elideToWidth(lines[i], font, boxW) : lines[i];
                 float tx = lineOffset(line, font, boxW, hAlign);
-                canvas.drawString(line, tx, baseline0 + i * lineH, font, p);
+                canvas.drawTextLine(textLine(font, line), tx, baseline0 + i * lineH, p);
             }
         }
     }
 
     // The x offset placing a line within boxW per its horizontal alignment.
     // AlignHCenter (4) centres, AlignRight (2) right-aligns; AlignLeft/justify stay at 0.
-    private static float lineOffset(String line, Font font, float boxW, int hAlign) {
+    private float lineOffset(String line, Font font, float boxW, int hAlign) {
         if (boxW <= 0f || hAlign == 1) return 0f;
-        if (hAlign == 4) return (boxW - font.measureTextWidth(line)) / 2f;
-        if (hAlign == 2) return boxW - font.measureTextWidth(line);
+        if (hAlign == 4) return (boxW - textWidth(font, line)) / 2f;
+        if (hAlign == 2) return boxW - textWidth(font, line);
         return 0f;
     }
 
     // A single line of text, horizontally centred and baseline-centred in the box.
     public void drawCenteredText(String s, float boxW, float boxH, int argb, float size) {
         { Font font = renderer.fonts().fontFor(size, s);
-            float tw = font.measureTextWidth(s);
+            float tw = textWidth(font, s);
             float tx = (boxW - tw) / 2f;
             float ty = TextLayout.centeredBaseline(font, boxH);
             Paint p = renderer.paint();
             p.setMode(PaintMode.FILL);
             p.setShader(null);
             p.setColor(argb);
-            canvas.drawString(s, tx, ty, font, p);
+            canvas.drawTextLine(textLine(font, s), tx, ty, p);
         }
     }
 
@@ -729,7 +754,7 @@ public final class Painter {
                 if (ph != null && !ph.isEmpty()) {
                     { Font font = renderer.fonts().fontFor(size, ph);
                         p.setColor(Renderer.applyAlpha(Renderer.parseColor(tf.placeholderTextColor.peek()), alpha));
-                        canvas.drawString(ph, 0, TextLayout.centeredBaseline(font, h), font, p);
+                        canvas.drawTextLine(textLine(font, ph), 0, TextLayout.centeredBaseline(font, h), p);
                     }
                 }
             }
@@ -768,11 +793,11 @@ public final class Painter {
             if (!s.isEmpty()) {
                 Paint p = renderer.paint();
                 p.setColor(Renderer.applyAlpha(Renderer.parseColor(ti.color.peek()), alpha));
-                canvas.drawString(s, 0, baseline, font, p);
+                canvas.drawTextLine(textLine(font, s), 0, baseline, p);
             }
             if (Boolean.TRUE.equals(ti.activeFocus.peek()) && caretBlinkOn()) {
                 int pos = Math.max(0, Math.min(ti.cursorPosition.peekInt(), s.length()));
-                float cx = font.measureTextWidth(s.substring(0, pos));
+                float cx = textWidth(font, s.substring(0, pos));
                 Paint p = renderer.paint();
                 p.setMode(PaintMode.FILL);
                 p.setColor(Renderer.applyAlpha(Renderer.parseColor(ti.color.peek()), alpha));
@@ -788,8 +813,8 @@ public final class Painter {
         int selS = Math.max(0, Math.min(ti.selectionStart.peekInt(), len));
         int selE = Math.max(selS, Math.min(ti.selectionEnd.peekInt(), len));
         if (selE <= selS) return;
-        float x0 = font.measureTextWidth(s.substring(0, selS));
-        float x1 = font.measureTextWidth(s.substring(0, selE));
+        float x0 = textWidth(font, s.substring(0, selS));
+        float x1 = textWidth(font, s.substring(0, selE));
         Paint p = renderer.paint();
         p.setMode(PaintMode.FILL);
         p.setColor(Renderer.applyAlpha(Renderer.parseColor(ti.selectionColor.peek()), alpha));
@@ -813,7 +838,7 @@ public final class Painter {
                 String line = wrapped.lines.get(i);
                 if (!line.isEmpty()) {
                     float baseline = yOffset + i * lineH + TextLayout.baselineInLine(font);
-                    canvas.drawString(line, 0, baseline, font, p);
+                    canvas.drawTextLine(textLine(font, line), 0, baseline, p);
                 }
             }
             if (Boolean.TRUE.equals(te.activeFocus.peek()) && caretBlinkOn()) {
@@ -840,8 +865,8 @@ public final class Painter {
             if (selE <= ls || selS >= le) continue;
             int a = Math.max(selS, ls) - ls;
             int b = Math.min(selE, le) - ls;
-            float x0 = a == 0 ? 0 : font.measureTextWidth(line.substring(0, a));
-            float x1 = font.measureTextWidth(line.substring(0, b));
+            float x0 = a == 0 ? 0 : textWidth(font, line.substring(0, a));
+            float x1 = textWidth(font, line.substring(0, b));
             float y = yOffset + i * lineH + glyphTop;
             canvas.drawRect(Rect.makeXYWH(x0, y, x1 - x0, glyphHeight), p);
         }
@@ -854,7 +879,7 @@ public final class Painter {
         int lineIdx = TextWrap.lineForCaret(wrapped, pos);
         String line = wrapped.lines.get(lineIdx);
         int col = Math.max(0, Math.min(pos - wrapped.starts[lineIdx], line.length()));
-        float cx = col == 0 ? 0 : font.measureTextWidth(line.substring(0, col));
+        float cx = col == 0 ? 0 : textWidth(font, line.substring(0, col));
         float glyphTop = TextLayout.baselineInLine(font) + TextLayout.glyphTopOffset(font);
         float glyphHeight = TextLayout.glyphExtent(font);
         Paint p = renderer.paint();
