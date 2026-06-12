@@ -246,6 +246,27 @@ public final class Painter {
             }
         };
 
+    // Wrapping (TextWrap.wrap) re-shapes every segment every frame for every
+    // wrapped label -- a big cost for large bodies. Cache the wrapped lines per
+    // (font, mode, width, text).
+    private final Map<String, String[]> wrapCache =
+        new java.util.LinkedHashMap<String, String[]>(128, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<String, String[]> e) {
+                return size() > 256;
+            }
+        };
+
+    private String[] wrapLines(Font font, String s, String mode, float boxW) {
+        String key = System.identityHashCode(font) + "|" + mode + "|" + Math.round(boxW) + "|" + s;
+        String[] hit = wrapCache.get(key);
+        if (hit != null) return hit;
+        String[] lines = TextWrap.wrap(s, mode, boxW, seg -> textWidth(font, seg))
+                .lines.toArray(new String[0]);
+        wrapCache.put(key, lines);
+        return lines;
+    }
+
     private String elideRightToWidth(Font font, String line, float boxW) {
         if (boxW <= 0f) return line;
         String key = System.identityHashCode(font) + "|" + Math.round(boxW) + "|" + line;
@@ -284,8 +305,7 @@ public final class Painter {
         String wrapMode = TextLayout.wrapModeString(wrapModeEnum);
         { Font font = renderer.fonts().fontFor(size, s, bold);
             String[] lines = (wrapMode != null && boxW > 0f)
-                ? TextWrap.wrap(s, wrapMode, boxW, seg -> textWidth(font, seg))
-                      .lines.toArray(new String[0])
+                ? wrapLines(font, s, wrapMode, boxW)
                 : TextLayout.splitLines(s);
             float lineH = TextLayout.lineHeight(font);
             float baseline0 = TextLayout.baselineInLine(font);

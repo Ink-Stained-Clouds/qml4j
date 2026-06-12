@@ -219,21 +219,35 @@ public final class Renderer {
 
     private void draw(Canvas canvas, Item node, float inheritedAlpha) {
         if (!node.isVisible()) return;
+        if (culled(canvas, node)) return;
         drawForced(canvas, node, inheritedAlpha);
+    }
+
+    // Viewport culling: skip a subtree whose bounds (its own box unioned with its
+    // children's overflow) fall entirely outside the canvas clip -- the renderer
+    // otherwise records draw commands for everything off-screen (a long list, a
+    // page parked off a StackLayout). Skip the check for transformed or
+    // layer-effected nodes, whose drawn extent isn't this axis-aligned box.
+    private boolean culled(Canvas canvas, Item node) {
+        if (node.rotation.peekFloat() != 0f || node.scale.peekFloat() != 1f) return false;
+        if (!node.transform.isEmpty()) return false;
+        if (layerEffectPaint(node) != null) return false;
+        float x = node.x.peekFloat(), y = node.y.peekFloat();
+        float w = node.width.peekFloat(), h = node.height.peekFloat();
+        float crx = node.childrenRect.x.peekFloat(), cry = node.childrenRect.y.peekFloat();
+        float crw = node.childrenRect.width.peekFloat(), crh = node.childrenRect.height.peekFloat();
+        float minX = x + Math.min(0f, crx);
+        float minY = y + Math.min(0f, cry);
+        float maxX = x + Math.max(w, crx + crw);
+        float maxY = y + Math.max(h, cry + crh);
+        if (maxX <= minX || maxY <= minY) return false;
+        return canvas.quickReject(Rect.makeLTRB(minX, minY, maxX, maxY));
     }
 
     // Draw a node ignoring its own `visible` flag (used to render a MultiEffect
     // source, which is normally an invisible sibling rendered only via the effect).
     void drawForced(Canvas canvas, Item node, float inheritedAlpha) {
-        if (!skipLayout) {
-            node.measure(text);
-            followImplicitSize(node);
-            applyAnchors(node);
-            if (node instanceof Loader) {
-                resolveLoader((Loader) node);
-            }
-            runLayout(node);
-        }
+        // (Layout is done once in settleLayout; no per-node re-measure in draw.)
         float x = node.x.peekFloat();
         float y = node.y.peekFloat();
         float w = node.width.peekFloat();
