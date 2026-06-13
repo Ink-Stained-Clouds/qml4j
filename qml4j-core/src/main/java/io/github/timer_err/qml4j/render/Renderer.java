@@ -146,7 +146,14 @@ public final class Renderer {
     // Run the layout pre-pass and flush size-driven bindings until the tree
     // stops changing (or the cap is hit), so first-appearance layout is correct
     // on the very frame a node becomes visible instead of flashing for one frame.
+    // Bumped once per settleLayout call. cachedLayout skips re-measuring a static
+    // subtree only across DIFFERENT settle passes (i.e. a later frame); within ONE
+    // settleLayout the multi-pass loop must keep recursing so anchor/size chains that
+    // need 2+ passes (a card's Column whose width comes from its parent) still settle.
+    private long settleId;
+
     private void settleLayout(Item root) {
+        settleId++;
         DirtyQueue dq = DirtyQueue.current();
         for (int i = 0; i < MAX_LAYOUT_PASSES; i++) {
             measure(root);
@@ -169,6 +176,33 @@ public final class Renderer {
         if (node instanceof Loader) resolveLoader((Loader) node);
         node.measure(text);
         followImplicitSize(node);
+        // Static-subtree fast path (opt-in via cachedLayout). A container whose
+        // children's geometry is fixed once laid out -- e.g. a full song list, whose
+        // rows sit at y = index*rowH and never reflow -- doesn't need its children
+        // re-measured just because an unrelated property bumped the change version
+        // (the 5 Hz play clock re-runs the whole layout pass). Skip recursing while
+        // the container's own box and child count are unchanged; a resize (width/
+        // height) or a model change (child count) differs and forces a full re-measure.
+        if (Boolean.TRUE.equals(node.cachedLayout.peek())) {
+            float cw = node.width.peekFloat();
+            float ch = node.height.peekFloat();
+            int cc = node.children.size();
+            // Skip only on a later settle (settleId differs) with an unchanged box +
+            // child count. Same-settle re-passes always recurse so a card's children
+            // (whose width derives from this container) converge over the pass loop.
+            if (node.cachedLayoutValid && node.cachedLayoutSettleId != settleId
+                    && node.cachedLayoutW == cw && node.cachedLayoutH == ch
+                    && node.cachedLayoutCount == cc) {
+                runLayout(node);
+                applyAnchors(node);
+                return;
+            }
+            node.cachedLayoutValid = true;
+            node.cachedLayoutW = cw;
+            node.cachedLayoutH = ch;
+            node.cachedLayoutCount = cc;
+            node.cachedLayoutSettleId = settleId;
+        }
         // Children first so a container can size itself from their measured sizes.
         // An invisible child's whole subtree (e.g. the off-screen pages of a
         // StackLayout) is never drawn; measuring it every frame is pure waste. Still

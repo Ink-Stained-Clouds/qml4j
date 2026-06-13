@@ -41,6 +41,17 @@ public class Item extends QObject {
     public final Property<Number> z = new Property<>(0);
     public final Property<Boolean> clip = new Property<>(Boolean.FALSE);
     public final Property<Boolean> antialiasing = new Property<>(Boolean.FALSE);
+    // Opt-in static-subtree hint. When true, the layout pass skips re-measuring this
+    // item's children as long as the item's own box and child count are unchanged --
+    // for a container whose children's geometry is fixed once laid out (e.g. a full
+    // song list), so an unrelated version bump (the 5 Hz play clock) doesn't
+    // re-measure every off-screen row. See Renderer.measure.
+    public final Property<Boolean> cachedLayout = new Property<>(Boolean.FALSE);
+    public boolean cachedLayoutValid;
+    public float cachedLayoutW;
+    public float cachedLayoutH;
+    public int cachedLayoutCount;
+    public long cachedLayoutSettleId = -1;
     public final Property<Item> parent = new Property<>(null);
     // Declared List (the compiler emits children accesses with a java/util/List descriptor)
     // but an ObservableList so structural changes re-evaluate dependent bindings.
