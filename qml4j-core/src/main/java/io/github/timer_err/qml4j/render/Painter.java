@@ -208,16 +208,68 @@ public final class Painter {
     // keyed on (name, size). Native handles are long-lived and bounded by the app's distinct
     // icon/size set, so they are intentionally not closed.
     private final Map<Float, Font> iconFonts = new HashMap<>();
-    private final Map<String, TextLine> iconLines = new HashMap<>();
+
+    // Render runs single-threaded, so each text cache uses ONE reusable probe key
+    // for lookups: get() mutates the probe and never retains it; only a cache MISS
+    // allocates an immutable key to put(). The steady-state scroll path is all hits,
+    // so it is allocation-free -- where the previous concatenated <fontId>+sep+<text>
+    // String key allocated one String per label per frame and churned the young gen
+    // (Haedus rule: no uncontrolled allocation on the per-frame render path).
+    private static final class LineKey {
+        int fontId;
+        String s;
+        LineKey() { }
+        LineKey(int fontId, String s) { this.fontId = fontId; this.s = s; }
+        @Override
+        public int hashCode() { return fontId * 31 + s.hashCode(); }
+        @Override
+        public boolean equals(Object o) {
+            if (!(o instanceof LineKey)) return false;
+            LineKey k = (LineKey) o;
+            return fontId == k.fontId && s.equals(k.s);
+        }
+    }
+
+    // (font, roundedWidth, mode, text). mode is null for elision.
+    private static final class SizedKey {
+        int fontId;
+        int w;
+        String mode;
+        String s;
+        SizedKey() { }
+        SizedKey(int fontId, int w, String mode, String s) {
+            this.fontId = fontId; this.w = w; this.mode = mode; this.s = s;
+        }
+        @Override
+        public int hashCode() {
+            int h = fontId * 31 + w;
+            h = h * 31 + (mode == null ? 0 : mode.hashCode());
+            return h * 31 + s.hashCode();
+        }
+        @Override
+        public boolean equals(Object o) {
+            if (!(o instanceof SizedKey)) return false;
+            SizedKey k = (SizedKey) o;
+            return fontId == k.fontId && w == k.w
+                && java.util.Objects.equals(mode, k.mode) && s.equals(k.s);
+        }
+    }
+
+    private final LineKey lineProbe = new LineKey();
+    private final SizedKey sizedProbe = new SizedKey();
+
+    // Icon ligatures (name -> glyph via GSUB). Unbounded (bounded by the app's
+    // distinct icon/size set); handles are long-lived and intentionally not closed.
+    private final Map<LineKey, TextLine> iconLines = new HashMap<>();
 
     // Shaping a string (HarfBuzz via Skia) on every drawString/measureTextWidth
     // re-runs for every visible label every frame -- the dominant paint cost. Cache
-    // the shaped TextLine per (font, text) and draw/measure through it. Bounded LRU
-    // (strings are unbounded), closing evicted native handles.
-    private final Map<String, TextLine> textLines =
-        new java.util.LinkedHashMap<String, TextLine>(512, 0.75f, true) {
+    // the shaped TextLine per (font, text). Bounded LRU (strings are unbounded),
+    // closing evicted native handles.
+    private final Map<LineKey, TextLine> textLines =
+        new java.util.LinkedHashMap<LineKey, TextLine>(512, 0.75f, true) {
             @Override
-            protected boolean removeEldestEntry(Map.Entry<String, TextLine> e) {
+            protected boolean removeEldestEntry(Map.Entry<LineKey, TextLine> e) {
                 if (size() > 600) {
                     e.getValue().close();
                     return true;
@@ -226,22 +278,31 @@ public final class Painter {
             }
         };
 
+    private TextLine cachedLine(Map<LineKey, TextLine> cache, int fontId, String s, Font font) {
+        lineProbe.fontId = fontId;
+        lineProbe.s = s;
+        TextLine hit = cache.get(lineProbe);
+        if (hit != null) return hit;
+        TextLine line = TextLine.make(s, font);
+        cache.put(new LineKey(fontId, s), line);
+        return line;
+    }
+
     private TextLine textLine(Font font, String s) {
-        return textLines.computeIfAbsent(System.identityHashCode(font) + " " + s,
-            k -> TextLine.make(s, font));
+        return cachedLine(textLines, System.identityHashCode(font), s, font);
     }
 
     private float textWidth(Font font, String s) {
         return textLine(font, s).getWidth();
     }
 
-    // Elision (…) recomputed for every label every frame measured each substring
-    // via uncached shaping -- a real per-frame draw cost on text-heavy screens.
-    // Cache the elided result per (font, width, text).
-    private final Map<String, String> elideCache =
-        new java.util.LinkedHashMap<String, String>(256, 0.75f, true) {
+    // Elision recomputed for every label every frame measured each substring via
+    // uncached shaping -- a real per-frame draw cost on text-heavy screens. Cache
+    // the elided result per (font, width, text).
+    private final Map<SizedKey, String> elideCache =
+        new java.util.LinkedHashMap<SizedKey, String>(256, 0.75f, true) {
             @Override
-            protected boolean removeEldestEntry(Map.Entry<String, String> e) {
+            protected boolean removeEldestEntry(Map.Entry<SizedKey, String> e) {
                 return size() > 600;
             }
         };
@@ -249,28 +310,38 @@ public final class Painter {
     // Wrapping (TextWrap.wrap) re-shapes every segment every frame for every
     // wrapped label -- a big cost for large bodies. Cache the wrapped lines per
     // (font, mode, width, text).
-    private final Map<String, String[]> wrapCache =
-        new java.util.LinkedHashMap<String, String[]>(128, 0.75f, true) {
+    private final Map<SizedKey, String[]> wrapCache =
+        new java.util.LinkedHashMap<SizedKey, String[]>(128, 0.75f, true) {
             @Override
-            protected boolean removeEldestEntry(Map.Entry<String, String[]> e) {
+            protected boolean removeEldestEntry(Map.Entry<SizedKey, String[]> e) {
                 return size() > 256;
             }
         };
 
     private String[] wrapLines(Font font, String s, String mode, float boxW) {
-        String key = System.identityHashCode(font) + "|" + mode + "|" + Math.round(boxW) + "|" + s;
-        String[] hit = wrapCache.get(key);
+        int fontId = System.identityHashCode(font);
+        int w = Math.round(boxW);
+        sizedProbe.fontId = fontId;
+        sizedProbe.w = w;
+        sizedProbe.mode = mode;
+        sizedProbe.s = s;
+        String[] hit = wrapCache.get(sizedProbe);
         if (hit != null) return hit;
         String[] lines = TextWrap.wrap(s, mode, boxW, seg -> textWidth(font, seg))
                 .lines.toArray(new String[0]);
-        wrapCache.put(key, lines);
+        wrapCache.put(new SizedKey(fontId, w, mode, s), lines);
         return lines;
     }
 
     private String elideRightToWidth(Font font, String line, float boxW) {
         if (boxW <= 0f) return line;
-        String key = System.identityHashCode(font) + "|" + Math.round(boxW) + "|" + line;
-        String hit = elideCache.get(key);
+        int fontId = System.identityHashCode(font);
+        int w = Math.round(boxW);
+        sizedProbe.fontId = fontId;
+        sizedProbe.w = w;
+        sizedProbe.mode = null;
+        sizedProbe.s = line;
+        String hit = elideCache.get(sizedProbe);
         if (hit != null) return hit;
         String result;
         if (textWidth(font, line) <= boxW) {
@@ -281,13 +352,13 @@ public final class Painter {
             while (end > 0 && textWidth(font, line.substring(0, end)) + ellW > boxW) end--;
             result = line.substring(0, end) + "…";
         }
-        elideCache.put(key, result);
+        elideCache.put(new SizedKey(fontId, w, null, line), result);
         return result;
     }
 
     public void drawIconGlyph(String name, float boxH, int argb, float size) {
         Font f = iconFonts.computeIfAbsent(size, sz -> new Font(renderer.fonts().iconTypeface(), sz));
-        TextLine line = iconLines.computeIfAbsent(name + '\0' + size, k -> TextLine.make(name, f));
+        TextLine line = cachedLine(iconLines, System.identityHashCode(f), name, f);
         FontMetrics fm = f.getMetrics();
         float baseline = boxH / 2f - (fm.getAscent() + fm.getDescent()) / 2f;
         Paint p = renderer.paint();
@@ -304,15 +375,22 @@ public final class Painter {
                                 int wrapModeEnum, boolean elideRight, boolean bold, int hAlign) {
         String wrapMode = TextLayout.wrapModeString(wrapModeEnum);
         { Font font = renderer.fonts().fontFor(size, s, bold);
-            String[] lines = (wrapMode != null && boxW > 0f)
-                ? wrapLines(font, s, wrapMode, boxW)
-                : TextLayout.splitLines(s);
-            float lineH = TextLayout.lineHeight(font);
             float baseline0 = TextLayout.baselineInLine(font);
             Paint p = renderer.paint();
             p.setMode(PaintMode.FILL);
             p.setShader(null);
             p.setColor(argb);
+            // Common path drawn every frame: no wrapping and no embedded newline -> a
+            // single line. Draw it directly; splitLines(s) would allocate a String[]
+            // per label per frame just to hold that one line.
+            boolean wrapping = wrapMode != null && boxW > 0f;
+            if (!wrapping && s.indexOf('\n') < 0) {
+                String line = elideRight ? elideRightToWidth(font, s, boxW) : s;
+                canvas.drawTextLine(textLine(font, line), lineOffset(line, font, boxW, hAlign), baseline0, p);
+                return;
+            }
+            String[] lines = wrapping ? wrapLines(font, s, wrapMode, boxW) : TextLayout.splitLines(s);
+            float lineH = TextLayout.lineHeight(font);
             for (int i = 0; i < lines.length; i++) {
                 if (lines[i].isEmpty()) continue;
                 String line = elideRight ? elideRightToWidth(font, lines[i], boxW) : lines[i];
