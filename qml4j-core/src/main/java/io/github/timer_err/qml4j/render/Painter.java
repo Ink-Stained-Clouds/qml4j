@@ -536,15 +536,22 @@ public final class Painter {
         if (plan == null) return;
         node.paintedWidth.set(plan.paintedWidth);
         node.paintedHeight.set(plan.paintedHeight);
-        switch (plan.op) {
-            case DRAW_RECT:
-                drawImagePlan(node.skiaImage, plan);
-                break;
-            case TILE_X:
-            case TILE_Y:
-            case TILE_XY:
-                drawTilePlan(node.skiaImage, plan, w, h);
-                break;
+        float radius = node.radius.peekFloat();
+        int save = radius > 0 ? canvas.save() : -1;
+        if (radius > 0) canvas.clipRRect(RRect.makeXYWH(0, 0, w, h, radius), true);
+        try {
+            switch (plan.op) {
+                case DRAW_RECT:
+                    drawImagePlan(node.skiaImage, plan);
+                    break;
+                case TILE_X:
+                case TILE_Y:
+                case TILE_XY:
+                    drawTilePlan(node.skiaImage, plan, w, h);
+                    break;
+            }
+        } finally {
+            if (save >= 0) canvas.restoreToCount(save);
         }
     }
 

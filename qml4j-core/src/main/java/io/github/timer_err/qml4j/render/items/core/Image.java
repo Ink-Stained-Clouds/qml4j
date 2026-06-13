@@ -10,6 +10,11 @@ public class Image extends Item {
     public final Property<Object> fillMode = new Property<>("Stretch");
     public final Property<Boolean> asynchronous = new Property<>(Boolean.FALSE);
     public final Property<Boolean> cache = new Property<>(Boolean.TRUE);
+    // Rounded corners clipped directly at draw time (clipRRect). Lets a list/grid
+    // delegate get a rounded cover without a layer.effect mask -- the mask path
+    // allocates an offscreen surface (saveLayer) per delegate every frame, which
+    // is the dominant cost when scrolling a grid of cover images.
+    public final Property<Number> radius = new Property<>(0);
     public final Size sourceSize = new Size();
     public final Property<Number> horizontalAlignment = new Property<>(4); // AlignHCenter
     public final Property<Number> verticalAlignment = new Property<>(128); // AlignVCenter
