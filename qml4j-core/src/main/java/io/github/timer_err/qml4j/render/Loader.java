@@ -42,6 +42,11 @@ final class Loader {
     private final Map<String, Map<String, QmldirEntry>> qmldirCache = new HashMap<>();
     private final Set<String> compilingNow = new HashSet<>();
     private ResourceLoader resources;
+    // Fired as each compound (file-based) component is compiled+defined during
+    // load, so a host can drive a splash/progress UI; compiling+dexing the QML
+    // tree on first launch is the slow part on Android.
+    private QmlView.CompileProgressListener progress;
+    private int compiledCount;
 
     Loader(QmlEngine engine, TypeRegistry types) {
         this.engine = engine;
@@ -50,6 +55,10 @@ final class Loader {
 
     void setResources(ResourceLoader resources) {
         this.resources = resources;
+    }
+
+    void setProgressListener(QmlView.CompileProgressListener l) {
+        this.progress = l;
     }
 
     Item instantiate(String qml) {
@@ -180,6 +189,7 @@ final class Loader {
                 // resolve against it.
                 Class<? extends QObject> rootClass = compileAndDefine(subDoc, p);
                 importedTypes.put(path, rootClass);
+                if (progress != null) progress.onComponentCompiled(name, ++compiledCount);
                 if (singleton) {
                     singletonsByPrefix.computeIfAbsent(p, k -> new HashMap<>()).put(name, rootClass);
                     TypeRegistry current = CompileScope.currentRegistry();

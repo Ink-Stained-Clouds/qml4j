@@ -91,6 +91,16 @@ public final class QmlView {
         focus.setFocusListener(l);
     }
 
+    /** Notified as each compound component is compiled during {@link #load} —
+     *  drives a host splash/progress while the QML tree compiles. */
+    public interface CompileProgressListener {
+        void onComponentCompiled(String name, int compiledCount);
+    }
+
+    public void setCompileProgressListener(CompileProgressListener l) {
+        loader.setProgressListener(l);
+    }
+
     public Item focused() {
         return focus.focused();
     }
