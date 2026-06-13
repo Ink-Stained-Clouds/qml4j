@@ -207,7 +207,12 @@ public final class Painter {
     // and re-runs every frame for every icon; cache the shaped TextLine (and per-size Font)
     // keyed on (name, size). Native handles are long-lived and bounded by the app's distinct
     // icon/size set, so they are intentionally not closed.
-    private final Map<Float, Font> iconFonts = new HashMap<>();
+    // Per-size icon Font cache as parallel arrays. A float-keyed Map would autobox
+    // the size to a Float on every icon draw every frame; the distinct icon sizes
+    // are a tiny set, so a linear scan is faster and allocation-free.
+    private float[] iconFontSizes = new float[8];
+    private Font[] iconFontVals = new Font[8];
+    private int iconFontCount;
 
     // Render runs single-threaded, so each text cache uses ONE reusable probe key
     // for lookups: get() mutates the probe and never retains it; only a cache MISS
@@ -356,8 +361,23 @@ public final class Painter {
         return result;
     }
 
+    private Font iconFont(float size) {
+        for (int i = 0; i < iconFontCount; i++) {
+            if (iconFontSizes[i] == size) return iconFontVals[i];
+        }
+        Font f = new Font(renderer.fonts().iconTypeface(), size);
+        if (iconFontCount == iconFontSizes.length) {
+            iconFontSizes = java.util.Arrays.copyOf(iconFontSizes, iconFontCount * 2);
+            iconFontVals = java.util.Arrays.copyOf(iconFontVals, iconFontCount * 2);
+        }
+        iconFontSizes[iconFontCount] = size;
+        iconFontVals[iconFontCount] = f;
+        iconFontCount++;
+        return f;
+    }
+
     public void drawIconGlyph(String name, float boxH, int argb, float size) {
-        Font f = iconFonts.computeIfAbsent(size, sz -> new Font(renderer.fonts().iconTypeface(), sz));
+        Font f = iconFont(size);
         TextLine line = cachedLine(iconLines, System.identityHashCode(f), name, f);
         FontMetrics fm = f.getMetrics();
         float baseline = boxH / 2f - (fm.getAscent() + fm.getDescent()) / 2f;
