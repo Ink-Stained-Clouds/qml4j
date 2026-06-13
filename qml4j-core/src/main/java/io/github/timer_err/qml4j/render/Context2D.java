@@ -156,14 +156,14 @@ public final class Context2D {
 
     public void fillText(String text, double x, double y) {
         if (text == null) return;
-        try (Font f = renderer.fonts().fontFor(fontSize(), text)) {
-            float ax = (float) x;
-            if ("center".equals(textAlign)) ax -= f.measureTextWidth(text) / 2f;
-            else if ("right".equals(textAlign) || "end".equals(textAlign)) ax -= f.measureTextWidth(text);
-            final float bx = ax;
-            final float by = (float) y + baselineOffset(f);
-            fillWith(fillStyle, p -> canvas.drawString(text, bx, by, f, p));
-        }
+        // fontFor returns a cached Font shared across frames -- must NOT be closed.
+        Font f = renderer.fonts().fontFor(fontSize(), text);
+        float ax = (float) x;
+        if ("center".equals(textAlign)) ax -= f.measureTextWidth(text) / 2f;
+        else if ("right".equals(textAlign) || "end".equals(textAlign)) ax -= f.measureTextWidth(text);
+        final float bx = ax;
+        final float by = (float) y + baselineOffset(f);
+        fillWith(fillStyle, p -> canvas.drawString(text, bx, by, f, p));
     }
 
     // drawString places the baseline at `y`; shift so `y` means the edge the HTML

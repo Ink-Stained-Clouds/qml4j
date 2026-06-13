@@ -125,17 +125,17 @@ public final class Renderer {
 
     public void drawFpsOverlay(Canvas canvas, float w, double fps) {
         String s = Math.round(fps) + " FPS";
-        try (Font font = fonts.fontFor(14f, s, true)) {
-            float tw = font.measureTextWidth(s);
-            float pad = 6f, bw = tw + 2 * pad, bh = 22f, x = w - bw - 8f, y = 8f;
-            Paint p = paint();
-            p.setShader(null);
-            p.setMode(PaintMode.FILL);
-            p.setColor(0xCC000000);
-            canvas.drawRRect(RRect.makeXYWH(x, y, bw, bh, 6f), p);
-            p.setColor(0xFF00E676);
-            canvas.drawString(s, x + pad, y + 16f, font, p);
-        }
+        // fontFor returns a cached Font shared across frames -- must NOT be closed.
+        Font font = fonts.fontFor(14f, s, true);
+        float tw = font.measureTextWidth(s);
+        float pad = 6f, bw = tw + 2 * pad, bh = 22f, x = w - bw - 8f, y = 8f;
+        Paint p = paint();
+        p.setShader(null);
+        p.setMode(PaintMode.FILL);
+        p.setColor(0xCC000000);
+        canvas.drawRRect(RRect.makeXYWH(x, y, bw, bh, 6f), p);
+        p.setColor(0xFF00E676);
+        canvas.drawString(s, x + pad, y + 16f, font, p);
     }
 
     // Diagnostic/test hook: run the layout pre-pass without painting.
@@ -556,7 +556,8 @@ public final class Renderer {
         String s = te.text.peek();
         if (s == null) s = "";
         float size = te.fontSize.peekFloat();
-        try (Font font = fonts.fontFor(size, s)) {
+        Font font = fonts.fontFor(size, s);   // cached, shared -- do not close
+        try {
             float w = te.width.peekFloat();
             TextWrap.Result wrapped = text.wrapFor(te, s, w, size, font);
             return TextWrap.moveCaretVertical(wrapped, caret, delta,
@@ -570,7 +571,8 @@ public final class Renderer {
         String s = te.text.peek();
         if (s == null) s = "";
         float size = te.fontSize.peekFloat();
-        try (Font font = fonts.fontFor(size, s)) {
+        Font font = fonts.fontFor(size, s);   // cached, shared -- do not close
+        try {
             float w = te.width.peekFloat();
             float h = te.height.peekFloat();
             TextWrap.Result wrapped = text.wrapFor(te, s, w, size, font);
@@ -595,7 +597,8 @@ public final class Renderer {
         }
         if (s == null || s.isEmpty() || localX <= 0) return 0;
         float size = ti.fontSize.peekFloat();
-        try (Font font = fonts.fontFor(size, s)) {
+        Font font = fonts.fontFor(size, s);   // cached, shared -- do not close
+        try {
             float prev = 0f;
             int n = s.length();
             for (int i = 1; i <= n; i++) {
