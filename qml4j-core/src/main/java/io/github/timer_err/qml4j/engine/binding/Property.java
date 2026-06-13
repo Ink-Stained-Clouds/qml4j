@@ -83,8 +83,28 @@ public final class Property<T> {
     public void setPaintOnly(T newValue) {
         if (unchanged(value, newValue)) return;
         value = newValue;
-        for (Runnable r : new ArrayList<>(invalidationListeners)) r.run();
-        for (Consumer<T> l : new ArrayList<>(valueListeners)) l.accept(value);
+        fireListeners();
+    }
+
+    // Notify invalidation + value listeners. The overwhelming majority of properties
+    // carry 0 or 1 listener of each kind (a single binding / a single Changed signal),
+    // so fast-path those without the defensive ArrayList copy -- that copy ran on every
+    // set in the whole scene (every scroll frame, every animation tick, the 5 Hz play
+    // clock) and was pure churn. Only a list with >1 listener can be structurally
+    // mutated by one of its own callbacks mid-iteration, so only that case is copied.
+    private void fireListeners() {
+        int ni = invalidationListeners.size();
+        if (ni == 1) {
+            invalidationListeners.get(0).run();
+        } else if (ni > 1) {
+            for (Runnable r : new ArrayList<>(invalidationListeners)) r.run();
+        }
+        int nv = valueListeners.size();
+        if (nv == 1) {
+            valueListeners.get(0).accept(value);
+        } else if (nv > 1) {
+            for (Consumer<T> l : new ArrayList<>(valueListeners)) l.accept(value);
+        }
     }
 
     // A change that originates from the widget itself (the user typing into a TextInput),
@@ -211,8 +231,7 @@ public final class Property<T> {
     // same listeners a real value change would, without touching the value.
     public void notifyChanged() {
         changeVersion++;
-        for (Runnable r : new ArrayList<>(invalidationListeners)) r.run();
-        for (Consumer<T> l : new ArrayList<>(valueListeners)) l.accept(value);
+        fireListeners();
     }
 
     public void addInvalidationListener(Runnable r) {
@@ -236,8 +255,7 @@ public final class Property<T> {
         if (unchanged(value, newValue)) return;
         changeVersion++;
         value = newValue;
-        for (Runnable r : new ArrayList<>(invalidationListeners)) r.run();
-        for (Consumer<T> l : new ArrayList<>(valueListeners)) l.accept(value);
+        fireListeners();
     }
 
     // A value-change check that compares numbers by magnitude, not boxed identity: a
