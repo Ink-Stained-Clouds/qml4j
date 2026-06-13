@@ -188,6 +188,18 @@ public final class Renderer {
         }
         runLayout(node);
         applyAnchors(node);
+        // A child's anchors (centerIn/fill/...) resolve against the parent's geometry,
+        // but children are measured+anchored BEFORE the parent's own size is finalised
+        // above -- so a child centred/filled in a parent whose size comes from anchors
+        // was positioned against the parent's stale (often 0) size. Re-resolve the
+        // direct children's anchors now that the parent's box is final. If this changes
+        // a child's size it bumps the change version, so settleLayout runs another pass
+        // and the fix propagates down deeper anchor chains. On a settled frame the sets
+        // are no-ops (unchanged values don't bump). Previously this self-corrected only
+        // because the scene relayed out every frame; a static list never got pass two.
+        for (Item child : node.children) {
+            if (child.isVisible()) applyAnchors(child);
+        }
         updateChildrenRect(node);
     }
 
@@ -217,18 +229,29 @@ public final class Renderer {
         node.layout();
     }
 
+    // Visible clip rect in the coordinate space of the children currently being
+    // drawn (refreshed once per parent, before its child loop). Culling tests each
+    // child against these floats instead of allocating a Rect + a JNI quickReject
+    // per child -- a long list quick-rejects hundreds of off-screen rows EVERY
+    // frame while scrolling, and Rect-per-row churned enough garbage to stutter
+    // playback with periodic GC pauses (Haedus rule: no uncontrolled allocation on
+    // the per-frame render path).
+    private float clipL = -Float.MAX_VALUE, clipT = -Float.MAX_VALUE;
+    private float clipR = Float.MAX_VALUE, clipB = Float.MAX_VALUE;
+
     private void draw(Canvas canvas, Item node, float inheritedAlpha) {
         if (!node.isVisible()) return;
-        if (culled(canvas, node)) return;
+        if (culled(node)) return;
         drawForced(canvas, node, inheritedAlpha);
     }
 
     // Viewport culling: skip a subtree whose bounds (its own box unioned with its
-    // children's overflow) fall entirely outside the canvas clip -- the renderer
-    // otherwise records draw commands for everything off-screen (a long list, a
-    // page parked off a StackLayout). Skip the check for transformed or
-    // layer-effected nodes, whose drawn extent isn't this axis-aligned box.
-    private boolean culled(Canvas canvas, Item node) {
+    // children's overflow) fall entirely outside the visible clip (clipL/T/R/B,
+    // set by the parent in drawForced). The renderer otherwise records draw
+    // commands for everything off-screen (a long list, a page parked off a
+    // StackLayout). Skip the check for transformed or layer-effected nodes, whose
+    // drawn extent isn't this axis-aligned box.
+    private boolean culled(Item node) {
         if (node.rotation.peekFloat() != 0f || node.scale.peekFloat() != 1f) return false;
         if (!node.transform.isEmpty()) return false;
         if (layerEffectPaint(node) != null) return false;
@@ -241,7 +264,7 @@ public final class Renderer {
         float maxX = x + Math.max(w, crx + crw);
         float maxY = y + Math.max(h, cry + crh);
         if (maxX <= minX || maxY <= minY) return false;
-        return canvas.quickReject(Rect.makeLTRB(minX, minY, maxX, maxY));
+        return maxX <= clipL || minX >= clipR || maxY <= clipT || minY >= clipB;
     }
 
     // Draw a node ignoring its own `visible` flag (used to render a MultiEffect
@@ -278,8 +301,28 @@ public final class Renderer {
             } else if (clip) {
                 canvas.clipRect(Rect.makeXYWH(0, 0, Math.max(0f, w), Math.max(0f, h)));
             }
+            // Track the visible clip analytically as the canvas ops are applied (this
+            // Skija build has no getLocalClipBounds): translate(x,y) shifts the local
+            // origin, clip intersects with the node box, a transformed node disables
+            // culling for its subtree. Children are then culled against these floats --
+            // zero allocation, vs a Rect + JNI quickReject per child. Save the incoming
+            // bounds (parent's child-space) and restore at the end, since draw() recurses.
+            float sl = clipL, st = clipT, sr = clipR, sb = clipB;
+            float nl, nt, nr, nb;
+            if (rot != 0f || sc != 1f || !node.transform.isEmpty()) {
+                nl = nt = -Float.MAX_VALUE; nr = nb = Float.MAX_VALUE;
+            } else {
+                nl = clipL - x; nt = clipT - y; nr = clipR - x; nb = clipB - y;
+                if (clip || maskR != null) {
+                    if (nl < 0f) nl = 0f;
+                    if (nt < 0f) nt = 0f;
+                    if (nr > w) nr = w;
+                    if (nb > h) nb = h;
+                }
+            }
             // Children with z < 0 render BEHIND the node's own content (Qt); the rest on top.
             List<Item> ordered = zOrdered(node.children);
+            clipL = nl; clipT = nt; clipR = nr; clipB = nb;
             for (Item child : ordered) {
                 if (child.z.peekFloat() < 0f) draw(canvas, child, alpha);
             }
@@ -287,7 +330,14 @@ public final class Renderer {
             if (node instanceof Flickable) {
                 Flickable f = (Flickable) node;
                 canvas.clipRect(Rect.makeXYWH(0, 0, Math.max(0f, w), Math.max(0f, h)));
-                canvas.translate(-f.contentX.peekFloat(), -f.contentY.peekFloat());
+                float cx = f.contentX.peekFloat();
+                float cy = f.contentY.peekFloat();
+                // Intersect with the viewport box [0,0,w,h], then shift into content
+                // space (translate(-cx,-cy) maps a content point p to local p-c).
+                float vl = nl < 0f ? 0f : nl, vt = nt < 0f ? 0f : nt;
+                float vr = nr > w ? w : nr, vb = nb > h ? h : nb;
+                canvas.translate(-cx, -cy);
+                clipL = vl + cx; clipT = vt + cy; clipR = vr + cx; clipB = vb + cy;
             }
             if (node instanceof ApplicationWindow) {
                 ApplicationWindow win = (ApplicationWindow) node;
@@ -297,6 +347,10 @@ public final class Renderer {
                 try {
                     canvas.clipRect(Rect.makeXYWH(0, top, Math.max(0f, w), Math.max(0f, bottom - top)));
                     canvas.translate(0, top);
+                    clipL = nl < 0f ? 0f : nl;
+                    clipR = nr > w ? w : nr;
+                    clipT = (nt < top ? top : nt) - top;
+                    clipB = (nb > bottom ? bottom : nb) - top;
                     for (Item child : ordered) {
                         if (child.z.peekFloat() >= 0f) draw(canvas, child, alpha);
                     }
@@ -309,6 +363,7 @@ public final class Renderer {
                     if (child.z.peekFloat() >= 0f) draw(canvas, child, alpha);
                 }
             }
+            clipL = sl; clipT = st; clipR = sr; clipB = sb;
             if (maskR != null) eraseOutsideRoundRect(canvas, w, h, maskR);
         } finally {
             canvas.restoreToCount(savedCount);
