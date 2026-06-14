@@ -107,8 +107,15 @@ public final class QmlCompiler {
         m.put(Ast.ChildObject.class, this::emitChildObjectMember);
         m.put(Ast.BehaviorMember.class, this::emitBehaviorMemberMember);
         m.put(Ast.PropertyDeclaration.class, this::emitPropertyDeclarationMember);
-        m.put(Ast.SignalDeclaration.class, this::rejectSignalDeclaration);
-        m.put(Ast.FunctionDeclaration.class, this::rejectFunctionDeclaration);
+        // Signals/functions are emitted at object scope (emitObjectBody), never via
+        // this per-member dispatch -- inline throwing stubs as lambdas (a method ref
+        // would force unused MemberEmitter params); reaching them is a compiler bug.
+        m.put(Ast.SignalDeclaration.class, (member, ctx) -> {
+            throw new IllegalStateException("signal declaration should be handled at object scope");
+        });
+        m.put(Ast.FunctionDeclaration.class, (member, ctx) -> {
+            throw new IllegalStateException("function declaration should have been handled by emitObjectBody");
+        });
         // Inline components are compiled to their own classes + registered by the
         // Loader before this document compiles; nothing to emit into the enclosing body.
         m.put(Ast.InlineComponent.class, (member, ctx) -> { });
@@ -596,7 +603,6 @@ public final class QmlCompiler {
                 String handlerSource = arrow != null ? arrow.bodySource : valueSource(b.value);
                 if (isCustomHandler) {
                     emitCustomSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
-                                            handlerCounter, bindingCounter, classes,
                                             customSignalOwner, signalName, handlerSource, idTypes,
                                             handlerParams, declaredProps, aliases,
                                             rootFunctions, customSignals);
@@ -702,15 +708,6 @@ public final class QmlCompiler {
                                            ctx.idTypes, ctx.declaredProps, ctx.aliases, ctx.rootFunctions,
                                            ctx.registry, ctx.localCounter, ctx.handlerCounter,
                                            ctx.customSignalParams);
-    }
-
-    private void rejectSignalDeclaration(Ast.ObjectMember m, EmitContext ctx) {
-        throw new IllegalStateException("signal declaration should be handled at object scope");
-    }
-
-    private void rejectFunctionDeclaration(Ast.ObjectMember m, EmitContext ctx) {
-        throw new IllegalStateException(
-            "function declaration should have been handled by emitObjectBody");
     }
 
     private void emitPropertyDeclarationInitializer(MethodVisitor ctor, Class<? extends QObject> outerType,
@@ -1061,7 +1058,7 @@ public final class QmlCompiler {
         }
 
         emitDelegateMethod(n, delegateNode, registry, bindingCounter, handlerCounter,
-                           classes, componentBinaryName, componentInternal,
+                           classes, componentBinaryName,
                            delType, delegateInternal, delSignals, delSignalParams,
                            fullDecls, delDeclaredProps, idTypes, rootFunctions);
 
@@ -1074,7 +1071,6 @@ public final class QmlCompiler {
     private void emitDelegateMethod(int n, Ast.ObjectNode delegateNode, TypeRegistry registry,
                                     int[] bindingCounter, int[] handlerCounter,
                                     Map<String, byte[]> classes, String componentBinaryName,
-                                    String componentInternal,
                                     Class<? extends QObject> delType, String delegateInternal,
                                     Set<String> delSignals,
                                     Map<String, List<String>> delSignalParams,
@@ -1371,7 +1367,6 @@ public final class QmlCompiler {
 
     private void emitCustomSignalHandler(MethodVisitor ctor, Class<? extends QObject> outerType,
                                          int outerLocal, String componentBinaryName,
-                                         int[] handlerCounter, int[] bindingCounter, Map<String, byte[]> classes,
                                          String signalOwnerInternal, String signalName,
                                          String source,
                                          Map<String, Class<? extends QObject>> idTypes,

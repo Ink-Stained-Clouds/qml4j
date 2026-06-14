@@ -30,7 +30,7 @@ final class ImageLoader {
 
     static void fetch(Image node, String url) {
         POOL.submit(() -> {
-            byte[] data = null;
+            byte[] data;
             try {
                 data = get(url, 5);
             } catch (Throwable ignore) {

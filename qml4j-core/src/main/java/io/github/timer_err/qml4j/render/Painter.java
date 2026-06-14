@@ -1004,7 +1004,7 @@ public final class Painter {
             float lineH = TextLayout.lineHeight(font);
             float total = lineH * wrapped.lines.size();
             float yOffset = renderer.textLayout().topOffset(te.verticalAlignment.peek(), h, total);
-            paintSelectionMultiline(te, wrapped, font, yOffset, lineH, size, alpha);
+            paintSelectionMultiline(te, wrapped, font, yOffset, lineH, alpha);
             Paint p = renderer.paint();
             p.setColor(Renderer.applyAlpha(Renderer.parseColor(te.color.peek()), alpha));
             for (int i = 0; i < wrapped.lines.size(); i++) {
@@ -1021,7 +1021,7 @@ public final class Painter {
     }
 
     private void paintSelectionMultiline(TextEdit te, TextWrap.Result wrapped,
-                                         Font font, float yOffset, float lineH, float size, float alpha) {
+                                         Font font, float yOffset, float lineH, float alpha) {
         int len = te.cachedText == null ? 0 : te.cachedText.length();
         int selS = Math.max(0, Math.min(te.selectionStart.peekInt(), len));
         int selE = Math.max(selS, Math.min(te.selectionEnd.peekInt(), len));

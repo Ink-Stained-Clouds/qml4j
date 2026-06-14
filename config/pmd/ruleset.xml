@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<ruleset name="qml4j-unused"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+
+  <description>
+    Dead-declaration guard for what Checkstyle can't analyse: unused private
+    fields/methods and write-without-read (dead stores). These are reliable --
+    they don't depend on whole-program / functional-interface analysis.
+
+    NOT here:
+      - unused parameters: a syntactic tool can't tell a parameter is a
+        functional-interface contract (e.g. a private method bound via `this::m`
+        as a MemberEmitter), so it false-positives on dispatch methods. Parameter
+        analysis is delegated to ECJ (Eclipse compiler), wired as a check-only
+        verify step -- see the `ecj` profile in the parent POM.
+      - unused locals: already covered by Checkstyle's UnusedLocalVariable.
+      - unused public members/types: qml4j is a published library; "unused" can't
+        be decided here (consumed externally).
+  </description>
+
+  <rule ref="category/java/bestpractices.xml/UnusedPrivateField"/>
+  <rule ref="category/java/bestpractices.xml/UnusedPrivateMethod"/>
+  <rule ref="category/java/bestpractices.xml/UnusedAssignment"/>
+
+</ruleset>

@@ -85,10 +85,6 @@ public final class Renderer {
     // chains; capped so a pathological oscillating layout can't spin forever.
     private static final int MAX_LAYOUT_PASSES = 8;
 
-    // When true, the current frame's draw reuses the geometry from the last full layout
-    // (an idle frame: nothing in the scene changed). Set by render(skipLayout=true).
-    private boolean skipLayout;
-
     // The GPU context of the surface being rendered, threaded to Painter so a Canvas item's
     // offscreen backing is made on the same context (a raster offscreen won't blit on GPU).
     private io.github.humbleui.skija.DirectContext gpuContext;
@@ -111,7 +107,6 @@ public final class Renderer {
     public void render(Canvas canvas, Item root, boolean skipLayout) {
         if (root == null) return;
         painter.bind(canvas);
-        this.skipLayout = skipLayout;
         if (!skipLayout) settleLayout(root);
         draw(canvas, root, 1f);
     }

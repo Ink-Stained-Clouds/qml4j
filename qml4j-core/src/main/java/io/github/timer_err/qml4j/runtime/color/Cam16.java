@@ -19,21 +19,15 @@ final class Cam16 {
     private final double hue;
     private final double chroma;
     private final double j;
-    private final double q;
-    private final double m;
-    private final double s;
     private final double jstar;
     private final double astar;
     private final double bstar;
 
-    private Cam16(double hue, double chroma, double j, double q, double m, double s,
+    private Cam16(double hue, double chroma, double j,
                  double jstar, double astar, double bstar) {
         this.hue = hue;
         this.chroma = chroma;
         this.j = j;
-        this.q = q;
-        this.m = m;
-        this.s = s;
         this.jstar = jstar;
         this.astar = astar;
         this.bstar = bstar;
@@ -91,8 +85,6 @@ final class Cam16 {
 
         double ac = p2 * vc.getNbb();
         double j = 100.0 * Math.pow(ac / vc.getAw(), vc.getC() * vc.getZ());
-        double q = 4.0 / vc.getC() * Math.sqrt(j / 100.0)
-            * (vc.getAw() + 4.0) * vc.getFlRoot();
 
         double huePrime = hue < 20.14 ? hue + 360 : hue;
         double eHue = 0.25 * (Math.cos(huePrime * Math.PI / 180.0 + 2.0) + 3.8);
@@ -101,13 +93,12 @@ final class Cam16 {
         double alpha = Math.pow(t, 0.9) * Math.pow(1.64 - Math.pow(0.29, vc.getN()), 0.73);
         double c = alpha * Math.sqrt(j / 100.0);
         double m = c * vc.getFlRoot();
-        double s = 50.0 * Math.sqrt(alpha * vc.getC() / (vc.getAw() + 4.0));
 
         double jstar = (1.0 + 100.0 * 0.007) * j / (1.0 + 0.007 * j);
         double mstar = 1.0 / 0.0228 * Math.log1p(0.0228 * m);
         double astar = mstar * Math.cos(hueRadians);
         double bstar = mstar * Math.sin(hueRadians);
-        return new Cam16(hue, c, j, q, m, s, jstar, astar, bstar);
+        return new Cam16(hue, c, j, jstar, astar, bstar);
     }
 
     static Cam16 fromJch(double j, double c, double h) {
@@ -115,17 +106,13 @@ final class Cam16 {
     }
 
     private static Cam16 fromJchInViewingConditions(double j, double c, double h, ViewingConditions vc) {
-        double q = 4.0 / vc.getC() * Math.sqrt(j / 100.0)
-            * (vc.getAw() + 4.0) * vc.getFlRoot();
         double m = c * vc.getFlRoot();
-        double alpha = c / Math.sqrt(j / 100.0);
-        double s = 50.0 * Math.sqrt(alpha * vc.getC() / (vc.getAw() + 4.0));
         double hueRadians = h * Math.PI / 180.0;
         double jstar = (1.0 + 100.0 * 0.007) * j / (1.0 + 0.007 * j);
         double mstar = 1.0 / 0.0228 * Math.log1p(0.0228 * m);
         double astar = mstar * Math.cos(hueRadians);
         double bstar = mstar * Math.sin(hueRadians);
-        return new Cam16(h, c, j, q, m, s, jstar, astar, bstar);
+        return new Cam16(h, c, j, jstar, astar, bstar);
     }
 
     int toInt() {
