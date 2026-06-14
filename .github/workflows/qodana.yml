@@ -24,7 +24,18 @@ jobs:
         with:
           args: --report-dir,${{ runner.temp }}/qodana/results
 
+      # Publish the raw SARIF so it can be downloaded and committed as the baseline
+      # (qodana.sarif.json at repo root). Once the baseline is in place, future runs
+      # only flag NEW problems. always() so it's available even if a quality gate fails.
+      - name: Upload SARIF as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qodana-sarif
+          path: ${{ runner.temp }}/qodana/results/qodana.sarif.json
+
       - name: Upload SARIF report to GitHub
+        if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ${{ runner.temp }}/qodana/results/qodana.sarif.json
