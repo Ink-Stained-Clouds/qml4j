@@ -10,3 +10,13 @@ linter: jetbrains/qodana-jvm-community:latest
 # parameters included, with the hierarchy/contract awareness PMD/ECJ lack.
 profile:
   name: qodana.recommended
+
+# Quality gate: fail the scan on NEW high/critical problems. Existing findings are
+# captured in the baseline (qodana.sarif.json, passed via --baseline in the
+# workflow), so only regressions a change introduces trip the gate; moderate/low
+# go to the Code scanning dashboard only. Pair with a branch-protection rule
+# requiring this check to actually block merges.
+failureConditions:
+  severityThresholds:
+    critical: 0
+    high: 0
