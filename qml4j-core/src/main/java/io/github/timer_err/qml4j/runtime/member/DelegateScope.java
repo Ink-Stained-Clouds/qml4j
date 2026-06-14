@@ -115,6 +115,7 @@ public final class DelegateScope {
     }
 
     private static Object parentOf(Object node) {
+        if (node == null) return null;
         Field f;
         try {
             f = node.getClass().getField("parent");

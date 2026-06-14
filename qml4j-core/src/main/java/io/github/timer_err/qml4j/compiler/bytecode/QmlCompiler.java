@@ -586,10 +586,11 @@ public final class QmlCompiler {
             }
             // ScriptAction.script: a body run when the action triggers -- emit it as a
             // handler on the owner's `trigger` signal (not a value binding).
-            if ("script".equals(key) && findSignalFieldOrNull(outerType, "trigger") != null) {
+            Field triggerSignal = findSignalFieldOrNull(outerType, "trigger");
+            if ("script".equals(key) && triggerSignal != null) {
                 emitSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
                                   handlerCounter, bindingCounter, classes,
-                                  findSignalFieldOrNull(outerType, "trigger"), valueSource(b.value),
+                                  triggerSignal, valueSource(b.value),
                                   idTypes, Collections.<String>emptyList(), declaredProps, aliases,
                                   rootFunctions, customSignals);
                 return;
@@ -725,10 +726,9 @@ public final class QmlCompiler {
         if (pd.initializer == null) return;
         // Override of an inherited property (no own field): apply the initializer
         // as a binding/literal to the inherited Property field.
-        if (declaredProps.get(pd.name) == null
-            && findPropertyFieldOrNull(outerType, pd.name) != null) {
-            String overrideOwner = Type.getInternalName(
-                findPropertyFieldOrNull(outerType, pd.name).getDeclaringClass());
+        Field overrideField = findPropertyFieldOrNull(outerType, pd.name);
+        if (declaredProps.get(pd.name) == null && overrideField != null) {
+            String overrideOwner = Type.getInternalName(overrideField.getDeclaringClass());
             if (pd.initializer instanceof Ast.StatementBlockValue
                     && tryEmitRhinoIifeBinding(ctor, outerType, outerLocal, overrideOwner, pd.name,
                         (Ast.StatementBlockValue) pd.initializer, idTypes, declaredProps,
