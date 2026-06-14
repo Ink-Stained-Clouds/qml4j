@@ -61,7 +61,9 @@ public final class HandlerEmitter {
     // Connects a RhinoHandler to the named signal on the Keys attached object.
     public static void emitKeysHandler(MethodVisitor ctor, Class<? extends QObject> outerType,
                                        int outerLocal, String componentBinaryName,
+                                       @SuppressWarnings("unused")
                                        int[] handlerCounter, int[] bindingCounter,
+                                       @SuppressWarnings("unused")
                                        Map<String, byte[]> classes, String signalName,
                                        String source,
                                        Map<String, Class<? extends QObject>> idTypes,
@@ -100,7 +102,9 @@ public final class HandlerEmitter {
     // Connects a RhinoHandler to the given signal field.
     public static void emitSignalHandler(MethodVisitor ctor, Class<? extends QObject> outerType,
                                          int outerLocal, String componentBinaryName,
+                                         @SuppressWarnings("unused")
                                          int[] handlerCounter, int[] bindingCounter,
+                                         @SuppressWarnings("unused")
                                          Map<String, byte[]> classes, Field signalField,
                                          String source,
                                          Map<String, Class<? extends QObject>> idTypes,
@@ -126,7 +130,9 @@ public final class HandlerEmitter {
     public static void emitPropertyChangeHandler(MethodVisitor ctor,
                                                   Class<? extends QObject> outerType,
                                                   int outerLocal, String componentBinaryName,
+                                                  @SuppressWarnings("unused")
                                                   int[] handlerCounter, int[] bindingCounter,
+                                                  @SuppressWarnings("unused")
                                                   Map<String, byte[]> classes, String propName,
                                                   String source,
                                                   Map<String, Class<? extends QObject>> idTypes,
@@ -157,7 +163,9 @@ public final class HandlerEmitter {
     public static void emitRelaySignalHandler(MethodVisitor ctor,
                                               Class<? extends QObject> outerType,
                                               int outerLocal, String componentBinaryName,
+                                              @SuppressWarnings("unused")
                                               int[] handlerCounter, int[] bindingCounter,
+                                              @SuppressWarnings("unused")
                                               Map<String, byte[]> classes, String signalName,
                                               String source,
                                               Map<String, Class<? extends QObject>> idTypes,
@@ -208,7 +216,9 @@ public final class HandlerEmitter {
     // Pushes a RhinoHandler instance onto the stack. The signal target is expected
     // to already be on the stack below; callers connect afterwards.
     public static void emitHandlerInstance(MethodVisitor ctor, Class<?> outerType,
+                                           @SuppressWarnings("unused")
                                            String outerInternal, String componentInternal,
+                                           @SuppressWarnings("unused")
                                            String componentBinaryName, int outerLocal,
                                            String source,
                                            List<String> signalParams,

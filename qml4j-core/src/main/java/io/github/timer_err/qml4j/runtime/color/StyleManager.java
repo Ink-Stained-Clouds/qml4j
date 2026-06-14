@@ -45,11 +45,13 @@ public final class StyleManager extends QObject {
         updateSchemes();
     }
 
+    @SuppressWarnings("unused")
     public void setSeedColorHct(double hue, double chroma, double tone) {
         seedColor.set(hex(Hct.from(hue, chroma, tone).toInt()));
     }
 
     // Image-derived seeds (quantize + score) are unported; ignore so callers don't fail.
+    @SuppressWarnings("unused")
     public void setSourceImage(Object fileUrl) {
     }
 

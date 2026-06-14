@@ -8,6 +8,7 @@ public abstract class GroupAnimation extends AbstractAnimation {
     // Qt's SequentialAnimation/ParallelAnimation.animations: the child animations. They
     // are this group's children, so alias the list -- MD3 Tabs retargets a running move
     // via `moveAnim.animations[0].to = x`.
+    @SuppressWarnings("unused")
     public final List<Item> animations = children;
 
     private boolean wasRunning;
@@ -42,6 +43,7 @@ public abstract class GroupAnimation extends AbstractAnimation {
         stopAllChildren();
     }
 
+    @SuppressWarnings("unused")
     protected abstract void onStart(long nowNanos);
     protected abstract void onTick(long nowNanos);
     protected abstract boolean isFinished();

@@ -17,6 +17,7 @@ public final class DeclaredProp {
         this(name, typeName, initializer, false, false);
     }
 
+    @SuppressWarnings("unused")
     public DeclaredProp(String name, String typeName, Ast.Value initializer, boolean isDefault) {
         this(name, typeName, initializer, isDefault, false);
     }

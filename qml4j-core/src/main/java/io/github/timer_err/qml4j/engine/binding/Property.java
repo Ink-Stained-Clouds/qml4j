@@ -122,6 +122,7 @@ public final class Property<T> {
         this.interceptor = i;
     }
 
+    @SuppressWarnings("unused")
     public WriteInterceptor<T> interceptor() {
         return interceptor;
     }
@@ -143,6 +144,7 @@ public final class Property<T> {
     // value, not the construction-time default. One list per batch, mirroring deferStack.
     private static final ThreadLocal<Deque<List<Runnable>>> afterFlushStack = new ThreadLocal<>();
 
+    @SuppressWarnings("unused")
     public static void pushDeferred() {
         Deque<List<Property<?>>> st = deferStack.get();
         if (st == null) {
@@ -158,6 +160,7 @@ public final class Property<T> {
         as.push(new ArrayList<>());
     }
 
+    @SuppressWarnings("unused")
     public static void flushDeferred() {
         Deque<List<Property<?>>> st = deferStack.get();
         if (st == null || st.isEmpty()) return;
@@ -185,6 +188,7 @@ public final class Property<T> {
         }
     }
 
+    @SuppressWarnings("unused")
     public static void drainDeferred() {
         Deque<List<Property<?>>> st = deferStack.get();
         if (st == null || st.isEmpty()) return;
@@ -221,6 +225,7 @@ public final class Property<T> {
 
     private static final Object[] EMPTY_ARGS = new Object[0];
 
+    @SuppressWarnings("unused")
     public void removeListener(Consumer<T> l) {
         valueListeners.remove(l);
     }

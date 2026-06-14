@@ -37,6 +37,7 @@ public class Behavior extends Item implements Animatable, Property.WriteIntercep
         visible.set(Boolean.FALSE);
     }
 
+    @SuppressWarnings("unused")
     public void attach(Object owner, String propName) {
         Property<?> p = findProperty(owner, propName);
         if (p == null) return;

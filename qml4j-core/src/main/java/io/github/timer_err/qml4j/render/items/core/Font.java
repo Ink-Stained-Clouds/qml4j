@@ -9,10 +9,13 @@ import io.github.timer_err.qml4j.engine.binding.Property;
 public final class Font {
     public final Property<String> family = new Property<>("");
     public final Property<Number> pixelSize = new Property<>(0);
+    @SuppressWarnings("unused")
     public final Property<Number> pointSize = new Property<>(0);
     public final Property<Number> weight = new Property<>(50);
     public final Property<Boolean> bold = new Property<>(Boolean.FALSE);
+    @SuppressWarnings("unused")
     public final Property<Boolean> italic = new Property<>(Boolean.FALSE);
     // Font.MixedCase(0)/AllUppercase/AllLowercase/... — accepted; not yet applied.
+    @SuppressWarnings("unused")
     public final Property<Number> capitalization = new Property<>(0);
 }

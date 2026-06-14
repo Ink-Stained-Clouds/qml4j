@@ -41,6 +41,7 @@ public final class QmlScope implements Scriptable {
     // `targetId.targetProperty`). Threaded per-binding, empty in delegate scope.
     private final Map<String, String[]> aliases;
 
+    @SuppressWarnings("unused")
     public QmlScope(Object outer, Object root, Scriptable globals, Set<String> sceneIds,
                     boolean delegate, Map<String, Class<?>> singletonClasses,
                     Map<String, String[]> aliases) {

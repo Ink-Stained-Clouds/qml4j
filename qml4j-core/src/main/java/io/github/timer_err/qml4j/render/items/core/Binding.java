@@ -13,6 +13,7 @@ public class Binding extends Item {
     public final Property<String> property = new Property<>(null);
     public final Property<Object> value = new Property<>(null);
     public final Property<Boolean> when = new Property<>(Boolean.TRUE);
+    @SuppressWarnings("unused")
     public final Property<Boolean> delayed = new Property<>(Boolean.FALSE);
 
     public Binding() {

@@ -11,15 +11,19 @@ public class Flickable extends Item implements Animatable {
     public final Property<String> flickableDirection = new Property<>("AutoFlickDirection");
     public final Property<Boolean> interactive = new Property<>(Boolean.TRUE);
     public final Property<Boolean> moving = new Property<>(Boolean.FALSE);
+    @SuppressWarnings("unused")
     public final Property<Number> boundsBehavior = new Property<>(3); // DragAndOvershootBounds
     // Content margins (Qt Flickable.topMargin/...): accepted so documents load; the
     // content is laid out by its own anchors/size here, so these are not yet applied.
+    @SuppressWarnings("unused")
     public final Property<Number> topMargin = new Property<>(0);
     public final Property<Number> bottomMargin = new Property<>(0);
+    @SuppressWarnings("unused")
     public final Property<Number> leftMargin = new Property<>(0);
     public final Property<Number> rightMargin = new Property<>(0);
     // Touch press-delay before the flick steals the press from children; accepted so
     // documents load (no delayed-press synthesis here).
+    @SuppressWarnings("unused")
     public final Property<Number> pressDelay = new Property<>(0);
 
     // --- Eased scrolling + fling -----------------------------------------
@@ -54,6 +58,7 @@ public class Flickable extends Item implements Animatable {
     }
 
     /** Adjust the target by a delta (wheel notches accumulate before the ease catches up). */
+    @SuppressWarnings("unused")
     public void nudge(float dx, float dy) {
         setScrollTarget(targetX + dx, targetY + dy);
     }
@@ -73,6 +78,7 @@ public class Flickable extends Item implements Animatable {
         syncTarget();
     }
 
+    @SuppressWarnings("unused")
     public void stopFling() {
         flinging = false;
     }
@@ -87,10 +93,12 @@ public class Flickable extends Item implements Animatable {
         moving.set(flinging);
     }
 
+    @SuppressWarnings("unused")
     public float targetX() {
         return targetX;
     }
 
+    @SuppressWarnings("unused")
     public float targetY() {
         return targetY;
     }

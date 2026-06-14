@@ -24,6 +24,7 @@ final class ColorUtils {
         return (255 << 24) | ((red & 255) << 16) | ((green & 255) << 8) | (blue & 255);
     }
 
+    @SuppressWarnings("unused")
     static int argbFromLinrgb(double[] linrgb) {
         int r = delinearized(linrgb[0]);
         int g = delinearized(linrgb[1]);

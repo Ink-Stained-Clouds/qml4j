@@ -40,6 +40,7 @@ public class Item extends QObject {
     public final Property<Number> transformOrigin = new Property<>(4);
     public final Property<Number> z = new Property<>(0);
     public final Property<Boolean> clip = new Property<>(Boolean.FALSE);
+    @SuppressWarnings("unused")
     public final Property<Boolean> antialiasing = new Property<>(Boolean.FALSE);
     // Opt-in static-subtree hint. When true, the layout pass skips re-measuring this
     // item's children as long as the item's own box and child count are unchanged --
@@ -66,12 +67,17 @@ public class Item extends QObject {
     // QtQuick.Layouts attached props (Layout.fillWidth, Layout.leftMargin, ...).
     public final LayoutAttached Layout = new LayoutAttached();
 
+    @SuppressWarnings("unused")
     public final Property<AnchorLine> left = new Property<>(new AnchorLine(this, AnchorLine.Edge.LEFT));
     public final Property<AnchorLine> right = new Property<>(new AnchorLine(this, AnchorLine.Edge.RIGHT));
+    @SuppressWarnings("unused")
     public final Property<AnchorLine> top = new Property<>(new AnchorLine(this, AnchorLine.Edge.TOP));
+    @SuppressWarnings("unused")
     public final Property<AnchorLine> bottom = new Property<>(new AnchorLine(this, AnchorLine.Edge.BOTTOM));
+    @SuppressWarnings("unused")
     public final Property<AnchorLine> horizontalCenter =
         new Property<>(new AnchorLine(this, AnchorLine.Edge.HORIZONTAL_CENTER));
+    @SuppressWarnings("unused")
     public final Property<AnchorLine> verticalCenter =
         new Property<>(new AnchorLine(this, AnchorLine.Edge.VERTICAL_CENTER));
 
@@ -114,6 +120,7 @@ public class Item extends QObject {
         }
     }
 
+    @SuppressWarnings("unused")
     public Keys keys() {
         if (keys == null) keys = new Keys();
         return keys;
@@ -203,6 +210,7 @@ public class Item extends QObject {
 
     // QML Object.destroy(): detach from the scene. Safe to call from inside an
     // animation tick because the tick walk iterates children in reverse by index.
+    @SuppressWarnings("unused")
     public void destroy() {
         Item p = parent.peek();
         if (p != null) p.children.remove(this);

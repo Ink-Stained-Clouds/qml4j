@@ -40,6 +40,7 @@ public final class JsRuntime {
         return FACTORY.enterContext();
     }
 
+    @SuppressWarnings("unused")
     public static Script compile(String source) {
         return compile(source, null);
     }

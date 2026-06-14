@@ -36,6 +36,7 @@ public class Component extends Item implements DelegateHost {
         return created;
     }
 
+    @SuppressWarnings("unused")
     public QObject createObject(Object parentObj) {
         return createObject(parentObj, null);
     }

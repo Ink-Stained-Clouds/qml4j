@@ -12,9 +12,12 @@ public final class LayoutAttached {
     public final Property<Boolean> fillHeight = new Property<>(Boolean.FALSE);
     public final Property<Number> preferredWidth = new Property<>(-1);
     public final Property<Number> preferredHeight = new Property<>(-1);
+    @SuppressWarnings("unused")
     public final Property<Number> minimumWidth = new Property<>(-1);
+    @SuppressWarnings("unused")
     public final Property<Number> minimumHeight = new Property<>(-1);
     public final Property<Number> maximumWidth = new Property<>(-1);
+    @SuppressWarnings("unused")
     public final Property<Number> maximumHeight = new Property<>(-1);
     public final Property<Number> alignment = new Property<>(0);
     public final Property<Number> margins = new Property<>(0);

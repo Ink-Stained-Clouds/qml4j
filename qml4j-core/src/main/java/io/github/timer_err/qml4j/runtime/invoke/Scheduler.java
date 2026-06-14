@@ -17,6 +17,7 @@ public final class Scheduler {
     // Component.onCompleted: run the handler once after the current construction +
     // binding flush settles (end of the dirty-queue flush), or now if no queue is
     // active.
+    @SuppressWarnings("unused")
     public static void runLater(SignalHandler h) {
         if (h == null) return;
         Runnable r = () -> h.invoke(EMPTY_ARGS);

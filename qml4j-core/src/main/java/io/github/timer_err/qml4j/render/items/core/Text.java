@@ -11,9 +11,12 @@ public class Text extends Item {
     public final Font font = new Font();
     public final Property<Number> wrapMode = new Property<>(0);            // Text.NoWrap
     public final Property<Number> horizontalAlignment = new Property<>(1); // Text.AlignLeft
+    @SuppressWarnings("unused")
     public final Property<Number> verticalAlignment = new Property<>(32);  // Text.AlignTop
     public final Property<Number> elide = new Property<>(0);                // Text.ElideNone
+    @SuppressWarnings("unused")
     public final Property<Number> lineHeight = new Property<>(1);
+    @SuppressWarnings("unused")
     public final Property<Number> lineHeightMode = new Property<>(0);       // ProportionalHeight
     // Qt Text.contentWidth/contentHeight: the painted text's natural size (== the measured
     // implicit size). A bubble sized to `label.contentWidth + pad` reads these.
@@ -29,7 +32,9 @@ public class Text extends Item {
         return fs != null ? fs.floatValue() : 14f;
     }
 
+    @SuppressWarnings("unused")
     public String lastMeasuredText;
+    @SuppressWarnings("unused")
     public float lastMeasuredSize = -1f;
     public double lastSetWidth = Double.NaN;
     public double lastSetHeight = Double.NaN;

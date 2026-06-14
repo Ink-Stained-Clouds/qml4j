@@ -24,6 +24,7 @@ public class Timer extends Item implements Animatable {
 
     public void start() { running.set(Boolean.TRUE); }
     public void stop() { running.set(Boolean.FALSE); }
+    @SuppressWarnings("unused")
     public void restart() { stop(); start(); }
 
     @Override

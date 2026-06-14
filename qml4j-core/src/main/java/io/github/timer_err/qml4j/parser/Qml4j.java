@@ -44,6 +44,7 @@ public final class Qml4j {
 
     public static final class QmlSyntaxException extends RuntimeException {
         public final int line;
+        @SuppressWarnings("unused")
         public final int column;
         public QmlSyntaxException(int line, int column, String msg) {
             super("line " + line + ":" + column + " " + msg);

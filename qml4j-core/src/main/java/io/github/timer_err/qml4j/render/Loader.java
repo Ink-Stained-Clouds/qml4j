@@ -61,6 +61,7 @@ final class Loader {
         this.progress = l;
     }
 
+    @SuppressWarnings("unused")
     Item instantiate(String qml) {
         return instantiate(qml, "");
     }

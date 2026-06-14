@@ -27,6 +27,7 @@ public class PropertyAnimation extends AbstractAnimation {
     // done here: the compiler emits start() only when the QML didn't bind `running`
     // itself, so an explicit `running:` binding wins (else it would spin forever
     // ignoring its own condition, keeping the scene perpetually dirty).
+    @SuppressWarnings("unused")
     public void attach(Object owner, String prop) {
         target.set(owner);
         property.set(prop);

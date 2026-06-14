@@ -20,6 +20,7 @@ public final class JvmClassLoaderBackend implements ClassLoaderBackend {
         return loader.defineFromBytes(name, jvmBytecode);
     }
 
+    @SuppressWarnings("unused")
     public ClassLoader classLoader() {
         return loader;
     }

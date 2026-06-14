@@ -833,6 +833,7 @@ public final class QmlCompiler {
                                      int[] localCounter, int[] bindingCounter, int[] handlerCounter,
                                      Map<String, byte[]> classes, String componentBinaryName,
                                      Map<String, Class<? extends QObject>> idTypes,
+                                     @SuppressWarnings("unused")
                                      Map<String, List<String>> outerSignalParams,
                                      String listFieldName,
                                      Map<String, String> declaredProps,

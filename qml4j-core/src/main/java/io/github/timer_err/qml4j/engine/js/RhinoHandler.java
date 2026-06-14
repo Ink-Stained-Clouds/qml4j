@@ -12,6 +12,7 @@ public final class RhinoHandler implements SignalHandler {
 
     private final RhinoClosure closure;
 
+    @SuppressWarnings("unused")
     public RhinoHandler(String body, String[] params, Object outer, Object root,
                         String[] ids, boolean delegate,
                         String[] singletonNames, Class<?>[] singletonClasses, String[] aliasSpecs) {

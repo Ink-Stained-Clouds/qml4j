@@ -9,6 +9,7 @@ public final class AliasDecl {
     public final boolean isList;         // alias to id.data / id.children (a List field)
     public final boolean isDefault;      // default property alias -> the default child container
 
+    @SuppressWarnings("unused")
     public AliasDecl(String name, String targetId, String targetProperty) {
         this(name, targetId, targetProperty, false, false);
     }

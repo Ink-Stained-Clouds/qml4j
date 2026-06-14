@@ -50,6 +50,7 @@ public class ListModel extends QObject {
         rowsRemoved.emit();
     }
 
+    @SuppressWarnings("unused")
     public void set(int i, Object data) {
         rows.set(i, toElement(data));
         rowsChanged.emit();
@@ -80,6 +81,7 @@ public class ListModel extends QObject {
         return el;
     }
 
+    @SuppressWarnings("unused")
     public Map<String, Object> asMap(int i) {
         Map<String, Object> copy = new LinkedHashMap<>();
         copy.putAll(rows.get(i));

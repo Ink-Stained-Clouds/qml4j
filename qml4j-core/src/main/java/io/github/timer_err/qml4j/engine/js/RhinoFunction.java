@@ -13,6 +13,7 @@ public final class RhinoFunction implements Callable {
 
     private final RhinoClosure closure;
 
+    @SuppressWarnings("unused")
     public RhinoFunction(String body, String[] params, Object outer, Object root,
                          String[] ids, boolean delegate,
                          String[] singletonNames, Class<?>[] singletonClasses, String[] aliasSpecs) {

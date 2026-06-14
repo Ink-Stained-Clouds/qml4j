@@ -28,6 +28,7 @@ final class MathUtils {
         return degrees;
     }
 
+    @SuppressWarnings("unused")
     static int sanitizeDegreesInt(int degrees) {
         degrees = degrees % 360;
         if (degrees < 0) degrees = degrees + 360;
@@ -35,11 +36,13 @@ final class MathUtils {
     }
 
     // 1.0 when rotating clockwise from `from` to `to`, -1.0 counterclockwise.
+    @SuppressWarnings("unused")
     static double rotationDirection(double from, double to) {
         double increasingDifference = sanitizeDegreesDouble(to - from);
         return increasingDifference <= 180.0 ? 1.0 : -1.0;
     }
 
+    @SuppressWarnings("unused")
     static double differenceDegrees(double a, double b) {
         return 180.0 - Math.abs(Math.abs(a - b) - 180.0);
     }

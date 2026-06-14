@@ -52,6 +52,7 @@ public final class Context2D {
 
     private float[] lineDash = null;
 
+    @SuppressWarnings("unused")
     private static final class State {
         Object fill, stroke; double lw, ga; String cap, join, fnt, tAlign, tBase; float[] dash;
     }
@@ -63,22 +64,28 @@ public final class Context2D {
     }
 
     // ---- path ----
+    @SuppressWarnings("unused")
     public void beginPath() { ops.clear(); }
+    @SuppressWarnings("unused")
     public void closePath() { ops.add(PathBuilder::closePath); }
+    @SuppressWarnings("unused")
     public void moveTo(double x, double y) {
         float fx = (float) x, fy = (float) y;
         ops.add(b -> b.moveTo(fx, fy));
     }
+    @SuppressWarnings("unused")
     public void lineTo(double x, double y) {
         float fx = (float) x, fy = (float) y;
         ops.add(b -> b.lineTo(fx, fy));
     }
+    @SuppressWarnings("unused")
     public void rect(double x, double y, double w, double h) {
         Rect r = Rect.makeXYWH((float) x, (float) y, (float) w, (float) h);
         ops.add(b -> b.addRect(r));
     }
 
     // Qt Context2D.roundedRect(x, y, w, h, xRadius, yRadius) -- rounded-rect subpath.
+    @SuppressWarnings("unused")
     public void roundedRect(double x, double y, double w, double h, double xr, double yr) {
         RRect rr = RRect.makeXYWH((float) x, (float) y, (float) w, (float) h, (float) xr, (float) yr);
         ops.add(b -> b.addRRect(rr));
@@ -103,24 +110,29 @@ public final class Context2D {
         ops.add(b -> b.arcTo(oval, fa, fsw, moveToStart));
     }
 
+    @SuppressWarnings("unused")
     public void arc(double cx, double cy, double r, double start, double end) {
         arc(cx, cy, r, start, end, false);
     }
 
+    @SuppressWarnings("unused")
     public void arcTo(double x1, double y1, double x2, double y2, double r) {
         float a = (float) x1, b1 = (float) y1, c = (float) x2, d = (float) y2, rr = (float) r;
         ops.add(b -> b.tangentArcTo(a, b1, c, d, rr));
     }
 
     // ---- fills / strokes ----
+    @SuppressWarnings("unused")
     public void fill() {
         withPath(p -> fillWith(fillStyle, paint -> canvas.drawPath(p, paint)));
     }
 
+    @SuppressWarnings("unused")
     public void stroke() {
         withPath(p -> strokeWith(paint -> canvas.drawPath(p, paint)));
     }
 
+    @SuppressWarnings("unused")
     public void clip() {
         withPath(p -> canvas.clipPath(p, true));
     }
@@ -136,16 +148,19 @@ public final class Context2D {
         }
     }
 
+    @SuppressWarnings("unused")
     public void fillRect(double x, double y, double w, double h) {
         Rect r = Rect.makeXYWH((float) x, (float) y, (float) w, (float) h);
         fillWith(fillStyle, p -> canvas.drawRect(r, p));
     }
 
+    @SuppressWarnings("unused")
     public void strokeRect(double x, double y, double w, double h) {
         Rect r = Rect.makeXYWH((float) x, (float) y, (float) w, (float) h);
         strokeWith(p -> canvas.drawRect(r, p));
     }
 
+    @SuppressWarnings("unused")
     public void clearRect(double x, double y, double w, double h) {
         try (Paint p = new Paint()) {
             p.setColor(0);
@@ -154,6 +169,7 @@ public final class Context2D {
         }
     }
 
+    @SuppressWarnings("unused")
     public void fillText(String text, double x, double y) {
         if (text == null) return;
         // fontFor returns a cached Font shared across frames -- must NOT be closed.
@@ -184,10 +200,14 @@ public final class Context2D {
     }
 
     // ---- transform / state ----
+    @SuppressWarnings("unused")
     public void translate(double x, double y) { canvas.translate((float) x, (float) y); }
+    @SuppressWarnings("unused")
     public void rotate(double rad) { canvas.rotate((float) Math.toDegrees(rad)); }
+    @SuppressWarnings("unused")
     public void scale(double x, double y) { canvas.scale((float) x, (float) y); }
 
+    @SuppressWarnings("unused")
     public void save() {
         canvas.save();
         State s = new State();
@@ -197,6 +217,7 @@ public final class Context2D {
         stack.push(s);
     }
 
+    @SuppressWarnings("unused")
     public void restore() {
         canvas.restore();
         State s = stack.poll();
@@ -207,6 +228,7 @@ public final class Context2D {
     }
 
     // Canvas/Context2D reset: clear the path + drawing state.
+    @SuppressWarnings("unused")
     public void reset() {
         ops.clear();
         stack.clear();
@@ -214,6 +236,7 @@ public final class Context2D {
         lineCap = "butt"; lineJoin = "miter"; lineDash = null;
     }
 
+    @SuppressWarnings("unused")
     public void setLineDash(Object dashes) {
         if (!(dashes instanceof List)) { lineDash = null; return; }
         List<?> l = (List<?>) dashes;
@@ -223,6 +246,7 @@ public final class Context2D {
         lineDash = d;
     }
 
+    @SuppressWarnings("unused")
     public RadialGradient createRadialGradient(double x0, double y0, double r0,
                                                double x1, double y1, double r1) {
         return new RadialGradient((float) x1, (float) y1, (float) r1);
@@ -292,7 +316,9 @@ public final class Context2D {
         private final float cx, cy, radius;
         private final List<Float> stops = new ArrayList<>();
         private final List<Integer> colors = new ArrayList<>();
+        @SuppressWarnings("unused")
         RadialGradient(float cx, float cy, float radius) { this.cx = cx; this.cy = cy; this.radius = radius; }
+        @SuppressWarnings("unused")
         public void addColorStop(double offset, String color) {
             stops.add((float) offset);
             colors.add(Renderer.parseColor(color));

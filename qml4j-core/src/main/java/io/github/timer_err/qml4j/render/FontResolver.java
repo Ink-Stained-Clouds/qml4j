@@ -72,6 +72,7 @@ final class FontResolver {
         return f;
     }
 
+    @SuppressWarnings("unused")
     Font font(float size) {
         return fontFor(size, null);
     }

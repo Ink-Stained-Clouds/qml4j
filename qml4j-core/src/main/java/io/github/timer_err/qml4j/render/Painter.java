@@ -954,6 +954,7 @@ public final class Painter {
         return raw;
     }
 
+    @SuppressWarnings("unused")
     public void drawTextInput(TextInput ti, float w, float h, float alpha) {
         String s = echoDisplay(ti);
         if (s == null) s = "";

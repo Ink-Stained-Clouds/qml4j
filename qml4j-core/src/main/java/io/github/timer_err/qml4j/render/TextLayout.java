@@ -152,6 +152,7 @@ public final class TextLayout {
         return t.height.peekDouble() == t.lastSetHeight;
     }
 
+    @SuppressWarnings("unused")
     static String elideToWidth(String line, Font font, float maxWidth) {
         if (maxWidth <= 0 || font.measureTextWidth(line) <= maxWidth) return line;
         String ell = "…";

@@ -44,10 +44,12 @@ public class Repeater extends Item implements DelegateHost {
 
     // Qt Repeater.itemAt(index): the delegate instance at index, or null. MD3 Tabs uses
     // it to read the current tab's geometry when positioning the sliding indicator.
+    @SuppressWarnings("unused")
     public Item itemAt(int index) {
         return index >= 0 && index < instances.size() ? instances.get(index) : null;
     }
 
+    @SuppressWarnings("unused")
     public int count() {
         return instances.size();
     }

@@ -94,9 +94,11 @@ public final class QmlView {
     /** Notified as each compound component is compiled during {@link #load} —
      *  drives a host splash/progress while the QML tree compiles. */
     public interface CompileProgressListener {
+        @SuppressWarnings("unused")
         void onComponentCompiled(String name, int compiledCount);
     }
 
+    @SuppressWarnings("unused")
     public void setCompileProgressListener(CompileProgressListener l) {
         loader.setProgressListener(l);
     }
@@ -109,6 +111,7 @@ public final class QmlView {
         focus.setFocus(it);
     }
 
+    @SuppressWarnings("unused")
     public void clearFocus() {
         focus.clearFocus();
     }
@@ -153,10 +156,12 @@ public final class QmlView {
         return events.dispatchWheel(x, y, dx, dy);
     }
 
+    @SuppressWarnings("unused")
     public TextEditable pickTextEditable(float x, float y) {
         return events.pickTextEditable(x, y);
     }
 
+    @SuppressWarnings("unused")
     public TextInput pickTextInput(float x, float y) {
         return events.pickTextInput(x, y);
     }

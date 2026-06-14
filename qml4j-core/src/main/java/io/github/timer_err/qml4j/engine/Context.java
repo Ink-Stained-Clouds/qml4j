@@ -16,6 +16,7 @@ public final class Context {
         this.parent = parent;
     }
 
+    @SuppressWarnings("unused")
     public Context parent() {
         return parent;
     }

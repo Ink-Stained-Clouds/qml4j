@@ -13,8 +13,11 @@ public class Canvas extends Item {
 
     public final Signal paint = new Signal(); // onPaint
     public final Property<Boolean> available = new Property<>(Boolean.TRUE);
+    @SuppressWarnings("unused")
     public final Property<String> contextType = new Property<>("2d");
+    @SuppressWarnings("unused")
     public final Property<String> renderStrategy = new Property<>("Immediate");
+    @SuppressWarnings("unused")
     public final Property<String> renderTarget = new Property<>("Image");
 
     // Offscreen backing store, managed by Painter.paintCanvas (a skija handle kept as a
@@ -28,6 +31,7 @@ public class Canvas extends Item {
     // a context bound to the backing surface.
     private Context2D ctx;
 
+    @SuppressWarnings("unused")
     public Object getContext(String type) {
         return ctx;
     }
@@ -38,6 +42,7 @@ public class Canvas extends Item {
 
     // A repaint request re-runs onPaint on the next frame; until then the cached image is
     // blitted. The Timer/animation in an animated canvas calls this at its target fps.
+    @SuppressWarnings("unused")
     public void requestPaint() {
         dirty = true;
     }

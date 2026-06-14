@@ -45,6 +45,7 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     }
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.ObjectNode visitObjectDeclaration(QmlParser.ObjectDeclarationContext ctx) {
         String type = ctx.qualifiedId().getText();
         List<Ast.ObjectMember> members = new ArrayList<>();
@@ -55,6 +56,7 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     }
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.ObjectMember visitObjectMember(QmlParser.ObjectMemberContext ctx) {
         if (ctx.propertyDeclaration() != null) return (Ast.ObjectMember) visit(ctx.propertyDeclaration());
         if (ctx.signalDeclaration() != null) return (Ast.ObjectMember) visit(ctx.signalDeclaration());
@@ -69,6 +71,7 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     }
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.ObjectMember visitInlineComponentDeclaration(
             QmlParser.InlineComponentDeclarationContext ctx) {
         Ast.ObjectNode body = (Ast.ObjectNode) visit(ctx.objectDeclaration());
@@ -77,6 +80,7 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     }
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.FunctionDeclaration visitFunctionDeclaration(QmlParser.FunctionDeclarationContext ctx) {
         String name = ctx.Identifier(0).getText();
         List<String> params = new ArrayList<>();
@@ -91,6 +95,7 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     }
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.BehaviorMember visitBehaviorDeclaration(QmlParser.BehaviorDeclarationContext ctx) {
         String type = ctx.qualifiedId().getText();
         StringBuilder prop = new StringBuilder();
@@ -106,6 +111,7 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     }
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.SignalDeclaration visitSignalDeclaration(QmlParser.SignalDeclarationContext ctx) {
         String name = ctx.Identifier().getText();
         List<String> params = new ArrayList<>();
@@ -116,6 +122,7 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     }
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.PropertyDeclaration visitPropertyDeclaration(QmlParser.PropertyDeclarationContext ctx) {
         boolean isDefault = false, isRequired = false, isReadonly = false;
         for (QmlParser.ModifierContext mc : ctx.modifier()) {
@@ -131,6 +138,7 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     }
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.PropertyBinding visitPropertyBinding(QmlParser.PropertyBindingContext ctx) {
         List<String> path = new ArrayList<>();
         for (QmlParser.IdLikeContext id : ctx.qualifiedId().idLike()) path.add(id.getText());
@@ -139,6 +147,7 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     }
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.Value visitValue(QmlParser.ValueContext ctx) {
         if (ctx.objectDeclaration() != null && ctx.objectDeclaration().size() == 1 && ctx.getChildCount() == 1) {
             return new Ast.ObjectValue((Ast.ObjectNode) visit(ctx.objectDeclaration(0)));
@@ -321,11 +330,13 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     // ---- Expressions ----
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.Expression visitExpression(QmlParser.ExpressionContext ctx) {
         return (Ast.Expression) visit(ctx.assignmentExpr());
     }
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.Expression visitAssignmentExpr(QmlParser.AssignmentExprContext ctx) {
         if (ctx.arrowFunction() != null) {
             return visitArrowFunction(ctx.arrowFunction());
@@ -361,6 +372,7 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     }
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.Expression visitCondExpr(QmlParser.CondExprContext ctx) {
         Ast.Expression cond = (Ast.Expression) visit(ctx.logicalOrExpr());
         if (ctx.expression().isEmpty()) return cond;
@@ -370,31 +382,37 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     }
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.Expression visitLogicalOrExpr(QmlParser.LogicalOrExprContext ctx) {
         return leftAssoc(ctx.logicalAndExpr(), "||");
     }
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.Expression visitLogicalAndExpr(QmlParser.LogicalAndExprContext ctx) {
         return leftAssoc(ctx.bitwiseOrExpr(), "&&");
     }
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.Expression visitBitwiseOrExpr(QmlParser.BitwiseOrExprContext ctx) {
         return leftAssoc(ctx.bitwiseXorExpr(), "|");
     }
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.Expression visitBitwiseXorExpr(QmlParser.BitwiseXorExprContext ctx) {
         return leftAssoc(ctx.bitwiseAndExpr(), "^");
     }
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.Expression visitBitwiseAndExpr(QmlParser.BitwiseAndExprContext ctx) {
         return leftAssoc(ctx.equalityExpr(), "&");
     }
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.Expression visitEqualityExpr(QmlParser.EqualityExprContext ctx) {
         Ast.Expression left = (Ast.Expression) visit(ctx.relationalExpr(0));
         for (int i = 0; i < ctx.equalityOp().size(); i++) {
@@ -406,6 +424,7 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     }
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.Expression visitRelationalExpr(QmlParser.RelationalExprContext ctx) {
         Ast.Expression left = (Ast.Expression) visit(ctx.additiveExpr(0));
         for (int i = 0; i < ctx.relationalOp().size(); i++) {
@@ -417,6 +436,7 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     }
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.Expression visitAdditiveExpr(QmlParser.AdditiveExprContext ctx) {
         Ast.Expression left = (Ast.Expression) visit(ctx.multiplicativeExpr(0));
         for (int i = 0; i < ctx.additiveOp().size(); i++) {
@@ -428,6 +448,7 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     }
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.Expression visitMultiplicativeExpr(QmlParser.MultiplicativeExprContext ctx) {
         Ast.Expression left = (Ast.Expression) visit(ctx.unaryExpr(0));
         for (int i = 0; i < ctx.multiplicativeOp().size(); i++) {
@@ -439,6 +460,7 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     }
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.Expression visitUnaryExpr(QmlParser.UnaryExprContext ctx) {
         if (ctx.unaryOp() != null) {
             return new Ast.UnaryExpr(ctx.unaryOp().getText(), (Ast.Expression) visit(ctx.unaryExpr()));
@@ -455,6 +477,7 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     }
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.Expression visitPostfixExpr(QmlParser.PostfixExprContext ctx) {
         Ast.Expression cur = (Ast.Expression) visit(ctx.primaryExpr());
         for (QmlParser.PostfixSuffixContext sc : ctx.postfixSuffix()) {
@@ -484,6 +507,7 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     }
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.Expression visitPrimaryExpr(QmlParser.PrimaryExprContext ctx) {
         if (ctx.literal() != null) return (Ast.Expression) visit(ctx.literal());
         if (ctx.arrayLiteral() != null) return visitArrayLiteral(ctx.arrayLiteral());
@@ -559,6 +583,7 @@ final class AstBuilder extends QmlBaseVisitor<Object> {
     }
 
     @Override
+    @SuppressWarnings("unused")
     public Ast.Expression visitLiteral(QmlParser.LiteralContext ctx) {
         if (ctx.IntegerLiteral() != null) {
             // Long.decode handles 0x hex as well as decimal.

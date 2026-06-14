@@ -18,14 +18,21 @@ public class ListView extends Flickable implements DelegateHost {
     // String ("Vertical"/"Horizontal") or the ListView.Horizontal/Vertical enum (0/1);
     // Object so a Long enum value doesn't fail the typed listener's bridge cast.
     public final Property<Object> orientation = new Property<>("Vertical");
+    @SuppressWarnings("unused")
     public final Property<Number> cacheBuffer = new Property<>(0);
+    @SuppressWarnings("unused")
     public final Property<Number> currentIndex = new Property<>(0);
+    @SuppressWarnings("unused")
     public final Property<Number> highlightMoveDuration = new Property<>(0);
     // Snap/highlight-range are accepted for layout compatibility; the snap-scroll
     // behavior itself is not yet modeled.
+    @SuppressWarnings("unused")
     public final Property<Object> snapMode = new Property<>(0L);
+    @SuppressWarnings("unused")
     public final Property<Object> highlightRangeMode = new Property<>(0L);
+    @SuppressWarnings("unused")
     public final Property<Number> preferredHighlightBegin = new Property<>(0);
+    @SuppressWarnings("unused")
     public final Property<Number> preferredHighlightEnd = new Property<>(0);
     public final Property<Number> count = new Property<>(0);
 
@@ -58,6 +65,7 @@ public class ListView extends Flickable implements DelegateHost {
 
     // Scroll so the delegate at `index` is at the top of the viewport. `mode` (Qt's
     // PositionMode) is treated as Beginning for now.
+    @SuppressWarnings("unused")
     public void positionViewAtIndex(int index, int mode) {
         if (index < 0 || index >= instances.size()) return;
         contentY.set(instances.get(index).y.peek());

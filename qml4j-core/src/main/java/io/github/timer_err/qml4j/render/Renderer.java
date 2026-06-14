@@ -97,6 +97,7 @@ public final class Renderer {
         return gpuContext;
     }
 
+    @SuppressWarnings("unused")
     public void render(Canvas canvas, Item root) {
         render(canvas, root, false);
     }

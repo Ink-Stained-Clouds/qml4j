@@ -177,6 +177,7 @@ public final class Ast {
         // Raw JS source substring of the expression (fed to the Rhino backend); null
         // if the parser couldn't capture it, in which case the ASM backend handles it.
         public final String source;
+        @SuppressWarnings("unused")
         public ExpressionValue(Expression expr) { this(expr, null); }
         public ExpressionValue(Expression expr, String source) { this.expr = expr; this.source = source; }
         @Override public String toString() { return expr.toString(); }
@@ -187,6 +188,7 @@ public final class Ast {
         // Raw JS source of the handler/function body (fed to the Rhino backend); null
         // if the parser couldn't capture it, in which case the ASM backend handles it.
         public final String source;
+        @SuppressWarnings("unused")
         public StatementBlockValue(Block block) { this(block, null); }
         public StatementBlockValue(Block block, String source) { this.block = block; this.source = source; }
         @Override public String toString() { return block.toString(); }
@@ -285,6 +287,7 @@ public final class Ast {
 
     public static final class SwitchStmt extends Statement {
         public final Expression discriminant;
+        @SuppressWarnings("unused")
         public final List<SwitchClause> clauses;
         public SwitchStmt(Expression discriminant, List<SwitchClause> clauses) {
             this.discriminant = discriminant;
@@ -294,7 +297,9 @@ public final class Ast {
     }
 
     public static final class SwitchClause {
+        @SuppressWarnings("unused")
         public final Expression label;   // null = default
+        @SuppressWarnings("unused")
         public final List<Statement> body;
         public SwitchClause(Expression label, List<Statement> body) {
             this.label = label;
@@ -302,10 +307,12 @@ public final class Ast {
         }
     }
 
+    @SuppressWarnings("unused")
     public static final class BreakStmt extends Statement {
         @Override public String toString() { return "break;"; }
     }
 
+    @SuppressWarnings("unused")
     public static final class ContinueStmt extends Statement {
         @Override public String toString() { return "continue;"; }
     }
@@ -449,7 +456,9 @@ public final class Ast {
         public final Block bodyBlock;
         // Raw JS source of the arrow body (the `{ ... }` block or the bare expression);
         // null if not captured (e.g. arrows synthesized by the compiler).
+        @SuppressWarnings("unused")
         public final String source;
+        @SuppressWarnings("unused")
         public ArrowFunctionExpr(List<String> paramNames, Expression bodyExpr, Block bodyBlock) {
             this(paramNames, bodyExpr, bodyBlock, null);
         }

@@ -15,17 +15,22 @@ public class TextInput extends Item implements TextEditable {
     public final Property<Number> selectionStart = new Property<>(0);
     public final Property<Number> selectionEnd = new Property<>(0);
     public final Property<String> selectionColor = new Property<>("#308cff");
+    @SuppressWarnings("unused")
     public final Property<String> selectedTextColor = new Property<>("#ffffff");
     public final Property<Number> maximumLength = new Property<>(Integer.MAX_VALUE);
     public final Property<Boolean> readOnly = new Property<>(Boolean.FALSE);
     public final Property<Number> echoMode = new Property<>(0); // TextInput.Normal
     public final Property<String> passwordCharacter = new Property<>("•");
+    @SuppressWarnings("unused")
     public final Property<Number> horizontalAlignment = new Property<>(1); // TextInput.AlignLeft
+    @SuppressWarnings("unused")
     public final Property<Number> verticalAlignment = new Property<>(32);   // TextInput.AlignTop
+    @SuppressWarnings("unused")
     public final Font font = new Font();
 
     public final Signal textChanged = new Signal();
     public final Signal accepted = new Signal();
+    @SuppressWarnings("unused")
     public final Signal editingFinished = new Signal();
 
     public int selectionAnchor = -1;

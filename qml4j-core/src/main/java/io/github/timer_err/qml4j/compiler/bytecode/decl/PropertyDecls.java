@@ -106,6 +106,7 @@ public final class PropertyDecls {
     // to the target's children list, object alias links to the target object, and
     // property alias links to the target's Property field.
     public static void emitAliasLink(MethodVisitor ctor, String componentInternal,
+                                     @SuppressWarnings("unused")
                                      String rootId, Class<? extends QObject> rootType,
                                      Map<String, Class<? extends QObject>> idTypes,
                                      Map<String, String> rootDeclaredProps,

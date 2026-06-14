@@ -6,7 +6,10 @@ import io.github.timer_err.qml4j.engine.binding.Property;
 public final class Easing {
     public final Property<Number> type = new Property<>(0);
     // Accepted for OutBack/elastic etc.; the curve table doesn't use them yet.
+    @SuppressWarnings("unused")
     public final Property<Number> overshoot = new Property<>(1.70158);
+    @SuppressWarnings("unused")
     public final Property<Number> amplitude = new Property<>(1.0);
+    @SuppressWarnings("unused")
     public final Property<Number> period = new Property<>(0.3);
 }

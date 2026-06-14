@@ -18,6 +18,7 @@ public abstract class AbstractAnimation extends Item implements Animatable, Pare
 
     public void start() { running.set(Boolean.TRUE); }
     public void stop() { running.set(Boolean.FALSE); }
+    @SuppressWarnings("unused")
     public void restart() { stop(); start(); }
 
     // The `parent` keyword used in a binding inside this animation: climb out of this and

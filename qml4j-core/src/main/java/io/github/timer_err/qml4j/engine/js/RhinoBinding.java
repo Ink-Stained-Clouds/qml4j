@@ -16,6 +16,7 @@ public final class RhinoBinding extends Binding {
     private final Script script;
     private final QmlScope scope;
 
+    @SuppressWarnings("unused")
     public RhinoBinding(String source, Object outer, Object root, String[] ids, boolean delegate,
                         String[] singletonNames, Class<?>[] singletonClasses, String[] aliasSpecs) {
         this.script = JsRuntime.compile(source, JsRuntime.loaderOf(root, outer));
