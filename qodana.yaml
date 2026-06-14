@@ -1,0 +1,7 @@
+# Qodana Community (JVM) — runs the IntelliJ inspection engine in CI.
+# Unlike PMD/Checkstyle it is hierarchy/contract aware, so it does NOT
+# false-positive on uniform-signature dispatch (e.g. a private method bound via
+# this::m to a functional interface) or polymorphic hooks (Item.paint) — which is
+# why parameter-level "unused" analysis is delegated here, not to the maven gate.
+version: "1.0"
+linter: jetbrains/qodana-jvm-community:latest
