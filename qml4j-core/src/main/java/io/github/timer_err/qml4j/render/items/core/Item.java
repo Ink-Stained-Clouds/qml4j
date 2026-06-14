@@ -52,6 +52,7 @@ public class Item extends QObject {
     public float cachedLayoutW;
     public float cachedLayoutH;
     public int cachedLayoutCount;
+    public long cachedLayoutChildVersion = -1;
     public long cachedLayoutSettleId = -1;
     public final Property<Item> parent = new Property<>(null);
     // Declared List (the compiler emits children accesses with a java/util/List descriptor)

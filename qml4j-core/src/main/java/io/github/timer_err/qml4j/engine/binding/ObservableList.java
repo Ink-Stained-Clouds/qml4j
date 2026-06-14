@@ -18,6 +18,13 @@ public final class ObservableList<E> extends ArrayList<E> {
         version.get();
     }
 
+    // Current structural version without registering a dependency. Monotonic across
+    // any add/remove, so it differs even when a removal+insertion returns the same
+    // size -- lets the layout cache detect a rebuilt child set, not just a size change.
+    public long structuralVersion() {
+        return version.peek();
+    }
+
     private void bump() {
         version.setBypassInterceptor(version.peek() + 1);
     }

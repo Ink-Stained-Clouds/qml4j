@@ -3,6 +3,7 @@ package io.github.timer_err.qml4j.render;
 import io.github.timer_err.qml4j.engine.DelegateFactory;
 import io.github.timer_err.qml4j.engine.QObject;
 import io.github.timer_err.qml4j.engine.binding.DirtyQueue;
+import io.github.timer_err.qml4j.engine.binding.ObservableList;
 import io.github.timer_err.qml4j.render.items.view.Component;
 import io.github.timer_err.qml4j.render.items.core.Flickable;
 import io.github.timer_err.qml4j.render.items.core.Item;
@@ -183,12 +184,18 @@ public final class Renderer {
             float cw = node.width.peekFloat();
             float ch = node.height.peekFloat();
             int cc = node.children.size();
+            // Structural version distinguishes a rebuilt child set (Repeater re-creating
+            // delegates) from a stable one even when the size is unchanged -- e.g.
+            // reopening the same playlist swaps every row for a fresh instance that has
+            // never been measured, yet the box and count match the cached values.
+            long cv = node.children instanceof ObservableList
+                ? ((ObservableList<?>) node.children).structuralVersion() : 0L;
             // Skip only on a later settle (settleId differs) with an unchanged box +
-            // child count. Same-settle re-passes always recurse so a card's children
-            // (whose width derives from this container) converge over the pass loop.
+            // child count + child set. Same-settle re-passes always recurse so a card's
+            // children (whose width derives from this container) converge over the loop.
             if (node.cachedLayoutValid && node.cachedLayoutSettleId != settleId
                     && node.cachedLayoutW == cw && node.cachedLayoutH == ch
-                    && node.cachedLayoutCount == cc) {
+                    && node.cachedLayoutCount == cc && node.cachedLayoutChildVersion == cv) {
                 runLayout(node);
                 applyAnchors(node);
                 return;
@@ -197,6 +204,7 @@ public final class Renderer {
             node.cachedLayoutW = cw;
             node.cachedLayoutH = ch;
             node.cachedLayoutCount = cc;
+            node.cachedLayoutChildVersion = cv;
             node.cachedLayoutSettleId = settleId;
         }
         // Children first so a container can size itself from their measured sizes.
