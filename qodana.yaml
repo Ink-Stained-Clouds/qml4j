@@ -5,3 +5,8 @@
 # why parameter-level "unused" analysis is delegated here, not to the maven gate.
 version: "1.0"
 linter: jetbrains/qodana-jvm-community:latest
+# Default is qodana.starter (a focused subset, no unused-declaration checks).
+# qodana.recommended adds the full IDE inspection set -- unused declarations and
+# parameters included, with the hierarchy/contract awareness PMD/ECJ lack.
+profile:
+  name: qodana.recommended
