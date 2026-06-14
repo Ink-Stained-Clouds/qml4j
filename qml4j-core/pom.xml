@@ -35,10 +35,10 @@
             <artifactId>skija-shared</artifactId>
             <scope>provided</scope>
         </dependency>
-        <!-- Native Skia for tests that hit FontMgr (text caret/selection hit-testing).
-             The CI release runner is linux/x64; without the platform native on the
-             test classpath those tests UnsatisfiedLinkError. Test scope only, so the
-             published artifact stays platform-agnostic (the host supplies the native). -->
+        <!-- Native Skia for tests that initialise FontMgr (text caret/selection
+             hit-testing). qml4j-core itself ships no native (the host supplies it);
+             this is test scope only, so it is neither packaged in the artifact nor
+             exposed transitively to consumers. The CI release runner is linux/x64. -->
         <dependency>
             <groupId>io.github.humbleui</groupId>
             <artifactId>skija-linux-x64</artifactId>
