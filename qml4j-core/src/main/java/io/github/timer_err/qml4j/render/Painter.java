@@ -2,6 +2,7 @@ package io.github.timer_err.qml4j.render;
 
 import io.github.humbleui.skija.Canvas;
 import io.github.humbleui.skija.Font;
+import io.github.humbleui.skija.impl.Native;
 import io.github.humbleui.skija.FontMetrics;
 import io.github.humbleui.skija.ImageFilter;
 import io.github.humbleui.skija.Paint;
@@ -443,13 +444,31 @@ public final class Painter {
         }
     }
 
+    // Skija's public drawRect/drawRRect/clipRect each allocate a fresh Rect/RRect
+    // value object. Over every visible primitive at 60fps that churn drove periodic
+    // young-gen GC pauses (the "stutter every few seconds"). Call the native draw
+    // ops directly with floats instead -- identical to what the public wrappers do,
+    // minus the allocation. canvas/paint are strongly held (field + renderer paint)
+    // for the synchronous native call, so no reachability fence is needed (and it's
+    // API 28+ anyway, above our minSdk). The RRect radii array is reused.
+    private final float[] radius1 = new float[1];
+
+    private void rawRect(float x, float y, float w, float h, Paint p) {
+        Canvas._nDrawRect(Native.getPtr(canvas), x, y, x + w, y + h, Native.getPtr(p));
+    }
+
+    private void rawRRect(float x, float y, float w, float h, float radius, Paint p) {
+        radius1[0] = radius;
+        Canvas._nDrawRRect(Native.getPtr(canvas), x, y, x + w, y + h, radius1, Native.getPtr(p));
+    }
+
     public void fillRect(float x, float y, float w, float h, int argb) {
         if (w <= 0f || h <= 0f) return;
         Paint p = renderer.paint();
         p.setMode(PaintMode.FILL);
         p.setShader(null);
         p.setColor(argb);
-        canvas.drawRect(Rect.makeXYWH(x, y, w, h), p);
+        rawRect(x, y, w, h, p);
     }
 
     public void fillRoundRect(float x, float y, float w, float h, float radius, int argb) {
@@ -459,9 +478,9 @@ public final class Painter {
         p.setShader(null);
         p.setColor(argb);
         if (radius > 0f) {
-            canvas.drawRRect(RRect.makeXYWH(x, y, w, h, radius), p);
+            rawRRect(x, y, w, h, radius, p);
         } else {
-            canvas.drawRect(Rect.makeXYWH(x, y, w, h), p);
+            rawRect(x, y, w, h, p);
         }
     }
 
@@ -474,9 +493,9 @@ public final class Painter {
         p.setShader(shader);
         p.setColor(Renderer.applyAlpha(0xFFFFFFFF, alpha));
         if (radius > 0f) {
-            canvas.drawRRect(RRect.makeXYWH(x, y, w, h, radius), p);
+            rawRRect(x, y, w, h, radius, p);
         } else {
-            canvas.drawRect(Rect.makeXYWH(x, y, w, h), p);
+            rawRect(x, y, w, h, p);
         }
         p.setShader(null);
         if (shader != null) shader.close();
@@ -491,9 +510,9 @@ public final class Painter {
         p.setShader(null);
         p.setColor(argb);
         if (radius > 0f) {
-            canvas.drawRRect(RRect.makeXYWH(x, y, w, h, radius), p);
+            rawRRect(x, y, w, h, radius, p);
         } else {
-            canvas.drawRect(Rect.makeXYWH(x, y, w, h), p);
+            rawRect(x, y, w, h, p);
         }
         p.setMode(PaintMode.FILL);
     }

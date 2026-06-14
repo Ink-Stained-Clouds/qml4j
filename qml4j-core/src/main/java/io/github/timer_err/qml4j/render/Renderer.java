@@ -357,7 +357,10 @@ public final class Renderer {
             // Children with z < 0 render BEHIND the node's own content (Qt); the rest on top.
             List<Item> ordered = zOrdered(node.children);
             clipL = nl; clipT = nt; clipR = nr; clipB = nb;
-            for (Item child : ordered) {
+            // Indexed loops, not for-each: this runs for every visible node every
+            // frame, and an Iterator allocation per node adds up to GC pressure.
+            for (int i = 0, n = ordered.size(); i < n; i++) {
+                Item child = ordered.get(i);
                 if (child.z.peekFloat() < 0f) draw(canvas, child, alpha);
             }
             node.paint(painter, w, h, alpha);
@@ -385,7 +388,8 @@ public final class Renderer {
                     clipR = nr > w ? w : nr;
                     clipT = (nt < top ? top : nt) - top;
                     clipB = (nb > bottom ? bottom : nb) - top;
-                    for (Item child : ordered) {
+                    for (int i = 0, n = ordered.size(); i < n; i++) {
+                        Item child = ordered.get(i);
                         if (child.z.peekFloat() >= 0f) draw(canvas, child, alpha);
                     }
                 } finally {
@@ -393,7 +397,8 @@ public final class Renderer {
                 }
                 drawChrome(canvas, win, w, h, alpha);
             } else {
-                for (Item child : ordered) {
+                for (int i = 0, n = ordered.size(); i < n; i++) {
+                    Item child = ordered.get(i);
                     if (child.z.peekFloat() >= 0f) draw(canvas, child, alpha);
                 }
             }
