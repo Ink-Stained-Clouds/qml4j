@@ -11,6 +11,14 @@ linter: jetbrains/qodana-jvm-community:latest
 profile:
   name: qodana.recommended
 
+# The recommended profile omits the global "Unused declaration" inspection (it
+# needs whole-project analysis). Enable it explicitly -- this is the IDE-grade,
+# hierarchy/entry-point-aware unused analysis (unused classes/methods/fields and
+# parameters) that PMD/ECJ can't do without false-positiving on the dispatch and
+# polymorphic-hook design.
+include:
+  - name: unused
+
 # Quality gate: fail the scan on NEW high/critical problems. Existing findings are
 # captured in the baseline (qodana.sarif.json, passed via --baseline in the
 # workflow), so only regressions a change introduces trip the gate; moderate/low
