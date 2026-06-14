@@ -21,6 +21,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # libskija.so links libEGL/libGL/libGLES at load time; a bare runner lacks
+      # them, so the FontMgr-backed tests (text caret/selection hit-testing)
+      # UnsatisfiedLinkError. These tests only measure text (no GL context), so
+      # installing the libraries to satisfy the dynamic linker is enough -- no xvfb.
+      - name: Install headless GL/font libs for Skija
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libglvnd0 libgl1 libglx-mesa0 libegl1 libgles2 libfontconfig1 fonts-dejavu-core
+
       - name: Set up JDK, Maven settings (server id=central) and GPG
         uses: actions/setup-java@v4
         with:
