@@ -35,6 +35,15 @@
             <artifactId>skija-shared</artifactId>
             <scope>provided</scope>
         </dependency>
+        <!-- Native Skia for tests that hit FontMgr (text caret/selection hit-testing).
+             The CI release runner is linux/x64; without the platform native on the
+             test classpath those tests UnsatisfiedLinkError. Test scope only, so the
+             published artifact stays platform-agnostic (the host supplies the native). -->
+        <dependency>
+            <groupId>io.github.humbleui</groupId>
+            <artifactId>skija-linux-x64</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
