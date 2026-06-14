@@ -3,6 +3,7 @@ package io.github.timer_err.qml4j.runtime.invoke;
 import io.github.timer_err.qml4j.engine.Callable;
 import io.github.timer_err.qml4j.engine.QObject;
 import io.github.timer_err.qml4j.engine.Signal;
+import io.github.timer_err.qml4j.runtime.ClassCache;
 import io.github.timer_err.qml4j.runtime.convert.Coercion;
 
 import java.lang.reflect.Field;
@@ -73,26 +74,18 @@ public final class MethodInvocation {
         return METHOD_NAMES.get(cls).contains(name);
     }
 
-    // Per-class resolution cache. ClassValue keys on Class identity -- correct across
-    // per-component classloaders that mint same-named classes (a name key would collide
-    // into "object is not an instance of declaring class") -- and its entries are
-    // released when the class unloads, so it never pins a hot-reloaded component.
-    private static final ClassValue<ConcurrentHashMap<String, ConcurrentHashMap<Integer, Resolved>>> METHODS =
-        new ClassValue<ConcurrentHashMap<String, ConcurrentHashMap<Integer, Resolved>>>() {
-            @Override protected ConcurrentHashMap<String, ConcurrentHashMap<Integer, Resolved>> computeValue(
-                    Class<?> type) {
-                return new ConcurrentHashMap<>();
-            }
-        };
+    // Per-class resolution cache, keyed on Class identity -- correct across per-component
+    // classloaders that mint same-named classes (a name key would collide into "object is
+    // not an instance of declaring class").
+    private static final ClassCache<ConcurrentHashMap<String, ConcurrentHashMap<Integer, Resolved>>> METHODS =
+        new ClassCache<>(type -> new ConcurrentHashMap<>());
 
-    private static final ClassValue<Set<String>> METHOD_NAMES =
-        new ClassValue<Set<String>>() {
-            @Override protected Set<String> computeValue(Class<?> type) {
-                Set<String> names = new HashSet<>();
-                for (Method m : type.getMethods()) names.add(m.getName());
-                return names;
-            }
-        };
+    private static final ClassCache<Set<String>> METHOD_NAMES =
+        new ClassCache<>(type -> {
+            Set<String> names = new HashSet<>();
+            for (Method m : type.getMethods()) names.add(m.getName());
+            return names;
+        });
 
     private static Resolved resolve(Class<?> cls, String name, int argc) {
         return METHODS.get(cls)

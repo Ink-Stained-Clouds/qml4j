@@ -3,6 +3,7 @@ package io.github.timer_err.qml4j.runtime.member;
 import io.github.timer_err.qml4j.engine.ParentTransparent;
 import io.github.timer_err.qml4j.engine.binding.Property;
 import io.github.timer_err.qml4j.engine.binding.ObservableList;
+import io.github.timer_err.qml4j.runtime.ClassCache;
 import io.github.timer_err.qml4j.runtime.convert.Coercion;
 import io.github.timer_err.qml4j.runtime.qt.QColor;
 import io.github.timer_err.qml4j.runtime.qt.QtColorFactory;
@@ -22,15 +23,8 @@ public final class MemberAccess {
     // Public-field lookup is on the hot path: every JS member read/write resolves a
     // field by name, and has/resolves probes it before each access. getField walks the
     // type hierarchy and allocates each call, so cache the result per (class, name).
-    // ClassValue keys on Class identity -- correct across per-component classloaders
-    // that mint same-named classes -- and releases entries when a class unloads, so it
-    // never pins a hot-reloaded component.
-    private static final ClassValue<ConcurrentHashMap<String, Field>> FIELDS =
-        new ClassValue<ConcurrentHashMap<String, Field>>() {
-            @Override protected ConcurrentHashMap<String, Field> computeValue(Class<?> type) {
-                return new ConcurrentHashMap<>();
-            }
-        };
+    private static final ClassCache<ConcurrentHashMap<String, Field>> FIELDS =
+        new ClassCache<>(type -> new ConcurrentHashMap<>());
 
     // Cached for names with no matching field, so absence is a cache hit too.
     private static final Field ABSENT = absentSentinel();
