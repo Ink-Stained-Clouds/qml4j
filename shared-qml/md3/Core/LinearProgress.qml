@@ -174,10 +174,16 @@ Item {
             } else {
                 var endX = x0 + (x1 - x0) * Math.max(0, Math.min(1, progress));
                 var started = false;
-                for (var xd = x0; xd <= endX; xd += 2) {
+                for (var xd = x0; xd < endX; xd += 2) {
                     var yd = cy + amplitude * Math.sin((xd * frequency) + phase);
                     if (!started) { ctx.moveTo(xd, yd); started = true; }
                     else ctx.lineTo(xd, yd);
+                }
+                // End exactly at endX (not the last 2px step) so the active tip advances
+                // continuously instead of snapping to the 2px sampling grid.
+                if (started) {
+                    var yEnd = cy + amplitude * Math.sin((endX * frequency) + phase);
+                    ctx.lineTo(endX, yEnd);
                 }
                 ctx.stroke();
             }
