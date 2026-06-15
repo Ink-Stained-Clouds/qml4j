@@ -83,7 +83,7 @@ final class FontResolver {
     Typeface iconTypeface() {
         if (iconTypeface != null) return iconTypeface;
         if (iconLookupFailed || resources == null) return null;
-        byte[] bytes = resources.load("fonts/MaterialSymbolsOutlined.ttf");
+        byte[] bytes = resources.load("fonts/MaterialSymbolsRounded.ttf");
         FontMgr mgr = FontMgr.getDefault();
         if (bytes == null || mgr == null) { iconLookupFailed = true; return null; }
         try {

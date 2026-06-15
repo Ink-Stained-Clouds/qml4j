@@ -23,7 +23,7 @@ QtObject {
         property real focusStateLayerOpacity: 0.12
     }
     property QtObject iconFont: QtObject {
-        property string name: "Material Symbols Outlined"
+        property string name: "Material Symbols Rounded"
     }
     property QtObject typography: QtObject {
         property QtObject displayLarge: QtObject {
