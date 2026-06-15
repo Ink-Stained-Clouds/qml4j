@@ -83,6 +83,9 @@ public class Item extends QObject {
         new Property<>(new AnchorLine(this, AnchorLine.Edge.VERTICAL_CENTER));
 
     public final Property<String> state = new Property<>(null);
+    // Qt's objectName: an opt-in tag so a host can locate a specific item in the tree
+    // (e.g. to render one subtree separately). Null unless QML sets it.
+    public final Property<String> objectName = new Property<>(null);
     public final List<State> states = new ArrayList<>();
     public final List<Transition> transitions = new ArrayList<>();
     public final List<Transform> transform = new ArrayList<>();

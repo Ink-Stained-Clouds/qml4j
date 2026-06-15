@@ -67,6 +67,22 @@ public final class QmlView {
         return root;
     }
 
+    /** First item in the tree whose objectName equals {@code name}, or null. Lets a host
+     *  locate a tagged subtree (e.g. to render it in a separate pass). */
+    public Item findByObjectName(String name) {
+        return findByObjectName(root, name);
+    }
+
+    private static Item findByObjectName(Item node, String name) {
+        if (node == null) return null;
+        if (name.equals(node.objectName.peek())) return node;
+        for (int i = 0; i < node.children.size(); i++) {
+            Item r = findByObjectName(node.children.get(i), name);
+            if (r != null) return r;
+        }
+        return null;
+    }
+
     public void setClipboard(Clipboard cb) {
         events.setClipboard(cb);
     }

@@ -113,6 +113,20 @@ public final class Renderer {
         draw(canvas, root, 1f);
     }
 
+    // Draw a single already-laid-out subtree (layout must have run via a prior render()
+    // this frame, or be stable). The viewport clip is reset to the given logical size so
+    // the node's children aren't culled against a stale clip. Used to composite one
+    // tagged subtree on top of host-drawn content in a separate pass.
+    public void renderSubtree(Canvas canvas, Item node, float w, float h) {
+        if (node == null) return;
+        painter.bind(canvas);
+        clipL = 0f;
+        clipT = 0f;
+        clipR = w;
+        clipB = h;
+        drawForced(canvas, node, 1f);
+    }
+
     // Opt-in dev FPS overlay (-Dqml4j.fps=true), drawn top-right over the scene.
     private static final boolean FPS_OVERLAY = Boolean.getBoolean("qml4j.fps");
 
