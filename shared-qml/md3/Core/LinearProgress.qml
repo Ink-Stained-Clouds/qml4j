@@ -162,9 +162,12 @@ Item {
                 ctx.beginPath();
                 ctx.strokeStyle = activeColor;
                 
-                var progress = (phase % (Math.PI * 2)) / (Math.PI * 2); // 0 to 1
+                // NB: named distinctly from the `progress` property -- a `var progress`
+                // here hoists over the whole onPaint and would shadow it, making the
+                // determinate endX read undefined -> NaN (only the track would draw).
+                var indetProgress = (phase % (Math.PI * 2)) / (Math.PI * 2); // 0 to 1
                 var barWidth = w * 0.5;
-                var startX = (w + barWidth) * progress - barWidth;
+                var startX = (w + barWidth) * indetProgress - barWidth;
                 var actualEndX = startX + barWidth;
                 
                 for (var x = 0; x <= w; x+=2) {
