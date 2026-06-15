@@ -192,7 +192,6 @@ Item {
         onPhaseChanged: requestPaint()
         onWidthChanged: requestPaint()
         onHeightChanged: requestPaint()
-        onVisibleChanged: if (visible) requestPaint()
     }
 }
 
