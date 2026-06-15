@@ -111,9 +111,11 @@ Item {
 
         property real phase: 0.0
 
-        // Animation for phase shift (make it flow)
+        // Animation for phase shift (make it flow). Runs for determinate too so the
+        // wave visibly flows and the Canvas keeps repainting (onPhaseChanged), instead
+        // of freezing on the first paint with only the track drawn.
         NumberAnimation on phase {
-            running: control.wavy && control.visible && control.indeterminate
+            running: control.wavy && control.visible
             from: 0
             to: Math.PI * 2
             duration: 1000 // 1Hz wave frequency
@@ -187,6 +189,7 @@ Item {
         onPhaseChanged: requestPaint()
         onWidthChanged: requestPaint()
         onHeightChanged: requestPaint()
+        onVisibleChanged: if (visible) requestPaint()
     }
 }
 
