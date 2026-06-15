@@ -103,7 +103,10 @@ Item {
         // Trigger repaint when dependencies change
         property color trackColor: control._colors.surfaceContainerHighest
         property color activeColor: control._colors.primary
-        property real progress: control._visualValue
+        // Raw value, NOT _visualValue: its Behavior restarts every frame when the
+        // caller updates value per-frame (smooth source), which freezes it. Callers
+        // that want easing should smooth the value they pass in.
+        property real progress: control.value
 
         onTrackColorChanged: requestPaint()
         onActiveColorChanged: requestPaint()
