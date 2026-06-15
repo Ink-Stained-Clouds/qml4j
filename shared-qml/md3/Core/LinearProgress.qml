@@ -103,7 +103,7 @@ Item {
         // Trigger repaint when dependencies change
         property color trackColor: control._colors.surfaceContainerHighest
         property color activeColor: control._colors.primary
-        property real progress: control.value
+        property real progress: control._visualValue   // smoothed (Behavior) value
         
         onTrackColorChanged: requestPaint()
         onActiveColorChanged: requestPaint()
@@ -125,65 +125,56 @@ Item {
         onPaint: {
             var ctx = getContext("2d");
             ctx.reset();
-            
+
             var w = width;
             var h = height;
             var cy = h / 2;
-            var amplitude = h / 4; // Wave height
-            var frequency = 0.1; // Wave density
-            
-            ctx.lineWidth = 4;
+            var lw = 4;
+            ctx.lineWidth = lw;
             ctx.lineCap = "round";
             ctx.lineJoin = "round";
-            
-            // Draw Track (Inactive)
+            // Inset by half the stroke so the round end-caps fall inside the canvas
+            // instead of being clipped; clamp amplitude so peaks+caps stay in bounds.
+            var m = lw / 2 + 1;
+            var x0 = m, x1 = w - m;
+            var amplitude = Math.min(h / 4, h / 2 - lw / 2);
+            var frequency = 0.1; // Wave density
+
+            // Track (inactive)
             ctx.beginPath();
             ctx.strokeStyle = trackColor;
-            for (var x = 0; x <= w; x+=2) {
-                var y = cy + amplitude * Math.sin((x * frequency) + phase); // Track also waves
-                if (x === 0) ctx.moveTo(x, y);
+            for (var x = x0; x <= x1; x += 2) {
+                var y = cy + amplitude * Math.sin((x * frequency) + phase);
+                if (x === x0) ctx.moveTo(x, y);
                 else ctx.lineTo(x, y);
             }
             ctx.stroke();
 
-            // Draw Indicator (Active)
+            // Indicator (active)
             ctx.beginPath();
             ctx.strokeStyle = activeColor;
-            
-            var endX = 0;
             if (control.indeterminate) {
-                 endX = w;
-            } else {
-                 endX = w * Math.max(0, Math.min(1, progress));
-            }
-
-            if (control.indeterminate) {
-                // Active Wave (Indeterminate)
-                ctx.beginPath();
-                ctx.strokeStyle = activeColor;
-                
-                // NB: named distinctly from the `progress` property -- a `var progress`
-                // here hoists over the whole onPaint and would shadow it, making the
-                // determinate endX read undefined -> NaN (only the track would draw).
-                var indetProgress = (phase % (Math.PI * 2)) / (Math.PI * 2); // 0 to 1
-                var barWidth = w * 0.5;
-                var startX = (w + barWidth) * indetProgress - barWidth;
-                var actualEndX = startX + barWidth;
-                
-                for (var x = 0; x <= w; x+=2) {
-                    if (x >= startX && x <= actualEndX) {
-                         var y = cy + amplitude * Math.sin((x * frequency) + phase);
-                         if (x === 0 || Math.abs(x - startX) < 2) ctx.moveTo(x, y);
-                         else ctx.lineTo(x, y);
+                var indetProgress = (phase % (Math.PI * 2)) / (Math.PI * 2); // 0..1
+                var span = x1 - x0;
+                var barWidth = span * 0.5;
+                var startX = x0 + (span + barWidth) * indetProgress - barWidth;
+                var endXi = startX + barWidth;
+                var begun = false;
+                for (var xi = x0; xi <= x1; xi += 2) {
+                    if (xi >= startX && xi <= endXi) {
+                        var yi = cy + amplitude * Math.sin((xi * frequency) + phase);
+                        if (!begun) { ctx.moveTo(xi, yi); begun = true; }
+                        else ctx.lineTo(xi, yi);
                     }
                 }
                 ctx.stroke();
             } else {
-                // Determinate
-                for (var x = 0; x <= endX; x+=2) {
-                    var y = cy + amplitude * Math.sin((x * frequency) + phase);
-                    if (x === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
+                var endX = x0 + (x1 - x0) * Math.max(0, Math.min(1, progress));
+                var started = false;
+                for (var xd = x0; xd <= endX; xd += 2) {
+                    var yd = cy + amplitude * Math.sin((xd * frequency) + phase);
+                    if (!started) { ctx.moveTo(xd, yd); started = true; }
+                    else ctx.lineTo(xd, yd);
                 }
                 ctx.stroke();
             }
