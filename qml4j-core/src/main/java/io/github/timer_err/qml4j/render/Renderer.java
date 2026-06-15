@@ -117,6 +117,7 @@ public final class Renderer {
     // this frame, or be stable). The viewport clip is reset to the given logical size so
     // the node's children aren't culled against a stale clip. Used to composite one
     // tagged subtree on top of host-drawn content in a separate pass.
+    @SuppressWarnings("unused") // called by the host shell, not from within qml4j
     public void renderSubtree(Canvas canvas, Item node, float w, float h) {
         if (node == null) return;
         painter.bind(canvas);

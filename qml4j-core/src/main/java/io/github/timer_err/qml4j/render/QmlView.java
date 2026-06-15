@@ -69,6 +69,7 @@ public final class QmlView {
 
     /** First item in the tree whose objectName equals {@code name}, or null. Lets a host
      *  locate a tagged subtree (e.g. to render it in a separate pass). */
+    @SuppressWarnings("unused") // called by the host shell, not from within qml4j
     public Item findByObjectName(String name) {
         return findByObjectName(root, name);
     }
