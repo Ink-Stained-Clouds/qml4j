@@ -103,8 +103,13 @@ Item {
         // Trigger repaint when dependencies change
         property color trackColor: control._colors.surfaceContainerHighest
         property color activeColor: control._colors.primary
-        property real progress: control._visualValue   // smoothed (Behavior) value
-        
+        property real progress: control._visualValue
+        // Eased follower of `progress`. The Behavior on _visualValue doesn't smooth
+        // binding-driven updates here, so the determinate bar stepped at the source's
+        // ~5 Hz. We ease this toward progress every frame (the phase animation ticks
+        // each frame) and draw from it, giving continuous motion.
+        property real animatedProgress: 0
+
         onTrackColorChanged: requestPaint()
         onActiveColorChanged: requestPaint()
         onProgressChanged: requestPaint()
@@ -169,7 +174,7 @@ Item {
                 }
                 ctx.stroke();
             } else {
-                var endX = x0 + (x1 - x0) * Math.max(0, Math.min(1, progress));
+                var endX = x0 + (x1 - x0) * Math.max(0, Math.min(1, animatedProgress));
                 var started = false;
                 for (var xd = x0; xd <= endX; xd += 2) {
                     var yd = cy + amplitude * Math.sin((xd * frequency) + phase);
@@ -180,7 +185,11 @@ Item {
             }
         }
         
-        onPhaseChanged: requestPaint()
+        onPhaseChanged: {
+            animatedProgress += (progress - animatedProgress) * 0.18;
+            if (Math.abs(progress - animatedProgress) < 0.0005) animatedProgress = progress;
+            requestPaint();
+        }
         onWidthChanged: requestPaint()
         onHeightChanged: requestPaint()
         onVisibleChanged: if (visible) requestPaint()
