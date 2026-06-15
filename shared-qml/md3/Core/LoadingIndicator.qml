@@ -11,6 +11,10 @@ Item {
     property real size: 48
 
     onColorChanged: canvas.requestPaint()
+    // Force a repaint when the blob (re)starts: the animation normally drives paints
+    // via rotationValue changes, but the first trigger after the Canvas becomes visible
+    // could be dropped, leaving only the container ring.
+    onRunningChanged: if (running) canvas.requestPaint()
 
     implicitWidth: size
     implicitHeight: size
@@ -96,6 +100,8 @@ Item {
 
         onRotationValueChanged: canvas.requestPaint()
         onMorphProgressChanged: canvas.requestPaint()
+        onVisibleChanged: if (visible) requestPaint()
+        Component.onCompleted: if (control.running) requestPaint()
 
         onPaint: {
             var ctx = getContext("2d");
