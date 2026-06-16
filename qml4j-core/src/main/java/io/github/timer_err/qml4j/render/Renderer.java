@@ -54,7 +54,22 @@ public final class Renderer {
 
     public void setResourceLoader(ResourceLoader loader) {
         this.resources = loader;
-        fonts.setResourceLoader(loader);
+    }
+
+    /** Override the UI font (regular + medium) from app-provided bytes; either may be
+     *  null. The regular face also drives CJK unless {@link #setCjkTypeface} is set. */
+    public void setUiTypefaces(byte[] regular, byte[] medium) {
+        fonts.setUiTypefaces(regular, medium);
+    }
+
+    /** Provide a dedicated CJK face (optional). */
+    public void setCjkTypeface(byte[] bytes) {
+        fonts.setCjkTypeface(bytes);
+    }
+
+    /** Provide the icon face (e.g. Material Symbols). */
+    public void setIconTypeface(byte[] bytes) {
+        fonts.setIconTypeface(bytes);
     }
 
     public void setComponentFactory(ComponentFactory factory) {

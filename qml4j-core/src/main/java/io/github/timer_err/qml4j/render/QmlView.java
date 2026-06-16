@@ -39,6 +39,25 @@ public final class QmlView {
         return this;
     }
 
+    /** Override the UI font (regular + medium) so the whole scene renders with an
+     *  app-bundled face (Latin + CJK). Call before the first frame. */
+    public QmlView uiTypefaces(byte[] regular, byte[] medium) {
+        renderer.setUiTypefaces(regular, medium);
+        return this;
+    }
+
+    /** Provide a dedicated CJK face (optional; the default font covers CJK otherwise). */
+    public QmlView cjkTypeface(byte[] bytes) {
+        renderer.setCjkTypeface(bytes);
+        return this;
+    }
+
+    /** Provide the icon face (e.g. Material Symbols) the scene's icon glyphs need. */
+    public QmlView iconTypeface(byte[] bytes) {
+        renderer.setIconTypeface(bytes);
+        return this;
+    }
+
     // Expose a host value to QML under `name` (QML's setContextProperty): bindings resolve
     // it as a free identifier. Register before load() so the compiler accepts it.
     public QmlView context(String name, Object value) {

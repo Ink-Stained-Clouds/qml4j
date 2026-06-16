@@ -9,19 +9,23 @@ import io.github.humbleui.skija.Typeface;
 import java.util.HashMap;
 import java.util.Map;
 
-// Typeface selection and caching: the default Latin face, a CJK fallback, a
-// per-codepoint symbol face, and the bundled Material Symbols icon face.
-// fontFor() picks the face that actually covers the given text.
+// Typeface selection and caching. The engine ships no fonts of its own: the host
+// injects the UI faces (default / bold / CJK / icon) via the setters below, and
+// the system font manager is only a last-resort fallback. fontFor() picks the
+// face that actually covers the given text.
 final class FontResolver {
 
-    private Typeface defaultTypeface;
-    private Typeface boldTypeface;
-    private boolean boldLookupFailed;
-    private Typeface cjkTypeface;
-    private boolean cjkLookupFailed;
-    private Typeface iconTypeface;
-    private boolean iconLookupFailed;
-    private ResourceLoader resources;
+    // App-injected faces. The default also covers CJK when no separate CJK face is
+    // given (a font like PingFang spans both scripts); bold null → synthesized.
+    private Typeface uiDefault;
+    private Typeface uiBold;
+    private Typeface uiCjk;
+    private Typeface uiIcon;
+
+    // Lazily-resolved system fallbacks (only used when the host injects nothing).
+    private Typeface systemDefault;
+    private Typeface systemCjk;
+    private boolean systemCjkFailed;
 
     private final Map<Integer, Typeface> symbolCache = new HashMap<>();
     // Cache resolved Fonts: building a Skija Font per text per frame (this runs in
@@ -41,17 +45,52 @@ final class FontResolver {
         "Microsoft YaHei", "WenQuanYi Micro Hei"
     };
 
-    void setResourceLoader(ResourceLoader loader) {
-        this.resources = loader;
+    // Inject the UI font (regular + medium) from host-provided bytes; either may be
+    // null to leave that face unchanged. The regular face also serves as the CJK
+    // face unless a separate one is set via {@link #setCjkTypeface}.
+    void setUiTypefaces(byte[] regular, byte[] medium) {
+        if (regular != null) {
+            Typeface t = makeFace(regular);
+            if (t != null) uiDefault = t;
+        }
+        if (medium != null) {
+            Typeface t = makeFace(medium);
+            if (t != null) uiBold = t;
+        }
+        fontCache.clear();
+    }
+
+    /** Inject a dedicated CJK face (optional; default font is used otherwise). */
+    void setCjkTypeface(byte[] bytes) {
+        Typeface t = makeFace(bytes);
+        if (t != null) {
+            uiCjk = t;
+            fontCache.clear();
+        }
+    }
+
+    /** Inject the icon face (e.g. Material Symbols; glyphs are name ligatures). */
+    void setIconTypeface(byte[] bytes) {
+        Typeface t = makeFace(bytes);
+        if (t != null) uiIcon = t;
+    }
+
+    private static Typeface makeFace(byte[] bytes) {
+        FontMgr mgr = FontMgr.getDefault();
+        if (bytes == null || mgr == null) return null;
+        try {
+            return mgr.makeFromData(Data.makeFromBytes(bytes));
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     Font fontFor(float size, String text) {
         return fontFor(size, text, false);
     }
 
-    // Bold uses the bundled Roboto-Bold face when available (real bold matches Qt's
-    // metrics); for CJK/symbol/system-fallback faces there is no bold variant, so
-    // synthesize weight via Skija's emboldening.
+    // Bold uses the injected medium/bold face when available (real weight matches the
+    // design metrics); otherwise synthesize weight via Skija's emboldening.
     Font fontFor(float size, String text, boolean bold) {
         Typeface tf = null;
         boolean realBold = false;
@@ -77,78 +116,45 @@ final class FontResolver {
         return fontFor(size, null);
     }
 
-    // The bundled Material Symbols font (icon glyphs are ligatures of the names).
-    // Loaded once from resources; null if absent (then we fall back to the
-    // curated Unicode mapping).
+    // The host-injected icon face; null falls back to the curated Unicode mapping.
     Typeface iconTypeface() {
-        if (iconTypeface != null) return iconTypeface;
-        if (iconLookupFailed || resources == null) return null;
-        byte[] bytes = resources.load("fonts/MaterialSymbolsRounded.ttf");
-        FontMgr mgr = FontMgr.getDefault();
-        if (bytes == null || mgr == null) { iconLookupFailed = true; return null; }
-        try {
-            iconTypeface = mgr.makeFromData(Data.makeFromBytes(bytes));
-            if (iconTypeface == null) iconLookupFailed = true;
-            return iconTypeface;
-        } catch (Throwable t) {
-            iconLookupFailed = true;
-            return null;
-        }
+        return uiIcon;
     }
 
     private Typeface defaultTypeface() {
-        if (defaultTypeface != null) return defaultTypeface;
-        // Prefer the bundled Roboto (the family the MD3 app designs against, so glyphs and
-        // line metrics match Qt). Only fall back to a system face if it isn't on the
-        // resource path -- the system default here is often a CJK face with much looser
-        // line metrics.
-        defaultTypeface = loadBundled("fonts/Roboto-Regular.ttf");
-        if (defaultTypeface != null) return defaultTypeface;
+        if (uiDefault != null) return uiDefault;
+        if (systemDefault != null) return systemDefault;
         FontMgr mgr = FontMgr.getDefault();
         if (mgr != null) {
             for (String name : LATIN_CANDIDATES) {
                 Typeface t = mgr.matchFamilyStyle(name, FontStyle.NORMAL);
-                if (t != null) { defaultTypeface = t; return t; }
+                if (t != null) { systemDefault = t; return t; }
             }
         }
         return null;
     }
 
     private Typeface boldTypeface() {
-        if (boldTypeface != null) return boldTypeface;
-        if (boldLookupFailed) return null;
-        boldTypeface = loadBundled("fonts/Roboto-Bold.ttf");
-        if (boldTypeface == null) boldLookupFailed = true;
-        return boldTypeface;
-    }
-
-    private Typeface loadBundled(String path) {
-        if (resources == null) return null;
-        byte[] bytes = resources.load(path);
-        FontMgr mgr = FontMgr.getDefault();
-        if (bytes == null || mgr == null) return null;
-        try {
-            return mgr.makeFromData(Data.makeFromBytes(bytes));
-        } catch (Throwable t) {
-            return null;
-        }
+        return uiBold;
     }
 
     private Typeface cjkTypeface() {
-        if (cjkTypeface != null) return cjkTypeface;
-        if (cjkLookupFailed) return null;
+        if (uiCjk != null) return uiCjk;
+        if (uiDefault != null) return uiDefault;
+        if (systemCjk != null) return systemCjk;
+        if (systemCjkFailed) return null;
         FontMgr mgr = FontMgr.getDefault();
-        if (mgr == null) { cjkLookupFailed = true; return null; }
+        if (mgr == null) { systemCjkFailed = true; return null; }
         for (String name : CJK_CANDIDATES) {
             Typeface t = mgr.matchFamilyStyle(name, FontStyle.NORMAL);
-            if (t != null) { cjkTypeface = t; return t; }
+            if (t != null) { systemCjk = t; return t; }
         }
         try {
             Typeface t = mgr.matchFamilyStyleCharacter(
                 null, FontStyle.NORMAL, new String[]{"zh-CN", "zh-Hans"}, 0x4E2D);
-            if (t != null) { cjkTypeface = t; return t; }
+            if (t != null) { systemCjk = t; return t; }
         } catch (Throwable ignored) {}
-        cjkLookupFailed = true;
+        systemCjkFailed = true;
         return null;
     }
 
@@ -185,13 +191,11 @@ final class FontResolver {
     }
 
     void close() {
-        if (defaultTypeface != null) {
-            defaultTypeface.close();
-            defaultTypeface = null;
-        }
-        if (cjkTypeface != null) {
-            cjkTypeface.close();
-            cjkTypeface = null;
-        }
+        if (systemDefault != null) { systemDefault.close(); systemDefault = null; }
+        if (systemCjk != null) { systemCjk.close(); systemCjk = null; }
+        if (uiDefault != null) { uiDefault.close(); uiDefault = null; }
+        if (uiBold != null) { uiBold.close(); uiBold = null; }
+        if (uiCjk != null) { uiCjk.close(); uiCjk = null; }
+        if (uiIcon != null) { uiIcon.close(); uiIcon = null; }
     }
 }
