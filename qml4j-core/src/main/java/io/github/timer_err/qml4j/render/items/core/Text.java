@@ -14,6 +14,9 @@ public class Text extends Item {
     @SuppressWarnings("unused")
     public final Property<Number> verticalAlignment = new Property<>(32);  // Text.AlignTop
     public final Property<Number> elide = new Property<>(0);                // Text.ElideNone
+    // 0 = unlimited. When wrapping produces more lines than this, the last kept
+    // line is force-elided with an ellipsis and the reserved height is clamped.
+    public final Property<Number> maximumLineCount = new Property<>(0);
     @SuppressWarnings("unused")
     public final Property<Number> lineHeight = new Property<>(1);
     @SuppressWarnings("unused")
@@ -45,6 +48,7 @@ public class Text extends Item {
     public float cachedSize = -1f;
     public boolean cachedBold;
     public float cachedWrapW = -1f;
+    public int cachedMaxLines = -1;
     public float cachedW;
     public float cachedH;
 
@@ -67,6 +71,6 @@ public class Text extends Item {
         boolean elideRight = elide.peekInt() == 3; // Text.ElideRight
         boolean bold = Boolean.TRUE.equals(font.bold.peek()) || font.weight.peekInt() >= 63;
         p.drawWrappedText(s, w, argb, size, wrapMode.peekInt(), elideRight, bold,
-                          horizontalAlignment.peekInt());
+                          horizontalAlignment.peekInt(), maximumLineCount.peekInt());
     }
 }

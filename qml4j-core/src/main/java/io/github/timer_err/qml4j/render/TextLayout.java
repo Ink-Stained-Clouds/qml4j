@@ -61,9 +61,10 @@ public final class TextLayout {
         // Text shaping (measureTextWidth / wrap) is expensive and measureText runs once per
         // settle pass AND again per node at draw; cache the natural size keyed on the inputs
         // that affect it, so an unchanged label re-measures for free.
+        int maxLines = t.maximumLineCount.peekInt();
         float w, h;
         if (s.equals(t.cachedText) && size == t.cachedSize && bold == t.cachedBold
-                && wrapW == t.cachedWrapW) {
+                && wrapW == t.cachedWrapW && maxLines == t.cachedMaxLines) {
             w = t.cachedW;
             h = t.cachedH;
         } else {
@@ -78,11 +79,12 @@ public final class TextLayout {
                     lineCount = TextWrap.wrap(s, wrapMode, wrapW,
                         seg -> font.measureTextWidth(seg)).lines.size();
                 }
+                if (maxLines > 0 && lineCount > maxLines) lineCount = maxLines;
                 w = mw;
                 h = lineHeight(font) * lineCount;
             }
             t.cachedText = s; t.cachedSize = size; t.cachedBold = bold;
-            t.cachedWrapW = wrapW; t.cachedW = w; t.cachedH = h;
+            t.cachedWrapW = wrapW; t.cachedMaxLines = maxLines; t.cachedW = w; t.cachedH = h;
         }
         // Natural content size always feeds implicitWidth/Height (Qt), even
         // when width/height are bound externally (e.g. a tooltip background

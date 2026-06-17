@@ -362,6 +362,35 @@ public final class Painter {
         return result;
     }
 
+    // Like elideRightToWidth but always ends with an ellipsis: used for the last
+    // visible line of a maximumLineCount-clamped block, where text continues
+    // beyond the cut even if this line itself fits the box. Cached under a
+    // distinct mode key so it doesn't collide with the plain elide cache.
+    private static final String FORCE_ELLIPSIS_MODE = "max";
+
+    private String elideForceEllipsis(Font font, String line, float boxW) {
+        if (boxW <= 0f) return line;
+        int fontId = System.identityHashCode(font);
+        int w = Math.round(boxW);
+        sizedProbe.fontId = fontId;
+        sizedProbe.w = w;
+        sizedProbe.mode = FORCE_ELLIPSIS_MODE;
+        sizedProbe.s = line;
+        String hit = elideCache.get(sizedProbe);
+        if (hit != null) return hit;
+        float ellW = textWidth(font, "…");
+        String result;
+        if (textWidth(font, line) + ellW <= boxW) {
+            result = line + "…";
+        } else {
+            int end = line.length();
+            while (end > 0 && textWidth(font, line.substring(0, end)) + ellW > boxW) end--;
+            result = line.substring(0, end) + "…";
+        }
+        elideCache.put(new SizedKey(fontId, w, FORCE_ELLIPSIS_MODE, line), result);
+        return result;
+    }
+
     private Font iconFont(float size) {
         for (int i = 0; i < iconFontCount; i++) {
             if (iconFontSizes[i] == size) return iconFontVals[i];
@@ -393,7 +422,8 @@ public final class Painter {
     // is offset by hAlign (Text.AlignHCenter/AlignRight) within boxW, so a centred Text
     // centres every wrapped line, not just the block.
     public void drawWrappedText(String s, float boxW, int argb, float size,
-                                int wrapModeEnum, boolean elideRight, boolean bold, int hAlign) {
+                                int wrapModeEnum, boolean elideRight, boolean bold, int hAlign,
+                                int maxLines) {
         String wrapMode = TextLayout.wrapModeString(wrapModeEnum);
         { Font font = renderer.fonts().fontFor(size, s, bold);
             float baseline0 = TextLayout.baselineInLine(font);
@@ -411,10 +441,23 @@ public final class Painter {
                 return;
             }
             String[] lines = wrapping ? wrapLines(font, s, wrapMode, boxW) : TextLayout.splitLines(s);
+            // Clamp to maximumLineCount: draw only the first maxLines rows and mark the
+            // last kept row truncated so it gets a trailing ellipsis.
+            int drawCount = lines.length;
+            boolean truncated = false;
+            if (maxLines > 0 && drawCount > maxLines) {
+                drawCount = maxLines;
+                truncated = true;
+            }
             float lineH = TextLayout.lineHeight(font);
-            for (int i = 0; i < lines.length; i++) {
+            for (int i = 0; i < drawCount; i++) {
                 if (lines[i].isEmpty()) continue;
-                String line = elideRight ? elideRightToWidth(font, lines[i], boxW) : lines[i];
+                String line;
+                if (truncated && i == drawCount - 1) {
+                    line = elideForceEllipsis(font, lines[i], boxW);
+                } else {
+                    line = elideRight ? elideRightToWidth(font, lines[i], boxW) : lines[i];
+                }
                 float tx = lineOffset(line, font, boxW, hAlign);
                 canvas.drawTextLine(textLine(font, line), tx, baseline0 + i * lineH, p);
             }
