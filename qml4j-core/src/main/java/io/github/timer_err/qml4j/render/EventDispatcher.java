@@ -489,6 +489,10 @@ final class EventDispatcher {
         MouseArea ma = captured;
         ma.pressed.set(Boolean.FALSE);
         setContains(ma, false);
+        // The Flickable is taking over the gesture — tell the MouseArea its press
+        // was canceled (Qt does the same). Without this, a child that tracks the
+        // press (e.g. Ripple's wave) never learns it ended and stays stuck.
+        ma.canceled.emit();
         captured = null;
         scrolling = pendingFlick;
         pendingFlick = null;

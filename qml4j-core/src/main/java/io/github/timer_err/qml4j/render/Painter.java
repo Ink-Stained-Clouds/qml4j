@@ -654,7 +654,7 @@ public final class Painter {
         }
     }
 
-    public void drawImage(Image node, float w, float h) {
+    public void drawImage(Image node, float w, float h, float alpha) {
         String src = node.source.peek();
         if (src == null || src.isEmpty()) { node.status.set(0); return; }
         if (!src.equals(node.loadedSource)) {
@@ -700,14 +700,17 @@ public final class Painter {
         int save = radius > 0 ? canvas.save() : -1;
         if (radius > 0) canvas.clipRRect(RRect.makeXYWH(0, 0, w, h, radius), true);
         try {
+            // null paint = fully opaque; only build an alpha paint when the
+            // inherited opacity is actually < 1 (page fades, etc.).
+            Paint ip = alpha < 0.999f ? imageAlphaPaint(alpha) : null;
             switch (plan.op) {
                 case DRAW_RECT:
-                    drawImagePlan(node.skiaImage, plan);
+                    drawImagePlan(node.skiaImage, plan, ip);
                     break;
                 case TILE_X:
                 case TILE_Y:
                 case TILE_XY:
-                    drawTilePlan(node.skiaImage, plan, w, h);
+                    drawTilePlan(node.skiaImage, plan, w, h, ip);
                     break;
             }
         } finally {
@@ -720,14 +723,14 @@ public final class Painter {
     // overshoots at high-contrast edges -- visible ringing/jaggies -- so linear stays clean.
     private static final SamplingMode IMAGE_SAMPLING = SamplingMode.LINEAR;
 
-    private void drawImagePlan(io.github.humbleui.skija.Image img, ImageFill.Plan plan) {
+    private void drawImagePlan(io.github.humbleui.skija.Image img, ImageFill.Plan plan, Paint paint) {
         Rect src = Rect.makeXYWH(plan.srcX, plan.srcY, plan.srcW, plan.srcH);
         Rect dst = Rect.makeXYWH(plan.dstX, plan.dstY, plan.dstW, plan.dstH);
-        canvas.drawImageRect(img, src, dst, IMAGE_SAMPLING, null, true);
+        canvas.drawImageRect(img, src, dst, IMAGE_SAMPLING, paint, true);
     }
 
     private void drawTilePlan(io.github.humbleui.skija.Image img,
-                              ImageFill.Plan plan, float boundsW, float boundsH) {
+                              ImageFill.Plan plan, float boundsW, float boundsH, Paint paint) {
         int saved = canvas.save();
         try {
             canvas.clipRect(Rect.makeXYWH(plan.clipX, plan.clipY, plan.clipW, plan.clipH));
@@ -737,12 +740,20 @@ public final class Painter {
             for (float y = 0; y < boundsH; y += stepY) {
                 for (float x = 0; x < boundsW; x += stepX) {
                     Rect dst = Rect.makeXYWH(x, y, plan.dstW, plan.dstH);
-                    canvas.drawImageRect(img, src, dst, IMAGE_SAMPLING, null, true);
+                    canvas.drawImageRect(img, src, dst, IMAGE_SAMPLING, paint, true);
                 }
             }
         } finally {
             canvas.restoreToCount(saved);
         }
+    }
+
+    // Reused paint carrying the inherited opacity for image draws (alpha < 1).
+    private Paint imageAlphaPaintField;
+    private Paint imageAlphaPaint(float alpha) {
+        if (imageAlphaPaintField == null) imageAlphaPaintField = new Paint();
+        imageAlphaPaintField.setAlphaf(alpha);
+        return imageAlphaPaintField;
     }
 
     private static int[] peekImageDimensions(byte[] bytes) {

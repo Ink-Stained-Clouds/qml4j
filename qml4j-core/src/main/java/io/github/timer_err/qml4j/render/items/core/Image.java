@@ -39,6 +39,6 @@ public class Image extends Item {
 
     @Override
     public void paint(Painter p, float w, float h, float alpha) {
-        p.drawImage(this, w, h);
+        p.drawImage(this, w, h, alpha);
     }
 }
