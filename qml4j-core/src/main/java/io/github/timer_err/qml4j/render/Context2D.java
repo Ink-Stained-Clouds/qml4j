@@ -17,6 +17,7 @@ import io.github.humbleui.types.RRect;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
 import java.util.function.Consumer;
@@ -34,10 +35,22 @@ public final class Context2D {
 
     private final Canvas canvas;
     private final Renderer renderer;
-    // The current path as replayable ops, NOT a live PathBuilder: in Skija 0.143
-    // a PathBuilder is unusable after build() (the next reset()/op segfaults), so
-    // each fill/stroke/clip builds a fresh single-use PathBuilder from these ops.
-    private final List<Consumer<PathBuilder>> ops = new ArrayList<>();
+    // The current path as a replayable command buffer, NOT a live PathBuilder: in
+    // Skija 0.143 a PathBuilder is unusable after build() (the next reset()/op
+    // segfaults), so each fill/stroke/clip builds a fresh single-use PathBuilder
+    // from these commands. Encoded as primitive floats ([opcode, args...]) in a
+    // reused, grown buffer rather than one captured lambda per op -- a Canvas that
+    // strokes a per-frame waveform issues hundreds of moveTo/lineTo a frame, and a
+    // lambda each was the lyric page's dominant per-frame allocation.
+    private static final int OP_MOVE = 0, OP_LINE = 1, OP_CLOSE = 2, OP_RECT = 3,
+        OP_RRECT = 4, OP_OVAL = 5, OP_ARC = 6, OP_TANGENT_ARC = 7;
+    private float[] cmd = new float[64];
+    private int cmdLen = 0;
+
+    private void push(float v) {
+        if (cmdLen >= cmd.length) cmd = Arrays.copyOf(cmd, cmd.length * 2);
+        cmd[cmdLen++] = v;
+    }
 
     // Drawing state (read/written from JS as `ctx.fillStyle = ...`, etc.).
     public Object fillStyle = "#000000";
@@ -65,30 +78,28 @@ public final class Context2D {
 
     // ---- path ----
     @SuppressWarnings("unused")
-    public void beginPath() { ops.clear(); }
+    public void beginPath() { cmdLen = 0; }
     @SuppressWarnings("unused")
-    public void closePath() { ops.add(PathBuilder::closePath); }
+    public void closePath() { push(OP_CLOSE); }
     @SuppressWarnings("unused")
     public void moveTo(double x, double y) {
-        float fx = (float) x, fy = (float) y;
-        ops.add(b -> b.moveTo(fx, fy));
+        push(OP_MOVE); push((float) x); push((float) y);
     }
     @SuppressWarnings("unused")
     public void lineTo(double x, double y) {
-        float fx = (float) x, fy = (float) y;
-        ops.add(b -> b.lineTo(fx, fy));
+        push(OP_LINE); push((float) x); push((float) y);
     }
     @SuppressWarnings("unused")
     public void rect(double x, double y, double w, double h) {
-        Rect r = Rect.makeXYWH((float) x, (float) y, (float) w, (float) h);
-        ops.add(b -> b.addRect(r));
+        push(OP_RECT); push((float) x); push((float) y); push((float) w); push((float) h);
     }
 
     // Qt Context2D.roundedRect(x, y, w, h, xRadius, yRadius) -- rounded-rect subpath.
     @SuppressWarnings("unused")
     public void roundedRect(double x, double y, double w, double h, double xr, double yr) {
-        RRect rr = RRect.makeXYWH((float) x, (float) y, (float) w, (float) h, (float) xr, (float) yr);
-        ops.add(b -> b.addRRect(rr));
+        push(OP_RRECT);
+        push((float) x); push((float) y); push((float) w); push((float) h);
+        push((float) xr); push((float) yr);
     }
 
     // HTML arc(cx, cy, r, startRad, endRad, counterclockwise=false).
@@ -97,17 +108,16 @@ public final class Context2D {
         float sweep = (float) Math.toDegrees(end - start);
         if (ccw && sweep > 0) sweep -= 360;
         if (!ccw && sweep < 0) sweep += 360;
-        Rect oval = Rect.makeLTRB((float) (cx - r), (float) (cy - r), (float) (cx + r), (float) (cy + r));
+        float l = (float) (cx - r), t = (float) (cy - r), ri = (float) (cx + r), bo = (float) (cy + r);
         if (Math.abs(sweep) >= 359.999f) {
             // A full circle: Skija's arcTo treats a 360 sweep as empty, so add the oval.
-            ops.add(b -> b.addOval(oval));
+            push(OP_OVAL); push(l); push(t); push(ri); push(bo);
             return;
         }
-        float fa = a0, fsw = sweep;
         // The first path op starts a fresh subpath -> move to the arc start; a later arc
         // connects from the current point (HTML arc semantics).
-        boolean moveToStart = ops.isEmpty();
-        ops.add(b -> b.arcTo(oval, fa, fsw, moveToStart));
+        float moveToStart = cmdLen == 0 ? 1f : 0f;
+        push(OP_ARC); push(l); push(t); push(ri); push(bo); push(a0); push(sweep); push(moveToStart);
     }
 
     @SuppressWarnings("unused")
@@ -117,8 +127,8 @@ public final class Context2D {
 
     @SuppressWarnings("unused")
     public void arcTo(double x1, double y1, double x2, double y2, double r) {
-        float a = (float) x1, b1 = (float) y1, c = (float) x2, d = (float) y2, rr = (float) r;
-        ops.add(b -> b.tangentArcTo(a, b1, c, d, rr));
+        push(OP_TANGENT_ARC);
+        push((float) x1); push((float) y1); push((float) x2); push((float) y2); push((float) r);
     }
 
     // ---- fills / strokes ----
@@ -137,13 +147,35 @@ public final class Context2D {
         withPath(p -> canvas.clipPath(p, true));
     }
 
-    // Build a fresh single-use PathBuilder from the accumulated ops, hand the built
-    // Path to `body`, and close both natives. (A PathBuilder cannot be reused after
-    // build() in this Skija version.)
+    // Build a fresh single-use PathBuilder by replaying the command buffer, hand the
+    // built Path to `body`, and close both natives. (A PathBuilder cannot be reused
+    // after build() in this Skija version.) Only the rare object-shaped ops (rect/
+    // rrect/oval/arc) allocate a Rect at replay; the common move/line/close don't.
     private void withPath(Consumer<Path> body) {
         try (PathBuilder b = new PathBuilder()) {
             b.setFillMode(PathFillMode.WINDING);
-            for (Consumer<PathBuilder> op : ops) op.accept(b);
+            int i = 0;
+            while (i < cmdLen) {
+                int op = (int) cmd[i++];
+                switch (op) {
+                    case OP_MOVE: b.moveTo(cmd[i], cmd[i + 1]); i += 2; break;
+                    case OP_LINE: b.lineTo(cmd[i], cmd[i + 1]); i += 2; break;
+                    case OP_CLOSE: b.closePath(); break;
+                    case OP_RECT:
+                        b.addRect(Rect.makeXYWH(cmd[i], cmd[i + 1], cmd[i + 2], cmd[i + 3])); i += 4; break;
+                    case OP_RRECT:
+                        b.addRRect(RRect.makeXYWH(cmd[i], cmd[i + 1], cmd[i + 2], cmd[i + 3],
+                            cmd[i + 4], cmd[i + 5])); i += 6; break;
+                    case OP_OVAL:
+                        b.addOval(Rect.makeLTRB(cmd[i], cmd[i + 1], cmd[i + 2], cmd[i + 3])); i += 4; break;
+                    case OP_ARC:
+                        b.arcTo(Rect.makeLTRB(cmd[i], cmd[i + 1], cmd[i + 2], cmd[i + 3]),
+                            cmd[i + 4], cmd[i + 5], cmd[i + 6] != 0f); i += 7; break;
+                    case OP_TANGENT_ARC:
+                        b.tangentArcTo(cmd[i], cmd[i + 1], cmd[i + 2], cmd[i + 3], cmd[i + 4]); i += 5; break;
+                    default: break;
+                }
+            }
             try (Path p = b.build()) { body.accept(p); }
         }
     }
@@ -230,7 +262,7 @@ public final class Context2D {
     // Canvas/Context2D reset: clear the path + drawing state.
     @SuppressWarnings("unused")
     public void reset() {
-        ops.clear();
+        cmdLen = 0;
         stack.clear();
         fillStyle = "#000000"; strokeStyle = "#000000"; lineWidth = 1; globalAlpha = 1;
         lineCap = "butt"; lineJoin = "miter"; lineDash = null;
