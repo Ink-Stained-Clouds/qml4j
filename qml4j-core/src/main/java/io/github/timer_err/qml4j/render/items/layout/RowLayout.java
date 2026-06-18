@@ -3,9 +3,6 @@ import io.github.timer_err.qml4j.render.items.core.Item;
 
 import io.github.timer_err.qml4j.engine.binding.Property;
 
-import java.util.ArrayList;
-import java.util.List;
-
 // QtQuick.Layouts RowLayout. Lays children left-to-right using each child's
 // Layout.preferredWidth (else implicitWidth/width), per-child horizontal margins
 // and spacing; fillWidth children share any extra width. Cross-axis: fillHeight
@@ -13,24 +10,45 @@ import java.util.List;
 public class RowLayout extends Item {
     public final Property<Number> spacing = new Property<>(0);
 
+    // Reused scratch, grown on demand — see ColumnLayout: layout() runs every settle
+    // pass for every container, so per-call arrays were steady GC pressure. Not
+    // re-entrant on one instance, so plain instance fields are safe.
+    private Item[] vis = new Item[0];
+    private double[] w = new double[0];
+    private double[] left = new double[0];
+    private double[] right = new double[0];
+    private boolean[] fill = new boolean[0];
+
+    private void ensureCap(int cap) {
+        if (vis.length >= cap) return;
+        vis = new Item[cap];
+        w = new double[cap];
+        left = new double[cap];
+        right = new double[cap];
+        fill = new boolean[cap];
+    }
+
     @Override
     public void layout() {
-        List<Item> vis = new ArrayList<>();
-        for (Item c : children) if (c.isVisible()) vis.add(c);
-        if (vis.isEmpty()) { implicitWidth.set(0); implicitHeight.set(0); return; }
+        int cc = children.size();
+        ensureCap(cc);
+        Item[] vis = this.vis;
+        int n = 0;
+        for (int i = 0; i < cc; i++) {
+            Item c = children.get(i);
+            if (c.isVisible()) vis[n++] = c;
+        }
+        if (n == 0) { implicitWidth.set(0); implicitHeight.set(0); return; }
 
         double s = spacing.peekDouble();
-        int n = vis.size();
-        double[] w = new double[n];
-        double[] left = new double[n];
-        double[] right = new double[n];
-        boolean[] fill = new boolean[n];
+        double[] w = this.w, left = this.left, right = this.right;
+        boolean[] fill = this.fill;
         double sumMain = s * (n - 1);
         double maxCross = 0;
         int fillCount = 0;
 
         for (int i = 0; i < n; i++) {
-            Item c = vis.get(i);
+            Item c = vis[i];
             LayoutAttached la = c.Layout;
             fill[i] = Boolean.TRUE.equals(la.fillWidth.peek());
             w[i] = LayoutSizing.mainSize(c.Layout.preferredWidth, c.implicitWidth, c.width, fill[i]);
@@ -65,7 +83,7 @@ public class RowLayout extends Item {
 
         double x = 0;
         for (int i = 0; i < n; i++) {
-            Item c = vis.get(i);
+            Item c = vis[i];
             LayoutAttached la = c.Layout;
             x += left[i];
             c.x.set(x);

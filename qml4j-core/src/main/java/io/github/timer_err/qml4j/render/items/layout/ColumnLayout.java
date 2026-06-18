@@ -3,33 +3,52 @@ import io.github.timer_err.qml4j.render.items.core.Item;
 
 import io.github.timer_err.qml4j.engine.binding.Property;
 
-import java.util.ArrayList;
-import java.util.List;
-
 // QtQuick.Layouts ColumnLayout. Top-to-bottom mirror of RowLayout: main axis is
 // vertical (Layout.preferredHeight, top/bottom margins, fillHeight share extra),
 // cross axis is horizontal (fillWidth stretches, else aligned/centred).
 public class ColumnLayout extends Item {
     public final Property<Number> spacing = new Property<>(0);
 
+    // Reused scratch, grown on demand — layout() runs every settle pass for every
+    // container (the 5 Hz play clock re-settles the whole tree), so the old per-call
+    // ArrayList + four arrays were a steady GC-pressure source. layout() is never
+    // re-entrant on the same instance, so plain instance fields are safe.
+    private Item[] vis = new Item[0];
+    private double[] h = new double[0];
+    private double[] top = new double[0];
+    private double[] bottom = new double[0];
+    private boolean[] fill = new boolean[0];
+
+    private void ensureCap(int cap) {
+        if (vis.length >= cap) return;
+        vis = new Item[cap];
+        h = new double[cap];
+        top = new double[cap];
+        bottom = new double[cap];
+        fill = new boolean[cap];
+    }
+
     @Override
     public void layout() {
-        List<Item> vis = new ArrayList<>();
-        for (Item c : children) if (c.isVisible()) vis.add(c);
-        if (vis.isEmpty()) { implicitWidth.set(0); implicitHeight.set(0); return; }
+        int cc = children.size();
+        ensureCap(cc);
+        Item[] vis = this.vis;
+        int n = 0;
+        for (int i = 0; i < cc; i++) {
+            Item c = children.get(i);
+            if (c.isVisible()) vis[n++] = c;
+        }
+        if (n == 0) { implicitWidth.set(0); implicitHeight.set(0); return; }
 
         double s = spacing.peekDouble();
-        int n = vis.size();
-        double[] h = new double[n];
-        double[] top = new double[n];
-        double[] bottom = new double[n];
-        boolean[] fill = new boolean[n];
+        double[] h = this.h, top = this.top, bottom = this.bottom;
+        boolean[] fill = this.fill;
         double sumMain = s * (n - 1);
         double maxCross = 0;
         int fillCount = 0;
 
         for (int i = 0; i < n; i++) {
-            Item c = vis.get(i);
+            Item c = vis[i];
             LayoutAttached la = c.Layout;
             fill[i] = Boolean.TRUE.equals(la.fillHeight.peek());
             h[i] = LayoutSizing.mainSize(la.preferredHeight, c.implicitHeight, c.height, fill[i]);
@@ -65,7 +84,7 @@ public class ColumnLayout extends Item {
 
         double y = 0;
         for (int i = 0; i < n; i++) {
-            Item c = vis.get(i);
+            Item c = vis[i];
             LayoutAttached la = c.Layout;
             y += top[i];
             c.y.set(y);

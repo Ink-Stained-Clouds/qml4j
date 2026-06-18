@@ -243,7 +243,11 @@ public final class Renderer {
         // resolve the hidden child's OWN size + anchors so a parked-while-hidden item
         // (a SideSheet panel at x: parent.width) lands correctly -- just don't recurse
         // into its descendants. They get a full measure the frame it becomes visible.
-        for (Item child : node.children) {
+        // Indexed loops (not for-each) across the whole tree — an Iterator per node
+        // per settle pass, at the 5 Hz play-clock re-settle rate, was steady GC churn.
+        List<Item> kids = node.children;
+        for (int i = 0, sz = kids.size(); i < sz; i++) {
+            Item child = kids.get(i);
             if (child.isVisible()) {
                 measure(child);
             } else {
@@ -265,18 +269,21 @@ public final class Renderer {
         // and the fix propagates down deeper anchor chains. On a settled frame the sets
         // are no-ops (unchanged values don't bump). Previously this self-corrected only
         // because the scene relayed out every frame; a static list never got pass two.
-        for (Item child : node.children) {
+        for (int i = 0, sz = kids.size(); i < sz; i++) {
+            Item child = kids.get(i);
             if (child.isVisible()) applyAnchors(child);
         }
         updateChildrenRect(node);
     }
 
     private static void updateChildrenRect(Item node) {
-        if (node.children.isEmpty()) return;
+        List<Item> kids = node.children;
+        if (kids.isEmpty()) return;
         float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE;
         float maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE;
         boolean any = false;
-        for (Item c : node.children) {
+        for (int i = 0, sz = kids.size(); i < sz; i++) {
+            Item c = kids.get(i);
             // A `visible:` binding can evaluate to undefined (null here); treat it as the
             // default (visible) rather than NPE on the unboxed boolean.
             if (!c.isVisible()) continue;
