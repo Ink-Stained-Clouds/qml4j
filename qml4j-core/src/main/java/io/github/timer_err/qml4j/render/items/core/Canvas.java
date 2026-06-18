@@ -52,4 +52,13 @@ public class Canvas extends Item {
         if (!available.peek()) return;
         p.paintCanvas(this, w, h, alpha);
     }
+
+    // Close the offscreen backing surface when discarded — native, not GC-managed.
+    @Override
+    protected void releaseResources() {
+        if (backing != null) {
+            backing.close();
+            backing = null;
+        }
+    }
 }

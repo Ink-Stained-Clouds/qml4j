@@ -16,7 +16,9 @@ import io.github.timer_err.qml4j.engine.QObject;
 import io.github.timer_err.qml4j.engine.binding.Property;
 import io.github.timer_err.qml4j.engine.binding.ObservableList;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -216,8 +218,80 @@ public class Item extends QObject {
     // animation tick because the tick walk iterates children in reverse by index.
     @SuppressWarnings("unused")
     public void destroy() {
+        dispose();
+    }
+
+    // Release native resources this item owns (decoded images, offscreen
+    // surfaces). Default no-op; Image/Canvas override. Called per item when a
+    // subtree is discarded.
+    protected void releaseResources() {}
+
+    // Discard this subtree. Unbinds every property's binding so external,
+    // longer-lived properties (e.g. a row's `width: parent.width` or
+    // `highlighted: index === player.index`) stop retaining these items through
+    // their listener lists, releases native resources (cover images, canvas
+    // backings), then detaches. Without this a Repeater/Loader that throws away
+    // delegates leaks the whole delegate subtree AND its decoded images — opening
+    // several big playlists then OOMs.
+    public void dispose() {
+        tearDown();
         Item p = parent.peek();
         if (p != null) p.children.remove(this);
         parent.set(null);
+    }
+
+    private void tearDown() {
+        unbindAll();
+        releaseResources();
+        for (int i = 0; i < children.size(); i++) children.get(i).tearDown();
+        for (int i = 0; i < resources.size(); i++) resources.get(i).tearDown();
+    }
+
+    private void unbindAll() {
+        unbindFields(this, true);
+    }
+
+    // Unbind every Property reachable from `obj`: its own Property fields, and (one
+    // level, when descendHolders) the Property fields of its nested holders (font,
+    // anchors, Layout, ...). The holders matter because bindings like
+    // `font.family: Theme.iconFont.name` live on a holder's Property, not a
+    // top-level field — and Theme/StyleManager are singletons, so without clearing
+    // them every discarded row stays pinned in their listener lists (the leak).
+    private static void unbindFields(Object obj, boolean descendHolders) {
+        for (Field f : fieldsOf(obj.getClass())) {
+            Object v;
+            try {
+                v = f.get(obj);
+            } catch (IllegalAccessException ignore) {
+                continue; // public fields only; never thrown
+            }
+            if (v instanceof Property) {
+                ((Property<?>) v).unbind();
+            } else if (descendHolders && isEngineHolder(v)) {
+                unbindFields(v, false);
+            }
+        }
+    }
+
+    // A non-Item, non-Property engine object that may hold bound Properties (Font,
+    // Anchors, LayoutAttached, ChildrenRect, ...). Items are excluded — they're
+    // torn down via the children/resources recursion, not as holders.
+    private static boolean isEngineHolder(Object v) {
+        if (v == null || v instanceof Item || v instanceof Property) return false;
+        return v.getClass().getName().startsWith("io.github.timer_err.qml4j.");
+    }
+
+    // Cache the public fields per concrete class: dispose runs over every row of a
+    // list on a model swap, and reflecting getFields() each time is a real cost at
+    // hundreds of delegates.
+    private static final Map<Class<?>, Field[]> FIELDS = new HashMap<>();
+
+    private static Field[] fieldsOf(Class<?> cls) {
+        Field[] cached = FIELDS.get(cls);
+        if (cached == null) {
+            cached = cls.getFields();
+            FIELDS.put(cls, cached);
+        }
+        return cached;
     }
 }

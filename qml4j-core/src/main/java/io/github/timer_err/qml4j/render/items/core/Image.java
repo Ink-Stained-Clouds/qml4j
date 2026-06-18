@@ -41,4 +41,16 @@ public class Image extends Item {
     public void paint(Painter p, float w, float h, float alpha) {
         p.drawImage(this, w, h, alpha);
     }
+
+    // Close the decoded native image when this item is discarded (e.g. a list
+    // delegate scrolled out of a model swap) — it isn't GC-managed, so a row's
+    // cover would otherwise leak its native memory.
+    @Override
+    protected void releaseResources() {
+        if (skiaImage != null) {
+            skiaImage.close();
+            skiaImage = null;
+        }
+        loadedSource = null;
+    }
 }

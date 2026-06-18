@@ -91,7 +91,10 @@ public class Repeater extends Item implements DelegateHost {
             return;
         }
 
-        for (Item it : instances) visualParent.children.remove(it);
+        // dispose() (not just children.remove) so each discarded delegate's bindings
+        // unsubscribe from external properties and its native images/backings close —
+        // otherwise swapping a several-hundred-row model leaks the whole delegate set.
+        for (Item it : instances) it.dispose();
         instances.clear();
         // Insert delegates at the Repeater's own position in the parent (Qt), so siblings
         // declared after the Repeater (e.g. a trailing spacer) stay after the rows -- not
