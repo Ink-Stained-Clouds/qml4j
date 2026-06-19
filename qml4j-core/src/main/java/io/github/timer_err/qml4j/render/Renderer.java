@@ -223,9 +223,15 @@ public final class Renderer {
             // Skip only on a later settle (settleId differs) with an unchanged box +
             // child count + child set. Same-settle re-passes always recurse so a card's
             // children (whose width derives from this container) converge over the loop.
+            // Children's sizes are read as they stand now -- a late-settling child
+            // binding (a row at `width: view.width`) has already updated its Property,
+            // so a mismatch here forces the re-measure that re-anchors the stale
+            // subtree. The stored value is refreshed at the end of measure(), after the
+            // children have been (re-)measured to their final sizes.
             if (node.cachedLayoutValid && node.cachedLayoutSettleId != settleId
                     && node.cachedLayoutW == cw && node.cachedLayoutH == ch
-                    && node.cachedLayoutCount == cc && node.cachedLayoutChildVersion == cv) {
+                    && node.cachedLayoutCount == cc && node.cachedLayoutChildVersion == cv
+                    && node.cachedLayoutChildDims == childDimsChecksum(node)) {
                 runLayout(node);
                 applyAnchors(node);
                 return;
@@ -273,7 +279,25 @@ public final class Renderer {
             Item child = kids.get(i);
             if (child.isVisible()) applyAnchors(child);
         }
+        // Snapshot the now-final child sizes so the next settle's fast-path check can
+        // tell a genuinely static subtree from one whose row widths just settled.
+        if (Boolean.TRUE.equals(node.cachedLayout.peek())) {
+            node.cachedLayoutChildDims = childDimsChecksum(node);
+        }
         updateChildrenRect(node);
+    }
+
+    // Order-sensitive checksum of the direct children's sizes — cheap (no per-child
+    // allocation) and only computed for cachedLayout containers, which are few.
+    private static long childDimsChecksum(Item node) {
+        List<Item> kids = node.children;
+        long h = 1L;
+        for (int i = 0, sz = kids.size(); i < sz; i++) {
+            Item c = kids.get(i);
+            h = h * 31L + Float.floatToRawIntBits(c.width.peekFloat());
+            h = h * 31L + Float.floatToRawIntBits(c.height.peekFloat());
+        }
+        return h;
     }
 
     private static void updateChildrenRect(Item node) {
@@ -454,6 +478,9 @@ public final class Renderer {
     // Clear the four corners outside the rounded rect with an antialiased path, so the
     // offscreen layer composites back with smooth rounded edges (the layer.effect mask).
     private void eraseOutsideRoundRect(Canvas canvas, float w, float h, float[] r) {
+        // A reparent/resize frame can hand a transient non-positive size; Skija's Rect
+        // throws on negative extents (the saveLayer above already clamps with Math.max).
+        if (w <= 0f || h <= 0f) return;
         try (Path bounds = Path.makeRect(Rect.makeXYWH(0, 0, w, h));
              Path rounded = Path.makeRRect(RRect.makeComplexXYWH(0, 0, w, h, r));
              Path corners = Path.makeCombining(bounds, rounded, PathOp.DIFFERENCE);

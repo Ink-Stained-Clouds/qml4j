@@ -56,6 +56,12 @@ public class Item extends QObject {
     public int cachedLayoutCount;
     public long cachedLayoutChildVersion = -1;
     public long cachedLayoutSettleId = -1;
+    // Checksum of the direct children's sizes at cache time. A child whose width comes
+    // from a binding (a list row at `width: view.width`) can settle a frame after the
+    // first measure, while this container's own box is already final -- so the box +
+    // count check above stays valid and the stale child never gets re-measured. Folding
+    // the children's dimensions in catches that.
+    public long cachedLayoutChildDims;
     public final Property<Item> parent = new Property<>(null);
     // Declared List (the compiler emits children accesses with a java/util/List descriptor)
     // but an ObservableList so structural changes re-evaluate dependent bindings.

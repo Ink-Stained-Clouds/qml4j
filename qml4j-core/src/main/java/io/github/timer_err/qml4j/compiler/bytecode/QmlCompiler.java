@@ -9,6 +9,7 @@ import io.github.timer_err.qml4j.compiler.bytecode.member.MemberEmitter;
 import io.github.timer_err.qml4j.compiler.bytecode.rhino.RhinoArrow;
 import io.github.timer_err.qml4j.engine.DelegateHost;
 import io.github.timer_err.qml4j.engine.PropertyChangeSink;
+import io.github.timer_err.qml4j.engine.SignalParams;
 import io.github.timer_err.qml4j.engine.SignalRelay;
 import io.github.timer_err.qml4j.engine.binding.Property;
 import io.github.timer_err.qml4j.runtime.invoke.Scheduler;
@@ -16,6 +17,7 @@ import io.github.timer_err.qml4j.engine.QObject;
 import io.github.timer_err.qml4j.parser.ast.Ast;
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.FieldVisitor;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
@@ -27,6 +29,7 @@ import io.github.timer_err.qml4j.render.items.view.Component;
 import io.github.timer_err.qml4j.render.items.transform.Transform;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Deque;
@@ -248,8 +251,10 @@ public final class QmlCompiler {
                     throw new IllegalArgumentException(
                         "signal '" + sd.name + "' shadows existing field on " + rootType.getName());
                 }
-                cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
-                              sd.name, SIGNAL_DESC, null, null).visitEnd();
+                FieldVisitor sfv = cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
+                              sd.name, SIGNAL_DESC, null, null);
+                stampSignalParams(sfv, sd.paramNames);
+                sfv.visitEnd();
                 customSignalParams.put(sd.name, sd.paramNames);
             }
         }
@@ -469,6 +474,24 @@ public final class QmlCompiler {
         return path.size() == 2 && "Component".equals(path.get(0)) ? path.get(1) : null;
     }
 
+    /** Stamp a user signal's declared parameter names onto its Signal field, so a
+     *  handler compiled in another file can recover them by reflection. */
+    private static void stampSignalParams(FieldVisitor fv, List<String> paramNames) {
+        AnnotationVisitor av = fv.visitAnnotation(Type.getDescriptor(SignalParams.class), true);
+        AnnotationVisitor arr = av.visitArray("value");
+        for (String p : paramNames) arr.visit(null, p);
+        arr.visitEnd();
+        av.visitEnd();
+    }
+
+    /** The @SignalParams names on a signal field, or null when absent (built-in Java
+     *  signals carry no such metadata — their handlers bind args via arrow form). */
+    private static List<String> signalParamsFromField(Field signalField) {
+        if (signalField == null) return null;
+        SignalParams sp = signalField.getAnnotation(SignalParams.class);
+        return sp == null ? null : Arrays.asList(sp.value());
+    }
+
     private static boolean isStateAssignment(Ast.ObjectMember m) {
         if (!(m instanceof Ast.PropertyBinding)) return false;
         Ast.PropertyBinding b = (Ast.PropertyBinding) m;
@@ -599,8 +622,17 @@ public final class QmlCompiler {
                 // Arrow-form handlers `(a) => body` bind their params as the signal
                 // args; the captured body source runs as `(function(params){ body })`.
                 RhinoArrow.Result arrow = RhinoArrow.parse(valueSource(b.value));
-                List<String> handlerParams = arrow != null ? arrow.params
-                    : (isCustomHandler ? customSignalParams.get(signalName) : null);
+                List<String> handlerParams;
+                if (arrow != null) {
+                    handlerParams = arrow.params;
+                } else if (isCustomHandler) {
+                    handlerParams = customSignalParams.get(signalName);
+                } else {
+                    // A signal declared in another file: its parameter names aren't in
+                    // this document's tables, so read them off the @SignalParams the
+                    // declaring compile stamped on the Signal field (reflection).
+                    handlerParams = signalParamsFromField(signalField);
+                }
                 String handlerSource = arrow != null ? arrow.bodySource : valueSource(b.value);
                 if (isCustomHandler) {
                     emitCustomSignalHandler(ctor, outerType, outerLocal, componentBinaryName,

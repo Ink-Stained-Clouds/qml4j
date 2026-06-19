@@ -899,7 +899,7 @@ public final class Painter {
             sp.setImageFilter(ImageFilter.makeDropShadow(dx, dy, sg, sg, sc));
             float mg = sg * 3f + Math.abs(dx) + Math.abs(dy) + 8f;
             int save = canvas.saveLayer(Rect.makeXYWH(-mg, -mg, w + 2 * mg, h + 2 * mg), sp);
-            try { renderer.drawForced(canvas, source, alpha); }
+            try { drawSourceAtEffectOrigin(source, alpha); }
             finally { canvas.restoreToCount(save); sp.close(); }
             return;
         }
@@ -920,8 +920,20 @@ public final class Painter {
                 canvas.clipRect(Rect.makeXYWH(0, 0, w, h));
             }
         }
-        try { renderer.drawForced(canvas, source, alpha); }
+        try { drawSourceAtEffectOrigin(source, alpha); }
         finally { canvas.restoreToCount(save); }
+    }
+
+    // The effect renders its source at the effect's own origin (the clip/mask is in
+    // effect-local space), but drawForced re-applies the source's own x/y — which is
+    // relative to the source's parent, not the effect. Neutralise that offset so the
+    // source content lands at (0,0); a no-op when source and effect are co-located
+    // siblings (the Ripple case), correct when they are not.
+    private void drawSourceAtEffectOrigin(Item source, float alpha) {
+        int s = canvas.save();
+        canvas.translate(-source.x.peekFloat(), -source.y.peekFloat());
+        try { renderer.drawForced(canvas, source, alpha); }
+        finally { canvas.restoreToCount(s); }
     }
 
     // The first Rectangle in the mask subtree -- its effective per-corner radii
