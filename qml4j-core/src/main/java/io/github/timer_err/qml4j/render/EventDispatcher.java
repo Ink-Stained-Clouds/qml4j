@@ -41,13 +41,18 @@ final class EventDispatcher {
     // scrolling once the drag passes DRAG_THRESHOLD (Qt's flick-steals-from-child
     // behaviour: a press on a clickable row still scrolls the list when dragged).
     private Flickable pendingFlick;
-    // Drag velocity (content px/sec) tracked during a scroll, handed to the
-    // Flickable on release so it coasts (fling/inertia).
-    private float velX;
-    private float velY;
-    private long lastMoveNanos;
-    private float lastMoveRootX;
-    private float lastMoveRootY;
+    // Windowed velocity tracker. The fling speed handed to the Flickable on release
+    // is the displacement across a short recent window of pointer samples, not a
+    // running EMA of per-move deltas: an EMA reversed direction when the finger
+    // rolled back a pixel or two on lift (its last sample dominated) and
+    // underestimated fast flicks when move events arrived in irregular bursts. A
+    // window over the last ~VEL_WINDOW seconds is robust to both.
+    private static final int VEL_SAMPLES = 8;
+    private static final float VEL_WINDOW = 0.09f; // seconds of history used for velocity
+    private final long[] sampleNanos = new long[VEL_SAMPLES];
+    private final float[] sampleX = new float[VEL_SAMPLES];
+    private final float[] sampleY = new float[VEL_SAMPLES];
+    private int sampleCount;
 
     // Pixels of content moved per mouse-wheel notch (GLFW reports ~±1 per notch).
     private static final float WHEEL_STEP = 48f;
@@ -420,7 +425,7 @@ final class EventDispatcher {
         }
         if (scrolling != null) {
             applyScroll(x, y);
-            scrolling.startFling(velX, velY);
+            scrolling.startFling(flingVelX(), flingVelY());
             scrolling = null;
             return true;
         }
@@ -508,27 +513,46 @@ final class EventDispatcher {
 
     // Begin (or restart) velocity tracking for a fresh drag at (x, y).
     private void beginScrollVelocity(float x, float y) {
-        velX = 0f;
-        velY = 0f;
-        lastMoveRootX = x;
-        lastMoveRootY = y;
-        lastMoveNanos = System.nanoTime();
+        sampleCount = 0;
+        addScrollSample(x, y);
     }
 
-    // Update the running drag velocity from a move. Content moves opposite the
-    // finger, so content velocity = -(finger delta)/dt; smoothed to ride out jitter.
-    private void trackScrollVelocity(float x, float y) {
-        long now = System.nanoTime();
-        float dt = (now - lastMoveNanos) / 1_000_000_000f;
-        if (dt > 0.001f) {
-            float ivx = -(x - lastMoveRootX) / dt;
-            float ivy = -(y - lastMoveRootY) / dt;
-            velX = 0.4f * velX + 0.6f * ivx;
-            velY = 0.4f * velY + 0.6f * ivy;
-            lastMoveRootX = x;
-            lastMoveRootY = y;
-            lastMoveNanos = now;
+    // Record a pointer sample (raw position + processing time) into the ring.
+    private void addScrollSample(float x, float y) {
+        if (sampleCount == VEL_SAMPLES) {
+            System.arraycopy(sampleNanos, 1, sampleNanos, 0, VEL_SAMPLES - 1);
+            System.arraycopy(sampleX, 1, sampleX, 0, VEL_SAMPLES - 1);
+            System.arraycopy(sampleY, 1, sampleY, 0, VEL_SAMPLES - 1);
+            sampleCount--;
         }
+        sampleNanos[sampleCount] = System.nanoTime();
+        sampleX[sampleCount] = x;
+        sampleY[sampleCount] = y;
+        sampleCount++;
+    }
+
+    private void trackScrollVelocity(float x, float y) {
+        addScrollSample(x, y);
+    }
+
+    // Content velocity (px/sec) = -(finger displacement)/(elapsed) measured from the
+    // newest sample back to the oldest sample still within VEL_WINDOW. Averaging over
+    // the window ignores a jittery final sample (no spurious reversal) and reflects
+    // the true flick speed even when individual moves were unevenly timed.
+    private float flingVelX() { return flingVel(sampleX); }
+    private float flingVelY() { return flingVel(sampleY); }
+
+    private float flingVel(float[] axis) {
+        if (sampleCount < 2) return 0f;
+        long newest = sampleNanos[sampleCount - 1];
+        int oldest = sampleCount - 1;
+        for (int i = sampleCount - 1; i >= 0; i--) {
+            if ((newest - sampleNanos[i]) / 1_000_000_000f > VEL_WINDOW) break;
+            oldest = i;
+        }
+        float dt = (newest - sampleNanos[oldest]) / 1_000_000_000f;
+        if (dt < 0.001f) return 0f;
+        return -(axis[sampleCount - 1] - axis[oldest]) / dt;
     }
 
     private void applyScroll(float rootX, float rootY) {
