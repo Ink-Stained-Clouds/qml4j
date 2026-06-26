@@ -125,6 +125,15 @@ public final class Renderer {
         if (root == null) return;
         painter.bind(canvas);
         if (!skipLayout) settleLayout(root);
+        // Establish the top-level viewport clip for the main scene. renderSubtree()
+        // narrows clipL/T/R/B to its subtree's size and does NOT restore them (draw()
+        // only saves/restores around each node), so once a host has composited a
+        // subtree pass the next render() would cull the whole scene against that stale
+        // clip — e.g. a host that draws a tagged overlay subtree at the window size,
+        // then grows the window, loses every item past the old bounds. Reset to the
+        // unbounded default here so the main scene is never culled against leaked state.
+        clipL = -Float.MAX_VALUE; clipT = -Float.MAX_VALUE;
+        clipR = Float.MAX_VALUE;  clipB = Float.MAX_VALUE;
         draw(canvas, root, 1f);
     }
 
