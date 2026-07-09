@@ -124,6 +124,16 @@ public final class QmlScope implements Scriptable {
         // delegate items from the enclosing component, so delegateLookup's parent walk
         // never reaches the component root -- but the id still names that root.
         if (sceneIds.contains(name)) return wrap(MemberAccess.readMember(root, name));
+        // A `property` declared on the enclosing component root, read from a delegate
+        // whose parent walk can't reach that root -- an anonymous `Component {}` /
+        // Repeater delegate, or a reparented popup overlay (Menu/DatePicker pop onto
+        // the scene root). sceneIds only carries the root's *ids*, not its property
+        // declarations, so `_colors.x` there would otherwise read as undefined. Mirrors
+        // the non-delegate owner() path's hasMember(root) fallback; guarded so it only
+        // fires when root genuinely owns the name (else fall through to globals).
+        if (root != null && root != outer && MemberAccess.hasMember(root, name)) {
+            return wrap(MemberAccess.readMember(root, name));
+        }
         Object co = DelegateScope.delegateCallableOwner(outer, name);
         if (co != null) return new JsWrap.BoundMethod(co, name, this);
         // A free function call (`isSameDay(...)`) is lexical like a scene id: fall back to
@@ -204,6 +214,7 @@ public final class QmlScope implements Scriptable {
             return MemberAccess.hasProperty(outer, name)
                 || DelegateScope.delegateLookup(outer, name) != DelegateScope.DELEGATE_ABSENT
                 || sceneIds.contains(name)
+                || (root != null && root != outer && MemberAccess.hasMember(root, name))
                 || DelegateScope.delegateCallableOwner(outer, name) != null
                 || (root != null && JsWrap.isCallable(root, name))
                 || singletonClasses.containsKey(name)
