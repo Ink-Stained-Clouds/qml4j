@@ -26,7 +26,7 @@ public final class QmlView {
 
     public QmlView(QmlEngine engine, TypeRegistry types) {
         this.loader = new Loader(engine, types);
-        renderer.setComponentFactory((qml, baseDir) -> loader.instantiate(qml, baseDir));
+        renderer.setComponentFactory(loader);
     }
 
     public static QmlView withStockTypes(QmlEngine engine) {

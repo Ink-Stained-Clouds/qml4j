@@ -28,7 +28,7 @@ import java.util.Set;
 
 // Compiles a QML document to bytecode and instantiates its root object,
 // resolving compound (file-based) types and singletons across imported modules.
-final class Loader {
+final class Loader implements ComponentFactory {
 
     private final QmlEngine engine;
     private final TypeRegistry types;
@@ -70,7 +70,32 @@ final class Loader {
     // relative file imports (import "../widgets") resolve against it.
     Item instantiate(String qml, String baseDir) {
         Ast.QmlDocument doc = Qml4j.parse(qml);
-        Class<? extends QObject> rootClass = compileAndDefine(doc, baseDir);
+        return newRoot(compileAndDefine(doc, baseDir));
+    }
+
+    @Override
+    public Item create(String qml, String baseDir) {
+        return instantiate(qml, baseDir);
+    }
+
+    // A Loader `source` (resource path). If the path is already compiled as a compound
+    // type (its class is cached under that same path key), reuse it — recompiling the
+    // file as a fresh document would mint a new class set the AOT capture never saw,
+    // which native-image cannot define at runtime. Only an unregistered path falls back
+    // to compiling the file (JVM-only territory).
+    @Override
+    public Item createFromSource(String sourcePath) {
+        Class<? extends QObject> cached = importedTypes.get(sourcePath);
+        if (cached != null) return newRoot(cached);
+        if (resources == null) return null;
+        byte[] bytes = resources.load(sourcePath);
+        if (bytes == null) return null;
+        int slash = sourcePath.lastIndexOf('/');
+        return instantiate(new String(bytes, StandardCharsets.UTF_8),
+                slash < 0 ? "" : sourcePath.substring(0, slash));
+    }
+
+    private Item newRoot(Class<? extends QObject> rootClass) {
         Object inst;
         try {
             inst = rootClass.getDeclaredConstructor().newInstance();

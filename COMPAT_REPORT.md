@@ -25,6 +25,7 @@ ToolTip/TopAppBar;另含 Theme + Ripple 基础件)。
 - **G13** 动态种子配色 —— 静态主题靠 Theme.qml 的 `defaultScheme` 直接生效(无需 StyleManager);把 material-color-utilities 移植到 Java 做动态配色未做。
 - **G14** Canvas、**G15** Animator(Opacity/Scale)—— 未注册。
 - **G17** `Loader.source` 相对路径解析偏离 Qt(2026-07-09 记)—— `Renderer.resolveLoaderSource` 把 `source` 字符串原样喂给 `ResourceLoader.load`,即**相对资源根**解析,而非 Qt 的"相对定义该 Loader 的文件所在目录"。故 `md3/Core/Menu.qml` 里递归子菜单写 `source: "Menu.qml"` 会 load 失败(实际在 `md3/Core/`),子菜单静默不出现。当前 workaround:写模块全路径 `source: "md3/Core/Menu.qml"`。正解需把每个编译产物的 baseDir 烤进类并回灌到其中的 Loader,跨编译器/工厂/Item/Renderer,工程量中等。`sourceComponent`(组件引用,非路径)不受影响。
+- **G18** `Loader.source` 运行期重编译破坏 AOT / native-image(2026-07-09 修,0.2.15)—— `source:`(字符串路径)在运行期把文件当**新根文档**重编译,mint 出 build 期 AOT 捕获从未见过的类(`generated.Component$N$Delegate$M`),native-image 无法在运行期定义 → 崩(JVM 会现场定义,仅 warn)。修法:`Loader` 现实现 `ComponentFactory`,新增 `createFromSource(path)`;当 `source` 路径命中已注册 compound 类型的缓存(`importedTypes`,键即资源路径,如 `md3/Core/Menu.qml` = `Menu` 类型)时**复用其编译类**,不重编译。只有未注册的裸路径才 fallback 到编译(仅 JVM)。同时收敛了 G17(全路径 `source:` 现直接复用 `Menu` 类型)。
 - 16 个组件原样运行已表明剩余 Tier-1 横切项(G4/G5/G7/G8 等)在实践上基本覆盖;未逐项复核的以 `README.md` feature 清单为准。
 
 ---

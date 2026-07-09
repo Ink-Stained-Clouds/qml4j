@@ -35,7 +35,6 @@ import io.github.humbleui.skija.PathOp;
 import io.github.humbleui.types.RRect;
 import io.github.humbleui.types.Rect;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -818,18 +817,16 @@ public final class Renderer {
             return;
         }
         if (src.equals(node.loadedSource)) return;
-        if (factory == null || resources == null) return;
-        byte[] bytes = resources.load(src);
-        if (bytes == null) return;
-        String qml = new String(bytes, StandardCharsets.UTF_8);
+        if (factory == null) return;
         Item child;
         try {
-            // The loaded file's own directory is the base for its relative imports.
-            int slash = src.lastIndexOf('/');
-            child = factory.create(qml, slash < 0 ? "" : src.substring(0, slash));
+            // Reuse the compiled compound-type class when `src` names one (native-image
+            // safe); the factory loads + compiles the file only for an unregistered path.
+            child = factory.createFromSource(src);
         } catch (Throwable t) {
             return;
         }
+        if (child == null) return;
         attachLoadedItem(node, child);
         node.loadedSource = src;
     }
