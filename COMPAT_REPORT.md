@@ -19,10 +19,12 @@ ToolTip/TopAppBar;另含 Theme + Ripple 基础件)。
 - **G10** MultiEffect(已注册;Painter.drawMultiEffect 经 Skija ImageFilter)
 - **G11** MouseArea hover 真实 dispatch(`EventDispatcher.updateHover` 驱动 hoverEnabled/containsMouse/entered/exited)
 - **G9** QtQuick.Layouts —— RowLayout / ColumnLayout / StackLayout / **GridLayout** + `Layout.*` 附加属性(含 row/column/rowSpan/columnSpan)全部实现;QtQuick 定位器 Row/Column/**Flow** 也已注册。GridLayout 支持显式/自动单元格放置、跨行列 span、rowSpacing/columnSpacing、fillWidth/fillHeight 与单元格内对齐;Flow 支持 LeftToRight/TopToBottom 换行。
+- **G16** delegate 作用域解析根的**声明属性**(2026-07-09 修,`d8b7e6a`)—— 匿名 `Component {}` / Repeater delegate 里引用组件根的 `property`(如 `color: _colors.onSurfaceColor`)原先解析为 undefined(delegate 路径只对 scene *id* 回退到 root,不对声明属性),文字在所有主题下渲染成黑色;reparent 到场景根的 popup(Menu/DatePicker overlay)因父链断开尤其中招。修法:`QmlScope.getDelegate`/`has` 在 scene-id 检查后加与非 delegate `owner()` 对称的 `hasMember(root)` 兜底。
 
 **⬜ 仍开**:
 - **G13** 动态种子配色 —— 静态主题靠 Theme.qml 的 `defaultScheme` 直接生效(无需 StyleManager);把 material-color-utilities 移植到 Java 做动态配色未做。
 - **G14** Canvas、**G15** Animator(Opacity/Scale)—— 未注册。
+- **G17** `Loader.source` 相对路径解析偏离 Qt(2026-07-09 记)—— `Renderer.resolveLoaderSource` 把 `source` 字符串原样喂给 `ResourceLoader.load`,即**相对资源根**解析,而非 Qt 的"相对定义该 Loader 的文件所在目录"。故 `md3/Core/Menu.qml` 里递归子菜单写 `source: "Menu.qml"` 会 load 失败(实际在 `md3/Core/`),子菜单静默不出现。当前 workaround:写模块全路径 `source: "md3/Core/Menu.qml"`。正解需把每个编译产物的 baseDir 烤进类并回灌到其中的 Loader,跨编译器/工厂/Item/Renderer,工程量中等。`sourceComponent`(组件引用,非路径)不受影响。
 - 16 个组件原样运行已表明剩余 Tier-1 横切项(G4/G5/G7/G8 等)在实践上基本覆盖;未逐项复核的以 `README.md` feature 清单为准。
 
 ---
