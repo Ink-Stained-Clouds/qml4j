@@ -9,9 +9,6 @@ import io.github.humbleui.skija.Paint;
 import io.github.humbleui.skija.PaintMode;
 import io.github.humbleui.skija.PaintStrokeCap;
 import io.github.humbleui.skija.PaintStrokeJoin;
-import io.github.humbleui.skija.FilterMipmap;
-import io.github.humbleui.skija.FilterMode;
-import io.github.humbleui.skija.MipmapMode;
 import io.github.humbleui.skija.SamplingMode;
 import io.github.humbleui.skija.Path;
 import io.github.humbleui.skija.PathBuilder;
@@ -599,91 +596,35 @@ public final class Painter {
         return "Stretch";
     }
 
-    // Decode encoded image bytes into the node's Skija image (render thread only) and set
-    // status Ready/Error. bytes == null -> Error.
-    private void decodeInto(Image node, byte[] bytes) {
-        if (bytes != null) {
-            int[] dim = peekImageDimensions(bytes);
-            node.intrinsicWidth = dim[0];
-            node.intrinsicHeight = dim[1];
-            try {
-                io.github.humbleui.skija.Image full = io.github.humbleui.skija.Image.makeFromEncoded(bytes);
-                node.skiaImage = downscaleToSourceSize(node, full);
-            } catch (Throwable t) {
-                node.skiaImage = null;
-            }
-        }
-        node.status.set(node.skiaImage != null ? 1 : 3);
-    }
-
-    // Honour Image.sourceSize like Qt: decode-then-shrink to roughly the on-screen size so
-    // a multi-megapixel photo isn't sampled down by 4x+ every frame (which reads as blurry).
-    // Shrink by the LARGER ratio so both dimensions stay >= the target -- a PreserveAspectCrop
-    // image still has enough pixels to cover its box without upscaling (which would re-blur).
-    private io.github.humbleui.skija.Image downscaleToSourceSize(Image node,
-                                                                io.github.humbleui.skija.Image full) {
-        int iw = full.getWidth();
-        int ih = full.getHeight();
-        int sw = node.sourceSize.width.peek().intValue();
-        int sh = node.sourceSize.height.peek().intValue();
-        float f;
-        if (sw > 0 && sh > 0) {
-            f = Math.max((float) sw / iw, (float) sh / ih);
-        } else if (sw > 0) {
-            f = (float) sw / iw;
-        } else if (sh > 0) {
-            f = (float) sh / ih;
-        } else {
-            f = 1f;
-        }
-        if (f >= 1f) return full;
-        int tw = Math.max(1, Math.round(iw * f));
-        int th = Math.max(1, Math.round(ih * f));
-        try (Surface surf = Surface.makeRasterN32Premul(tw, th)) {
-            // Trilinear (mipmap) for the large one-time shrink: box-averaged mip levels
-            // antialias the downscale cleanly, where a single bilinear pass would skip
-            // source pixels and a bicubic pass would ring at edges.
-            surf.getCanvas().drawImageRect(full,
-                Rect.makeXYWH(0, 0, iw, ih), Rect.makeXYWH(0, 0, tw, th),
-                new FilterMipmap(FilterMode.LINEAR, MipmapMode.LINEAR), null, true);
-            io.github.humbleui.skija.Image scaled = surf.makeImageSnapshot();
-            full.close();
-            node.intrinsicWidth = tw;
-            node.intrinsicHeight = th;
-            return scaled;
-        }
-    }
 
     public void drawImage(Image node, float w, float h, float alpha) {
         String src = node.source.peek();
-        if (src == null || src.isEmpty()) { node.status.set(0); return; }
-        if (!src.equals(node.loadedSource)) {
-            if (node.skiaImage != null) {
-                node.skiaImage.close();
-                node.skiaImage = null;
-            }
-            node.loadedSource = src;
-            node.intrinsicWidth = 0;
-            node.intrinsicHeight = 0;
-            node.fetchedBytes = null;
-            node.fetchDone = false;
-            node.fetchStarted = false;
-            if (ImageLoader.isRemote(src)) {
-                node.status.set(2); // Loading -- decoded on the render thread once fetched
-            } else {
-                ResourceLoader resources = renderer.resources();
-                decodeInto(node, resources != null ? resources.load(src) : null);
-            }
+        if (src == null || src.isEmpty()) {
+            if (node.skiaImage != null) { node.skiaImage.close(); node.skiaImage = null; }
+            node.loadedSource = null;
+            node.status.set(0);
+            return;
         }
-        // A remote source fetches on a background thread; consume the bytes here (on the
-        // render thread) once they arrive, so the spinner stops and the image appears.
-        if (ImageLoader.isRemote(src)) {
-            if (!node.fetchStarted) {
-                node.fetchStarted = true;
-                ImageLoader.fetch(node, src);
-            }
-            if (node.fetchDone && node.status.peek().intValue() == 2) {
-                decodeInto(node, node.fetchedBytes);
+        if (!src.equals(node.loadedSource)) {
+            // New source: keep showing the old image (no blank flash) and decode the new
+            // one off the render thread; adopt it below once ready.
+            node.loadedSource = src;
+            long gen = ++node.decodeGen;
+            node.status.set(2); // Loading
+            ImageLoader.decode(node, src, gen, renderer.resources());
+        }
+        if (node.decodeReadyGen == node.decodeGen && node.adoptedGen != node.decodeGen) {
+            node.adoptedGen = node.decodeGen;
+            if (node.skiaImage != null) { node.skiaImage.close(); node.skiaImage = null; }
+            io.github.humbleui.skija.Image pend = node.pendingImage;
+            node.pendingImage = null;
+            if (pend != null) {
+                node.skiaImage = pend;
+                node.intrinsicWidth = node.pendW;
+                node.intrinsicHeight = node.pendH;
+                node.status.set(1); // Ready
+            } else {
+                node.status.set(3); // Error
             }
         }
         if (node.skiaImage == null) return;
@@ -756,37 +697,7 @@ public final class Painter {
         return imageAlphaPaintField;
     }
 
-    private static int[] peekImageDimensions(byte[] bytes) {
-        if (bytes.length >= 24
-                && (bytes[0] & 0xFF) == 0x89 && bytes[1] == 'P' && bytes[2] == 'N' && bytes[3] == 'G') {
-            int w = ((bytes[16] & 0xFF) << 24) | ((bytes[17] & 0xFF) << 16)
-                    | ((bytes[18] & 0xFF) << 8) | (bytes[19] & 0xFF);
-            int h = ((bytes[20] & 0xFF) << 24) | ((bytes[21] & 0xFF) << 16)
-                    | ((bytes[22] & 0xFF) << 8) | (bytes[23] & 0xFF);
-            return new int[]{w, h};
-        }
-        if (bytes.length >= 4
-                && (bytes[0] & 0xFF) == 0xFF && (bytes[1] & 0xFF) == 0xD8) {
-            int i = 2;
-            while (i + 9 < bytes.length) {
-                if ((bytes[i] & 0xFF) != 0xFF) break;
-                int marker = bytes[i + 1] & 0xFF;
-                i += 2;
-                if (marker == 0xD8 || marker == 0xD9) continue;
-                int segLen = ((bytes[i] & 0xFF) << 8) | (bytes[i + 1] & 0xFF);
-                if ((marker >= 0xC0 && marker <= 0xC3)
-                        || (marker >= 0xC5 && marker <= 0xC7)
-                        || (marker >= 0xC9 && marker <= 0xCB)
-                        || (marker >= 0xCD && marker <= 0xCF)) {
-                    int h = ((bytes[i + 3] & 0xFF) << 8) | (bytes[i + 4] & 0xFF);
-                    int w = ((bytes[i + 5] & 0xFF) << 8) | (bytes[i + 6] & 0xFF);
-                    return new int[]{w, h};
-                }
-                i += segLen;
-            }
-        }
-        return new int[]{0, 0};
-    }
+
 
     public void drawShape(Shape shape, float alpha) {
         try (Paint p = new Paint()) {

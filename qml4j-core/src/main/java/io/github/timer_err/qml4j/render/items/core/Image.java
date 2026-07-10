@@ -27,15 +27,21 @@ public class Image extends Item {
     // Image.Null=0 / Ready=1 / Loading=2 / Error=3 (Qt). MD3 spinners bind to it.
     public final Property<Number> status = new Property<>(0);
 
-    public io.github.humbleui.skija.Image skiaImage;
+    public io.github.humbleui.skija.Image skiaImage;   // render-thread only
     public String loadedSource;
     public int intrinsicWidth;
     public int intrinsicHeight;
-    // Async fetch of a remote (http) source: a background thread fills fetchedBytes and
-    // sets fetchDone; the render thread decodes + sets status (Skija stays single-thread).
-    public volatile byte[] fetchedBytes;
-    public volatile boolean fetchDone;
-    public boolean fetchStarted;
+    // Async decode: a background thread loads + decodes the source (local or remote) into
+    // a raster image so the render thread never blocks on makeFromEncoded/downscale (a
+    // song-switch cover or a scrolling list of thumbnails would otherwise stall a frame).
+    // The render thread bumps decodeGen on a source change; the worker publishes the
+    // decoded image + decodeReadyGen for that gen; the render thread adopts it (and is the
+    // only one to set the status Property / touch skiaImage).
+    public volatile long decodeGen;
+    public volatile long decodeReadyGen = -1;
+    public volatile io.github.humbleui.skija.Image pendingImage;
+    public volatile int pendW, pendH;
+    public long adoptedGen = -1;   // render-thread only
 
     @Override
     public void paint(Painter p, float w, float h, float alpha) {
@@ -51,6 +57,12 @@ public class Image extends Item {
             skiaImage.close();
             skiaImage = null;
         }
+        io.github.humbleui.skija.Image pend = pendingImage;
+        if (pend != null) {
+            pend.close();
+            pendingImage = null;
+        }
+        decodeGen++;   // invalidate any in-flight decode so it discards its result
         loadedSource = null;
     }
 }

@@ -2,6 +2,12 @@ package io.github.timer_err.qml4j.render;
 
 import io.github.timer_err.qml4j.render.items.core.Image;
 
+import io.github.humbleui.skija.FilterMipmap;
+import io.github.humbleui.skija.FilterMode;
+import io.github.humbleui.skija.MipmapMode;
+import io.github.humbleui.skija.Surface;
+import io.github.humbleui.types.Rect;
+
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -11,9 +17,9 @@ import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-// Background fetch of a remote (http/https) Image source. A daemon thread fills
-// Image.fetchedBytes + fetchDone; the render thread decodes the bytes, so Skija stays
-// single-threaded and the render loop never blocks on the network.
+// Background load + decode of an Image source (local or remote). A daemon thread loads
+// the bytes and rasterizes them, so Skija's makeFromEncoded/downscale never runs on the
+// render thread (which would stall the frame a cover switches or a thumbnail scrolls in).
 final class ImageLoader {
 
     private ImageLoader() {}
@@ -28,17 +34,63 @@ final class ImageLoader {
         return t;
     });
 
-    static void fetch(Image node, String url) {
+    // Load (local or remote) AND decode the source off the render thread into a raster
+    // image the render thread just adopts. `gen` guards a superseded source: if the node's
+    // decodeGen moved on (a newer source, or the item was released) the result is dropped.
+    static void decode(Image node, String src, long gen, ResourceLoader resources) {
         POOL.submit(() -> {
-            byte[] data;
+            byte[] bytes = null;
             try {
-                data = get(url, 5);
+                if (isRemote(src)) bytes = get(src, 5);
+                else if (resources != null) bytes = resources.load(src);
             } catch (Throwable ignore) {
-                data = null;
+                bytes = null;
             }
-            node.fetchedBytes = data;
-            node.fetchDone = true;
+            io.github.humbleui.skija.Image img = null;
+            int w = 0, h = 0;
+            if (bytes != null) {
+                try {
+                    img = decodeRaster(bytes,
+                            node.sourceSize.width.peek().intValue(),
+                            node.sourceSize.height.peek().intValue());
+                    if (img != null) { w = img.getWidth(); h = img.getHeight(); }
+                } catch (Throwable t) {
+                    img = null;
+                }
+            }
+            if (node.decodeGen != gen) {   // superseded -> drop
+                if (img != null) img.close();
+                return;
+            }
+            node.pendW = w;
+            node.pendH = h;
+            node.pendingImage = img;
+            node.decodeReadyGen = gen;
         });
+    }
+
+    // Decode encoded bytes into a RASTER image, forcing the real decode here (off the
+    // render thread) by drawing into a raster surface -- makeFromEncoded alone is lazy and
+    // would otherwise decode on first draw, back on the render thread. Honours sourceSize
+    // like Qt: shrink to ~display size so a multi-megapixel photo isn't sampled every frame.
+    private static io.github.humbleui.skija.Image decodeRaster(byte[] bytes, int sw, int sh) {
+        io.github.humbleui.skija.Image full = io.github.humbleui.skija.Image.makeFromEncoded(bytes);
+        int iw = full.getWidth(), ih = full.getHeight();
+        float f;
+        if (sw > 0 && sh > 0) f = Math.max((float) sw / iw, (float) sh / ih);
+        else if (sw > 0) f = (float) sw / iw;
+        else if (sh > 0) f = (float) sh / ih;
+        else f = 1f;
+        int tw = f < 1f ? Math.max(1, Math.round(iw * f)) : iw;
+        int th = f < 1f ? Math.max(1, Math.round(ih * f)) : ih;
+        try (Surface surf = Surface.makeRasterN32Premul(tw, th)) {
+            surf.getCanvas().drawImageRect(full,
+                    Rect.makeXYWH(0, 0, iw, ih), Rect.makeXYWH(0, 0, tw, th),
+                    new FilterMipmap(FilterMode.LINEAR, MipmapMode.LINEAR), null, true);
+            io.github.humbleui.skija.Image raster = surf.makeImageSnapshot();
+            full.close();
+            return raster;
+        }
     }
 
     // Honour the standard HTTPS_PROXY/HTTP_PROXY env vars (curl/wget convention) -- the
