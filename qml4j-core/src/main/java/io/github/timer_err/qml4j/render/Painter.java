@@ -403,16 +403,23 @@ public final class Painter {
         return f;
     }
 
-    public void drawIconGlyph(String name, float boxH, int argb, float size) {
+    public void drawIconGlyph(String name, float boxW, float boxH, int argb, float size, int hAlign) {
         Font f = iconFont(size);
         TextLine line = cachedLine(iconLines, System.identityHashCode(f), name, f);
         FontMetrics fm = f.getMetrics();
         float baseline = boxH / 2f - (fm.getAscent() + fm.getDescent()) / 2f;
+        // Center/right within boxW at paint time from the glyph's own line width. A Text
+        // sized to the glyph and centred by anchors relies on its measured width, which a
+        // cache-skipped (off-screen) row never computes, so an icon placeholder that fills
+        // a wider box must be aligned here instead.
+        float x = hAlign == 4 ? (boxW - line.getWidth()) / 2f
+                : hAlign == 2 ? boxW - line.getWidth()
+                : 0f;
         Paint p = renderer.paint();
         p.setMode(PaintMode.FILL);
         p.setShader(null);
         p.setColor(argb);
-        canvas.drawTextLine(line, 0, baseline, p);
+        canvas.drawTextLine(line, x, baseline, p);
     }
 
     // Multi-line text: optional wrap to boxW, optional right-elision, from y=0. Each line

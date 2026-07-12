@@ -63,7 +63,7 @@ public class Text extends Item {
         float size = effectiveFontSize();
         String ig = p.iconGlyphFor(this);
         if (ig != null) {
-            if (!ig.isEmpty()) p.drawIconGlyph(ig, h, argb, size);
+            if (!ig.isEmpty()) p.drawIconGlyph(ig, w, h, argb, size, horizontalAlignment.peekInt());
             return;
         }
         String s = p.displayTextFor(this);
