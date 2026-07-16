@@ -106,11 +106,21 @@ public final class Painter {
     // static canvases). -Dqml4j.canvasCache=false falls back to per-frame direct draw.
     private static final boolean CANVAS_CACHE = !"false".equals(System.getProperty("qml4j.canvasCache", "true"));
 
-    // Snap a device scale to 0.5 steps (min 1) so transient scale animations don't
-    // resize the canvas backing every frame.
+    // Snap a device scale to 0.05 steps (min 1) so transient scale animations don't
+    // resize the canvas backing every frame. Finer than the original 0.5-step snap:
+    // the blit below resamples the backing by whatever "residual scale" is left
+    // between this quantized value and the item's live matrix scale, and 0.5 steps
+    // left up to a 25% residual for common device scales (e.g. 1.25x quantized up
+    // to 1.5x) that showed up as visibly soft/aliased edges on stroked Canvas
+    // content (MD3's wavy progress bars) even with nothing animating -- a static
+    // item sits at that one quantized resolution for as long as its size is
+    // unchanged. 0.05 steps make the common integer/quarter/tenth device scales
+    // (1x, 1.25x, 1.5x, 2x, ...) land exactly on a step, so the steady-state case
+    // resamples 1:1, while still coalescing per-frame float jitter during an
+    // actual scale animation.
     private static float quantizeScale(float s) {
         if (s < 0.01f) return 1f;
-        return Math.max(1f, Math.round(s * 2f) / 2f);
+        return Math.max(1f, Math.round(s * 20f) / 20f);
     }
 
     public void paintCanvas(io.github.timer_err.qml4j.render.items.core.Canvas node, float w, float h, float alpha) {

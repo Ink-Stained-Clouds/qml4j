@@ -289,6 +289,7 @@ public final class Context2D {
 
     private void fillWith(Object style, DrawOp op) {
         try (Paint p = new Paint()) {
+            p.setAntiAlias(true);
             p.setMode(PaintMode.FILL);
             Shader sh = style instanceof RadialGradient ? ((RadialGradient) style).toShader() : null;
             try {
@@ -303,6 +304,7 @@ public final class Context2D {
 
     private void strokeWith(DrawOp op) {
         try (Paint p = new Paint()) {
+            p.setAntiAlias(true);
             p.setMode(PaintMode.STROKE);
             p.setStrokeWidth((float) lineWidth);
             p.setStrokeCap("round".equals(lineCap) ? PaintStrokeCap.ROUND
