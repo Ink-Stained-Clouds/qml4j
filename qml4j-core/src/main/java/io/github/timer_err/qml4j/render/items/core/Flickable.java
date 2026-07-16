@@ -42,6 +42,28 @@ public class Flickable extends Item implements Animatable {
     private static final float MIN_FLING = 50f;  // px/s
     private static final float EASE = 18f;       // higher = snappier follow
 
+    public Flickable() {
+        // When the content shrinks (a collapsed section) or the viewport resizes, the
+        // shown/target scroll can sit past the new bottom; re-clamp so the content
+        // doesn't get stuck scrolled off the top with no way back.
+        contentHeight.addListener(v -> clampToBounds());
+        contentWidth.addListener(v -> clampToBounds());
+        height.addListener(v -> clampToBounds());
+        width.addListener(v -> clampToBounds());
+    }
+
+    private void clampToBounds() {
+        float mx = maxX(), my = maxY();
+        float cx = contentX.peekFloat();
+        float cy = contentY.peekFloat();
+        float ncx = clamp(cx, 0f, mx);
+        float ncy = clamp(cy, 0f, my);
+        if (ncx != cx) contentX.setPaintOnly(ncx);
+        if (ncy != cy) contentY.setPaintOnly(ncy);
+        targetX = clamp(targetX, 0f, mx);
+        targetY = clamp(targetY, 0f, my);
+    }
+
     private float maxX() {
         return Math.max(0f, contentWidth.peekFloat() + rightMargin.peekFloat() - width.peekFloat());
     }
