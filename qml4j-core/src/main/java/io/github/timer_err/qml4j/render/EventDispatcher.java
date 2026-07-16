@@ -285,29 +285,44 @@ final class EventDispatcher {
         return dispatchPointerDown(x, y) && dispatchPointerUp(x, y);
     }
 
+    // Qt.MouseButton of the press currently being tracked; released/clicked and
+    // positionChanged payloads carry it so handlers can route on mouse.button.
+    private int pressButton = MouseEvent.LEFT_BUTTON;
+
     boolean dispatchPointerDown(float x, float y) {
+        return dispatchPointerDown(x, y, MouseEvent.LEFT_BUTTON);
+    }
+
+    // button is a Qt.MouseButton value (LeftButton=1, RightButton=2, MiddleButton=4).
+    // Only the left button drives text editing, buttons and flick-scrolling (Qt
+    // semantics); any other button sees MouseAreas alone, and a MouseArea whose
+    // acceptedButtons doesn't include the button is transparent to the press.
+    boolean dispatchPointerDown(float x, float y, int button) {
         if (root == null) return false;
-        TextEditable ti = hitTestTextEditable(root, x, y);
-        if (ti != null) {
-            focus.setFocus((Item) ti);
-            float[] local = localCoords((Item) ti, x, y);
-            int idx = ti.caretIndexAt(local[0], local[1], renderer);
-            clearSelection(ti);
-            ti.setSelectionAnchor(idx);
-            ti.setCursorPosition(idx);
-            textCapturing = ti;
-            return true;
+        pressButton = button;
+        if (button == MouseEvent.LEFT_BUTTON) {
+            TextEditable ti = hitTestTextEditable(root, x, y);
+            if (ti != null) {
+                focus.setFocus((Item) ti);
+                float[] local = localCoords((Item) ti, x, y);
+                int idx = ti.caretIndexAt(local[0], local[1], renderer);
+                clearSelection(ti);
+                ti.setSelectionAnchor(idx);
+                ti.setCursorPosition(idx);
+                textCapturing = ti;
+                return true;
+            }
+            if (focus.focused() instanceof TextEditable) focus.clearFocus();
+            AbstractButton btn = hitTestButton(root, x, y);
+            if (btn != null) {
+                capturedButton = btn;
+                captureRootX = x;
+                captureRootY = y;
+                if (!Boolean.FALSE.equals(btn.enabled.peek())) btn.press();
+                return true;
+            }
         }
-        if (focus.focused() instanceof TextEditable) focus.clearFocus();
-        AbstractButton btn = hitTestButton(root, x, y);
-        if (btn != null) {
-            capturedButton = btn;
-            captureRootX = x;
-            captureRootY = y;
-            if (!Boolean.FALSE.equals(btn.enabled.peek())) btn.press();
-            return true;
-        }
-        MouseArea hit = hitTestMouseArea(root, x, y);
+        MouseArea hit = hitTestMouseArea(root, x, y, button);
         if (hit != null) {
             captured = hit;
             captureRootX = x;
@@ -317,11 +332,13 @@ final class EventDispatcher {
             hit.mouseY.set(local[1]);
             hit.pressed.set(Boolean.TRUE);
             setContains(hit, true);
-            hit.pressedSignal.emit(new MouseEvent(local[0], local[1]));
+            hit.pressedSignal.emit(new MouseEvent(local[0], local[1], button, button, 0));
             beginDragIfRequested(hit);
             // If the MouseArea isn't dragging its own target, remember the
             // Flickable beneath it so a drag past threshold scrolls the list.
-            pendingFlick = dragTarget == null ? hitTestFlickable(root, x, y) : null;
+            // Only a left press may hand off to a flick-scroll.
+            pendingFlick = (button == MouseEvent.LEFT_BUTTON && dragTarget == null)
+                ? hitTestFlickable(root, x, y) : null;
             if (pendingFlick != null) {
                 pendingFlick.stopScroll();
                 scrollStartContentX = pendingFlick.contentX.peekFloat();
@@ -329,6 +346,7 @@ final class EventDispatcher {
             }
             return true;
         }
+        if (button != MouseEvent.LEFT_BUTTON) return false;
         Flickable f = hitTestFlickable(root, x, y);
         if (f == null) return false;
         f.stopScroll();
@@ -356,7 +374,8 @@ final class EventDispatcher {
             captured.mouseY.set(local[1]);
             setContains(captured, within(captured, local));
             applyDrag(x, y);
-            captured.positionChanged.emit(new MouseEvent(local[0], local[1]));
+            captured.positionChanged.emit(
+                new MouseEvent(local[0], local[1], pressButton, pressButton, 0));
             return true;
         }
         if (scrolling != null) {
@@ -367,7 +386,7 @@ final class EventDispatcher {
     }
 
     private boolean updateHover(float x, float y) {
-        MouseArea hit = hitTestMouseArea(root, x, y);
+        MouseArea hit = hitTestMouseArea(root, x, y, 0);
         MouseArea next = (hit != null && Boolean.TRUE.equals(hit.hoverEnabled.peek())) ? hit : null;
         if (next == hovered) return next != null;
         if (hovered != null) setContains(hovered, false);
@@ -390,6 +409,10 @@ final class EventDispatcher {
     }
 
     boolean dispatchPointerUp(float x, float y) {
+        return dispatchPointerUp(x, y, pressButton);
+    }
+
+    boolean dispatchPointerUp(float x, float y, int button) {
         if (textCapturing != null) {
             extendTextSelection(x, y);
             textCapturing = null;
@@ -415,11 +438,12 @@ final class EventDispatcher {
             target.pressed.set(Boolean.FALSE);
             setContains(target, false);
             endDrag(target);
-            target.released.emit(new MouseEvent(local[0], local[1]));
+            // Release payloads: button = the releasing button, buttons = still held (none).
+            target.released.emit(new MouseEvent(local[0], local[1], button, 0, 0));
             boolean inside = local[0] >= 0 && local[1] >= 0
                 && local[0] <= target.width.peekFloat()
                 && local[1] <= target.height.peekFloat();
-            if (inside) target.clicked.emit(new MouseEvent(local[0], local[1]));
+            if (inside) target.clicked.emit(new MouseEvent(local[0], local[1], button, 0, 0));
             captured = null;
             return true;
         }
@@ -700,7 +724,8 @@ final class EventDispatcher {
         return item instanceof AbstractButton ? (AbstractButton) item : null;
     }
 
-    private MouseArea hitTestMouseArea(Item item, float x, float y) {
+    // buttonMask: the Qt.MouseButton bit of the press, or 0 for hover (no filter).
+    private MouseArea hitTestMouseArea(Item item, float x, float y, int buttonMask) {
         if (!item.isVisible()) return null;
         float ix = item.x.peekFloat();
         float iy = item.y.peekFloat();
@@ -718,15 +743,18 @@ final class EventDispatcher {
         }
         List<Item> ordered = zOrdered(item.children);
         for (int i = ordered.size() - 1; i >= 0; i--) {
-            MouseArea hit = hitTestMouseArea(ordered.get(i), childLx, childLy);
+            MouseArea hit = hitTestMouseArea(ordered.get(i), childLx, childLy, buttonMask);
             if (hit != null) return hit;
         }
-        // A MouseArea is transparent to presses when disabled or accepting no
-        // buttons (Qt: acceptedButtons: Qt.NoButton) — let the press fall through.
+        // A MouseArea is transparent to presses when disabled, accepting no buttons
+        // (Qt: acceptedButtons: Qt.NoButton), or not accepting the pressed button —
+        // the press falls through to whatever is beneath (Qt semantics).
         if (item instanceof MouseArea) {
             MouseArea ma = (MouseArea) item;
             if (Boolean.FALSE.equals(ma.enabled.peek())) return null;
-            if (ma.acceptedButtons.peekInt() == 0) return null;
+            int accepted = ma.acceptedButtons.peekInt();
+            if (accepted == 0) return null;
+            if (buttonMask != 0 && (accepted & buttonMask) == 0) return null;
             return ma;
         }
         return null;

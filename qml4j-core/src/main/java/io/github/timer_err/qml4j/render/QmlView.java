@@ -180,12 +180,22 @@ public final class QmlView {
         return events.dispatchPointerDown(x, y);
     }
 
+    /** button is a Qt.MouseButton value: LeftButton=1, RightButton=2, MiddleButton=4. */
+    public boolean dispatchPointerDown(float x, float y, int button) {
+        return events.dispatchPointerDown(x, y, button);
+    }
+
     public boolean dispatchPointerMove(float x, float y) {
         return events.dispatchPointerMove(x, y);
     }
 
     public boolean dispatchPointerUp(float x, float y) {
         return events.dispatchPointerUp(x, y);
+    }
+
+    /** button is a Qt.MouseButton value: LeftButton=1, RightButton=2, MiddleButton=4. */
+    public boolean dispatchPointerUp(float x, float y, int button) {
+        return events.dispatchPointerUp(x, y, button);
     }
 
     public boolean dispatchWheel(float x, float y, float dx, float dy) {
