@@ -17,6 +17,12 @@ public class Loader extends Item {
     public Item loadedItem;
     public Component loadedComponent;
 
+    // Directory (resource-root-relative) of the document that declared this Loader,
+    // stamped by the compiler at construction. Qt resolves a relative `source`
+    // against the declaring file's directory; a parent-chain walk can't recover it
+    // because popups reparent onto the scene root (MD3 Menu). Null in hand-built trees.
+    public String documentDir;
+
     // Qt Loader sizing: the Loader's implicit size follows its loaded item, and the
     // item fills the Loader's box. Without this a Loader stays 0-sized -- a Loader used
     // as a layout/Repeater delegate (e.g. MD3 Menu items) would collapse to nothing.

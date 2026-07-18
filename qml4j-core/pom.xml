@@ -38,7 +38,8 @@
         <!-- Native Skia for tests that initialise FontMgr (text caret/selection
              hit-testing). qml4j-core itself ships no native (the host supplies it);
              this is test scope only, so it is neither packaged in the artifact nor
-             exposed transitively to consumers. The CI release runner is linux/x64. -->
+             exposed transitively to consumers. The CI release runner is linux/x64;
+             Windows hosts activate the windows-natives profile below. -->
         <dependency>
             <groupId>io.github.humbleui</groupId>
             <artifactId>skija-linux-x64</artifactId>
@@ -49,6 +50,25 @@
             <artifactId>junit-jupiter</artifactId>
         </dependency>
     </dependencies>
+
+    <profiles>
+        <profile>
+            <id>windows-natives</id>
+            <activation>
+                <os>
+                    <family>windows</family>
+                </os>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>io.github.humbleui</groupId>
+                    <artifactId>skija-windows-x64</artifactId>
+                    <version>${skija.version}</version>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
 
     <build>
         <testResources>
