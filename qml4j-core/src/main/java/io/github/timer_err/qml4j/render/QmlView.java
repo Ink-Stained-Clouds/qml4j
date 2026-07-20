@@ -357,17 +357,6 @@ public final class QmlView {
         return renderer;
     }
 
-    // Test/diagnostic: run one whole-tree layout settle without painting, exactly as
-    // renderFrame's layout phase does (dirty queue installed for binding re-eval, then measure).
-    public void pumpLayout() {
-        dirty.install();
-        try {
-            renderer.layoutOnly(root);
-        } finally {
-            dirty.uninstall();
-        }
-    }
-
     public void dispose() {
         renderer.dispose();
     }
