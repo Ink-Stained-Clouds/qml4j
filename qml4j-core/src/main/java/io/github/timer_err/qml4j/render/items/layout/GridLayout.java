@@ -27,8 +27,6 @@ public class GridLayout extends Item {
         Cell(Item item) { this.item = item; }
     }
 
-    @Override
-    public boolean layoutDerivesSizeFromChildren() { return true; }
 
     @Override
     public void layout() {

@@ -17,11 +17,6 @@ import io.github.timer_err.qml4j.engine.binding.Property;
 
 public final class QmlView {
 
-    // Incremental layout on by default; a host can fall back to whole-tree measure per frame
-    // with -Dqml4j.incrementalLayout=false if a scene hits an unsupported invalidation case.
-    private static final boolean INCREMENTAL =
-        Boolean.parseBoolean(System.getProperty("qml4j.incrementalLayout", "true"));
-
     // Draw-phase content cache (per-boundary SkPicture reuse). Off by default -- it changes the
     // paint path and is still an MVP (root's direct children only); opt in with
     // -Dqml4j.pictureCache=true to reuse recorded subtrees for static panels while one animates.
@@ -30,9 +25,6 @@ public final class QmlView {
 
     private final Renderer renderer = new Renderer();
     private final DirtyQueue dirty = new DirtyQueue();
-    // Layout-invalidation queue. Installed for this view's lifetime (not per-frame) so property
-    // changes between frames (input dispatch, host setters) still mark items for the next settle.
-    private final PolishQueue polish = new PolishQueue();
     private final Loader loader;
     private final FocusManager focus = new FocusManager();
     private final EventDispatcher events = new EventDispatcher(focus, renderer);
@@ -41,9 +33,7 @@ public final class QmlView {
     public QmlView(QmlEngine engine, TypeRegistry types) {
         this.loader = new Loader(engine, types);
         renderer.setComponentFactory(loader);
-        renderer.setIncrementalLayout(INCREMENTAL);
         renderer.setPictureCache(PICTURE_CACHE);
-        polish.install();
     }
 
     public static QmlView withStockTypes(QmlEngine engine) {
@@ -99,9 +89,6 @@ public final class QmlView {
         root.installFocusHook(focus::setFocus);
         root.initStateBindingsTree();
         focus.scanInitialFocus(root);
-        // A freshly loaded tree hasn't been laid out; force a full first measure so
-        // first-appearance geometry is resolved before incremental marks take over.
-        renderer.requestFullLayout();
         return root;
     }
 
@@ -370,19 +357,18 @@ public final class QmlView {
         return renderer;
     }
 
-    // Test/diagnostic: run one layout settle without painting, exactly as renderFrame's layout
-    // phase does (dirty queue installed for binding re-eval, then the incremental polish drain).
+    // Test/diagnostic: run one whole-tree layout settle without painting, exactly as
+    // renderFrame's layout phase does (dirty queue installed for binding re-eval, then measure).
     public void pumpLayout() {
         dirty.install();
         try {
-            renderer.layoutIncrementalOnly(root);
+            renderer.layoutOnly(root);
         } finally {
             dirty.uninstall();
         }
     }
 
     public void dispose() {
-        polish.uninstall();
         renderer.dispose();
     }
 }

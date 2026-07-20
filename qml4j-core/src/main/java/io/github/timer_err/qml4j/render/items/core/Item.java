@@ -10,7 +10,6 @@ import io.github.timer_err.qml4j.render.items.transform.Transform;
 import io.github.timer_err.qml4j.render.AnchorLine;
 import io.github.timer_err.qml4j.render.Anchors;
 import io.github.timer_err.qml4j.render.Painter;
-import io.github.timer_err.qml4j.render.PolishQueue;
 import io.github.timer_err.qml4j.render.TextLayout;
 
 import io.github.timer_err.qml4j.engine.QObject;
@@ -23,10 +22,8 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Consumer;
 
 public class Item extends QObject {
@@ -117,18 +114,6 @@ public class Item extends QObject {
     // The previous value of `parent`, so a change can move this between children lists.
     private Item lastParent;
 
-    // --- Incremental layout invalidation (Qt-style per-Item dirty tracking) ---------------
-    // Set when this item's position (x/y) or size (width/height/implicit*) has changed since
-    // the last settle and it is enqueued in the PolishQueue for re-measure. The bits dedupe
-    // re-marks within a settle and gate propagation so anchor cycles can't loop.
-    public boolean posDirty;
-    public boolean sizeDirty;
-    // Items whose anchors resolve against THIS item's geometry -- populated by the renderer as
-    // it applies anchors. When this item moves/resizes they must re-anchor, so they're marked
-    // dirty too (the event-driven analogue of Qt's anchor signal connections). Null until an
-    // anchor references this item, which is the common case (few items are anchor sources).
-    private Set<Item> anchorDependents;
-
     // --- Draw-phase content caching (Qt-style ContentUpdateMask over an SkPicture) --------
     // A cache boundary owns a recorded SkPicture of its whole subtree drawn in its own local
     // space. The renderer replays it (drawPicture) with a fresh translate/transform each frame
@@ -178,48 +163,36 @@ public class Item extends QObject {
         wireLayoutInvalidation();
     }
 
-    // Whether this item computes its OWN size imperatively from its children in layout()
-    // (Column/Row/*Layout/Flow/StackLayout). Only such a parent needs marking when a child's
-    // size changes: that derived chain is not tracked by the binding system (it's plain Java),
-    // so the incremental settle must propagate the child's size change up to it explicitly.
-    // A size derived via a QML binding (implicitHeight: child.height) propagates through the
-    // normal Property invalidation path and needs no override here.
-    public boolean layoutDerivesSizeFromChildren() {
-        return false;
-    }
-
-    // Connect the layout-affecting properties to the PolishQueue so a change marks this item
-    // (and, for size, propagates to a size-deriving parent) instead of forcing a whole-tree
-    // relayout. Fires only while a PolishQueue is installed (the incremental host path); with
-    // none installed these are cheap no-ops and the renderer falls back to full measure.
+    // Connect the geometry + draw properties to the draw-phase content cache: a change to a
+    // descendant invalidates the enclosing cache boundary so it re-records (no-op while the cache
+    // is disabled). Layout itself is a whole-tree measure each settle, so no per-item layout
+    // marking is needed here -- only the cache cares about which subtree changed.
     private void wireLayoutInvalidation() {
-        x.addInvalidationListener(this::markLayoutPosition);
-        y.addInvalidationListener(this::markLayoutPosition);
-        width.addInvalidationListener(this::markLayoutSize);
-        height.addInvalidationListener(this::markLayoutSize);
-        implicitWidth.addInvalidationListener(this::markLayoutSize);
-        implicitHeight.addInvalidationListener(this::markLayoutSize);
-        visible.addInvalidationListener(this::markLayoutVisibility);
-        // A structural change to the children (add/remove) can reflow a container even when no
-        // surviving child fired a geometry change (a removal frees space in a Column).
-        ((ObservableList<Item>) children).addStructuralListener(this::markLayoutSize);
-        // Any anchor knob change (source, margins, centre offsets) can move/resize this item.
-        anchors.fill.addInvalidationListener(this::markLayoutSize);
-        anchors.centerIn.addInvalidationListener(this::markLayoutSize);
-        anchors.margins.addInvalidationListener(this::markLayoutSize);
-        anchors.leftMargin.addInvalidationListener(this::markLayoutSize);
-        anchors.rightMargin.addInvalidationListener(this::markLayoutSize);
-        anchors.topMargin.addInvalidationListener(this::markLayoutSize);
-        anchors.bottomMargin.addInvalidationListener(this::markLayoutSize);
-        anchors.left.addInvalidationListener(this::markLayoutSize);
-        anchors.right.addInvalidationListener(this::markLayoutSize);
-        anchors.top.addInvalidationListener(this::markLayoutSize);
-        anchors.bottom.addInvalidationListener(this::markLayoutSize);
-        anchors.horizontalCenter.addInvalidationListener(this::markLayoutSize);
-        anchors.verticalCenter.addInvalidationListener(this::markLayoutSize);
-        anchors.horizontalCenterOffset.addInvalidationListener(this::markLayoutSize);
-        anchors.verticalCenterOffset.addInvalidationListener(this::markLayoutSize);
-        // Draw-only properties (no layout effect) that still change the recorded pixels.
+        // Position is replay-only for a boundary itself (its translate is re-applied every frame);
+        // a descendant move bakes into the ancestor boundary's picture -> markTransformDirty.
+        x.addInvalidationListener(this::markTransformDirty);
+        y.addInvalidationListener(this::markTransformDirty);
+        width.addInvalidationListener(this::markContentDirty);
+        height.addInvalidationListener(this::markContentDirty);
+        implicitWidth.addInvalidationListener(this::markContentDirty);
+        implicitHeight.addInvalidationListener(this::markContentDirty);
+        visible.addInvalidationListener(this::markContentDirty);
+        ((ObservableList<Item>) children).addStructuralListener(this::markContentDirty);
+        anchors.fill.addInvalidationListener(this::markContentDirty);
+        anchors.centerIn.addInvalidationListener(this::markContentDirty);
+        anchors.margins.addInvalidationListener(this::markContentDirty);
+        anchors.leftMargin.addInvalidationListener(this::markContentDirty);
+        anchors.rightMargin.addInvalidationListener(this::markContentDirty);
+        anchors.topMargin.addInvalidationListener(this::markContentDirty);
+        anchors.bottomMargin.addInvalidationListener(this::markContentDirty);
+        anchors.left.addInvalidationListener(this::markContentDirty);
+        anchors.right.addInvalidationListener(this::markContentDirty);
+        anchors.top.addInvalidationListener(this::markContentDirty);
+        anchors.bottom.addInvalidationListener(this::markContentDirty);
+        anchors.horizontalCenter.addInvalidationListener(this::markContentDirty);
+        anchors.verticalCenter.addInvalidationListener(this::markContentDirty);
+        anchors.horizontalCenterOffset.addInvalidationListener(this::markContentDirty);
+        anchors.verticalCenterOffset.addInvalidationListener(this::markContentDirty);
         // opacity/clip alter the boundary's own content; scale/rotation/z are replay-only for
         // the boundary itself but bake into an ancestor boundary when a descendant changes.
         opacity.addInvalidationListener(this::markContentDirty);
@@ -227,40 +200,6 @@ public class Item extends QObject {
         scale.addInvalidationListener(this::markTransformDirty);
         rotation.addInvalidationListener(this::markTransformDirty);
         z.addInvalidationListener(this::markTransformDirty);
-    }
-
-    public void markLayoutPosition() {
-        // A move (x/y) does not change the boundary's recorded pixels when the boundary itself
-        // moves (the renderer re-applies its translate every frame); it DOES when a descendant
-        // moves inside a cached subtree -- markTransformDirty handles both.
-        markTransformDirty();
-        PolishQueue q = PolishQueue.current();
-        if (q == null || posDirty) return; // already marked -> dependents already propagated
-        posDirty = true;
-        q.enqueue(this);
-        // Items anchored to my position (anchors.left: sibling.right, ...) must re-anchor.
-        propagateToAnchorDependents();
-    }
-
-    public void markLayoutSize() {
-        // A size change alters the item's own painted box (background/clip) and shifts its
-        // children -- always a content change for the enclosing cache boundary (including self).
-        markContentDirty();
-        PolishQueue q = PolishQueue.current();
-        if (q == null || sizeDirty) return; // guard blocks anchor/derive cycles from looping
-        sizeDirty = true;
-        q.enqueue(this);
-        Item p = parent.peek();
-        if (p != null && p.layoutDerivesSizeFromChildren()) p.markLayoutSize();
-        propagateToAnchorDependents();
-    }
-
-    private void markLayoutVisibility() {
-        markContentDirty();
-        // Hiding: parent may reflow, so mark self (size). Showing: this subtree was skipped by
-        // prior measures and has stale geometry -- mark the whole subtree so it re-measures.
-        markLayoutSize();
-        if (isVisible()) markSubtreeDirty();
     }
 
     // Mark the nearest enclosing cache boundary (this item or an ancestor) as needing its
@@ -350,28 +289,6 @@ public class Item extends QObject {
     // Wire non-Item value holders owned by this item (Gradient stops, Shape path elements) after
     // the QML tree is built and those lists are populated. Default no-op; Rectangle/Shape override.
     protected void wireDeferredContentInvalidation() {}
-
-    private void markSubtreeDirty() {
-        for (int i = 0, n = children.size(); i < n; i++) {
-            Item c = children.get(i);
-            c.markLayoutSize();
-            c.markSubtreeDirty();
-        }
-    }
-
-    private void propagateToAnchorDependents() {
-        if (anchorDependents == null) return;
-        for (Item d : anchorDependents) d.markLayoutSize();
-    }
-
-    // Register `dep` as anchoring against this item's geometry (called by the renderer while
-    // resolving anchors). Idempotent; the set never removes stale entries, which is safe --
-    // a stale dependent only causes a harmless extra re-measure, never a missed one.
-    public void addAnchorDependent(Item dep) {
-        if (dep == null || dep == this) return;
-        if (anchorDependents == null) anchorDependents = new LinkedHashSet<>();
-        anchorDependents.add(dep);
-    }
 
     private void onParentChanged(Item np) {
         Item old = lastParent;

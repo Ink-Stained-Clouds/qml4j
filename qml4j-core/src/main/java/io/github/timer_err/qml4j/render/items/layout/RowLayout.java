@@ -28,8 +28,6 @@ public class RowLayout extends Item {
         fill = new boolean[cap];
     }
 
-    @Override
-    public boolean layoutDerivesSizeFromChildren() { return true; }
 
     @Override
     public void layout() {

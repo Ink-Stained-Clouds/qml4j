@@ -184,39 +184,19 @@ public final class Renderer {
         canvas.drawString(s, x + pad, y + 16f, font, p);
     }
 
-    // Diagnostic/test hook: run the layout pre-pass without painting. Always a full
-    // whole-tree measure (the fallback path) so callers get deterministic geometry
-    // regardless of any pending incremental marks.
+    // Diagnostic/test hook: run the whole-tree layout pre-pass without painting.
     public void layoutOnly(Item root) {
-        if (root != null) settleLayoutFull(root, PolishQueue.current());
-    }
-
-    // Diagnostic/test hook: run one incremental settle (polish-queue drain) without painting.
-    // Requires incremental layout enabled and a PolishQueue installed (the QmlView path).
-    public void layoutIncrementalOnly(Item root) {
         if (root != null) settleLayout(root);
     }
 
-    // Run the layout pre-pass and flush size-driven bindings until the tree
-    // stops changing (or the cap is hit), so first-appearance layout is correct
-    // on the very frame a node becomes visible instead of flashing for one frame.
-    // Bumped once per settleLayout call. cachedLayout skips re-measuring a static
-    // subtree only across DIFFERENT settle passes (i.e. a later frame); within ONE
-    // settleLayout the multi-pass loop must keep recursing so anchor/size chains that
-    // need 2+ passes (a card's Column whose width comes from its parent) still settle.
+    // Bumped once per settleLayout call. cachedLayout skips re-measuring a static subtree only
+    // across DIFFERENT settle passes (i.e. a later frame); within ONE settleLayout the multi-pass
+    // loop must keep recursing so anchor/size chains that need 2+ passes (a card's Column whose
+    // width comes from its parent) still settle.
     private long settleId;
 
-    // Incremental layout (Qt-style dirty-tracking) is opt-in per Renderer: only the view's
-    // renderer enables it (via QmlView), so a bare `new Renderer()` -- every existing test's
-    // layoutOnly path -- always takes the whole-tree fallback and is unaffected.
-    private boolean incrementalEnabled;
-    // Forces one whole-tree measure regardless of the polish queue: set on the first frame
-    // after load(), so first-appearance layout is fully resolved before incremental marks
-    // take over. Also the safety hatch whenever the incremental path can't be trusted.
-    private boolean needsFullLayout = true;
-
-    // Phase-0 instrumentation: nodes measured and settle passes run in the LAST settleLayout,
-    // and the wall time of the layout vs draw phases of the last render (for the FPS log).
+    // Instrumentation: nodes measured and settle passes run in the LAST settleLayout, and the
+    // wall time of the layout vs draw phases of the last render (for the FPS log).
     private int measuredThisFrame;
     private int settlePasses;
     private long lastMeasureNanos;
@@ -228,12 +208,6 @@ public final class Renderer {
 
     public long lastDrawNanos() {
         return lastDrawNanos;
-    }
-
-    // Enabled by QmlView (honouring -Dqml4j.incrementalLayout, default true) so the embedded
-    // host path drains the polish queue instead of re-measuring the whole tree every frame.
-    public void setIncrementalLayout(boolean on) {
-        incrementalEnabled = on;
     }
 
     // --- Draw-phase content cache (opt-in via QmlView / -Dqml4j.pictureCache) --------------
@@ -268,12 +242,7 @@ public final class Renderer {
         return pictureRecordsTotal;
     }
 
-    // Force the next settle to do a full whole-tree measure (first frame, or a safety reset).
-    public void requestFullLayout() {
-        needsFullLayout = true;
-    }
-
-    // Nodes measured in the last settleLayout -- the metric the O(1)-drag regression asserts.
+    // Nodes measured in the last settleLayout (diagnostic).
     public int measuredNodeCount() {
         return measuredThisFrame;
     }
@@ -282,19 +251,11 @@ public final class Renderer {
         return settlePasses;
     }
 
+    // Whole-tree layout: measure the entire tree, flushing size-driven bindings until it stops
+    // changing (or the pass cap is hit), so first-appearance layout is correct on the very frame
+    // a node becomes visible. The static-subtree fast path (opt-in Item.cachedLayout, checked in
+    // measure()) keeps this cheap for large lists whose rows don't reflow.
     private void settleLayout(Item root) {
-        PolishQueue pq = PolishQueue.current();
-        if (!incrementalEnabled || pq == null || needsFullLayout) {
-            settleLayoutFull(root, pq);
-        } else {
-            settleLayoutIncremental(pq);
-        }
-    }
-
-    // Whole-tree layout: measure the entire tree, flushing size-driven bindings until it
-    // stops changing (or the cap is hit). The original behaviour; the correctness baseline
-    // and the fallback whenever incremental marks aren't available/trusted.
-    private void settleLayoutFull(Item root, PolishQueue pq) {
         settleId++;
         measuredThisFrame = 0;
         settlePasses = 0;
@@ -305,72 +266,6 @@ public final class Renderer {
             if (dq == null || dq.isEmpty()) break;
             dq.flush();
         }
-        // A full pass brings the whole tree up to date, so any marks it produced (geometry
-        // sets fire the invalidation listeners) are already satisfied -- drop them.
-        needsFullLayout = false;
-        clearPending(pq);
-    }
-
-    // Incremental layout: measure only the dirty items in the polish queue (and whatever their
-    // geometry changes mark next), re-running until the queue drains or the pass cap is hit.
-    // Derived-size chains and anchor dependents were enqueued at mark time, so a deep child's
-    // height change converges up to its ancestors in this same drain (no one-pass lag), and an
-    // in-place size animation re-resolves its own anchors (no skipped subtree).
-    private void settleLayoutIncremental(PolishQueue pq) {
-        settleId++;
-        measuredThisFrame = 0;
-        settlePasses = 0;
-        DirtyQueue dq = DirtyQueue.current();
-        int pass = 0;
-        while (!pq.isEmpty() || (dq != null && !dq.isEmpty())) {
-            if (++pass > MAX_LAYOUT_PASSES) break;
-            settlePasses = pass;
-            // Flush binding re-evals first so a size derived via a binding (implicitHeight:
-            // child.height) has updated its Property before the dependent item is measured.
-            if (dq != null && !dq.isEmpty()) dq.flush();
-            List<Item> batch = pq.drainSnapshot();
-            for (int i = 0, n = batch.size(); i < n; i++) {
-                Item it = batch.get(i);
-                // Clear before measuring so writes made during measureSelf re-enqueue for the
-                // next pass rather than being swallowed by the dedupe guard.
-                boolean size = it.sizeDirty;
-                it.posDirty = false;
-                it.sizeDirty = false;
-                // A pure position change (x/y moved, size unchanged) needs no re-measure: the
-                // node's geometry was already written by whoever moved it (a parent container's
-                // layout, a drag, an x/y binding), its own layout is position-relative and thus
-                // unchanged, and anything anchored to it was marked at mark time. Re-measuring
-                // it (and its whole subtree) is the dominant waste when a linear container
-                // reflows -- one child's growth shifts every following sibling's y, and those
-                // siblings must move but not re-layout. Only re-measure on a size change.
-                if (size) measureSelf(it);
-            }
-        }
-    }
-
-    // Drop any queued marks and their dirty bits (after a full layout has satisfied them).
-    private static void clearPending(PolishQueue pq) {
-        if (pq == null) return;
-        for (Item it : pq.drainSnapshot()) {
-            it.posDirty = false;
-            it.sizeDirty = false;
-        }
-        pq.clear();
-    }
-
-    // Measure a single dirty item without recursing: publish its implicit size, follow it,
-    // run its container layout, resolve its anchors, refresh its childrenRect. Children that
-    // need work were enqueued independently (a container's layout marks the children it
-    // resizes; a newly-visible subtree is marked wholesale), so each is measured in its turn.
-    private void measureSelf(Item node) {
-        if (node == null) return;
-        measuredThisFrame++;
-        if (node instanceof Loader) resolveLoader((Loader) node);
-        node.measure(text);
-        followImplicitSize(node);
-        runLayout(node);
-        applyAnchors(node);
-        updateChildrenRect(node);
     }
 
     // Layout pre-pass: populate implicitWidth/Height (text/control measurement),
@@ -958,8 +853,6 @@ public final class Renderer {
         Item parent = node.parent.peek();
         Item fill = a.fill.peek();
         if (fill != null) {
-            // Record so a later move/resize of `fill` re-marks this node (event-driven anchors).
-            fill.addAnchorDependent(node);
             float fx = fill == parent ? 0f : fill.x.peekFloat();
             float fy = fill == parent ? 0f : fill.y.peekFloat();
             node.x.set(fx + lm);
@@ -970,7 +863,6 @@ public final class Renderer {
         }
         Item ci = a.centerIn.peek();
         if (ci != null) {
-            ci.addAnchorDependent(node);
             float w = node.width.peekFloat();
             float h = node.height.peekFloat();
             float cx = ci == parent ? 0f : ci.x.peekFloat();
@@ -989,10 +881,6 @@ public final class Renderer {
         AnchorLine left = a.left.peek();
         AnchorLine right = a.right.peek();
         AnchorLine hcenter = a.horizontalCenter.peek();
-        // Event-driven anchors: register against the source so its geometry change re-marks us.
-        if (left != null) left.source.addAnchorDependent(node);
-        if (right != null) right.source.addAnchorDependent(node);
-        if (hcenter != null) hcenter.source.addAnchorDependent(node);
         if (left != null && right != null) {
             float l = resolveX(left, node) + lm;
             float r = resolveX(right, node) - rm;
@@ -1014,9 +902,6 @@ public final class Renderer {
         AnchorLine top = a.top.peek();
         AnchorLine bottom = a.bottom.peek();
         AnchorLine vcenter = a.verticalCenter.peek();
-        if (top != null) top.source.addAnchorDependent(node);
-        if (bottom != null) bottom.source.addAnchorDependent(node);
-        if (vcenter != null) vcenter.source.addAnchorDependent(node);
         if (top != null && bottom != null) {
             float t = resolveY(top, node) + tm;
             float b = resolveY(bottom, node) - bm;

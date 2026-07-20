@@ -6,8 +6,6 @@ import io.github.timer_err.qml4j.engine.binding.Property;
 public class Column extends Item {
     public final Property<Number> spacing = new Property<>(0);
 
-    @Override
-    public boolean layoutDerivesSizeFromChildren() { return true; }
 
     @Override
     public void layout() {
