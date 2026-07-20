@@ -28,15 +28,31 @@ final class DesktopHost {
     // Load and render an entry .qml resolved by the loader. Untrusted content: a
     // compile/load failure shows an error page instead of taking the host down.
     void run(String entry) {
+        run(entry, null);
+    }
+
+    // Load `entry` with optional host context properties (e.g. a mock `client` model), so a
+    // document that reads a context object can run in this demo host.
+    void run(String entry, Map<String, Object> context) {
         byte[] bytes = loader.load(entry);
         if (bytes == null) {
-            setView(loader, errorQml(entry, new IllegalStateException("not found: " + entry)), null);
+            setView(loader, errorQml(entry, new IllegalStateException("not found: " + entry)), null, "");
             return;
         }
+        // The document's directory (relative to the resource root) so its `import "."`
+        // sibling types (ClickGui's ValueRow/ModeDropdown) resolve.
+        int slash = entry.lastIndexOf('/');
+        String baseDir = slash < 0 ? "" : entry.substring(0, slash);
         try {
-            setView(loader, new String(bytes, StandardCharsets.UTF_8), null);
+            setView(loader, new String(bytes, StandardCharsets.UTF_8), context, baseDir);
+            System.out.println("[host] loaded " + entry + " root="
+                + (view.root() == null ? "null" : view.root().getClass().getSimpleName())
+                + " children=" + (view.root() == null ? 0 : view.root().children.size()));
+            System.out.flush();
         } catch (RuntimeException e) {
-            setView(loader, errorQml(entry, e), null);
+            System.out.println("[host] load FAILED: " + entry + " -> " + e);
+            System.out.flush();
+            setView(loader, errorQml(entry, e), null, "");
         }
     }
 
@@ -46,7 +62,7 @@ final class DesktopHost {
         AppResourceLoader appLoader = new AppResourceLoader();
         byte[] bytes = appLoader.load("Main.qml");
         if (bytes == null) {
-            setView(loader, errorQml("App", new IllegalStateException("Main.qml not found (no mcq clone / bundle)")), null);
+            setView(loader, errorQml("App", new IllegalStateException("Main.qml not found (no mcq clone / bundle)")), null, "");
             return;
         }
         Map<String, Object> ctx = new LinkedHashMap<>();
@@ -54,13 +70,13 @@ final class DesktopHost {
         ctx.put("HotReloadEnabled", Boolean.FALSE);
         ctx.put("ProjectSourceDir", "");
         try {
-            setView(appLoader, new String(bytes, StandardCharsets.UTF_8), ctx);
+            setView(appLoader, new String(bytes, StandardCharsets.UTF_8), ctx, "");
         } catch (RuntimeException e) {
-            setView(loader, errorQml("App", e), null);
+            setView(loader, errorQml("App", e), null, "");
         }
     }
 
-    private void setView(ResourceLoader rl, String qml, Map<String, Object> context) {
+    private void setView(ResourceLoader rl, String qml, Map<String, Object> context, String baseDir) {
         if (view != null) view.dispose();
         QmlEngine engine = new QmlEngine();
         view = QmlView.withStockTypes(engine).resources(rl);
@@ -68,7 +84,7 @@ final class DesktopHost {
         if (context != null) {
             for (Map.Entry<String, Object> e : context.entrySet()) view.context(e.getKey(), e.getValue());
         }
-        view.load(qml);
+        view.load(qml, baseDir);
         sizeRoot();
     }
 

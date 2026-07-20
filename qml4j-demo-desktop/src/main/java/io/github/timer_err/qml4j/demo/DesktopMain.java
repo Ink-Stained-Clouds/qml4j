@@ -44,11 +44,13 @@ public final class DesktopMain {
     }
 
     // `<projectDir> <entry.qml>` runs that QML from disk (quickshell-style); `app`
-    // runs the bundled upstream MD3 app.
+    // runs the bundled upstream MD3 app; `mock <projectDir> <entry.qml>` runs a document
+    // that expects a `client` context object, supplying a MockClient (Haedus ClickGui).
     private void run(String[] args) {
         boolean app = args.length >= 1 && "app".equals(args[0]);
-        if (!app && args.length < 2) {
-            System.err.println("usage:  <projectDir> <entry.qml>   |   app");
+        boolean mock = args.length >= 3 && "mock".equals(args[0]);
+        if (!app && !mock && args.length < 2) {
+            System.err.println("usage:  <projectDir> <entry.qml>   |   app   |   mock <projectDir> <entry.qml>");
             return;
         }
         GLFWErrorCallback.createPrint(System.err).set();
@@ -71,6 +73,11 @@ public final class DesktopMain {
         if (app) {
             host = new DesktopHost(new AppResourceLoader(), fw[0], fh[0]);
             host.startApp();
+        } else if (mock) {
+            host = new DesktopHost(new DirResourceLoader(Paths.get(args[1])), fw[0], fh[0]);
+            java.util.Map<String, Object> ctx = new java.util.LinkedHashMap<>();
+            ctx.put("client", new MockClient());
+            host.run(args[2], ctx);
         } else {
             host = new DesktopHost(new DirResourceLoader(Paths.get(args[0])), fw[0], fh[0]);
             host.run(args[1]);
