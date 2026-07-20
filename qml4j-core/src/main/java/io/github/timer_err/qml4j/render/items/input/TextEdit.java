@@ -25,6 +25,11 @@ public class TextEdit extends Item implements TextEditable {
 
     public int selectionAnchor = -1;
 
+    public TextEdit() {
+        wireContentInvalidation(text, color, fontSize, cursorPosition, selectionStart,
+            selectionEnd, selectionColor, wrapMode, verticalAlignment);
+    }
+
     public List<String> cachedLines;
     public int[] cachedStarts;
     public String cachedText;

@@ -11,6 +11,12 @@ public class Button extends AbstractButton {
     public final Property<Number> radius = new Property<>(6);
     public final Property<Number> fontSize = new Property<>(16);
 
+    public Button() {
+        // Own chrome plus the inherited state that changes the drawn colour (down/checked/enabled/text).
+        wireContentInvalidation(color, textColor, downColor, radius, fontSize,
+            text, down, checked, enabled);
+    }
+
     @Override
     public void measure(TextLayout t) {
         t.measureButton(this);

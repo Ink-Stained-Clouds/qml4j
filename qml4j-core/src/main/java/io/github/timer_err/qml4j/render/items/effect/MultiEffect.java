@@ -47,6 +47,15 @@ public class MultiEffect extends Item {
     @SuppressWarnings("unused")
     public final Property<Number> saturation = new Property<>(0);
 
+    public MultiEffect() {
+        wireContentInvalidation(source, maskEnabled, maskSource, maskInverted,
+            maskThresholdMin, maskThresholdMax, maskSpreadAtMin, maskSpreadAtMax,
+            blurEnabled, blur, blurMax,
+            shadowEnabled, shadowColor, shadowBlur, shadowVerticalOffset, shadowHorizontalOffset,
+            shadowOpacity, shadowScale,
+            colorizationEnabled, brightness, contrast, saturation);
+    }
+
     @Override
     public void paint(Painter p, float w, float h, float alpha) {
         p.drawMultiEffect(this, w, h, alpha);

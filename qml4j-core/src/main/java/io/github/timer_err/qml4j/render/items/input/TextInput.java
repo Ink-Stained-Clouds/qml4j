@@ -35,6 +35,13 @@ public class TextInput extends Item implements TextEditable {
 
     public int selectionAnchor = -1;
 
+    public TextInput() {
+        wireContentInvalidation(text, color, fontSize, cursorPosition, selectionStart,
+            selectionEnd, selectionColor, selectedTextColor, echoMode, passwordCharacter,
+            horizontalAlignment, verticalAlignment,
+            font.family, font.pixelSize, font.pointSize, font.weight, font.bold, font.italic);
+    }
+
     @Override public String text() { return text.peek(); }
     @Override public void setText(String t) { text.setFromEdit(t); }
     @Override public int cursorPosition() { return cursorPosition.peekInt(); }

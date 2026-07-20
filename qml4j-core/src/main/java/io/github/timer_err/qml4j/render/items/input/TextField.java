@@ -13,6 +13,12 @@ public class TextField extends TextInput {
     public final Property<Number> radius = new Property<>(6);
     public final Property<Number> padding = new Property<>(8);
 
+    public TextField() {
+        // The base TextInput fields are wired by its constructor; add the field chrome here.
+        wireContentInvalidation(placeholderText, placeholderTextColor, backgroundColor,
+            borderColor, focusBorderColor, borderWidth, radius, padding, focus);
+    }
+
     @Override
     public void paint(Painter p, float w, float h, float alpha) {
         p.drawTextField(this, w, h, alpha);

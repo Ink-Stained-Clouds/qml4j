@@ -209,6 +209,38 @@ class PictureCacheTest {
         assertEquals(0, v.renderer().pictureRecordsThisFrame(), "settled panel replays, no record");
     }
 
+    // A paint-only property on a nested widget (Button.down -- changes the drawn colour, no
+    // geometry) must still invalidate the enclosing boundary. Guards the subclass paint wiring.
+    @Test
+    void paintOnlyWidgetChangeReRecords() {
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        Item root = v.load(
+            "import QtQuick\n"
+            + "import QtQuick.Controls\n"
+            + "Item {\n"
+            + "  width: 200; height: 100\n"
+            + "  Rectangle { objectName: \"panel\"; width: 200; height: 100; color: \"#222222\"\n"
+            + "    Button { objectName: \"btn\"; x: 10; y: 10; width: 80; height: 30; text: \"ok\" } }\n"
+            + "}");
+        root.width.set(200);
+        root.height.set(100);
+        v.renderer().setPictureCache(true);
+        RasterBackend bk = new RasterBackend(200, 100);
+        bk.surface.getCanvas().clear(0);
+        v.renderFrame(bk);
+
+        Item panel = v.findByObjectName("panel");
+        int before = panel.recordCount;
+        io.github.timer_err.qml4j.render.items.window.Button btn =
+            (io.github.timer_err.qml4j.render.items.window.Button) v.findByObjectName("btn");
+        btn.down.set(Boolean.TRUE);   // pressed colour: pure paint change, no layout
+        bk.surface.getCanvas().clear(0);
+        v.renderFrame(bk);
+
+        assertEquals(before + 1, panel.recordCount, "nested widget's paint change re-records boundary");
+        assertEquals(1, v.renderer().pictureRecordsThisFrame());
+    }
+
     private static byte[] snapshot(Surface s) {
         try (Bitmap bm = Bitmap.makeFromImage(s.makeImageSnapshot())) {
             byte[] px = bm.readPixels();

@@ -45,6 +45,9 @@ public class Canvas extends Item {
     @SuppressWarnings("unused")
     public void requestPaint() {
         dirty = true;
+        // The offscreen will be redrawn this frame; invalidate the enclosing cache boundary so
+        // its picture re-records the new blit (imperative onPaint isn't a Property change).
+        markContentDirty();
     }
 
     @Override
