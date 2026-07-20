@@ -78,21 +78,45 @@ final class Loader implements ComponentFactory {
         return instantiate(qml, baseDir);
     }
 
-    // A Loader `source` (resource path). If the path is already compiled as a compound
-    // type (its class is cached under that same path key), reuse it — recompiling the
+    // A Loader `source` (resource path). A relative path first resolves against the
+    // declaring document's directory (Qt semantics — MD3 Menu recurses with
+    // `source: "Menu.qml"` from md3/Core/), then falls back to the resource root for
+    // legacy full paths. If the winning path is already compiled as a compound type
+    // (its class is cached under that same path key), reuse it — recompiling the
     // file as a fresh document would mint a new class set the AOT capture never saw,
     // which native-image cannot define at runtime. Only an unregistered path falls back
     // to compiling the file (JVM-only territory).
     @Override
-    public Item createFromSource(String sourcePath) {
+    public Item createFromSource(String sourcePath, String documentDir) {
+        String resolved = relativeCandidate(sourcePath, documentDir);
+        if (resolved != null) {
+            Class<? extends QObject> viaDoc = importedTypes.get(resolved);
+            if (viaDoc != null) return newRoot(viaDoc);
+        }
         Class<? extends QObject> cached = importedTypes.get(sourcePath);
         if (cached != null) return newRoot(cached);
         if (resources == null) return null;
-        byte[] bytes = resources.load(sourcePath);
+        String path = sourcePath;
+        byte[] bytes = null;
+        if (resolved != null) {
+            bytes = resources.load(resolved);
+            if (bytes != null) path = resolved;
+        }
+        if (bytes == null) bytes = resources.load(sourcePath);
         if (bytes == null) return null;
-        int slash = sourcePath.lastIndexOf('/');
+        int slash = path.lastIndexOf('/');
         return instantiate(new String(bytes, StandardCharsets.UTF_8),
-                slash < 0 ? "" : sourcePath.substring(0, slash));
+                slash < 0 ? "" : path.substring(0, slash));
+    }
+
+    // The document-relative form of `sourcePath`, or null when that resolution is
+    // impossible or a no-op (no declaring dir, absolute path, URL scheme) — the caller
+    // then uses the resource-root lookup alone.
+    private static String relativeCandidate(String sourcePath, String documentDir) {
+        if (documentDir == null || documentDir.isEmpty()) return null;
+        if (sourcePath.startsWith("/") || sourcePath.contains(":")) return null;
+        String joined = joinPath(documentDir, sourcePath);
+        return joined.equals(sourcePath) ? null : joined;
     }
 
     private Item newRoot(Class<? extends QObject> rootClass) {
@@ -119,8 +143,8 @@ final class Loader implements ComponentFactory {
             .withAliases(importAliases(doc))
             .withModuleProvided(moduleProvided);
         registerKnownSingletons(docTypes, prefixes);
-        defineInlineComponents(doc, docTypes);
-        CompiledUnit unit = compiler.compile(doc, docTypes);
+        defineInlineComponents(doc, docTypes, baseDir);
+        CompiledUnit unit = compiler.compile(doc, docTypes, baseDir);
         ClassLoaderBackend backend = engine.backend();
         Map<String, Class<?>> defined = backend.defineClasses(unit.classes());
         Class<?> rootClass = defined.get(unit.rootClassName());
@@ -141,7 +165,7 @@ final class Loader implements ComponentFactory {
     // are document-scoped in Qt regardless of where they nest (ColorPage declares them
     // inside a Flickable) and may reference the file's root-level ids/properties.
     @SuppressWarnings("unchecked")
-    private void defineInlineComponents(Ast.QmlDocument doc, TypeRegistry docTypes) {
+    private void defineInlineComponents(Ast.QmlDocument doc, TypeRegistry docTypes, String baseDir) {
         List<Ast.InlineComponent> inlines = new ArrayList<>();
         collectInlineDecls(doc.root, inlines);
         if (inlines.isEmpty()) return;
@@ -162,7 +186,7 @@ final class Loader implements ComponentFactory {
         // real class; a later inline (SchemeColumn) may instantiate an earlier one.
         for (Ast.InlineComponent ic : inlines) {
             CompiledUnit unit = compiler.compile(
-                new Ast.QmlDocument(doc.imports, ic.body), docTypes, sceneIds);
+                new Ast.QmlDocument(doc.imports, ic.body), docTypes, sceneIds, baseDir);
             Map<String, Class<?>> defined = engine.backend().defineClasses(unit.classes());
             docTypes.register(ic.name, (Class<? extends QObject>) defined.get(unit.rootClassName()));
         }

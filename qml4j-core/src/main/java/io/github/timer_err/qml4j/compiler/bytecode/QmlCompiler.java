@@ -26,6 +26,7 @@ import org.objectweb.asm.Type;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import io.github.timer_err.qml4j.render.items.view.Component;
+import io.github.timer_err.qml4j.render.items.view.Loader;
 import io.github.timer_err.qml4j.render.items.transform.Transform;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -132,9 +133,18 @@ public final class QmlCompiler {
 
     private ClassWriter activeComponentCw;
     private int factoryCounter;
+    // Directory of the document being compiled (resource-root-relative); baked onto
+    // every Loader the unit constructs so a relative `source` resolves Qt-style
+    // against the declaring file. Save/restored across nested compiles like
+    // activeComponentCw.
+    private String documentDir = "";
 
     public CompiledUnit compile(Ast.QmlDocument doc, TypeRegistry registry) {
-        return compile(doc, registry, java.util.Collections.emptyMap());
+        return compile(doc, registry, Collections.<String, Class<? extends QObject>>emptyMap(), "");
+    }
+
+    public CompiledUnit compile(Ast.QmlDocument doc, TypeRegistry registry, String docDir) {
+        return compile(doc, registry, Collections.<String, Class<? extends QObject>>emptyMap(), docDir);
     }
 
     // extraSceneIds: names visible from an enclosing document -- an inline component
@@ -145,7 +155,8 @@ public final class QmlCompiler {
     // the enclosing component's deferred batch, flushed AFTER the parent is set -- so the
     // parent-chain walk reaches the enclosing root).
     public CompiledUnit compile(Ast.QmlDocument doc, TypeRegistry registry,
-                                Map<String, Class<? extends QObject>> extraSceneIds) {
+                                Map<String, Class<? extends QObject>> extraSceneIds,
+                                String docDir) {
         boolean delegateScoped = !extraSceneIds.isEmpty();
         if (delegateScoped) CompileScope.enterDelegateScope();
         CompileScope.pushRegistry(registry);
@@ -173,8 +184,10 @@ public final class QmlCompiler {
             // clobber the enclosing compile's writer/counter.
             ClassWriter prevCw = this.activeComponentCw;
             int prevFactoryCounter = this.factoryCounter;
+            String prevDocumentDir = this.documentDir;
             this.activeComponentCw = cw;
             this.factoryCounter = 0;
+            this.documentDir = docDir == null ? "" : docDir;
             try {
                 if (doc.hasPragma("Singleton")) {
                     emitSingletonAccessor(cw, componentInternal);
@@ -185,11 +198,26 @@ public final class QmlCompiler {
             } finally {
                 this.activeComponentCw = prevCw;
                 this.factoryCounter = prevFactoryCounter;
+                this.documentDir = prevDocumentDir;
             }
         } finally {
             CompileScope.popRegistry();
             if (delegateScoped) CompileScope.exitDelegateScope();
         }
+    }
+
+    private static final String LOADER_ITEM_INTERNAL = Type.getInternalName(Loader.class);
+
+    // Bake the compiling document's directory onto a Loader at construction. Qt
+    // resolves a relative `source` against the declaring file's directory; runtime
+    // parent-chain inference can't recover it (popup subtrees reparent onto the
+    // scene root), so the compiler stamps it.
+    private void emitDocumentDirStamp(MethodVisitor mv, Class<?> constructedType, int local) {
+        if (documentDir.isEmpty() || !Loader.class.isAssignableFrom(constructedType)) return;
+        mv.visitVarInsn(Opcodes.ALOAD, local);
+        mv.visitLdcInsn(documentDir);
+        mv.visitFieldInsn(Opcodes.PUTFIELD, LOADER_ITEM_INTERNAL,
+                          "documentDir", "Ljava/lang/String;");
     }
 
     private static void emitSingletonAccessor(ClassWriter cw, String componentInternal) {
@@ -337,6 +365,7 @@ public final class QmlCompiler {
             ctor.visitMethodInsn(Opcodes.INVOKESTATIC, PROPERTY_INTERNAL,
                                  "pushDeferred", "()V", false);
         }
+        emitDocumentDirStamp(ctor, rootType, 0);
         for (String sig : rootSignalNames) {
             ctor.visitVarInsn(Opcodes.ALOAD, 0);
             ctor.visitTypeInsn(Opcodes.NEW, SIGNAL_INTERNAL);
@@ -960,6 +989,7 @@ public final class QmlCompiler {
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, QOBJECT_INTERNAL,
                              "__setQmlParent", "(L" + QOBJECT_INTERNAL + ";)V", false);
+        emitDocumentDirStamp(ctor, childType, childLocal);
 
         for (String sig : childSignals) {
             ctor.visitVarInsn(Opcodes.ALOAD, childLocal);
@@ -1126,6 +1156,7 @@ public final class QmlCompiler {
         mv.visitInsn(Opcodes.DUP);
         mv.visitMethodInsn(Opcodes.INVOKESPECIAL, delegateInternal, "<init>", "()V", false);
         mv.visitVarInsn(Opcodes.ASTORE, delegateLocal);
+        emitDocumentDirStamp(mv, delType, delegateLocal);
 
         // The delegate root's own id (e.g. `id: wave`) must point at the instance,
         // like the top-level root id; otherwise bindings inside the delegate that

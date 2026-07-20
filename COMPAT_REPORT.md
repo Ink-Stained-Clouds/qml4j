@@ -20,11 +20,11 @@ ToolTip/TopAppBar;另含 Theme + Ripple 基础件)。
 - **G11** MouseArea hover 真实 dispatch(`EventDispatcher.updateHover` 驱动 hoverEnabled/containsMouse/entered/exited)
 - **G9** QtQuick.Layouts —— RowLayout / ColumnLayout / StackLayout / **GridLayout** + `Layout.*` 附加属性(含 row/column/rowSpan/columnSpan)全部实现;QtQuick 定位器 Row/Column/**Flow** 也已注册。GridLayout 支持显式/自动单元格放置、跨行列 span、rowSpacing/columnSpacing、fillWidth/fillHeight 与单元格内对齐;Flow 支持 LeftToRight/TopToBottom 换行。
 - **G16** delegate 作用域解析根的**声明属性**(2026-07-09 修,`d8b7e6a`)—— 匿名 `Component {}` / Repeater delegate 里引用组件根的 `property`(如 `color: _colors.onSurfaceColor`)原先解析为 undefined(delegate 路径只对 scene *id* 回退到 root,不对声明属性),文字在所有主题下渲染成黑色;reparent 到场景根的 popup(Menu/DatePicker overlay)因父链断开尤其中招。修法:`QmlScope.getDelegate`/`has` 在 scene-id 检查后加与非 delegate `owner()` 对称的 `hasMember(root)` 兜底。
+- **G17** `Loader.source` 相对路径解析(2026-07-18 修)—— 相对 `source` 现按**声明该 Loader 的文档目录**解析(Qt 语义),miss 再回退资源根(既有全路径写法不变)。编译器把当前文档目录烤进其构造的每个 Loader(`documentDir`;子对象 / delegate / 根三个构造点),运行期父链推断不可行(MD3 popup 会 reparent 到场景根)。`createFromSource(path, documentDir)` 先查文档相对键,命中 `importedTypes` 直接复用编译类——递归 `source: "Menu.qml"` 现复用 `Menu` 类型,不触发运行期重编译,与 G18 的 native-image 约束天然兼容。效果:未修改的 `md3/Core/Menu.qml` 递归子菜单由静默缺失变为点击父项正常弹出;E2E `MenuSubmenuE2ETest` 修前 fail(loadedItem 为 null)、修后含点击弹出截图断言。
 
 **⬜ 仍开**:
 - **G13** 动态种子配色 —— 静态主题靠 Theme.qml 的 `defaultScheme` 直接生效(无需 StyleManager);把 material-color-utilities 移植到 Java 做动态配色未做。
 - **G14** Canvas、**G15** Animator(Opacity/Scale)—— 未注册。
-- **G17** `Loader.source` 相对路径解析偏离 Qt(2026-07-09 记)—— `Renderer.resolveLoaderSource` 把 `source` 字符串原样喂给 `ResourceLoader.load`,即**相对资源根**解析,而非 Qt 的"相对定义该 Loader 的文件所在目录"。故 `md3/Core/Menu.qml` 里递归子菜单写 `source: "Menu.qml"` 会 load 失败(实际在 `md3/Core/`),子菜单静默不出现。当前 workaround:写模块全路径 `source: "md3/Core/Menu.qml"`。正解需把每个编译产物的 baseDir 烤进类并回灌到其中的 Loader,跨编译器/工厂/Item/Renderer,工程量中等。`sourceComponent`(组件引用,非路径)不受影响。
 - **G18** `Loader.source` 运行期重编译破坏 AOT / native-image(2026-07-09 修,0.2.15)—— `source:`(字符串路径)在运行期把文件当**新根文档**重编译,mint 出 build 期 AOT 捕获从未见过的类(`generated.Component$N$Delegate$M`),native-image 无法在运行期定义 → 崩(JVM 会现场定义,仅 warn)。修法:`Loader` 现实现 `ComponentFactory`,新增 `createFromSource(path)`;当 `source` 路径命中已注册 compound 类型的缓存(`importedTypes`,键即资源路径,如 `md3/Core/Menu.qml` = `Menu` 类型)时**复用其编译类**,不重编译。只有未注册的裸路径才 fallback 到编译(仅 JVM)。同时收敛了 G17(全路径 `source:` 现直接复用 `Menu` 类型)。
 - 16 个组件原样运行已表明剩余 Tier-1 横切项(G4/G5/G7/G8 等)在实践上基本覆盖;未逐项复核的以 `README.md` feature 清单为准。
 

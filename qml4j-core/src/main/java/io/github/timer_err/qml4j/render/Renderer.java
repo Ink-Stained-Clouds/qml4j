@@ -1143,7 +1143,7 @@ public final class Renderer {
         try {
             // Reuse the compiled compound-type class when `src` names one (native-image
             // safe); the factory loads + compiles the file only for an unregistered path.
-            child = factory.createFromSource(src);
+            child = factory.createFromSource(src, node.documentDir);
         } catch (Throwable t) {
             return;
         }
