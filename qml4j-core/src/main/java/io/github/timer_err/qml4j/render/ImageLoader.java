@@ -4,6 +4,7 @@ import io.github.timer_err.qml4j.render.items.core.Image;
 
 import io.github.humbleui.skija.FilterMipmap;
 import io.github.humbleui.skija.FilterMode;
+import io.github.humbleui.skija.ImageInfo;
 import io.github.humbleui.skija.MipmapMode;
 import io.github.humbleui.skija.Surface;
 import io.github.humbleui.types.Rect;
@@ -44,7 +45,7 @@ final class ImageLoader {
                 if (isRemote(src)) bytes = get(src, 5);
                 else if (resources != null) bytes = resources.load(src);
             } catch (Throwable ignore) {
-                bytes = null;
+                // bytes stays null -> treated as a failed load below
             }
             io.github.humbleui.skija.Image img = null;
             int w = 0, h = 0;
@@ -53,7 +54,8 @@ final class ImageLoader {
                     img = decodeRaster(bytes,
                             node.sourceSize.width.peek().intValue(),
                             node.sourceSize.height.peek().intValue());
-                    if (img != null) { w = img.getWidth(); h = img.getHeight(); }
+                    w = img.getWidth();
+                    h = img.getHeight();
                 } catch (Throwable t) {
                     img = null;
                 }
@@ -74,7 +76,7 @@ final class ImageLoader {
     // would otherwise decode on first draw, back on the render thread. Honours sourceSize
     // like Qt: shrink to ~display size so a multi-megapixel photo isn't sampled every frame.
     private static io.github.humbleui.skija.Image decodeRaster(byte[] bytes, int sw, int sh) {
-        io.github.humbleui.skija.Image full = io.github.humbleui.skija.Image.makeFromEncoded(bytes);
+        io.github.humbleui.skija.Image full = io.github.humbleui.skija.Image.makeDeferredFromEncodedBytes(bytes);
         int iw = full.getWidth(), ih = full.getHeight();
         float f;
         if (sw > 0 && sh > 0) f = Math.max((float) sw / iw, (float) sh / ih);
@@ -83,7 +85,7 @@ final class ImageLoader {
         else f = 1f;
         int tw = f < 1f ? Math.max(1, Math.round(iw * f)) : iw;
         int th = f < 1f ? Math.max(1, Math.round(ih * f)) : ih;
-        try (Surface surf = Surface.makeRasterN32Premul(tw, th)) {
+        try (Surface surf = Surface.makeRaster(ImageInfo.makeN32Premul(tw, th))) {
             surf.getCanvas().drawImageRect(full,
                     Rect.makeXYWH(0, 0, iw, ih), Rect.makeXYWH(0, 0, tw, th),
                     new FilterMipmap(FilterMode.LINEAR, MipmapMode.LINEAR), null, true);

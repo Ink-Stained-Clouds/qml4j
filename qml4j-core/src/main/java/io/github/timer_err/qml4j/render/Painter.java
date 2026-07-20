@@ -620,6 +620,10 @@ public final class Painter {
     }
 
 
+    // decodeGen is incremented only on the render thread (here and Image.releaseResources);
+    // it is volatile for visibility to the decode worker (which only reads it), so the
+    // non-atomic ++ is a safe single-writer increment.
+    @SuppressWarnings("NonAtomicOperationOnVolatileField")
     public void drawImage(Image node, float w, float h, float alpha) {
         String src = node.source.peek();
         if (src == null || src.isEmpty()) {

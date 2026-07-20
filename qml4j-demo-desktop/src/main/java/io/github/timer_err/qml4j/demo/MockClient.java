@@ -15,6 +15,9 @@ public final class MockClient {
     public final String seed = "#8ab4f8";
     public final List<Object> panels = new ArrayList<>();
 
+    // p/3 and p%3 are deliberate integer grid math (row/column of a 3-wide panel layout),
+    // passed into Panel's double x/y -- the floor division is intended, not a lost fraction.
+    @SuppressWarnings("IntegerDivisionInFloatingPointContext")
     public MockClient() {
         String[] titles = {"Combat", "Movement", "Render", "Player", "World", "Misc"};
         String[] mods = {"KillAura", "Velocity", "Fly", "Speed", "ESP", "Nametags",

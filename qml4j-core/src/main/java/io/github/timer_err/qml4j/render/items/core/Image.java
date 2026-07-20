@@ -56,6 +56,10 @@ public class Image extends Item {
     // Close the decoded native image when this item is discarded (e.g. a list
     // delegate scrolled out of a model swap) — it isn't GC-managed, so a row's
     // cover would otherwise leak its native memory.
+    // decodeGen is bumped only on the render thread (here and in Painter.drawImage); it is
+    // volatile purely for visibility to the decode worker, which only READS it -- so the
+    // non-atomic ++ is a single-writer increment with no lost-update risk.
+    @SuppressWarnings("NonAtomicOperationOnVolatileField")
     @Override
     protected void releaseResources() {
         if (skiaImage != null) {

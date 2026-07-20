@@ -140,11 +140,11 @@ public final class QmlCompiler {
     private String documentDir = "";
 
     public CompiledUnit compile(Ast.QmlDocument doc, TypeRegistry registry) {
-        return compile(doc, registry, Collections.<String, Class<? extends QObject>>emptyMap(), "");
+        return compile(doc, registry, Collections.emptyMap(), "");
     }
 
     public CompiledUnit compile(Ast.QmlDocument doc, TypeRegistry registry, String docDir) {
-        return compile(doc, registry, Collections.<String, Class<? extends QObject>>emptyMap(), docDir);
+        return compile(doc, registry, Collections.emptyMap(), docDir);
     }
 
     // extraSceneIds: names visible from an enclosing document -- an inline component
