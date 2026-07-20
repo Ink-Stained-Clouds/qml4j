@@ -90,6 +90,11 @@
                 <artifactId>skija-linux-x64</artifactId>
                 <version>${skija.version}</version>
             </dependency>
+            <dependency>
+                <groupId>io.github.humbleui</groupId>
+                <artifactId>skija-windows-x64</artifactId>
+                <version>${skija.version}</version>
+            </dependency>
 
             <dependency>
                 <groupId>org.lwjgl</groupId>
