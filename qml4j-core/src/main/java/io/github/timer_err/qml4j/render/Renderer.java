@@ -1190,6 +1190,7 @@ public final class Renderer {
     }
 
     public void dispose() {
+        clearBoundaries();   // close any cached boundary pictures (native memory)
         if (paint != null) {
             paint.close();
             paint = null;

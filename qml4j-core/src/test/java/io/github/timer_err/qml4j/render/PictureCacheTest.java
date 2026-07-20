@@ -14,6 +14,8 @@ import java.util.Arrays;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 // Draw-phase content cache (per-boundary SkPicture reuse): the boundaries are the root's direct
@@ -272,6 +274,27 @@ class PictureCacheTest {
         v.renderFrame(bk);
 
         assertEquals(before + 1, panel.recordCount, "gradient stop change re-records the boundary");
+    }
+
+    // Cached pictures are native memory; disposing an item (or the whole view) must close them.
+    @Test
+    void disposeReleasesCachedPictures() {
+        QmlView v = loadCached();
+        RasterBackend bk = new RasterBackend(300, 100);
+        bk.surface.getCanvas().clear(0);
+        v.renderFrame(bk);
+
+        Item p1 = v.findByObjectName("p1");
+        assertNotNull(p1.cachedPicture, "boundary recorded a picture");
+        p1.dispose();
+        assertNull(p1.cachedPicture, "disposing an item closes its cached picture");
+        assertFalse(p1.cacheBoundary);
+
+        Item p2 = v.findByObjectName("p2");
+        assertNotNull(p2.cachedPicture);
+        v.dispose();                     // renderer.dispose -> clearBoundaries closes the rest
+        assertNull(p2.cachedPicture, "disposing the view closes remaining boundary pictures");
+        assertFalse(p2.cacheBoundary);
     }
 
     private static byte[] snapshot(Surface s) {

@@ -500,6 +500,13 @@ public class Item extends QObject {
     private void tearDown() {
         unbindAll();
         unwireHolderContent();
+        // Release the cached boundary picture (native memory) if this item was a cache boundary
+        // discarded without a render pass to clean it up (e.g. a panel removed from the tree).
+        if (cachedPicture != null) {
+            cachedPicture.close();
+            cachedPicture = null;
+        }
+        cacheBoundary = false;
         releaseResources();
         for (int i = 0; i < children.size(); i++) children.get(i).tearDown();
         for (int i = 0; i < resources.size(); i++) resources.get(i).tearDown();
