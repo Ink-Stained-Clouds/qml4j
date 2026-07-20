@@ -5,6 +5,7 @@ import io.github.timer_err.qml4j.render.items.core.Item;
 public interface ComponentFactory {
     // baseDir is the importing document's directory (relative to the resource root),
     // used to resolve relative file imports (import "../widgets"). Empty for the root.
+    @SuppressWarnings("unused") // part of the factory SPI; implemented + called via the interface
     Item create(String qmlSource, String baseDir);
 
     // Instantiate a Loader's `source` (a resource path). A relative path resolves

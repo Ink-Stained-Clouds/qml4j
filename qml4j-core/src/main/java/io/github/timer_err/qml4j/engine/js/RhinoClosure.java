@@ -44,6 +44,7 @@ public final class RhinoClosure {
         return "(function(" + String.join(",", params) + "){" + body + "})";
     }
 
+    @SuppressWarnings("deprecation") // Script.exec is the compiled-script entry point in Rhino 1.9
     public Object invoke(Object[] args) {
         Context cx = JsRuntime.enter();
         try {

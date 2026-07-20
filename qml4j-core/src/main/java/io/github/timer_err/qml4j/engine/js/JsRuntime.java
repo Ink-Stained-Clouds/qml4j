@@ -14,6 +14,10 @@ import java.util.concurrent.ConcurrentHashMap;
 // carries a ScriptCache (so its generated JS classes die with it), and one shared,
 // sealed standard-objects scope (Math, JSON, etc.) reached via the binding scope's
 // parent chain.
+// Rhino's Context is entered/exited manually (Context.enter()/exit()), not via
+// try-with-resources; the optimization-level knobs are deprecated in Rhino 1.9 but are
+// still the supported way to force interpreted mode for our JIT-compiled bindings.
+@SuppressWarnings({"deprecation", "AutoCloseableResource"})
 public final class JsRuntime {
 
     private JsRuntime() {}

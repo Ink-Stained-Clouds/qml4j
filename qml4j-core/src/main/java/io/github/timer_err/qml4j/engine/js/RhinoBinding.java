@@ -27,6 +27,7 @@ public final class RhinoBinding extends Binding {
     }
 
     @Override
+    @SuppressWarnings("deprecation") // Script.exec is the compiled-script entry point in Rhino 1.9
     public Object evaluate() {
         Context cx = JsRuntime.enter();
         try {

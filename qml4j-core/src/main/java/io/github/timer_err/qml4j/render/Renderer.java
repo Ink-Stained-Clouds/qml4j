@@ -255,6 +255,7 @@ public final class Renderer {
         if (!on) clearBoundaries();
     }
 
+    @SuppressWarnings("unused") // public accessor for host/diagnostics
     public boolean pictureCacheEnabled() {
         return pictureCacheEnabled;
     }
@@ -286,7 +287,7 @@ public final class Renderer {
         if (!incrementalEnabled || pq == null || needsFullLayout) {
             settleLayoutFull(root, pq);
         } else {
-            settleLayoutIncremental(root, pq);
+            settleLayoutIncremental(pq);
         }
     }
 
@@ -315,7 +316,7 @@ public final class Renderer {
     // Derived-size chains and anchor dependents were enqueued at mark time, so a deep child's
     // height change converges up to its ancestors in this same drain (no one-pass lag), and an
     // in-place size animation re-resolves its own anchors (no skipped subtree).
-    private void settleLayoutIncremental(Item root, PolishQueue pq) {
+    private void settleLayoutIncremental(PolishQueue pq) {
         settleId++;
         measuredThisFrame = 0;
         settlePasses = 0;
@@ -655,7 +656,10 @@ public final class Renderer {
     private boolean culled(Item node) {
         if (node.rotation.peekFloat() != 0f || node.scale.peekFloat() != 1f) return false;
         if (!node.transform.isEmpty()) return false;
-        if (layerEffectPaint(node) != null) return false;
+        // layerEffectPaint allocates a Paint; close it here (we only need its presence) so a
+        // layer-effected node's cull test doesn't leak a native Paint every frame.
+        Paint lep = layerEffectPaint(node);
+        if (lep != null) { lep.close(); return false; }
         float x = node.x.peekFloat(), y = node.y.peekFloat();
         float w = node.width.peekFloat(), h = node.height.peekFloat();
         float crx = node.childrenRect.x.peekFloat(), cry = node.childrenRect.y.peekFloat();
@@ -755,8 +759,8 @@ public final class Renderer {
                 float cy = f.contentY.peekFloat();
                 // Intersect with the viewport box [0,0,w,h], then shift into content
                 // space (translate(-cx,-cy) maps a content point p to local p-c).
-                float vl = nl < 0f ? 0f : nl, vt = nt < 0f ? 0f : nt;
-                float vr = nr > w ? w : nr, vb = nb > h ? h : nb;
+                float vl = Math.max(0f, nl), vt = Math.max(0f, nt);
+                float vr = Math.min(w, nr), vb = Math.min(h, nb);
                 canvas.translate(-cx, -cy);
                 clipL = vl + cx; clipT = vt + cy; clipR = vr + cx; clipB = vb + cy;
             }
@@ -768,10 +772,10 @@ public final class Renderer {
                 try {
                     canvas.clipRect(Rect.makeXYWH(0, top, Math.max(0f, w), Math.max(0f, bottom - top)));
                     canvas.translate(0, top);
-                    clipL = nl < 0f ? 0f : nl;
-                    clipR = nr > w ? w : nr;
-                    clipT = (nt < top ? top : nt) - top;
-                    clipB = (nb > bottom ? bottom : nb) - top;
+                    clipL = Math.max(0f, nl);
+                    clipR = Math.min(w, nr);
+                    clipT = Math.max(top, nt) - top;
+                    clipB = Math.min(bottom, nb) - top;
                     for (int i = 0, n = ordered.size(); i < n; i++) {
                         Item child = ordered.get(i);
                         if (child.z.peekFloat() >= 0f) draw(canvas, child, alpha);
@@ -1043,6 +1047,7 @@ public final class Renderer {
         if (ftr != null) draw(canvas, ftr, alpha);
     }
 
+    @SuppressWarnings("AutoCloseableResource") // fonts.fontFor returns a cached, shared Font
     public int moveCaretVerticalForTextEdit(TextEdit te, int caret, int delta) {
         String s = te.text.peek();
         if (s == null) s = "";
@@ -1058,6 +1063,7 @@ public final class Renderer {
         }
     }
 
+    @SuppressWarnings("AutoCloseableResource") // fonts.fontFor returns a cached, shared Font
     public int caretIndexForTextEdit(TextEdit te, float localX, float localY) {
         String s = te.text.peek();
         if (s == null) s = "";
@@ -1067,7 +1073,7 @@ public final class Renderer {
             float w = te.width.peekFloat();
             float h = te.height.peekFloat();
             TextWrap.Result wrapped = text.wrapFor(te, s, w, size, font);
-            float lineH = text.lineHeight(font);
+            float lineH = TextLayout.lineHeight(font);
             float total = lineH * wrapped.lines.size();
             float yOffset = text.topOffset(te.verticalAlignment.peek(), h, total);
             int lineIdx = (int) Math.floor((localY - yOffset) / lineH);
@@ -1081,6 +1087,7 @@ public final class Renderer {
         }
     }
 
+    @SuppressWarnings("AutoCloseableResource") // fonts.fontFor returns a cached, shared Font
     public int caretIndexFor(TextInput ti, float localX) {
         String s = ti.text.peek();
         if (ti instanceof TextField) {

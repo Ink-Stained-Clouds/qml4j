@@ -11,15 +11,11 @@ final class MathUtils {
     }
 
     static double clampDouble(double min, double max, double input) {
-        if (input < min) return min;
-        if (input > max) return max;
-        return input;
+        return Math.max(min, Math.min(input, max));
     }
 
     static int clampInt(int min, int max, int input) {
-        if (input < min) return min;
-        if (input > max) return max;
-        return input;
+        return Math.max(min, Math.min(input, max));
     }
 
     static double sanitizeDegreesDouble(double degrees) {

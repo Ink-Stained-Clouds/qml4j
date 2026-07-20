@@ -12,7 +12,7 @@ public final class Ast {
         public final List<String> pragmas;
         public final ObjectNode root;
         public QmlDocument(List<ImportNode> imports, ObjectNode root) {
-            this(imports, Collections.<String>emptyList(), root);
+            this(imports, Collections.emptyList(), root);
         }
         public QmlDocument(List<ImportNode> imports, List<String> pragmas, ObjectNode root) {
             this.imports = Collections.unmodifiableList(imports);

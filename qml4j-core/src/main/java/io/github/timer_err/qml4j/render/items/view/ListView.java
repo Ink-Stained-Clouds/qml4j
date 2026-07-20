@@ -139,7 +139,7 @@ public class ListView extends Flickable implements DelegateHost {
         if (m instanceof ListModel) return ((ListModel) m).rows.size();
         if (m instanceof Number) {
             int n = ((Number) m).intValue();
-            return n < 0 ? 0 : n;
+            return Math.max(0, n);
         }
         if (m instanceof List) return ((List<?>) m).size();
         return 0;

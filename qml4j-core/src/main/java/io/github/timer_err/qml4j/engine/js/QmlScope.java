@@ -168,7 +168,7 @@ public final class QmlScope implements Scriptable {
     // notifier bound to the property on outer (then root), or null if `name` is not an
     // <prop>Changed for any property in scope.
     private Object changedSignal(String name) {
-        if (!name.endsWith("Changed") || name.length() <= "Changed".length()) return null;
+        if (!name.endsWith("Changed") || name.length() == "Changed".length()) return null;
         String base = name.substring(0, name.length() - "Changed".length());
         Property<?> p = MemberAccess.propertyOf(outer, base);
         if (p == null && root != outer) p = MemberAccess.propertyOf(root, base);

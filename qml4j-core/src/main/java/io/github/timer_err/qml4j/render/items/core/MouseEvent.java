@@ -3,6 +3,8 @@ package io.github.timer_err.qml4j.render.items.core;
 // Payload passed to MouseArea signal handlers (onPressed/onPositionChanged/...).
 // Mirrors Qt's MouseEvent value type. x/y are local to the MouseArea; button is
 // a Qt.MouseButton value so handlers can route on mouse.button.
+// Fields/ctor are read reflectively from QML handlers (mouse.x, mouse.button, ...).
+@SuppressWarnings("unused")
 public final class MouseEvent {
     public static final int LEFT_BUTTON = 1;   // Qt.LeftButton
     public static final int RIGHT_BUTTON = 2;  // Qt.RightButton

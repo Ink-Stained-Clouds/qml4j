@@ -186,6 +186,6 @@ public class Flickable extends Item implements Animatable {
     }
 
     private static float clamp(float v, float lo, float hi) {
-        return v < lo ? lo : (v > hi ? hi : v);
+        return Math.max(lo, Math.min(v, hi));
     }
 }

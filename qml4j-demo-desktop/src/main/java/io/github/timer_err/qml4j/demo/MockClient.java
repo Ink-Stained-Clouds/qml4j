@@ -10,6 +10,9 @@ import java.util.List;
 // this demo host with no game client attached. Reactive fields are qml4j Properties (reads
 // register a binding dependency, writes notify) so toggling a row's `expanded`/`enabled`
 // actually drives the derived-height expand animation -- the layout path we're exercising.
+// Fields/methods are the mock data model read reflectively by QML bindings, so they read as
+// unused to static analysis.
+@SuppressWarnings("unused")
 public final class MockClient {
 
     public final String seed = "#8ab4f8";

@@ -59,6 +59,8 @@ final class IconResolver {
     // shape with the icon typeface (the font's GSUB turns "widgets" into its glyph), so
     // any Material Symbols name renders without a curated codepoint table. "" when there
     // is no name; null = not an icon font / font unavailable -> use the Unicode map.
+    // fonts.iconTypeface() returns a cached Typeface owned by FontResolver -- not closed here.
+    @SuppressWarnings("AutoCloseableResource")
     String iconGlyph(Text t) {
         if (!isIconFamily(t.font.family.peek())) return null;
         if (fonts.iconTypeface() == null) return null;
@@ -78,6 +80,9 @@ final class IconResolver {
     // QML allows binding a number (or any value) to Text.text; it stringifies. Read
     // the raw value (avoiding the Property<String> checkcast) and format numbers the
     // JS/QML way -- integral doubles without a trailing ".0".
+    // QML is dynamically typed: a Property<String> can actually hold a boxed number bound from
+    // QML, so the Double/Float checks are reachable despite the declared String generic.
+    @SuppressWarnings("ConstantValue")
     private static String rawText(Text t) {
         Object raw = ((Property<?>) t.text).peek();
         if (raw == null) return null;

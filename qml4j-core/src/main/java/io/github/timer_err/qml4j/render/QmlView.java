@@ -58,18 +58,21 @@ public final class QmlView {
 
     /** Override the UI font (regular + medium) so the whole scene renders with an
      *  app-bundled face (Latin + CJK). Call before the first frame. */
+    @SuppressWarnings("unused") // host configuration API
     public QmlView uiTypefaces(byte[] regular, byte[] medium) {
         renderer.setUiTypefaces(regular, medium);
         return this;
     }
 
     /** Provide a dedicated CJK face (optional; the default font covers CJK otherwise). */
+    @SuppressWarnings("unused") // host configuration API
     public QmlView cjkTypeface(byte[] bytes) {
         renderer.setCjkTypeface(bytes);
         return this;
     }
 
     /** Provide the icon face (e.g. Material Symbols) the scene's icon glyphs need. */
+    @SuppressWarnings("unused") // host configuration API
     public QmlView iconTypeface(byte[] bytes) {
         renderer.setIconTypeface(bytes);
         return this;
@@ -201,6 +204,7 @@ public final class QmlView {
     }
 
     /** button is a Qt.MouseButton value: LeftButton=1, RightButton=2, MiddleButton=4. */
+    @SuppressWarnings("unused") // host input API
     public boolean dispatchPointerDown(float x, float y, int button) {
         return events.dispatchPointerDown(x, y, button);
     }
@@ -214,6 +218,7 @@ public final class QmlView {
     }
 
     /** button is a Qt.MouseButton value: LeftButton=1, RightButton=2, MiddleButton=4. */
+    @SuppressWarnings("unused") // host input API
     public boolean dispatchPointerUp(float x, float y, int button) {
         return events.dispatchPointerUp(x, y, button);
     }

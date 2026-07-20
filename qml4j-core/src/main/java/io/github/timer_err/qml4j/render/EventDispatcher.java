@@ -276,9 +276,7 @@ final class EventDispatcher {
     }
 
     private static int clampPos(int p, int len) {
-        if (p < 0) return 0;
-        if (p > len) return len;
-        return p;
+        return Math.max(0, Math.min(p, len));
     }
 
     boolean dispatchClick(float x, float y) {
@@ -542,6 +540,9 @@ final class EventDispatcher {
     }
 
     // Record a pointer sample (raw position + processing time) into the ring.
+    // arraycopy within one array shifts the ring buffer down one slot (memmove semantics --
+    // overlapping ranges are handled correctly); not a suspicious same-array copy.
+    @SuppressWarnings("SuspiciousSystemArraycopy")
     private void addScrollSample(float x, float y) {
         if (sampleCount == VEL_SAMPLES) {
             System.arraycopy(sampleNanos, 1, sampleNanos, 0, VEL_SAMPLES - 1);
@@ -627,7 +628,6 @@ final class EventDispatcher {
         }
         if (allowX && maxX > 0f && dx != 0f) {
             f.contentX.setPaintOnly(clamp(f.contentX.peekFloat() - dx * WHEEL_STEP, 0f, maxX));
-            scrolled = true;
         }
         if (scrolled) f.syncTarget();
         return scrolled;
@@ -662,9 +662,7 @@ final class EventDispatcher {
     }
 
     private static float clamp(float v, float lo, float hi) {
-        if (v < lo) return lo;
-        if (v > hi) return hi;
-        return v;
+        return Math.max(lo, Math.min(v, hi));
     }
 
     TextEditable pickTextEditable(float x, float y) {

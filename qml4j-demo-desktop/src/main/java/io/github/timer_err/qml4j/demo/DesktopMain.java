@@ -149,11 +149,7 @@ public final class DesktopMain {
         });
         GLFW.glfwSetKeyCallback(window, new GLFWKeyCallback() {
             @Override public void invoke(long win, int key, int scancode, int action, int mods) {
-                if (action == GLFW.GLFW_RELEASE) {
-                    dispatchKey(key, mods, false);
-                } else {
-                    dispatchKey(key, mods, true);
-                }
+                dispatchKey(key, mods, action != GLFW.GLFW_RELEASE);
             }
         });
         GLFW.glfwSetCharCallback(window, new GLFWCharCallback() {
@@ -195,6 +191,8 @@ public final class DesktopMain {
         }
     }
 
+    // The error callback is released via cb.free() below, not try-with-resources.
+    @SuppressWarnings("AutoCloseableResource")
     private void shutdown() {
         host.dispose();
         backend.dispose();

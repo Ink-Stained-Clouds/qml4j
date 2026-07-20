@@ -286,7 +286,7 @@ final class Loader implements ComponentFactory {
             if ("singleton".equals(parts[i])) { singleton = true; i++; }
             if (parts.length - i < 2) continue;
             String typeName = parts[i++];
-            if (i < parts.length && parts[i].matches("\\d+(\\.\\d+)?")) i++;
+            if (parts[i].matches("\\d+(\\.\\d+)?")) i++;
             if (i >= parts.length) continue;
             out.put(typeName, new QmldirEntry(parts[i], singleton));
         }

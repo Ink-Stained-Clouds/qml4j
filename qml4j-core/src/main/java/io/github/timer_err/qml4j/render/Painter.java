@@ -94,6 +94,9 @@ public final class Painter {
     // GPU-backed offscreen when rendering to a GPU surface (so the blit is GPU->GPU and
     // composites every frame); raster when headless. Falls back to raster if the GPU
     // surface can't be created.
+    // gpu != null is a defensive fallback: makeRenderTarget can fail at runtime on a lost/limited
+    // GL context even though its return is annotated non-null -- keep the raster fallback.
+    @SuppressWarnings("ConstantValue")
     private Surface makeBackingSurface(int w, int h) {
         io.github.humbleui.skija.DirectContext ctx = renderer.gpuContext();
         if (ctx != null) {
@@ -105,7 +108,7 @@ public final class Painter {
                 io.github.humbleui.skija.SurfaceOrigin.BOTTOM_LEFT, null);
             if (gpu != null) return gpu;
         }
-        return Surface.makeRasterN32Premul(w, h);
+        return Surface.makeRaster(io.github.humbleui.skija.ImageInfo.makeN32Premul(w, h));
     }
 
     // Cache onPaint into an offscreen, repainting only when dirty (big win for animated/
@@ -958,7 +961,8 @@ public final class Painter {
         return raw;
     }
 
-    @SuppressWarnings("unused")
+    // echoDisplay is @NotNull, but keep the null-guard defensively (QML can feed odd values).
+    @SuppressWarnings({"unused", "ConstantValue"})
     public void drawTextInput(TextInput ti, float w, float h, float alpha) {
         String s = echoDisplay(ti);
         if (s == null) s = "";

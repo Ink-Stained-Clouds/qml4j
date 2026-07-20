@@ -222,7 +222,7 @@ public final class HandlerEmitter {
                                            Map<String, AliasRef> aliases,
                                            Map<String, Integer> rootFunctions,
                                            Set<String> customSignals) {
-        List<String> params = signalParams != null ? signalParams : Collections.<String>emptyList();
+        List<String> params = signalParams != null ? signalParams : Collections.emptyList();
         boolean delegate = CompileScope.inDelegateScope();
         if (source == null) {
             throw new IllegalArgumentException("signal handler has no captured source");

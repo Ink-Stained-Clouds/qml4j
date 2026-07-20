@@ -16,6 +16,9 @@ import java.nio.file.Paths;
 //   args: <dir> <entry.qml> [w] [h] [tag] [frames] [dark|light] [seedColor]
 //   e.g. ShotMain shared-qml showcases/FisProxyShowcase.qml 1280 872 _x 30 dark "#2196F3"
 final class ShotMain {
+    // Dev screenshot tool: raster Surfaces live for the process lifetime, and the skija encode
+    // APIs are deprecated-but-functional -- not worth migrating a throwaway tool.
+    @SuppressWarnings({"deprecation", "AutoCloseableResource"})
     public static void main(String[] a) throws Exception {
         if (a.length < 2) { System.out.println("usage: <dir> <entry.qml> [w h tag frames dark|light seed]"); return; }
         String dir = a[0];
@@ -24,7 +27,7 @@ final class ShotMain {
         int h = a.length > 3 ? Integer.parseInt(a[3]) : 872;
         String tag = a.length > 4 ? a[4] : "";
         int frames = a.length > 5 ? Integer.parseInt(a[5]) : 30;
-        boolean dark = a.length > 6 ? a[6].equals("dark") : true;
+        boolean dark = a.length <= 6 || a[6].equals("dark");
         String seed = a.length > 7 ? a[7] : null;
         io.github.timer_err.qml4j.runtime.color.StyleManager sm =
             (io.github.timer_err.qml4j.runtime.color.StyleManager) io.github.timer_err.qml4j.runtime.color.StyleManager.__instance();

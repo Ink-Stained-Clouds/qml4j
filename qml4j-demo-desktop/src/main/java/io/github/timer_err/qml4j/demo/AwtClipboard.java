@@ -10,6 +10,8 @@ import io.github.timer_err.qml4j.render.Clipboard;
 final class AwtClipboard implements Clipboard {
 
     @Override
+    // getTransferData is annotated non-null, but keep the guard defensively.
+    @SuppressWarnings("ConstantValue")
     public String getText() {
         try {
             Transferable t = Toolkit.getDefaultToolkit().getSystemClipboard().getContents(null);

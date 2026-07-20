@@ -422,6 +422,7 @@ public final class QmlCompiler {
         return new CompiledUnit(componentBinaryName, classes);
     }
 
+    @SuppressWarnings("ExtractMethodRecommender") // cohesive emit pass; splitting hurts readability
     private void emitObjectBody(MethodVisitor ctor, Class<? extends QObject> outerType,
                                 int outerLocal, Ast.ObjectNode obj, TypeRegistry registry,
                                 int[] localCounter, int[] bindingCounter, int[] handlerCounter,
@@ -488,7 +489,7 @@ public final class QmlCompiler {
             String outerInternal = Type.getInternalName(outerType);
             String componentInternal = componentBinaryName.replace('.', '/');
             emitHandlerInstance(ctor, outerType, outerInternal, componentInternal, componentBinaryName,
-                                outerLocal, source, Collections.<String>emptyList(), idTypes, declaredProps,
+                                outerLocal, source, Collections.emptyList(), idTypes, declaredProps,
                                 aliases, scopeFunctions, customSignals);
             ctor.visitMethodInsn(Opcodes.INVOKESTATIC, SCHEDULER_INTERNAL, "runLater",
                                  "(" + SIGNAL_HANDLER_DESC + ")V", false);
@@ -631,7 +632,7 @@ public final class QmlCompiler {
                     return;
                 }
                 // Ineligible only when a free name does not resolve; surface that.
-                require(sb.source, Collections.<String>emptySet(), outerType, idTypes, declaredProps,
+                require(sb.source, Collections.emptySet(), outerType, idTypes, declaredProps,
                                       rootFunctions, customSignals, aliases);
                 throw new IllegalArgumentException(
                     "statement-block binding for '" + key + "' could not be compiled");
@@ -643,7 +644,7 @@ public final class QmlCompiler {
                 emitSignalHandler(ctor, outerType, outerLocal, componentBinaryName,
                                   handlerCounter, bindingCounter, classes,
                                   triggerSignal, valueSource(b.value),
-                                  idTypes, Collections.<String>emptyList(), declaredProps, aliases,
+                                  idTypes, Collections.emptyList(), declaredProps, aliases,
                                   rootFunctions, customSignals);
                 return;
             }
@@ -809,7 +810,7 @@ public final class QmlCompiler {
             }
             if (pd.initializer instanceof Ast.StatementBlockValue) {
                 // tryEmitRhinoIifeBinding above returned false: a free name does not resolve.
-                require(((Ast.StatementBlockValue) pd.initializer).source, Collections.<String>emptySet(),
+                require(((Ast.StatementBlockValue) pd.initializer).source, Collections.emptySet(),
                                       outerType, idTypes, declaredProps,
                                       rootFunctions, customSignalParams.keySet(), aliases);
                 throw new IllegalArgumentException(
@@ -865,7 +866,7 @@ public final class QmlCompiler {
         }
         if (pd.initializer instanceof Ast.StatementBlockValue) {
             // tryEmitRhinoIifeBinding above returned false: a free name does not resolve.
-            require(((Ast.StatementBlockValue) pd.initializer).source, Collections.<String>emptySet(),
+            require(((Ast.StatementBlockValue) pd.initializer).source, Collections.emptySet(),
                                   outerType, idTypes, declaredProps,
                                   rootFunctions, customSignalParams.keySet(), aliases);
             throw new IllegalArgumentException(
@@ -1051,7 +1052,7 @@ public final class QmlCompiler {
         emitObjectBody(ctor, childType, childLocal, hostNode, registry,
                        localCounter, bindingCounter, handlerCounter, classes, componentBinaryName,
                        childSignalOwner, childSignals, childSignalParams, idTypes,
-                       childDeclaredProps, Collections.<String, AliasRef>emptyMap(), rootFunctions);
+                       childDeclaredProps, Collections.emptyMap(), rootFunctions);
 
         if (delegateFactoryBinaryName != null) {
             String factoryInternal = delegateFactoryBinaryName.replace('.', '/');
@@ -1163,7 +1164,7 @@ public final class QmlCompiler {
         // reference it (target: wave) resolve to null.
         String selfId = idOf(delegateNode);
         boolean selfIdIsField = selfId != null;
-        for (DeclaredProp dp : fullDecls) if (dp.name.equals(selfId)) selfIdIsField = false;
+        for (DeclaredProp dp : fullDecls) if (dp.name.equals(selfId)) { selfIdIsField = false; break; }
         if (selfIdIsField) {
             mv.visitVarInsn(Opcodes.ALOAD, delegateLocal);
             mv.visitVarInsn(Opcodes.ALOAD, delegateLocal);
@@ -1203,7 +1204,7 @@ public final class QmlCompiler {
             emitObjectBody(mv, delType, delegateLocal, delegateNode, registry,
                            localCounter, bindingCounter, handlerCounter, classes, componentBinaryName,
                            delegateInternal, delSignals, delSignalParams, idTypes,
-                           delDeclaredProps, Collections.<String, AliasRef>emptyMap(), rootFunctions);
+                           delDeclaredProps, Collections.emptyMap(), rootFunctions);
         } finally {
             idSinks.pop();
             CompileScope.exitDelegateScope();
@@ -1464,7 +1465,7 @@ public final class QmlCompiler {
                                             Map<String, Integer> rootFunctions,
                                             Map<String, AliasRef> aliases) {
         if (blockValue.source == null) return false;
-        if (!canHandle(blockValue.source, Collections.<String>emptySet(), outerType, idTypes, declaredProps,
+        if (!canHandle(blockValue.source, Collections.emptySet(), outerType, idTypes, declaredProps,
                               rootFunctions, customSignals, aliases)) {
             return false;
         }
@@ -1526,7 +1527,7 @@ public final class QmlCompiler {
                 throw new IllegalArgumentException(
                     "grouped binding '" + groupName + "." + propName + "' has no captured source");
             }
-            require(ev.source, Collections.<String>emptySet(), outerType, idTypes, declaredProps,
+            require(ev.source, Collections.emptySet(), outerType, idTypes, declaredProps,
                                   rootFunctions, customSignals, aliases);
             source = ev.source;
             singletons = collectSingletonsFrom(ev.source);
@@ -1537,7 +1538,7 @@ public final class QmlCompiler {
                 throw new IllegalArgumentException(
                     "grouped binding '" + groupName + "." + propName + "' has no captured source");
             }
-            require(sb.source, Collections.<String>emptySet(), outerType, idTypes, declaredProps,
+            require(sb.source, Collections.emptySet(), outerType, idTypes, declaredProps,
                                   rootFunctions, customSignals, aliases);
             source = "(function(){" + sb.source + "})()";
             singletons = collectSingletonsFrom(sb.source);

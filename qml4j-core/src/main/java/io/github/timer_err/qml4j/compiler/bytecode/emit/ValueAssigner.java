@@ -60,7 +60,7 @@ public final class ValueAssigner {
         if (source == null) {
             throw new IllegalArgumentException("binding for '" + name + "' has no captured source");
         }
-        require(source, Collections.<String>emptySet(), outerType, idTypes, declaredProps,
+        require(source, Collections.emptySet(), outerType, idTypes, declaredProps,
                 rootFunctions, customSignals, aliases);
         emitRhinoBindingBind(ctor, ownerInternal, name, source, outerLocal, idTypes,
                              collectSingletonsFrom(source), collectAliasesFrom(source, aliases));
@@ -82,7 +82,7 @@ public final class ValueAssigner {
         if (source == null) {
             throw new IllegalArgumentException("binding for '" + propName + "' has no captured source");
         }
-        require(source, Collections.<String>emptySet(), outerType, idTypes, declaredProps,
+        require(source, Collections.emptySet(), outerType, idTypes, declaredProps,
                 rootFunctions, customSignals, aliases);
         emitRhinoBindingBind(ctor, declOwner, propName, source, outerLocal, idTypes,
                              collectSingletonsFrom(source), collectAliasesFrom(source, aliases));
@@ -110,7 +110,7 @@ public final class ValueAssigner {
         if (source == null) {
             throw new IllegalArgumentException("change '" + name + "' has no captured source");
         }
-        require(source, Collections.<String>emptySet(), outerType, idTypes, declaredProps,
+        require(source, Collections.emptySet(), outerType, idTypes, declaredProps,
                 rootFunctions, customSignals, aliases);
         ctor.visitVarInsn(Opcodes.ALOAD, outerLocal);
         ctor.visitLdcInsn(name);

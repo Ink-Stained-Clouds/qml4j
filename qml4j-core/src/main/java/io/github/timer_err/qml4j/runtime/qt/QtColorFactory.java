@@ -32,7 +32,7 @@ public final class QtColorFactory {
     }
 
     private static int clampByte(int v) {
-        return v < 0 ? 0 : (v > 255 ? 255 : v);
+        return Math.max(0, Math.min(v, 255));
     }
 
     private static double clamp01(double v) {

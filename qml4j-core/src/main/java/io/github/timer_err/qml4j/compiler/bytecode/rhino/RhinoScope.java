@@ -89,7 +89,7 @@ public final class RhinoScope {
 
     public static Map<String, Class<? extends QObject>> collectSingletonsFrom(String source) {
         Map<String, Class<? extends QObject>> m = new LinkedHashMap<>();
-        for (String n : RhinoFreeVars.collect(source, Collections.<String>emptySet())) {
+        for (String n : RhinoFreeVars.collect(source, Collections.emptySet())) {
             if (isSingleton(n)) m.put(n, CompileScope.currentSingletonClass(n));
         }
         return m;
@@ -98,7 +98,7 @@ public final class RhinoScope {
     public static Map<String, AliasRef> collectAliasesFrom(String source, Map<String, AliasRef> aliases) {
         if (aliases.isEmpty()) return Collections.emptyMap();
         Map<String, AliasRef> m = new LinkedHashMap<>();
-        for (String n : RhinoFreeVars.collect(source, Collections.<String>emptySet())) {
+        for (String n : RhinoFreeVars.collect(source, Collections.emptySet())) {
             AliasRef a = aliases.get(n);
             if (a != null) m.put(n, a);
         }
@@ -139,7 +139,7 @@ public final class RhinoScope {
     // inherited property. Resolved at runtime via QmlScope.changedSignal.
     private static boolean isChangedSignal(String name, Class<?> outerType,
                                            Map<String, String> declaredProps) {
-        if (!name.endsWith("Changed") || name.length() <= "Changed".length()) return false;
+        if (!name.endsWith("Changed") || name.length() == "Changed".length()) return false;
         String base = name.substring(0, name.length() - "Changed".length());
         if (declaredProps.containsKey(base)) return true;
         try {

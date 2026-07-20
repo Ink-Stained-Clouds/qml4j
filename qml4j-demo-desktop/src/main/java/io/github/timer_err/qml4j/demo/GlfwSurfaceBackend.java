@@ -79,6 +79,8 @@ public final class GlfwSurfaceBackend implements SurfaceBackend {
         if (context != null) { context.close(); context = null; }
     }
 
+    // makeFromBackendRenderTarget is deprecated in this skija build but is the working GL path.
+    @SuppressWarnings("deprecation")
     private void rebuildSurface() {
         if (surface != null) surface.close();
         if (target != null) target.close();

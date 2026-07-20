@@ -47,10 +47,9 @@ final class ViewingConditions {
                                   boolean discountingIlluminant) {
         backgroundLstar = Math.max(0.1, backgroundLstar);
         double[][] matrix = Cam16.XYZ_TO_CAM16RGB;
-        double[] xyz = whitePoint;
-        double rW = xyz[0] * matrix[0][0] + xyz[1] * matrix[0][1] + xyz[2] * matrix[0][2];
-        double gW = xyz[0] * matrix[1][0] + xyz[1] * matrix[1][1] + xyz[2] * matrix[1][2];
-        double bW = xyz[0] * matrix[2][0] + xyz[1] * matrix[2][1] + xyz[2] * matrix[2][2];
+        double rW = whitePoint[0] * matrix[0][0] + whitePoint[1] * matrix[0][1] + whitePoint[2] * matrix[0][2];
+        double gW = whitePoint[0] * matrix[1][0] + whitePoint[1] * matrix[1][1] + whitePoint[2] * matrix[1][2];
+        double bW = whitePoint[0] * matrix[2][0] + whitePoint[1] * matrix[2][1] + whitePoint[2] * matrix[2][2];
         double f = 0.8 + surround / 10.0;
         double c = f >= 0.9 ? MathUtils.lerp(0.59, 0.69, (f - 0.9) * 10.0)
                             : MathUtils.lerp(0.525, 0.59, (f - 0.8) * 10.0);
@@ -70,7 +69,6 @@ final class ViewingConditions {
         double n = ColorUtils.yFromLstar(backgroundLstar) / whitePoint[1];
         double z = 1.48 + Math.sqrt(n);
         double nbb = 0.725 / Math.pow(n, 0.2);
-        double ncb = nbb;
         double[] rgbAFactors = new double[] {
             Math.pow(fl * rgbD[0] * rW / 100.0, 0.42),
             Math.pow(fl * rgbD[1] * gW / 100.0, 0.42),
@@ -82,7 +80,7 @@ final class ViewingConditions {
             400.0 * rgbAFactors[2] / (rgbAFactors[2] + 27.13),
         };
         double aw = (2.0 * rgbA[0] + rgbA[1] + 0.05 * rgbA[2]) * nbb;
-        return new ViewingConditions(n, aw, nbb, ncb, c, f, rgbD, fl, Math.pow(fl, 0.25), z);
+        return new ViewingConditions(n, aw, nbb, nbb, c, f, rgbD, fl, Math.pow(fl, 0.25), z);
     }
 
     static ViewingConditions defaultWithBackgroundLstar(double lstar) {

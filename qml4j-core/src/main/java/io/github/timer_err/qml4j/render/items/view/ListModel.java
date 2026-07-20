@@ -40,7 +40,7 @@ public class ListModel extends QObject {
 
     public void remove(int i, int n) {
         int end = Math.min(i + n, rows.size());
-        for (int k = end - 1; k >= i; k--) rows.remove(k);
+        if (i < end) rows.subList(i, end).clear();
         rowsRemoved.emit();
     }
 
@@ -83,8 +83,6 @@ public class ListModel extends QObject {
 
     @SuppressWarnings("unused")
     public Map<String, Object> asMap(int i) {
-        Map<String, Object> copy = new LinkedHashMap<>();
-        copy.putAll(rows.get(i));
-        return copy;
+        return new LinkedHashMap<>(rows.get(i));
     }
 }

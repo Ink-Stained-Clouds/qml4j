@@ -54,17 +54,17 @@ public final class Bytecode {
     public static void loadLiteral(MethodVisitor mv, Ast.LiteralExpr lit) {
         switch (lit.kind) {
             case INT:
-                mv.visitLdcInsn((Long) lit.value);
+                mv.visitLdcInsn(lit.value);
                 mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Long",
                                    "valueOf", "(J)Ljava/lang/Long;", false);
                 break;
             case FLOAT:
-                mv.visitLdcInsn((Double) lit.value);
+                mv.visitLdcInsn(lit.value);
                 mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Double",
                                    "valueOf", "(D)Ljava/lang/Double;", false);
                 break;
             case STRING:
-                mv.visitLdcInsn((String) lit.value);
+                mv.visitLdcInsn(lit.value);
                 break;
             case BOOL:
                 mv.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/Boolean",

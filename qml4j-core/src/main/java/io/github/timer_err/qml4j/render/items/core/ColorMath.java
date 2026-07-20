@@ -81,9 +81,7 @@ public final class ColorMath {
     }
 
     private static float clamp01(float v) {
-        if (v < 0f) return 0f;
-        if (v > 1f) return 1f;
-        return v;
+        return Math.max(0f, Math.min(v, 1f));
     }
 
     private ColorMath() {}

@@ -34,6 +34,7 @@ public final class PropertyDecls {
     // Validates no duplicate names, no shadowing of existing signals, and that the
     // `default` modifier is only used on list aliases. Marks a record as isOverride
     // when the owner type already has an inherited Property field for that name.
+    @SuppressWarnings("ExtractMethodRecommender") // single declaration-collection pass
     public static List<DeclaredProp> collectPropertyDecls(Ast.ObjectNode obj, Class<?> ownerType) {
         List<DeclaredProp> out = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
@@ -107,7 +108,9 @@ public final class PropertyDecls {
     // property alias links to the target's Property field.
     public static void emitAliasLink(MethodVisitor ctor, String componentInternal,
                                      @SuppressWarnings("unused")
-                                     String rootId, Class<? extends QObject> rootType,
+                                     String rootId,
+                                     @SuppressWarnings("unused")
+                                     Class<? extends QObject> rootType,
                                      Map<String, Class<? extends QObject>> idTypes,
                                      Map<String, String> rootDeclaredProps,
                                      AliasDecl ad) {
