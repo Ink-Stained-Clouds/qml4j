@@ -192,7 +192,7 @@ public final class DesktopMain {
     }
 
     // The error callback is released via cb.free() below, not try-with-resources.
-    @SuppressWarnings("AutoCloseableResource")
+    @SuppressWarnings("resource")
     private void shutdown() {
         host.dispose();
         backend.dispose();

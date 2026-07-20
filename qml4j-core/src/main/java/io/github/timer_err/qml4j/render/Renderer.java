@@ -634,7 +634,8 @@ public final class Renderer {
     private static float deviceScale(Canvas canvas) {
         try {
             float sx = canvas.getLocalToDeviceAsMatrix33()._mat[0];
-            return (sx > 0f && !Float.isNaN(sx) && !Float.isInfinite(sx)) ? sx : 1f;
+            // sx > 0f already excludes NaN (NaN > 0 is false); only guard against +Infinity.
+            return (sx > 0f && !Float.isInfinite(sx)) ? sx : 1f;
         } catch (Throwable t) {
             return 1f;
         }
@@ -1076,7 +1077,7 @@ public final class Renderer {
         if (ftr != null) draw(canvas, ftr, alpha);
     }
 
-    @SuppressWarnings("AutoCloseableResource") // fonts.fontFor returns a cached, shared Font
+    @SuppressWarnings("resource") // fonts.fontFor returns a cached, shared Font
     public int moveCaretVerticalForTextEdit(TextEdit te, int caret, int delta) {
         String s = te.text.peek();
         if (s == null) s = "";
@@ -1092,7 +1093,7 @@ public final class Renderer {
         }
     }
 
-    @SuppressWarnings("AutoCloseableResource") // fonts.fontFor returns a cached, shared Font
+    @SuppressWarnings("resource") // fonts.fontFor returns a cached, shared Font
     public int caretIndexForTextEdit(TextEdit te, float localX, float localY) {
         String s = te.text.peek();
         if (s == null) s = "";
@@ -1116,7 +1117,7 @@ public final class Renderer {
         }
     }
 
-    @SuppressWarnings("AutoCloseableResource") // fonts.fontFor returns a cached, shared Font
+    @SuppressWarnings("resource") // fonts.fontFor returns a cached, shared Font
     public int caretIndexFor(TextInput ti, float localX) {
         String s = ti.text.peek();
         if (ti instanceof TextField) {

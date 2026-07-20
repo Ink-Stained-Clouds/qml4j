@@ -11,7 +11,7 @@ import java.nio.file.*;
 final class AppPng {
     // Dev screenshot tool: raster Surfaces live for the process lifetime; skija encode APIs are
     // deprecated-but-functional -- not worth migrating a throwaway tool.
-    @SuppressWarnings({"deprecation", "AutoCloseableResource"})
+    @SuppressWarnings({"deprecation", "resource"})
     public static void main(String[] a) throws Exception {
         String entry = a.length>0?a[0]:"pages/NavigationPage.qml";
         int w = a.length>1?Integer.parseInt(a[1]):1280, h = a.length>2?Integer.parseInt(a[2]):800;

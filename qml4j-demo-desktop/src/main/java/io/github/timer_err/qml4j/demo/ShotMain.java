@@ -18,7 +18,7 @@ import java.nio.file.Paths;
 final class ShotMain {
     // Dev screenshot tool: raster Surfaces live for the process lifetime, and the skija encode
     // APIs are deprecated-but-functional -- not worth migrating a throwaway tool.
-    @SuppressWarnings({"deprecation", "AutoCloseableResource"})
+    @SuppressWarnings({"deprecation", "resource"})
     public static void main(String[] a) throws Exception {
         if (a.length < 2) { System.out.println("usage: <dir> <entry.qml> [w h tag frames dark|light seed]"); return; }
         String dir = a[0];

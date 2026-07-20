@@ -60,7 +60,7 @@ final class IconResolver {
     // any Material Symbols name renders without a curated codepoint table. "" when there
     // is no name; null = not an icon font / font unavailable -> use the Unicode map.
     // fonts.iconTypeface() returns a cached Typeface owned by FontResolver -- not closed here.
-    @SuppressWarnings("AutoCloseableResource")
+    @SuppressWarnings("resource")
     String iconGlyph(Text t) {
         if (!isIconFamily(t.font.family.peek())) return null;
         if (fonts.iconTypeface() == null) return null;
