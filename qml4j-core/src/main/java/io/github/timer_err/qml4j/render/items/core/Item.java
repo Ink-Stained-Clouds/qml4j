@@ -150,6 +150,11 @@ public class Item extends QObject {
     // in the tests: a pure-geometry animation records 0 times, a local change records only the
     // affected boundary).
     public int recordCount;
+    // Consecutive frames this boundary's content changed. A subtree animating every frame is a
+    // hot spot: recording a picture only to replay it once costs more than drawing straight to
+    // the canvas, so past a threshold the renderer draws it directly until it settles (a clean
+    // frame resets this). See Renderer.drawCachedBoundary.
+    public int dirtyStreak;
 
     // Feature gate: the draw-phase content cache is opt-in per process (the renderer flips this
     // when -Dqml4j.pictureCache is on). While off, markContentDirty/markTransformDirty are no-ops

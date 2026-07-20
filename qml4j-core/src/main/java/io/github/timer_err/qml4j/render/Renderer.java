@@ -559,21 +559,46 @@ public final class Renderer {
         b.cacheBoundary = false;
         b.contentDirty = true;
         b.cachedAlpha = Float.NaN;
+        b.dirtyStreak = 0;
         if (b.cachedPicture != null) {
             b.cachedPicture.close();
             b.cachedPicture = null;
         }
     }
 
+    // A boundary whose content changed for this many consecutive frames is treated as a hot
+    // spot and drawn directly (no record) until it settles: recording a picture to replay it
+    // once is strictly more work than drawing it, so an animating panel must not pay for both.
+    private static final int DIRECT_DRAW_STREAK = 3;
+
     // Draw a cache boundary: replay its recorded picture with the boundary's live translate,
     // transform and z-independent placement, re-recording first only when the content is dirty,
     // the picture is missing, or the effective alpha changed (opacity baked into the record).
+    // Continuously-dirty boundaries fall back to a direct draw (see DIRECT_DRAW_STREAK).
     private void drawCachedBoundary(Canvas canvas, Item node, float inheritedAlpha) {
         float w = node.width.peekFloat();
         float h = node.height.peekFloat();
         float alpha = inheritedAlpha * node.opacity.peekFloat();
         if (alpha <= 0f) return;
-        if (node.cachedPicture == null || node.contentDirty || node.cachedAlpha != alpha) {
+        // A content change is a dirty mark or an effective-alpha change. A missing picture alone
+        // (just settled out of direct-draw mode) is NOT a content change, so it doesn't keep the
+        // hot-spot streak alive -- otherwise a settled panel could never return to caching.
+        boolean contentChanged = node.contentDirty || node.cachedAlpha != alpha;
+        node.dirtyStreak = contentChanged ? node.dirtyStreak + 1 : 0;
+        if (node.dirtyStreak >= DIRECT_DRAW_STREAK) {
+            // Hot spot: draw straight to the canvas and drop the stale picture. Clear the dirty
+            // flag and remember the drawn alpha so the frame it stops changing reads clean and
+            // the streak resets, resuming the cache.
+            if (node.cachedPicture != null) {
+                node.cachedPicture.close();
+                node.cachedPicture = null;
+            }
+            node.contentDirty = false;
+            node.cachedAlpha = alpha;
+            drawForced(canvas, node, inheritedAlpha);
+            return;
+        }
+        if (node.cachedPicture == null || contentChanged) {
             recordBoundary(node, w, h, alpha);
         }
         float x = node.x.peekFloat();

@@ -175,6 +175,40 @@ class PictureCacheTest {
         assertArrayEquals(refPx, cachedPx, "dragged panel matches direct paint at the new position");
     }
 
+    // A boundary whose content changes every frame is a hot spot: after a few frames the renderer
+    // stops recording (which would cost a record + a replay) and draws it directly, then resumes
+    // caching once the content settles.
+    @Test
+    void continuouslyDirtyBoundaryStopsRecording() {
+        QmlView v = loadCached();
+        RasterBackend bk = new RasterBackend(300, 100);
+        bk.surface.getCanvas().clear(0);
+        v.renderFrame(bk);              // warm: p0 recorded once
+
+        Rectangle c0 = (Rectangle) v.findByObjectName("c0");
+        // Animate a descendant of p0 for many frames.
+        for (int i = 0; i < 12; i++) {
+            c0.color.set(i % 2 == 0 ? "#010101" : "#020202");
+            bk.surface.getCanvas().clear(0);
+            v.renderFrame(bk);
+        }
+        Item p0 = v.findByObjectName("p0");
+        Item p1 = v.findByObjectName("p1");
+        assertTrue(p0.recordCount <= 3,
+            "hot boundary stops recording, got recordCount=" + p0.recordCount);
+        assertEquals(0, v.renderer().pictureRecordsThisFrame(), "last hot frame drew directly");
+        assertEquals(1, p1.recordCount, "the static panel never re-recorded");
+
+        // Settle: stop changing p0. One clean frame resets the streak; the next records once more.
+        int before = p0.recordCount;
+        bk.surface.getCanvas().clear(0);
+        v.renderFrame(bk);              // clean frame -> streak resets, re-records the settled panel
+        assertEquals(before + 1, p0.recordCount, "resumed caching after settle");
+        bk.surface.getCanvas().clear(0);
+        v.renderFrame(bk);              // now replays
+        assertEquals(0, v.renderer().pictureRecordsThisFrame(), "settled panel replays, no record");
+    }
+
     private static byte[] snapshot(Surface s) {
         try (Bitmap bm = Bitmap.makeFromImage(s.makeImageSnapshot())) {
             byte[] px = bm.readPixels();
