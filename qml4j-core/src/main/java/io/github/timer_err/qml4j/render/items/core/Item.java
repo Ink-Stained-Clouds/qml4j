@@ -141,6 +141,11 @@ public class Item extends QObject {
     // The effective alpha baked into cachedPicture, so an opacity change on this boundary (or an
     // inherited alpha change from an ancestor) forces a re-record even if nothing else is dirty.
     public float cachedAlpha = Float.NaN;
+    // The device scale baked into cachedPicture: the subtree is recorded at device resolution
+    // (rc.scale(sf)) so a Canvas/layer/shadow raster backing is allocated at the on-screen pixel
+    // size rather than logical size and then upscaled (blurry at high DPI). Replay cancels it with
+    // scale(1/sf). A GUI-scale / DPI change (sf differs) forces a re-record.
+    public float cachedScale = Float.NaN;
     // Set when the recorded pixels are stale: a pixel-affecting property changed somewhere in
     // this boundary's subtree. Pure position/scale/rotation of the boundary ITSELF does not set
     // it -- that only changes the replay matrix (see markTransformDirty). New boundaries start

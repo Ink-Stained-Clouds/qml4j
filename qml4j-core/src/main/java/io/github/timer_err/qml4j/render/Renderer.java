@@ -560,6 +560,7 @@ public final class Renderer {
         b.cacheBoundary = false;
         b.contentDirty = true;
         b.cachedAlpha = Float.NaN;
+        b.cachedScale = Float.NaN;
         b.dirtyStreak = 0;
         if (b.cachedPicture != null) {
             b.cachedPicture.close();
@@ -581,9 +582,14 @@ public final class Renderer {
         float h = node.height.peekFloat();
         float alpha = inheritedAlpha * node.opacity.peekFloat();
         if (alpha <= 0f) return;
+        // Device scale from the target canvas' CTM: the subtree is recorded at this resolution so
+        // raster backings (Canvas/layer/shadow) are crisp at high DPI, and a scale change forces a
+        // re-record. Read here (before recording) so record + replay agree on the same sf.
+        float sf = deviceScale(canvas);
         // A content change is a dirty mark or an effective-alpha change. A missing picture alone
         // (just settled out of direct-draw mode) is NOT a content change, so it doesn't keep the
-        // hot-spot streak alive -- otherwise a settled panel could never return to caching.
+        // hot-spot streak alive -- otherwise a settled panel could never return to caching. A
+        // scale change is likewise not a "content" change (doesn't feed the hot-spot streak).
         boolean contentChanged = node.contentDirty || node.cachedAlpha != alpha;
         node.dirtyStreak = contentChanged ? node.dirtyStreak + 1 : 0;
         if (node.dirtyStreak >= DIRECT_DRAW_STREAK) {
@@ -596,11 +602,12 @@ public final class Renderer {
             }
             node.contentDirty = false;
             node.cachedAlpha = alpha;
+            node.cachedScale = Float.NaN;
             drawForced(canvas, node, inheritedAlpha);
             return;
         }
-        if (node.cachedPicture == null || contentChanged) {
-            recordBoundary(node, w, h, alpha);
+        if (node.cachedPicture == null || contentChanged || node.cachedScale != sf) {
+            recordBoundary(node, w, h, alpha, sf);
         }
         float x = node.x.peekFloat();
         float y = node.y.peekFloat();
@@ -610,9 +617,26 @@ public final class Renderer {
         try {
             canvas.translate(x, y);
             applyTransform(canvas, node, w, h, rot, sc);
+            // Cancel the device scale baked into the picture; the target canvas' own device
+            // transform re-applies it, so the net on-screen size/position is unchanged but the
+            // recorded raster content is at device resolution.
+            float inv = node.cachedScale > 0f ? 1f / node.cachedScale : 1f;
+            if (inv != 1f) canvas.scale(inv, inv);
             canvas.drawPicture(node.cachedPicture);
         } finally {
             canvas.restoreToCount(saved);
+        }
+    }
+
+    // The uniform device scale of a canvas' current transform (its local-to-device matrix'
+    // x-scale). Used to record boundary pictures at on-screen resolution. Defensive: a
+    // non-positive/degenerate value (or an unexpected build) falls back to 1.
+    private static float deviceScale(Canvas canvas) {
+        try {
+            float sx = canvas.getLocalToDeviceAsMatrix33()._mat[0];
+            return (sx > 0f && !Float.isNaN(sx) && !Float.isInfinite(sx)) ? sx : 1f;
+        } catch (Throwable t) {
+            return 1f;
         }
     }
 
@@ -620,7 +644,7 @@ public final class Renderer {
     // translate/transform baked -- those are re-applied at replay). The effective alpha IS baked,
     // so an opacity change re-records. Culling is disabled during the record (unbounded clip) so
     // the picture holds the full subtree regardless of the current viewport.
-    private void recordBoundary(Item node, float w, float h, float alpha) {
+    private void recordBoundary(Item node, float w, float h, float alpha, float sf) {
         PictureRecorder recorder = new PictureRecorder();
         // A generous cull rect: the picture is replayed at arbitrary offsets, so don't clip its
         // contents here (Skia treats drawing outside the cull rect as undefined).
@@ -631,6 +655,10 @@ public final class Renderer {
         clipR = Float.MAX_VALUE;  clipB = Float.MAX_VALUE;
         painter.bind(rc);
         try {
+            // Pre-multiply the device scale so raster backings (a Canvas item's FBO, a saveLayer /
+            // layer.effect offscreen, a blur) rasterize at on-screen resolution instead of logical
+            // size. Vector commands are resolution-independent, so this is lossless for them.
+            if (sf != 1f) rc.scale(sf, sf);
             drawBody(rc, node, w, h, alpha);
         } finally {
             painter.bind(prev);
@@ -641,6 +669,7 @@ public final class Renderer {
         if (node.cachedPicture != null) node.cachedPicture.close();
         node.cachedPicture = pic;
         node.cachedAlpha = alpha;
+        node.cachedScale = sf;
         node.contentDirty = false;
         node.recordCount++;
         pictureRecordsThisFrame++;

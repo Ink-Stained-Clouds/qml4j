@@ -31,12 +31,26 @@ class PictureCacheTest {
     }
 
     // A minimal raster (CPU) surface backend so renderFrame drives the full paint path headless.
+    // `scale` emulates a high-DPI host: the surface is allocated at device size and each acquired
+    // canvas carries a device-scale CTM (reset per frame so scaling doesn't compound).
     private static final class RasterBackend implements SurfaceBackend {
         final Surface surface;
         final int w, h;
-        RasterBackend(int w, int h) { this.w = w; this.h = h; this.surface = Surface.makeRasterN32Premul(w, h); }
+        final float scale;
+        RasterBackend(int w, int h) { this(w, h, 1f); }
+        RasterBackend(int w, int h, float scale) {
+            this.scale = scale;
+            this.w = Math.round(w * scale);
+            this.h = Math.round(h * scale);
+            this.surface = Surface.makeRasterN32Premul(this.w, this.h);
+        }
         public void init(int w, int h) {}
-        public Canvas acquireCanvas() { return surface.getCanvas(); }
+        public Canvas acquireCanvas() {
+            Canvas c = surface.getCanvas();
+            c.resetMatrix();
+            if (scale != 1f) c.scale(scale, scale);
+            return c;
+        }
         public void present() {}
         public void resize(int w, int h) {}
         public void dispose() { surface.close(); }
@@ -295,6 +309,57 @@ class PictureCacheTest {
         v.dispose();                     // renderer.dispose -> clearBoundaries closes the rest
         assertNull(p2.cachedPicture, "disposing the view closes remaining boundary pictures");
         assertFalse(p2.cacheBoundary);
+    }
+
+    // At high DPI the boundary picture is recorded at device scale (so raster backings stay
+    // crisp), and a scale change forces one re-record.
+    @Test
+    void deviceScaleRecordedAndInvalidatesOnScaleChange() {
+        QmlView v = loadCached();
+        RasterBackend bk3 = new RasterBackend(300, 100, 3f);
+        bk3.surface.getCanvas().clear(0);
+        v.renderFrame(bk3);
+
+        Item p0 = v.findByObjectName("p0");
+        assertEquals(3f, p0.cachedScale, 1e-4, "picture recorded at the device scale");
+        int rc = p0.recordCount;
+
+        bk3.surface.getCanvas().clear(0);
+        v.renderFrame(bk3);
+        assertEquals(rc, p0.recordCount, "same scale replays, no re-record");
+
+        // Render the same view at a different device scale -> one forced re-record at the new sf.
+        RasterBackend bk2 = new RasterBackend(300, 100, 2f);
+        bk2.surface.getCanvas().clear(0);
+        v.renderFrame(bk2);
+        assertEquals(2f, p0.cachedScale, 1e-4, "re-recorded at the new device scale");
+        assertEquals(rc + 1, p0.recordCount, "scale change forces exactly one re-record");
+    }
+
+    // The device-scale pre-record/replay wrapping must be pixel-exact for vector content: cached
+    // replay at 3x matches the direct paint path at 3x.
+    @Test
+    void highDpiVectorPixelsMatchDirectPaint() {
+        QmlView ref = QmlView.withStockTypes(new QmlEngine());
+        Item refRoot = ref.load(SCENE);
+        refRoot.width.set(300);
+        refRoot.height.set(100);
+        ref.renderer().setPictureCache(false);
+        RasterBackend refBk = new RasterBackend(300, 100, 3f);
+        refBk.surface.getCanvas().clear(0xFF202020);
+        ref.renderFrame(refBk);
+        byte[] refPx = snapshot(refBk.surface);
+
+        QmlView cached = loadCached();
+        RasterBackend cachedBk = new RasterBackend(300, 100, 3f);
+        cachedBk.surface.getCanvas().clear(0xFF202020);
+        cached.renderFrame(cachedBk);
+        cachedBk.surface.getCanvas().clear(0xFF202020);
+        cached.renderFrame(cachedBk);   // second frame replays the device-scaled picture
+        byte[] cachedPx = snapshot(cachedBk.surface);
+
+        assertTrue(cached.renderer().pictureRecordsTotal() >= 3, "recorded via the cached path");
+        assertArrayEquals(refPx, cachedPx, "high-DPI cached replay is pixel-identical to direct paint");
     }
 
     private static byte[] snapshot(Surface s) {
