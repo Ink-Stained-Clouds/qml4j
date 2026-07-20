@@ -11,7 +11,6 @@
 <p align="center">
   <a href="https://central.sonatype.com/artifact/io.github.timer-err/qml4j-core"><img src="https://img.shields.io/maven-central/v/io.github.timer-err/qml4j-core?label=Maven%20Central&color=7C6CF0" alt="Maven Central"></a>
   <img src="https://img.shields.io/badge/Java-8%2B-7C6CF0" alt="Java 8+">
-  <img src="https://img.shields.io/badge/tests-585%20green-3FB950" alt="585 tests green">
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache-2.0"></a>
 </p>
 
@@ -93,7 +92,6 @@ qml4j aims to be a fully native-Java path from QML source to pixels — a drop-i
   <a href="https://central.sonatype.com/artifact/io.github.timer-err/qml4j-core"><img src="https://img.shields.io/maven-central/v/io.github.timer-err/qml4j-core?label=Maven%20Central&color=7C6CF0" alt="Maven Central"></a>
   <img src="https://img.shields.io/badge/desktop-Linux%20%E2%80%A2%20Windows-2BD46E" alt="Desktop">
   <img src="https://img.shields.io/badge/Android-D8%20%E2%86%92%20DEX-A4C639" alt="Android">
-  <img src="https://img.shields.io/badge/MD3%20showcase-10%2F10%20pages-3FB950" alt="MD3 10/10 pages">
 </p>
 
 ## Architecture
