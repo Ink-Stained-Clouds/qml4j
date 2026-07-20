@@ -22,6 +22,12 @@ public final class QmlView {
     private static final boolean INCREMENTAL =
         Boolean.parseBoolean(System.getProperty("qml4j.incrementalLayout", "true"));
 
+    // Draw-phase content cache (per-boundary SkPicture reuse). Off by default -- it changes the
+    // paint path and is still an MVP (root's direct children only); opt in with
+    // -Dqml4j.pictureCache=true to reuse recorded subtrees for static panels while one animates.
+    private static final boolean PICTURE_CACHE =
+        Boolean.parseBoolean(System.getProperty("qml4j.pictureCache", "false"));
+
     private final Renderer renderer = new Renderer();
     private final DirtyQueue dirty = new DirtyQueue();
     // Layout-invalidation queue. Installed for this view's lifetime (not per-frame) so property
@@ -36,6 +42,7 @@ public final class QmlView {
         this.loader = new Loader(engine, types);
         renderer.setComponentFactory(loader);
         renderer.setIncrementalLayout(INCREMENTAL);
+        renderer.setPictureCache(PICTURE_CACHE);
         polish.install();
     }
 
@@ -264,6 +271,7 @@ public final class QmlView {
     private long statsDrawNanos;
     private int statsMaxNodes;
     private int statsMaxPasses;
+    private int statsRecords;
 
     // Optional file sink (-Dqml4j.fpslog=path): appended + flushed per line so the numbers
     // survive the demo's hard halt() exit, which drops buffered stdout.
@@ -277,6 +285,7 @@ public final class QmlView {
         statsDrawNanos += renderer.lastDrawNanos();
         statsMaxNodes = Math.max(statsMaxNodes, renderer.measuredNodeCount());
         statsMaxPasses = Math.max(statsMaxPasses, renderer.settlePassCount());
+        statsRecords += renderer.pictureRecordsThisFrame();
         if (statsWindowStart == 0) statsWindowStart = now;
         long elapsed = now - statsWindowStart;
         if (elapsed < 1_000_000_000L) return;
@@ -284,8 +293,8 @@ public final class QmlView {
         double measUs = statsMeasureNanos / 1e3 / statsFrames;
         double drawUs = statsDrawNanos / 1e3 / statsFrames;
         String line = String.format(
-            "[qml4j.fps] %.0f fps | frames=%d laidOut=%d | measure=%.1fus draw=%.1fus | maxNodes=%d maxPasses=%d",
-            fps, statsFrames, statsLaidOut, measUs, drawUs, statsMaxNodes, statsMaxPasses);
+            "[qml4j.fps] %.0f fps | frames=%d laidOut=%d | measure=%.1fus draw=%.1fus | maxNodes=%d maxPasses=%d records=%d",
+            fps, statsFrames, statsLaidOut, measUs, drawUs, statsMaxNodes, statsMaxPasses, statsRecords);
         emitFrameStats(line);
         statsWindowStart = now;
         statsFrames = 0;
@@ -294,6 +303,7 @@ public final class QmlView {
         statsDrawNanos = 0;
         statsMaxNodes = 0;
         statsMaxPasses = 0;
+        statsRecords = 0;
     }
 
     private void emitFrameStats(String line) {

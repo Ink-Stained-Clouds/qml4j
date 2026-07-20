@@ -32,6 +32,8 @@ import io.github.humbleui.skija.Paint;
 import io.github.humbleui.skija.PaintMode;
 import io.github.humbleui.skija.Path;
 import io.github.humbleui.skija.PathOp;
+import io.github.humbleui.skija.Picture;
+import io.github.humbleui.skija.PictureRecorder;
 import io.github.humbleui.types.RRect;
 import io.github.humbleui.types.Rect;
 
@@ -136,6 +138,10 @@ public final class Renderer {
         // unbounded default here so the main scene is never culled against leaked state.
         clipL = -Float.MAX_VALUE; clipT = -Float.MAX_VALUE;
         clipR = Float.MAX_VALUE;  clipB = Float.MAX_VALUE;
+        pictureRecordsThisFrame = 0;
+        // Designate the boundaries (root's direct children) before drawing so a boundary flag is
+        // in place for marks that arrive between this frame and the next. Cheap (few children).
+        if (pictureCacheEnabled) updateBoundaries(root);
         long tDraw0 = System.nanoTime();
         draw(canvas, root, 1f);
         lastDrawNanos = System.nanoTime() - tDraw0;
@@ -228,6 +234,37 @@ public final class Renderer {
     // host path drains the polish queue instead of re-measuring the whole tree every frame.
     public void setIncrementalLayout(boolean on) {
         incrementalEnabled = on;
+    }
+
+    // --- Draw-phase content cache (opt-in via QmlView / -Dqml4j.pictureCache) --------------
+    // When on, each of the root's direct children is a cache boundary: its whole subtree is
+    // recorded once into an SkPicture and replayed with a fresh translate/transform every frame,
+    // re-recorded only when its content is marked dirty. A pure move/scale/opacity of a whole
+    // panel then costs a drawPicture, and one animating panel doesn't force the others to re-record.
+    private boolean pictureCacheEnabled;
+    // The nodes currently designated as boundaries (root's direct children), tracked so a node
+    // that stops being a boundary has its flag + picture cleared.
+    private final List<Item> boundaries = new ArrayList<>();
+    // Instrumentation: pictures recorded in the last render, and over the renderer's lifetime.
+    private int pictureRecordsThisFrame;
+    private long pictureRecordsTotal;
+
+    public void setPictureCache(boolean on) {
+        pictureCacheEnabled = on;
+        Item.setContentCacheEnabled(on);
+        if (!on) clearBoundaries();
+    }
+
+    public boolean pictureCacheEnabled() {
+        return pictureCacheEnabled;
+    }
+
+    public int pictureRecordsThisFrame() {
+        return pictureRecordsThisFrame;
+    }
+
+    public long pictureRecordsTotal() {
+        return pictureRecordsTotal;
     }
 
     // Force the next settle to do a full whole-tree measure (first frame, or a safety reset).
@@ -489,7 +526,99 @@ public final class Renderer {
     private void draw(Canvas canvas, Item node, float inheritedAlpha) {
         if (!node.isVisible()) return;
         if (culled(node)) return;
+        if (pictureCacheEnabled && node.cacheBoundary) {
+            drawCachedBoundary(canvas, node, inheritedAlpha);
+            return;
+        }
         drawForced(canvas, node, inheritedAlpha);
+    }
+
+    // Designate the root's direct children as cache boundaries. A node that dropped out of the
+    // set (reparented away, or the root was replaced) has its flag + picture cleared so it draws
+    // normally and doesn't leak native memory.
+    private void updateBoundaries(Item root) {
+        for (int i = 0, n = boundaries.size(); i < n; i++) {
+            Item b = boundaries.get(i);
+            if (b.parent.peek() != root) releaseBoundary(b);
+        }
+        boundaries.clear();
+        List<Item> kids = root.children;
+        for (int i = 0, n = kids.size(); i < n; i++) {
+            Item c = kids.get(i);
+            c.cacheBoundary = true;
+            boundaries.add(c);
+        }
+    }
+
+    private void clearBoundaries() {
+        for (int i = 0, n = boundaries.size(); i < n; i++) releaseBoundary(boundaries.get(i));
+        boundaries.clear();
+    }
+
+    private static void releaseBoundary(Item b) {
+        b.cacheBoundary = false;
+        b.contentDirty = true;
+        b.cachedAlpha = Float.NaN;
+        if (b.cachedPicture != null) {
+            b.cachedPicture.close();
+            b.cachedPicture = null;
+        }
+    }
+
+    // Draw a cache boundary: replay its recorded picture with the boundary's live translate,
+    // transform and z-independent placement, re-recording first only when the content is dirty,
+    // the picture is missing, or the effective alpha changed (opacity baked into the record).
+    private void drawCachedBoundary(Canvas canvas, Item node, float inheritedAlpha) {
+        float w = node.width.peekFloat();
+        float h = node.height.peekFloat();
+        float alpha = inheritedAlpha * node.opacity.peekFloat();
+        if (alpha <= 0f) return;
+        if (node.cachedPicture == null || node.contentDirty || node.cachedAlpha != alpha) {
+            recordBoundary(node, w, h, alpha);
+        }
+        float x = node.x.peekFloat();
+        float y = node.y.peekFloat();
+        float rot = node.rotation.peekFloat();
+        float sc = node.scale.peekFloat();
+        int saved = canvas.save();
+        try {
+            canvas.translate(x, y);
+            applyTransform(canvas, node, w, h, rot, sc);
+            canvas.drawPicture(node.cachedPicture);
+        } finally {
+            canvas.restoreToCount(saved);
+        }
+    }
+
+    // Record a boundary's whole subtree into an SkPicture in the node's LOCAL space (no
+    // translate/transform baked -- those are re-applied at replay). The effective alpha IS baked,
+    // so an opacity change re-records. Culling is disabled during the record (unbounded clip) so
+    // the picture holds the full subtree regardless of the current viewport.
+    private void recordBoundary(Item node, float w, float h, float alpha) {
+        PictureRecorder recorder = new PictureRecorder();
+        // A generous cull rect: the picture is replayed at arbitrary offsets, so don't clip its
+        // contents here (Skia treats drawing outside the cull rect as undefined).
+        Canvas rc = recorder.beginRecording(Rect.makeLTRB(-1e5f, -1e5f, 1e5f, 1e5f));
+        Canvas prev = painter.canvas();
+        float sl = clipL, st = clipT, sr = clipR, sb = clipB;
+        clipL = -Float.MAX_VALUE; clipT = -Float.MAX_VALUE;
+        clipR = Float.MAX_VALUE;  clipB = Float.MAX_VALUE;
+        painter.bind(rc);
+        try {
+            drawBody(rc, node, w, h, alpha);
+        } finally {
+            painter.bind(prev);
+            clipL = sl; clipT = st; clipR = sr; clipB = sb;
+        }
+        Picture pic = recorder.finishRecordingAsPicture();
+        recorder.close();
+        if (node.cachedPicture != null) node.cachedPicture.close();
+        node.cachedPicture = pic;
+        node.cachedAlpha = alpha;
+        node.contentDirty = false;
+        node.recordCount++;
+        pictureRecordsThisFrame++;
+        pictureRecordsTotal++;
     }
 
     // Viewport culling: skip a subtree whose bounds (its own box unioned with its
@@ -526,13 +655,30 @@ public final class Renderer {
         if (alpha <= 0f) return;
         float rot = node.rotation.peekFloat();
         float sc = node.scale.peekFloat();
-        boolean clip = Boolean.TRUE.equals(node.clip.peek());
-
         int savedCount = canvas.save();
-        Paint layerPaint = layerEffectPaint(node);
         try {
             canvas.translate(x, y);
             applyTransform(canvas, node, w, h, rot, sc);
+            drawBody(canvas, node, w, h, alpha);
+        } finally {
+            canvas.restoreToCount(savedCount);
+        }
+    }
+
+    // Draw a node's body -- its own paint plus its children -- assuming the canvas is already
+    // translated to the node's local origin and its scale/rotation transform applied. Split out
+    // of drawForced so a cache boundary can record exactly this (in local space) into a picture
+    // and replay it with a fresh outer translate/transform. Self-contained: it saves/restores the
+    // canvas and closes any layer paint it creates.
+    private void drawBody(Canvas canvas, Item node, float w, float h, float alpha) {
+        float x = node.x.peekFloat();
+        float y = node.y.peekFloat();
+        float rot = node.rotation.peekFloat();
+        float sc = node.scale.peekFloat();
+        boolean clip = Boolean.TRUE.equals(node.clip.peek());
+        int savedCount = canvas.save();
+        Paint layerPaint = layerEffectPaint(node);
+        try {
             if (layerPaint != null) {
                 float m = layerEffectMargin(node);
                 // A reparent/resize frame can hand a node a transient negative size; Skija's

@@ -18,6 +18,11 @@ public class Rectangle extends Item {
     }
     public final Property<Gradient> gradient = new Property<>(null);
 
+    public Rectangle() {
+        wireContentInvalidation(color, radius, topLeftRadius, topRightRadius,
+            bottomLeftRadius, bottomRightRadius, gradient, border.width, border.color);
+    }
+
     @Override
     public void paint(Painter p, float w, float h, float alpha) {
         float radius = Math.max(0f, this.radius.peekFloat());

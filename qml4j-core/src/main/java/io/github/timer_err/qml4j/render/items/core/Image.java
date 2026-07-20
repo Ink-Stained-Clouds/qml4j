@@ -43,6 +43,11 @@ public class Image extends Item {
     public volatile int pendW, pendH;
     public long adoptedGen = -1;   // render-thread only
 
+    public Image() {
+        wireContentInvalidation(source, fillMode, radius, horizontalAlignment, verticalAlignment,
+            status, sourceSize.width, sourceSize.height);
+    }
+
     @Override
     public void paint(Painter p, float w, float h, float alpha) {
         p.drawImage(this, w, h, alpha);

@@ -17,6 +17,8 @@ import io.github.timer_err.qml4j.engine.QObject;
 import io.github.timer_err.qml4j.engine.binding.Property;
 import io.github.timer_err.qml4j.engine.binding.ObservableList;
 
+import io.github.humbleui.skija.Picture;
+
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -127,6 +129,37 @@ public class Item extends QObject {
     // anchor references this item, which is the common case (few items are anchor sources).
     private Set<Item> anchorDependents;
 
+    // --- Draw-phase content caching (Qt-style ContentUpdateMask over an SkPicture) --------
+    // A cache boundary owns a recorded SkPicture of its whole subtree drawn in its own local
+    // space. The renderer replays it (drawPicture) with a fresh translate/transform each frame
+    // instead of re-recording, unless the content changed. Set by the renderer for the nodes
+    // it caches (the MVP: root's direct children); false for everything else.
+    public boolean cacheBoundary;
+    // The recorded subtree, or null before the first record. Owned by this item; the renderer
+    // closes + replaces it on re-record and closes it when this stops being a boundary.
+    public Picture cachedPicture;
+    // The effective alpha baked into cachedPicture, so an opacity change on this boundary (or an
+    // inherited alpha change from an ancestor) forces a re-record even if nothing else is dirty.
+    public float cachedAlpha = Float.NaN;
+    // Set when the recorded pixels are stale: a pixel-affecting property changed somewhere in
+    // this boundary's subtree. Pure position/scale/rotation of the boundary ITSELF does not set
+    // it -- that only changes the replay matrix (see markTransformDirty). New boundaries start
+    // dirty (cachedPicture == null forces the first record regardless).
+    public boolean contentDirty = true;
+    // Diagnostic: how many times this boundary re-recorded its picture (the record-count guard
+    // in the tests: a pure-geometry animation records 0 times, a local change records only the
+    // affected boundary).
+    public int recordCount;
+
+    // Feature gate: the draw-phase content cache is opt-in per process (the renderer flips this
+    // when -Dqml4j.pictureCache is on). While off, markContentDirty/markTransformDirty are no-ops
+    // so a scene that never caches pays nothing for the extra invalidation wiring.
+    private static boolean contentCacheEnabled;
+
+    public static void setContentCacheEnabled(boolean on) {
+        contentCacheEnabled = on;
+    }
+
     public Item() {
         state.addListener(stateController::apply);
         // Reparenting on a `parent` change (Qt): `parent: overlay` moves an item into the
@@ -176,9 +209,21 @@ public class Item extends QObject {
         anchors.verticalCenter.addInvalidationListener(this::markLayoutSize);
         anchors.horizontalCenterOffset.addInvalidationListener(this::markLayoutSize);
         anchors.verticalCenterOffset.addInvalidationListener(this::markLayoutSize);
+        // Draw-only properties (no layout effect) that still change the recorded pixels.
+        // opacity/clip alter the boundary's own content; scale/rotation/z are replay-only for
+        // the boundary itself but bake into an ancestor boundary when a descendant changes.
+        opacity.addInvalidationListener(this::markContentDirty);
+        clip.addInvalidationListener(this::markContentDirty);
+        scale.addInvalidationListener(this::markTransformDirty);
+        rotation.addInvalidationListener(this::markTransformDirty);
+        z.addInvalidationListener(this::markTransformDirty);
     }
 
     public void markLayoutPosition() {
+        // A move (x/y) does not change the boundary's recorded pixels when the boundary itself
+        // moves (the renderer re-applies its translate every frame); it DOES when a descendant
+        // moves inside a cached subtree -- markTransformDirty handles both.
+        markTransformDirty();
         PolishQueue q = PolishQueue.current();
         if (q == null || posDirty) return; // already marked -> dependents already propagated
         posDirty = true;
@@ -188,6 +233,9 @@ public class Item extends QObject {
     }
 
     public void markLayoutSize() {
+        // A size change alters the item's own painted box (background/clip) and shifts its
+        // children -- always a content change for the enclosing cache boundary (including self).
+        markContentDirty();
         PolishQueue q = PolishQueue.current();
         if (q == null || sizeDirty) return; // guard blocks anchor/derive cycles from looping
         sizeDirty = true;
@@ -198,10 +246,44 @@ public class Item extends QObject {
     }
 
     private void markLayoutVisibility() {
+        markContentDirty();
         // Hiding: parent may reflow, so mark self (size). Showing: this subtree was skipped by
         // prior measures and has stale geometry -- mark the whole subtree so it re-measures.
         markLayoutSize();
         if (isVisible()) markSubtreeDirty();
+    }
+
+    // Mark the nearest enclosing cache boundary (this item or an ancestor) as needing its
+    // picture re-recorded: a pixel-affecting property changed in its subtree. No-op while the
+    // content cache is disabled, or when no ancestor is a boundary (an uncached region).
+    public void markContentDirty() {
+        if (!contentCacheEnabled) return;
+        Item b = nearestBoundary(this);
+        if (b != null) b.contentDirty = true;
+    }
+
+    // Mark for a change (x/y/scale/rotation/z) that is replay-only for the item on which it
+    // occurs: if THIS item is a boundary, its transform is re-applied at replay and needs no
+    // re-record, so we look strictly above it. A descendant's transform is baked into the
+    // ancestor boundary's picture, so that boundary must re-record.
+    public void markTransformDirty() {
+        if (!contentCacheEnabled) return;
+        Item b = nearestBoundary(parent.peek());
+        if (b != null) b.contentDirty = true;
+    }
+
+    private static Item nearestBoundary(Item start) {
+        for (Item n = start; n != null; n = n.parent.peek()) {
+            if (n.cacheBoundary) return n;
+        }
+        return null;
+    }
+
+    // Wire a set of paint-affecting properties (color, radius, text, font, image source, ...)
+    // to invalidate the enclosing cache boundary. Subclasses call this from their constructor
+    // for their own drawable properties. Listeners are cheap no-ops while caching is disabled.
+    protected final void wireContentInvalidation(Property<?>... props) {
+        for (Property<?> p : props) p.addInvalidationListener(this::markContentDirty);
     }
 
     private void markSubtreeDirty() {

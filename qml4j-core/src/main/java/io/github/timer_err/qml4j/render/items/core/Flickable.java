@@ -50,6 +50,9 @@ public class Flickable extends Item implements Animatable {
         contentWidth.addListener(v -> clampToBounds());
         height.addListener(v -> clampToBounds());
         width.addListener(v -> clampToBounds());
+        // Scrolling translates the content at draw time -- a pure paint change (setPaintOnly,
+        // no version bump), but it does alter the recorded pixels, so invalidate the cache.
+        wireContentInvalidation(contentX, contentY);
     }
 
     private void clampToBounds() {

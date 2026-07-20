@@ -61,6 +61,12 @@ public final class Painter {
         this.canvas = canvas;
     }
 
+    // The currently bound canvas, so the Renderer can swap in a PictureRecorder's canvas
+    // while recording a cached subtree and restore the on-screen one afterwards.
+    Canvas canvas() {
+        return canvas;
+    }
+
     // A 2D drawing context bound to the current canvas (already translated to the
     // painting item's origin), for a Canvas item's onPaint handler.
     public Context2D context2D() {

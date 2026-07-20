@@ -26,6 +26,13 @@ public class Text extends Item {
     public final Property<Number> contentWidth = new Property<>(0);
     public final Property<Number> contentHeight = new Property<>(0);
 
+    public Text() {
+        wireContentInvalidation(text, color, fontSize, wrapMode, horizontalAlignment,
+            verticalAlignment, elide, maximumLineCount, lineHeight,
+            font.family, font.pixelSize, font.pointSize, font.weight, font.bold, font.italic,
+            font.capitalization);
+    }
+
     // Effective pixel size: Qt's font.pixelSize wins when set, else flat fontSize.
     // Either may be null (a binding that evaluated to undefined -- QML-tolerant).
     public float effectiveFontSize() {

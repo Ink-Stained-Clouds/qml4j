@@ -1,0 +1,184 @@
+package io.github.timer_err.qml4j.render;
+
+import io.github.humbleui.skija.Bitmap;
+import io.github.humbleui.skija.Canvas;
+import io.github.humbleui.skija.Surface;
+import io.github.timer_err.qml4j.engine.QmlEngine;
+import io.github.timer_err.qml4j.render.items.core.Item;
+import io.github.timer_err.qml4j.render.items.core.Rectangle;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+
+import java.util.Arrays;
+
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+// Draw-phase content cache (per-boundary SkPicture reuse): the boundaries are the root's direct
+// children (the MVP). Guards the two behavioural claims -- a pure-geometry animation re-records
+// nothing, a local content change re-records only its own boundary -- plus pixel identity with
+// the direct (uncached) paint path.
+class PictureCacheTest {
+
+    @AfterEach
+    void resetGlobalFlag() {
+        // The feature gate is process-wide (like the change version); leave it off for other tests.
+        Item.setContentCacheEnabled(false);
+    }
+
+    // A minimal raster (CPU) surface backend so renderFrame drives the full paint path headless.
+    private static final class RasterBackend implements SurfaceBackend {
+        final Surface surface;
+        final int w, h;
+        RasterBackend(int w, int h) { this.w = w; this.h = h; this.surface = Surface.makeRasterN32Premul(w, h); }
+        public void init(int w, int h) {}
+        public Canvas acquireCanvas() { return surface.getCanvas(); }
+        public void present() {}
+        public void resize(int w, int h) {}
+        public void dispose() { surface.close(); }
+        public int width() { return w; }
+        public int height() { return h; }
+    }
+
+    private static final String SCENE =
+        "import QtQuick\n"
+        + "Item {\n"
+        + "  width: 300; height: 100\n"
+        + "  Rectangle { objectName: \"p0\"; x: 0;   y: 0; width: 100; height: 100; color: \"#ff0000\"\n"
+        + "    Rectangle { objectName: \"c0\"; x: 10; y: 10; width: 20; height: 20; color: \"#00ff00\" } }\n"
+        + "  Rectangle { objectName: \"p1\"; x: 100; y: 0; width: 100; height: 100; color: \"#0000ff\" }\n"
+        + "  Rectangle { objectName: \"p2\"; x: 200; y: 0; width: 100; height: 100; color: \"#ffff00\" }\n"
+        + "}";
+
+    private static QmlView loadCached() {
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        Item root = v.load(SCENE);
+        root.width.set(300);
+        root.height.set(100);
+        v.renderer().setPictureCache(true);
+        return v;
+    }
+
+    @Test
+    void firstFrameRecordsEveryBoundaryOnce() {
+        QmlView v = loadCached();
+        RasterBackend bk = new RasterBackend(300, 100);
+        bk.surface.getCanvas().clear(0);
+        v.renderFrame(bk);
+
+        Item root = v.root();
+        assertEquals(3, root.children.size(), "three panels are the boundaries");
+        for (Item panel : root.children) {
+            assertTrue(panel.cacheBoundary, "root's direct child is a boundary");
+            assertEquals(1, panel.recordCount, "recorded exactly once on first appearance");
+            assertFalse(panel.contentDirty, "clean after recording");
+        }
+        assertEquals(3, v.renderer().pictureRecordsTotal());
+    }
+
+    @Test
+    void pureGeometryDragReRecordsNothing() {
+        QmlView v = loadCached();
+        RasterBackend bk = new RasterBackend(300, 100);
+        bk.surface.getCanvas().clear(0);
+        v.renderFrame(bk);              // warm: records all three
+
+        Item p1 = v.findByObjectName("p1");
+        for (int i = 0; i < 5; i++) {
+            p1.x.set(100.0 + i);        // drag the whole panel: x only
+            bk.surface.getCanvas().clear(0);
+            v.renderFrame(bk);
+            assertEquals(0, v.renderer().pictureRecordsThisFrame(),
+                "moving a whole boundary replays its picture, never re-records");
+        }
+        assertEquals(1, p1.recordCount, "still the single warm-up record");
+        assertEquals(3, v.renderer().pictureRecordsTotal());
+    }
+
+    @Test
+    void localContentChangeReRecordsOnlyItsBoundary() {
+        QmlView v = loadCached();
+        RasterBackend bk = new RasterBackend(300, 100);
+        bk.surface.getCanvas().clear(0);
+        v.renderFrame(bk);              // warm
+
+        // Change a DESCENDANT inside p0 -- bubbles to the p0 boundary only.
+        Rectangle c0 = (Rectangle) v.findByObjectName("c0");
+        c0.color.set("#000000");
+        bk.surface.getCanvas().clear(0);
+        v.renderFrame(bk);
+
+        Item p0 = v.findByObjectName("p0");
+        Item p1 = v.findByObjectName("p1");
+        Item p2 = v.findByObjectName("p2");
+        assertEquals(1, v.renderer().pictureRecordsThisFrame(), "only one boundary re-recorded");
+        assertEquals(2, p0.recordCount, "p0 re-recorded (its descendant changed)");
+        assertEquals(1, p1.recordCount, "p1 untouched");
+        assertEquals(1, p2.recordCount, "p2 untouched");
+    }
+
+    // The cached path must produce pixel-identical output to the direct (uncached) paint path.
+    @Test
+    void cachedPixelsMatchDirectPaint() {
+        // Reference: same scene, cache OFF.
+        QmlView ref = QmlView.withStockTypes(new QmlEngine());
+        Item refRoot = ref.load(SCENE);
+        refRoot.width.set(300);
+        refRoot.height.set(100);
+        ref.renderer().setPictureCache(false);
+        RasterBackend refBk = new RasterBackend(300, 100);
+        refBk.surface.getCanvas().clear(0xFF202020);
+        ref.renderFrame(refBk);
+        byte[] refPx = snapshot(refBk.surface);
+
+        // Cached: same scene, cache ON, a couple of frames so pictures are recorded + replayed.
+        QmlView cached = loadCached();
+        RasterBackend cachedBk = new RasterBackend(300, 100);
+        cachedBk.surface.getCanvas().clear(0xFF202020);
+        cached.renderFrame(cachedBk);
+        cachedBk.surface.getCanvas().clear(0xFF202020);
+        cached.renderFrame(cachedBk);   // second frame replays from the picture
+        byte[] cachedPx = snapshot(cachedBk.surface);
+
+        assertTrue(cached.renderer().pictureRecordsTotal() >= 3, "did record via the cached path");
+        assertArrayEquals(refPx, cachedPx, "cached replay is pixel-identical to direct paint");
+    }
+
+    // Dragging a whole panel (cache ON) still lands the panel at its new position, pixel-for-pixel
+    // with the direct path -- proves the replay uses the LIVE translate, not the baked one.
+    @Test
+    void draggedBoundaryPixelsMatchDirectPaint() {
+        QmlView cached = loadCached();
+        RasterBackend cachedBk = new RasterBackend(300, 100);
+        cachedBk.surface.getCanvas().clear(0xFF202020);
+        cached.renderFrame(cachedBk);
+        Item p1c = cached.findByObjectName("p1");
+        p1c.x.set(130.0);
+        cachedBk.surface.getCanvas().clear(0xFF202020);
+        cached.renderFrame(cachedBk);
+        byte[] cachedPx = snapshot(cachedBk.surface);
+        assertEquals(0, cached.renderer().pictureRecordsThisFrame(), "drag replayed, no re-record");
+
+        QmlView ref = QmlView.withStockTypes(new QmlEngine());
+        Item refRoot = ref.load(SCENE);
+        refRoot.width.set(300);
+        refRoot.height.set(100);
+        ref.renderer().setPictureCache(false);
+        ref.findByObjectName("p1").x.set(130.0);
+        RasterBackend refBk = new RasterBackend(300, 100);
+        refBk.surface.getCanvas().clear(0xFF202020);
+        ref.renderFrame(refBk);
+        byte[] refPx = snapshot(refBk.surface);
+
+        assertArrayEquals(refPx, cachedPx, "dragged panel matches direct paint at the new position");
+    }
+
+    private static byte[] snapshot(Surface s) {
+        try (Bitmap bm = Bitmap.makeFromImage(s.makeImageSnapshot())) {
+            byte[] px = bm.readPixels();
+            return px == null ? new byte[0] : Arrays.copyOf(px, px.length);
+        }
+    }
+}
