@@ -11,6 +11,7 @@ import org.mozilla.javascript.Context;
 import org.mozilla.javascript.Function;
 import org.mozilla.javascript.NativeArray;
 import org.mozilla.javascript.NativeObject;
+import org.mozilla.javascript.ScriptRuntime;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.Symbol;
@@ -281,17 +282,37 @@ public final class JsWrap {
             if (name.length() == 1 && "rgba".contains(name)) {
                 return MemberAccess.readMember(hex, name);
             }
-            return NOT_FOUND;
+            // A color-hex value is ALSO a string: fall back to String semantics for any
+            // non-channel member (charAt/substring/indexOf/length/...), so parsing a color-like
+            // string doesn't silently lose every string method. String.prototype methods coerce
+            // `this` via getDefaultValue -> hex, so they operate on the hex text.
+            Scriptable s = stringScriptable(start);
+            return s != null ? ScriptableObject.getProperty(s, name) : NOT_FOUND;
         }
 
         @Override public boolean has(String name, Scriptable start) {
-            return name.length() == 1 && "rgba".contains(name);
+            if (name.length() == 1 && "rgba".contains(name)) return true;
+            Scriptable s = stringScriptable(start);
+            return s != null && ScriptableObject.hasProperty(s, name);
+        }
+
+        // The hex text as a JS String object, so member/index lookups resolve String.prototype.
+        private Scriptable stringScriptable(Scriptable start) {
+            Context cx = Context.getCurrentContext();
+            if (cx == null) return null;
+            return ScriptRuntime.toObject(cx, parent != null ? parent : start, hex);
         }
 
         @Override public Object getDefaultValue(Class<?> hint) { return hex; }
         @Override public String getClassName() { return "JsColor"; }
-        @Override public Object get(int index, Scriptable start) { return NOT_FOUND; }
-        @Override public boolean has(int index, Scriptable start) { return false; }
+        @Override public Object get(int index, Scriptable start) {
+            Scriptable s = stringScriptable(start);
+            return s != null ? ScriptableObject.getProperty(s, index) : NOT_FOUND;
+        }
+        @Override public boolean has(int index, Scriptable start) {
+            Scriptable s = stringScriptable(start);
+            return s != null && ScriptableObject.hasProperty(s, index);
+        }
         @Override public void put(String name, Scriptable start, Object value) {}
         @Override public void put(int index, Scriptable start, Object value) {}
         @Override public void delete(String name) {}
