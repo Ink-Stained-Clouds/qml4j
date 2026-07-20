@@ -241,6 +241,39 @@ class PictureCacheTest {
         assertEquals(1, v.renderer().pictureRecordsThisFrame());
     }
 
+    // A nested value holder (a Gradient stop colour -- a QObject, not an Item) changing must
+    // still invalidate the enclosing boundary. Guards the reflective holder wiring.
+    @Test
+    void gradientStopChangeReRecords() {
+        QmlView v = QmlView.withStockTypes(new QmlEngine());
+        Item root = v.load(
+            "import QtQuick\n"
+            + "Item {\n"
+            + "  width: 200; height: 100\n"
+            + "  Rectangle { objectName: \"panel\"; width: 200; height: 100; color: \"#111111\"\n"
+            + "    Rectangle { objectName: \"grad\"; x: 10; y: 10; width: 50; height: 50\n"
+            + "      gradient: Gradient {\n"
+            + "        GradientStop { position: 0; color: \"#ff0000\" }\n"
+            + "        GradientStop { position: 1; color: \"#0000ff\" } } } }\n"
+            + "}");
+        root.width.set(200);
+        root.height.set(100);
+        v.renderer().setPictureCache(true);
+        RasterBackend bk = new RasterBackend(200, 100);
+        bk.surface.getCanvas().clear(0);
+        v.renderFrame(bk);
+
+        Item panel = v.findByObjectName("panel");
+        int before = panel.recordCount;
+        io.github.timer_err.qml4j.render.items.core.Rectangle grad =
+            (io.github.timer_err.qml4j.render.items.core.Rectangle) v.findByObjectName("grad");
+        grad.gradient.peek().stops.get(0).color.set("#00ff00");   // animate a stop colour
+        bk.surface.getCanvas().clear(0);
+        v.renderFrame(bk);
+
+        assertEquals(before + 1, panel.recordCount, "gradient stop change re-records the boundary");
+    }
+
     private static byte[] snapshot(Surface s) {
         try (Bitmap bm = Bitmap.makeFromImage(s.makeImageSnapshot())) {
             byte[] px = bm.readPixels();

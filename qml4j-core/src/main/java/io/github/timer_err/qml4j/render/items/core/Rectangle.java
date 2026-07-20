@@ -24,6 +24,13 @@ public class Rectangle extends Item {
     }
 
     @Override
+    protected void wireDeferredContentInvalidation() {
+        // A gradient's stop colours/positions live on GradientStop (a QObject); wire them so an
+        // animated stop re-records. The `gradient` reference change is already wired above.
+        wireHolderContent(gradient.peek());
+    }
+
+    @Override
     public void paint(Painter p, float w, float h, float alpha) {
         float radius = Math.max(0f, this.radius.peekFloat());
         float borderWidth = Math.max(0f, border.width.peekFloat());

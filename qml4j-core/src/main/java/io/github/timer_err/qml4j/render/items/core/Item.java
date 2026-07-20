@@ -291,6 +291,61 @@ public class Item extends QObject {
         for (Property<?> p : props) p.addInvalidationListener(this::markContentDirty);
     }
 
+    // A stable this::markContentDirty reference for listeners we attach to EXTERNAL value holders
+    // (a Gradient's stops, a ShapePath's path elements) so we can detach them on dispose -- those
+    // holders can outlive this item (e.g. a shared theme gradient), and a lingering listener would
+    // pin the whole subtree in the holder's listener list (the same leak dispose() guards against).
+    private Runnable contentDirtyRef;
+    private List<Property<?>> wiredHolderProps;
+
+    private Runnable contentDirtyRef() {
+        if (contentDirtyRef == null) contentDirtyRef = this::markContentDirty;
+        return contentDirtyRef;
+    }
+
+    // Wire every Property reachable from a non-Item value holder (its own Property fields, and one
+    // recursion into nested holders + list elements) to invalidate this item's cached picture.
+    // These holders are QObjects, not Items, so their inner changes never reach markContentDirty on
+    // their own -- an animated Gradient stop colour or Shape path coordinate would otherwise not
+    // re-record. Wired once (post-construction, via wireDeferredContentInvalidation) so no
+    // duplicate listeners accumulate; detached on dispose.
+    protected final void wireHolderContent(Object holder) {
+        if (holder == null) return;
+        wireHolderContent(holder, new java.util.IdentityHashMap<>());
+    }
+
+    private void wireHolderContent(Object obj, Map<Object, Boolean> seen) {
+        if (obj == null || obj instanceof Item || seen.put(obj, Boolean.TRUE) != null) return;
+        for (Field f : fieldsOf(obj.getClass())) {
+            Object v;
+            try {
+                v = f.get(obj);
+            } catch (IllegalAccessException ignore) {
+                continue;
+            }
+            if (v instanceof Property) {
+                Property<?> p = (Property<?>) v;
+                p.addInvalidationListener(contentDirtyRef());
+                if (wiredHolderProps == null) wiredHolderProps = new ArrayList<>();
+                wiredHolderProps.add(p);
+            } else if (v instanceof List) {
+                for (Object e : (List<?>) v) wireHolderContent(e, seen);
+            } else if (isEngineHolder(v)) {
+                wireHolderContent(v, seen);
+            }
+        }
+    }
+
+    private void unwireHolderContent() {
+        if (wiredHolderProps == null) return;
+        for (Property<?> p : wiredHolderProps) p.removeInvalidationListener(contentDirtyRef());
+        wiredHolderProps = null;
+    }
+
+    // Wire non-Item value holders owned by this item (Gradient stops, Shape path elements) after
+    // the QML tree is built and those lists are populated. Default no-op; Rectangle/Shape override.
+    protected void wireDeferredContentInvalidation() {}
+
     private void markSubtreeDirty() {
         for (int i = 0, n = children.size(); i < n; i++) {
             Item c = children.get(i);
@@ -347,6 +402,8 @@ public class Item extends QObject {
         if (stateBindingsInited) return;
         stateBindingsInited = true;
         if (!states.isEmpty()) stateController.initWhen();
+        // The QML tree is now built; wire any owned value holders (Gradient stops, Shape paths).
+        wireDeferredContentInvalidation();
     }
 
     // Activate state bindings for a freshly-attached subtree. Loader/Repeater create
@@ -442,6 +499,7 @@ public class Item extends QObject {
 
     private void tearDown() {
         unbindAll();
+        unwireHolderContent();
         releaseResources();
         for (int i = 0; i < children.size(); i++) children.get(i).tearDown();
         for (int i = 0; i < resources.size(); i++) resources.get(i).tearDown();
