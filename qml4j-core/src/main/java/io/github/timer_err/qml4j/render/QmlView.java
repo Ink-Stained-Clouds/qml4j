@@ -17,8 +17,16 @@ import io.github.timer_err.qml4j.engine.binding.Property;
 
 public final class QmlView {
 
+    // Incremental layout on by default; a host can fall back to whole-tree measure per frame
+    // with -Dqml4j.incrementalLayout=false if a scene hits an unsupported invalidation case.
+    private static final boolean INCREMENTAL =
+        Boolean.parseBoolean(System.getProperty("qml4j.incrementalLayout", "true"));
+
     private final Renderer renderer = new Renderer();
     private final DirtyQueue dirty = new DirtyQueue();
+    // Layout-invalidation queue. Installed for this view's lifetime (not per-frame) so property
+    // changes between frames (input dispatch, host setters) still mark items for the next settle.
+    private final PolishQueue polish = new PolishQueue();
     private final Loader loader;
     private final FocusManager focus = new FocusManager();
     private final EventDispatcher events = new EventDispatcher(focus, renderer);
@@ -27,6 +35,8 @@ public final class QmlView {
     public QmlView(QmlEngine engine, TypeRegistry types) {
         this.loader = new Loader(engine, types);
         renderer.setComponentFactory(loader);
+        renderer.setIncrementalLayout(INCREMENTAL);
+        polish.install();
     }
 
     public static QmlView withStockTypes(QmlEngine engine) {
@@ -79,6 +89,9 @@ public final class QmlView {
         root.installFocusHook(focus::setFocus);
         root.initStateBindingsTree();
         focus.scanInitialFocus(root);
+        // A freshly loaded tree hasn't been laid out; force a full first measure so
+        // first-appearance geometry is resolved before incremental marks take over.
+        renderer.requestFullLayout();
         return root;
     }
 
@@ -231,10 +244,71 @@ public final class QmlView {
             renderer.setGpuContext(backend.recordingContext());
             renderer.render(canvas, root, skipLayout);
             renderedVersion = Property.changeVersion();
-            if (renderer.fpsOverlayEnabled()) drawFpsOverlay(canvas, now);
+            if (renderer.fpsOverlayEnabled()) {
+                drawFpsOverlay(canvas, now);
+                logFrameStats(now, skipLayout);
+            }
             backend.present();
         } finally {
             dirty.uninstall();
+        }
+    }
+
+    // -Dqml4j.fps=true diagnostic: accumulate per-frame layout/draw timing and print a
+    // once-per-second breakdown so a stutter (e.g. an animation) can be attributed to the
+    // measure phase (this refactor's concern) vs the paint phase (shadows/blur/overdraw).
+    private long statsWindowStart;
+    private int statsFrames;
+    private int statsLaidOut;
+    private long statsMeasureNanos;
+    private long statsDrawNanos;
+    private int statsMaxNodes;
+    private int statsMaxPasses;
+
+    // Optional file sink (-Dqml4j.fpslog=path): appended + flushed per line so the numbers
+    // survive the demo's hard halt() exit, which drops buffered stdout.
+    private static final String FPS_LOG_PATH = System.getProperty("qml4j.fpslog");
+    private java.io.Writer fpsLogWriter;
+
+    private void logFrameStats(long now, boolean skipLayout) {
+        statsFrames++;
+        if (!skipLayout) statsLaidOut++;
+        statsMeasureNanos += renderer.lastMeasureNanos();
+        statsDrawNanos += renderer.lastDrawNanos();
+        statsMaxNodes = Math.max(statsMaxNodes, renderer.measuredNodeCount());
+        statsMaxPasses = Math.max(statsMaxPasses, renderer.settlePassCount());
+        if (statsWindowStart == 0) statsWindowStart = now;
+        long elapsed = now - statsWindowStart;
+        if (elapsed < 1_000_000_000L) return;
+        double fps = statsFrames * 1e9 / elapsed;
+        double measUs = statsMeasureNanos / 1e3 / statsFrames;
+        double drawUs = statsDrawNanos / 1e3 / statsFrames;
+        String line = String.format(
+            "[qml4j.fps] %.0f fps | frames=%d laidOut=%d | measure=%.1fus draw=%.1fus | maxNodes=%d maxPasses=%d",
+            fps, statsFrames, statsLaidOut, measUs, drawUs, statsMaxNodes, statsMaxPasses);
+        emitFrameStats(line);
+        statsWindowStart = now;
+        statsFrames = 0;
+        statsLaidOut = 0;
+        statsMeasureNanos = 0;
+        statsDrawNanos = 0;
+        statsMaxNodes = 0;
+        statsMaxPasses = 0;
+    }
+
+    private void emitFrameStats(String line) {
+        System.out.println(line);
+        System.out.flush();
+        if (FPS_LOG_PATH == null) return;
+        try {
+            if (fpsLogWriter == null) {
+                fpsLogWriter = new java.io.FileWriter(FPS_LOG_PATH, true);
+            }
+            fpsLogWriter.write(line);
+            fpsLogWriter.write('\n');
+            fpsLogWriter.flush();
+        } catch (java.io.IOException ignored) {
+            // diagnostic only; never disrupt rendering
         }
     }
 
@@ -281,7 +355,19 @@ public final class QmlView {
         return renderer;
     }
 
+    // Test/diagnostic: run one layout settle without painting, exactly as renderFrame's layout
+    // phase does (dirty queue installed for binding re-eval, then the incremental polish drain).
+    public void pumpLayout() {
+        dirty.install();
+        try {
+            renderer.layoutIncrementalOnly(root);
+        } finally {
+            dirty.uninstall();
+        }
+    }
+
     public void dispose() {
+        polish.uninstall();
         renderer.dispose();
     }
 }

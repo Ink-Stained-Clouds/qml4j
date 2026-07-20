@@ -10,6 +10,7 @@ import io.github.timer_err.qml4j.render.items.transform.Transform;
 import io.github.timer_err.qml4j.render.AnchorLine;
 import io.github.timer_err.qml4j.render.Anchors;
 import io.github.timer_err.qml4j.render.Painter;
+import io.github.timer_err.qml4j.render.PolishQueue;
 import io.github.timer_err.qml4j.render.TextLayout;
 
 import io.github.timer_err.qml4j.engine.QObject;
@@ -20,8 +21,10 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 public class Item extends QObject {
@@ -112,11 +115,115 @@ public class Item extends QObject {
     // The previous value of `parent`, so a change can move this between children lists.
     private Item lastParent;
 
+    // --- Incremental layout invalidation (Qt-style per-Item dirty tracking) ---------------
+    // Set when this item's position (x/y) or size (width/height/implicit*) has changed since
+    // the last settle and it is enqueued in the PolishQueue for re-measure. The bits dedupe
+    // re-marks within a settle and gate propagation so anchor cycles can't loop.
+    public boolean posDirty;
+    public boolean sizeDirty;
+    // Items whose anchors resolve against THIS item's geometry -- populated by the renderer as
+    // it applies anchors. When this item moves/resizes they must re-anchor, so they're marked
+    // dirty too (the event-driven analogue of Qt's anchor signal connections). Null until an
+    // anchor references this item, which is the common case (few items are anchor sources).
+    private Set<Item> anchorDependents;
+
     public Item() {
         state.addListener(stateController::apply);
         // Reparenting on a `parent` change (Qt): `parent: overlay` moves an item into the
         // overlay's children so it renders there (z:9999), not at its declaration site.
         parent.addListener(this::onParentChanged);
+        wireLayoutInvalidation();
+    }
+
+    // Whether this item computes its OWN size imperatively from its children in layout()
+    // (Column/Row/*Layout/Flow/StackLayout). Only such a parent needs marking when a child's
+    // size changes: that derived chain is not tracked by the binding system (it's plain Java),
+    // so the incremental settle must propagate the child's size change up to it explicitly.
+    // A size derived via a QML binding (implicitHeight: child.height) propagates through the
+    // normal Property invalidation path and needs no override here.
+    public boolean layoutDerivesSizeFromChildren() {
+        return false;
+    }
+
+    // Connect the layout-affecting properties to the PolishQueue so a change marks this item
+    // (and, for size, propagates to a size-deriving parent) instead of forcing a whole-tree
+    // relayout. Fires only while a PolishQueue is installed (the incremental host path); with
+    // none installed these are cheap no-ops and the renderer falls back to full measure.
+    private void wireLayoutInvalidation() {
+        x.addInvalidationListener(this::markLayoutPosition);
+        y.addInvalidationListener(this::markLayoutPosition);
+        width.addInvalidationListener(this::markLayoutSize);
+        height.addInvalidationListener(this::markLayoutSize);
+        implicitWidth.addInvalidationListener(this::markLayoutSize);
+        implicitHeight.addInvalidationListener(this::markLayoutSize);
+        visible.addInvalidationListener(this::markLayoutVisibility);
+        // A structural change to the children (add/remove) can reflow a container even when no
+        // surviving child fired a geometry change (a removal frees space in a Column).
+        ((ObservableList<Item>) children).addStructuralListener(this::markLayoutSize);
+        // Any anchor knob change (source, margins, centre offsets) can move/resize this item.
+        anchors.fill.addInvalidationListener(this::markLayoutSize);
+        anchors.centerIn.addInvalidationListener(this::markLayoutSize);
+        anchors.margins.addInvalidationListener(this::markLayoutSize);
+        anchors.leftMargin.addInvalidationListener(this::markLayoutSize);
+        anchors.rightMargin.addInvalidationListener(this::markLayoutSize);
+        anchors.topMargin.addInvalidationListener(this::markLayoutSize);
+        anchors.bottomMargin.addInvalidationListener(this::markLayoutSize);
+        anchors.left.addInvalidationListener(this::markLayoutSize);
+        anchors.right.addInvalidationListener(this::markLayoutSize);
+        anchors.top.addInvalidationListener(this::markLayoutSize);
+        anchors.bottom.addInvalidationListener(this::markLayoutSize);
+        anchors.horizontalCenter.addInvalidationListener(this::markLayoutSize);
+        anchors.verticalCenter.addInvalidationListener(this::markLayoutSize);
+        anchors.horizontalCenterOffset.addInvalidationListener(this::markLayoutSize);
+        anchors.verticalCenterOffset.addInvalidationListener(this::markLayoutSize);
+    }
+
+    public void markLayoutPosition() {
+        PolishQueue q = PolishQueue.current();
+        if (q == null || posDirty) return; // already marked -> dependents already propagated
+        posDirty = true;
+        q.enqueue(this);
+        // Items anchored to my position (anchors.left: sibling.right, ...) must re-anchor.
+        propagateToAnchorDependents();
+    }
+
+    public void markLayoutSize() {
+        PolishQueue q = PolishQueue.current();
+        if (q == null || sizeDirty) return; // guard blocks anchor/derive cycles from looping
+        sizeDirty = true;
+        q.enqueue(this);
+        Item p = parent.peek();
+        if (p != null && p.layoutDerivesSizeFromChildren()) p.markLayoutSize();
+        propagateToAnchorDependents();
+    }
+
+    private void markLayoutVisibility() {
+        // Hiding: parent may reflow, so mark self (size). Showing: this subtree was skipped by
+        // prior measures and has stale geometry -- mark the whole subtree so it re-measures.
+        markLayoutSize();
+        if (isVisible()) markSubtreeDirty();
+    }
+
+    private void markSubtreeDirty() {
+        for (int i = 0, n = children.size(); i < n; i++) {
+            Item c = children.get(i);
+            c.markLayoutSize();
+            c.markSubtreeDirty();
+        }
+    }
+
+    private void propagateToAnchorDependents() {
+        if (anchorDependents == null) return;
+        for (Item d : anchorDependents) d.markLayoutSize();
+    }
+
+    // Register `dep` as anchoring against this item's geometry (called by the renderer while
+    // resolving anchors). Idempotent; the set never removes stale entries, which is safe --
+    // a stale dependent only causes a harmless extra re-measure, never a missed one.
+    public void addAnchorDependent(Item dep) {
+        if (dep == null || dep == this) return;
+        if (anchorDependents == null) anchorDependents = new LinkedHashSet<>();
+        anchorDependents.add(dep);
     }
 
     private void onParentChanged(Item np) {

@@ -7,6 +7,9 @@ public class Column extends Item {
     public final Property<Number> spacing = new Property<>(0);
 
     @Override
+    public boolean layoutDerivesSizeFromChildren() { return true; }
+
+    @Override
     public void layout() {
         double y = 0;
         double s = spacing.peekDouble();

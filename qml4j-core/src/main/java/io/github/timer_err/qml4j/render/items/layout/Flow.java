@@ -15,6 +15,9 @@ public class Flow extends Item {
     public final Property<Number> padding = new Property<>(0);
 
     @Override
+    public boolean layoutDerivesSizeFromChildren() { return true; }
+
+    @Override
     public void layout() {
         if (flow.peekInt() == 1) layoutTopToBottom();
         else layoutLeftToRight();

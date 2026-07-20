@@ -25,6 +25,12 @@ public final class ObservableList<E> extends ArrayList<E> {
         return version.peek();
     }
 
+    // Run `r` on any structural change (add/remove/clear/set). Used by the incremental
+    // layout pass to mark a container dirty when a child is added or removed.
+    public void addStructuralListener(Runnable r) {
+        version.addInvalidationListener(r);
+    }
+
     private void bump() {
         version.setBypassInterceptor(version.peek() + 1);
     }

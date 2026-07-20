@@ -10,6 +10,9 @@ public class StackLayout extends Item {
     public final Property<Number> currentIndex = new Property<>(0);
 
     @Override
+    public boolean layoutDerivesSizeFromChildren() { return true; }
+
+    @Override
     public void layout() {
         int cur = currentIndex.peekInt();
         double w = width.peekDouble();

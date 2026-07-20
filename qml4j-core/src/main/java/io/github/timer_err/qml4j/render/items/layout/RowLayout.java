@@ -29,6 +29,9 @@ public class RowLayout extends Item {
     }
 
     @Override
+    public boolean layoutDerivesSizeFromChildren() { return true; }
+
+    @Override
     public void layout() {
         int cc = children.size();
         ensureCap(cc);

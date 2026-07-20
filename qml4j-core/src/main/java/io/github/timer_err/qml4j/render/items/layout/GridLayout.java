@@ -28,6 +28,9 @@ public class GridLayout extends Item {
     }
 
     @Override
+    public boolean layoutDerivesSizeFromChildren() { return true; }
+
+    @Override
     public void layout() {
         List<Cell> cells = assignCells();
         if (cells.isEmpty()) { implicitWidth.set(0); implicitHeight.set(0); return; }
