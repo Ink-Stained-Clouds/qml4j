@@ -21,4 +21,15 @@ public final class ClassCache<V> {
     public V get(Class<?> type) {
         return map.computeIfAbsent(type, compute);
     }
+
+    // Drop every entry whose key Class was defined by {@code cl}. Because entries hold
+    // strong Class keys (and their Field/Method values reference the declaring Class),
+    // a hot-reload that spins up a fresh per-document ClassLoader would otherwise pin
+    // that loader — and all its generated component classes — in Metaspace forever.
+    // Call this when the owning view/loader is disposed. Stock-type entries (loaded by
+    // the engine's parent loader) are untouched, so they stay cached across reloads.
+    public void evictLoadedBy(ClassLoader cl) {
+        if (cl == null) return;
+        map.keySet().removeIf(k -> k.getClassLoader() == cl);
+    }
 }

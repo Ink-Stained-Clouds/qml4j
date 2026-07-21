@@ -191,6 +191,18 @@ final class FontResolver {
     }
 
     void close() {
+        // Close the cached Fonts FIRST: each holds a native ref to its Typeface, so closing
+        // only the Typefaces below would leave the (large, e.g. CJK) glyph data alive until a
+        // GC collects these Font wrappers -- and native memory never triggers a GC, so it
+        // accumulates across hot-reloads. Closing them here frees the font data deterministically.
+        for (Font f : fontCache.values()) {
+            if (f != null) { try { f.close(); } catch (Throwable ignored) {} }
+        }
+        fontCache.clear();
+        for (Typeface t : symbolCache.values()) {
+            if (t != null) { try { t.close(); } catch (Throwable ignored) {} }
+        }
+        symbolCache.clear();
         if (systemDefault != null) { systemDefault.close(); systemDefault = null; }
         if (systemCjk != null) { systemCjk.close(); systemCjk = null; }
         if (uiDefault != null) { uiDefault.close(); uiDefault = null; }

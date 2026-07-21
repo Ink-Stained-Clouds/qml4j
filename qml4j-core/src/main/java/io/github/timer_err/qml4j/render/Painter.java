@@ -340,6 +340,22 @@ public final class Painter {
             }
         };
 
+    // Close every cached native handle when the owning renderer/view is disposed. The
+    // TextLine caches hold native SkShaper output; like fonts, they never pressure the JVM
+    // heap, so leaving them for GC leaks them across hot-reloads. Called from Renderer.dispose().
+    void dispose() {
+        for (TextLine l : iconLines.values()) {
+            if (l != null) { try { l.close(); } catch (Throwable ignored) {} }
+        }
+        iconLines.clear();
+        for (TextLine l : textLines.values()) {
+            if (l != null) { try { l.close(); } catch (Throwable ignored) {} }
+        }
+        textLines.clear();
+        elideCache.clear();
+        wrapCache.clear();
+    }
+
     private String[] wrapLines(Font font, String s, String mode, float boxW) {
         int fontId = System.identityHashCode(font);
         int w = Math.round(boxW);

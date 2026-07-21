@@ -473,6 +473,14 @@ public class Item extends QObject {
     // hundreds of delegates.
     private static final Map<Class<?>, Field[]> FIELDS = new HashMap<>();
 
+    /** Drop cached fields for classes defined by {@code cl} (a disposed view's loader). */
+    public static void purgeFieldCache(ClassLoader cl) {
+        if (cl == null) return;
+        synchronized (FIELDS) {
+            FIELDS.keySet().removeIf(k -> k.getClassLoader() == cl);
+        }
+    }
+
     private static Field[] fieldsOf(Class<?> cls) {
         Field[] cached = FIELDS.get(cls);
         if (cached == null) {

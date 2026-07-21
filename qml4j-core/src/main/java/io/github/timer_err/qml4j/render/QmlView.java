@@ -14,6 +14,8 @@ import io.github.timer_err.qml4j.engine.QmlEngine;
 import io.github.timer_err.qml4j.engine.js.JsRuntime;
 import io.github.timer_err.qml4j.engine.binding.DirtyQueue;
 import io.github.timer_err.qml4j.engine.binding.Property;
+import io.github.timer_err.qml4j.runtime.invoke.MethodInvocation;
+import io.github.timer_err.qml4j.runtime.member.MemberAccess;
 
 public final class QmlView {
 
@@ -358,6 +360,25 @@ public final class QmlView {
     }
 
     public void dispose() {
+        // The generated component classes for this view were defined by one per-document
+        // ClassLoader (QmlEngine's backend). Static reflection caches key on those Class
+        // objects with strong refs, which would pin the loader — and all its Metaspace
+        // classes — forever across hot-reloads. Purge this loader's entries so it (and its
+        // classes) can be collected. Stock-type entries (parent loader) survive.
+        Item r = root();
+        ClassLoader cl = (r != null) ? r.getClass().getClassLoader() : null;
+        // Tear the whole scene tree down FIRST: unbind every Property (so bindings to
+        // long-lived singletons -- Theme/StyleManager -- stop pinning these items in their
+        // listener lists) and release each item's native resources (Canvas backings, decoded
+        // Images, cached boundary Pictures). Without this a hot-reload orphans the entire old
+        // tree, and since Skija's native memory never pressures the JVM heap it isn't GC'd --
+        // each reload then adds hundreds of MB that never comes back.
+        if (r != null) r.dispose();
         renderer.dispose();
+        if (cl != null && cl != QmlView.class.getClassLoader()) {
+            MemberAccess.purge(cl);
+            MethodInvocation.purge(cl);
+            Item.purgeFieldCache(cl);
+        }
     }
 }

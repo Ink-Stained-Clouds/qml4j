@@ -1118,6 +1118,7 @@ public final class Renderer {
             paint = null;
         }
         fonts.close();
+        painter.dispose();   // close cached native TextLine handles
     }
 
     // Common CSS/QML named colors. "transparent" is the critical one (MD3 uses it

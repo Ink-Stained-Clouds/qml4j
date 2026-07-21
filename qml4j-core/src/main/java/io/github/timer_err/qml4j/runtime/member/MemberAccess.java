@@ -20,6 +20,11 @@ public final class MemberAccess {
 
     private MemberAccess() {}
 
+    /** Drop cached fields for classes defined by {@code cl} (a disposed view's loader). */
+    public static void purge(ClassLoader cl) {
+        FIELDS.evictLoadedBy(cl);
+    }
+
     // Public-field lookup is on the hot path: every JS member read/write resolves a
     // field by name, and has/resolves probes it before each access. getField walks the
     // type hierarchy and allocates each call, so cache the result per (class, name).

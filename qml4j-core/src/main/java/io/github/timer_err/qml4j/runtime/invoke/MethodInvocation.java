@@ -22,6 +22,12 @@ public final class MethodInvocation {
 
     private MethodInvocation() {}
 
+    /** Drop cached methods for classes defined by {@code cl} (a disposed view's loader). */
+    public static void purge(ClassLoader cl) {
+        METHODS.evictLoadedBy(cl);
+        METHOD_NAMES.evictLoadedBy(cl);
+    }
+
     public static Object callMethod(Object receiver, String name, Object[] args) {
         if (receiver == null) {
             throw new NullPointerException("cannot call '" + name + "' on null receiver");
