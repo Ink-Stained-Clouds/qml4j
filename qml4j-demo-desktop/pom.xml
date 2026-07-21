@@ -113,10 +113,8 @@
          under /mcq/**, and is a multi-release jar (Skija needs its JDK 9+ Cleanable). The app
          source clone is not in this repo; point mcq.dir at it (default ../../mcq). -->
     <profiles>
-        <!-- Auto-activated when running the demo (e.g. `mvn -pl qml4j-demo-desktop exec:java`)
-             on a Windows dev machine: switch the LWJGL native classifier to windows and add the
-             windows Skija native at runtime, so the GLFW window and Skia surface actually load.
-             Linux/mac CI keeps the base natives-linux deps (this profile stays inactive). -->
+        <!-- On a non-Linux desktop, select the matching LWJGL and Skija native artifacts.
+             Platform-specific launcher requirements are handled separately. -->
         <profile>
             <id>windows-dev</id>
             <activation>
@@ -138,9 +136,51 @@
             </dependencies>
         </profile>
         <profile>
+            <id>macos-x64-dev</id>
+            <activation>
+                <os>
+                    <family>mac</family>
+                    <arch>x86_64</arch>
+                </os>
+            </activation>
+            <properties>
+                <lwjgl.natives>natives-macos</lwjgl.natives>
+            </properties>
+            <dependencies>
+                <dependency>
+                    <groupId>io.github.humbleui</groupId>
+                    <artifactId>skija-macos-x64</artifactId>
+                    <version>${skija.version}</version>
+                    <scope>runtime</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+        <profile>
+            <id>macos-arm64-dev</id>
+            <activation>
+                <os>
+                    <family>mac</family>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
+            <properties>
+                <lwjgl.natives>natives-macos-arm64</lwjgl.natives>
+            </properties>
+            <dependencies>
+                <dependency>
+                    <groupId>io.github.humbleui</groupId>
+                    <artifactId>skija-macos-arm64</artifactId>
+                    <version>${skija.version}</version>
+                    <scope>runtime</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+        <profile>
             <id>dist</id>
             <properties>
                 <mcq.dir>${project.basedir}/../../mcq</mcq.dir>
+                <!-- Keep the Linux+Windows bundle independent of host-activated dev profiles. -->
+                <lwjgl.natives>natives-linux</lwjgl.natives>
             </properties>
             <dependencies>
                 <!-- Linux natives come from the base deps; add the Windows ones so the one
@@ -218,6 +258,16 @@
                                 <configuration>
                                     <createDependencyReducedPom>false</createDependencyReducedPom>
                                     <finalName>qml4j-app</finalName>
+                                    <!-- macos-*-dev auto-activates on a mac build host and adds its runtime
+                                         Skija native; exclude the macOS Skija artifacts (precise coords, not
+                                         a wildcard) so the shaded jar stays Linux+Windows regardless of build
+                                         host. Shade-only: normal dev/exec dependency resolution is unaffected. -->
+                                    <artifactSet>
+                                        <excludes>
+                                            <exclude>io.github.humbleui:skija-macos-x64</exclude>
+                                            <exclude>io.github.humbleui:skija-macos-arm64</exclude>
+                                        </excludes>
+                                    </artifactSet>
                                     <filters>
                                         <filter>
                                             <artifact>*:*</artifact>

@@ -50,10 +50,9 @@
         </dependency>
     </dependencies>
 
-    <!-- On a Windows dev machine the linux native above can't load skija.dll, so the
-         FontMgr-backed text tests (caret/selection hit-testing) fail. Pull the matching
-         windows/x64 native for tests only when actually building on Windows; linux/mac
-         CI is unaffected. Test scope: never packaged, never transitive. -->
+    <!-- The base native above serves the linux/x64 release runner. On other desktop
+         platforms, pull the matching native for FontMgr/Surface-backed tests. Test
+         scope: never packaged, never transitive. -->
     <profiles>
         <profile>
             <id>skija-windows-native</id>
@@ -67,6 +66,38 @@
                 <dependency>
                     <groupId>io.github.humbleui</groupId>
                     <artifactId>skija-windows-x64</artifactId>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+        <profile>
+            <id>skija-macos-x64-native</id>
+            <activation>
+                <os>
+                    <family>mac</family>
+                    <arch>x86_64</arch>
+                </os>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>io.github.humbleui</groupId>
+                    <artifactId>skija-macos-x64</artifactId>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+        <profile>
+            <id>skija-macos-arm64-native</id>
+            <activation>
+                <os>
+                    <family>mac</family>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>io.github.humbleui</groupId>
+                    <artifactId>skija-macos-arm64</artifactId>
                     <scope>test</scope>
                 </dependency>
             </dependencies>
