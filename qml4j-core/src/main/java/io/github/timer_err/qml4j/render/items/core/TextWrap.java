@@ -95,6 +95,15 @@ public final class TextWrap {
         if (wrapAny || best == end) return best;
         int ws = seg.lastIndexOf(' ', best - 1);
         if (ws > from) return ws + 1;
+        // CJK text carries no spaces between characters, so treating "no space
+        // found" as "one giant word wider than the box" (the rule below, correct
+        // for Latin scripts) made an entire space-delimited run of Chinese/
+        // Japanese/Korean text an unsplittable unit -- it just kept extending
+        // to the NEXT space (however far away, even past the box width) instead
+        // of ever breaking between two CJK characters. Any boundary next to a
+        // CJK character is a valid break point on its own, so break right at
+        // `best` (using the full width that fits) instead of falling through.
+        if (isCjk(seg.charAt(best - 1))) return best;
         // No word boundary fits: the first word is wider than the box. WordWrap keeps it
         // whole on its own line (overflow); Wrap breaks it mid-word at `best`.
         if (wordOnly) {
@@ -102,6 +111,18 @@ public final class TextWrap {
             return sp < 0 ? end : sp + 1;
         }
         return best;
+    }
+
+    // CJK Unified Ideographs (+ extension A), Hiragana/Katakana, Hangul syllables,
+    // and CJK/fullwidth punctuation -- scripts where each character is its own
+    // breakable unit, unlike a space-delimited Latin word.
+    private static boolean isCjk(char c) {
+        return (c >= 0x4E00 && c <= 0x9FFF)
+            || (c >= 0x3400 && c <= 0x4DBF)
+            || (c >= 0x3040 && c <= 0x30FF)
+            || (c >= 0xAC00 && c <= 0xD7A3)
+            || (c >= 0x3000 && c <= 0x303F)
+            || (c >= 0xFF00 && c <= 0xFFEF);
     }
 
     public static int caretInLine(String line, float localX, Measure m) {
