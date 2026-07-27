@@ -12,6 +12,7 @@ import io.github.timer_err.qml4j.render.items.input.TextEditable;
 import io.github.timer_err.qml4j.render.items.input.TextInput;
 import io.github.timer_err.qml4j.render.items.window.AbstractButton;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static io.github.timer_err.qml4j.render.Renderer.zOrdered;
@@ -606,42 +607,78 @@ final class EventDispatcher {
         f.syncTarget();
     }
 
-    // Mouse wheel over the innermost interactive Flickable at (x, y): dx/dy are wheel
-    // offsets (GLFW convention, +y = scroll up). A vertical wheel scrolls Y, or X when
-    // the Flickable only scrolls horizontally (wheel over a horizontal list).
+    // Mouse wheel at (x, y): dx/dy are wheel offsets (GLFW convention, +y = scroll up).
+    // The wheel walks the nested Flickables under the cursor from innermost outwards, so
+    // a child that cannot move on the wheel's axis (a horizontal chip strip inside a
+    // vertical list, or a list already at its end-stop) hands the notch to its ancestor
+    // instead of swallowing it.
     boolean dispatchWheel(float x, float y, float dx, float dy) {
-        Flickable f = hitTestFlickable(root, x, y);
-        if (f == null) return false;
-        String dir = f.flickableDirection.peek();
-        boolean allowX = !"VerticalFlick".equals(dir);
-        boolean allowY = !"HorizontalFlick".equals(dir);
-        float maxX = Math.max(0f, f.contentWidth.peekFloat() + f.rightMargin.peekFloat() - f.width.peekFloat());
-        float maxY = Math.max(0f, f.contentHeight.peekFloat() + f.bottomMargin.peekFloat() - f.height.peekFloat());
+        List<Flickable> chain = new ArrayList<Flickable>(4);
+        hitTestFlickables(root, x, y, chain);
+        for (int i = 0; i < chain.size(); i++) {
+            if (wheelOnAxis(chain.get(i), dx, dy)) return true;
+        }
+        // Nothing in the chain scrolls on the wheel's own axis, so let a horizontal-only
+        // list take the vertical notch — the usual "wheel over a horizontal list scrolls
+        // it sideways" behaviour, now a fallback rather than a first claim.
+        for (int i = 0; i < chain.size(); i++) {
+            if (wheelCrossAxis(chain.get(i), dy)) return true;
+        }
+        return false;
+    }
+
+    // Scrolls f on the wheel's own axes. False when it has no room there, which lets
+    // dispatchWheel continue up the chain.
+    private boolean wheelOnAxis(Flickable f, float dx, float dy) {
         boolean scrolled = false;
-        float vy = -dy * WHEEL_STEP;
-        if (allowY && maxY > 0f) {
-            f.contentY.setPaintOnly(clamp(f.contentY.peekFloat() + vy, 0f, maxY));
-            scrolled = true;
-        } else if (allowX && maxX > 0f) {
-            f.contentX.setPaintOnly(clamp(f.contentX.peekFloat() + vy, 0f, maxX));
+        if (dy != 0f && allowY(f) && maxY(f) > 0f) {
+            f.contentY.setPaintOnly(clamp(f.contentY.peekFloat() - dy * WHEEL_STEP, 0f, maxY(f)));
             scrolled = true;
         }
-        if (allowX && maxX > 0f && dx != 0f) {
-            f.contentX.setPaintOnly(clamp(f.contentX.peekFloat() - dx * WHEEL_STEP, 0f, maxX));
+        if (dx != 0f && allowX(f) && maxX(f) > 0f) {
+            f.contentX.setPaintOnly(clamp(f.contentX.peekFloat() - dx * WHEEL_STEP, 0f, maxX(f)));
+            scrolled = true;
         }
         if (scrolled) f.syncTarget();
         return scrolled;
     }
 
+    // Maps a vertical notch onto a horizontal-only list's X axis.
+    private boolean wheelCrossAxis(Flickable f, float dy) {
+        if (dy == 0f || !allowX(f) || maxX(f) <= 0f) return false;
+        f.contentX.setPaintOnly(clamp(f.contentX.peekFloat() - dy * WHEEL_STEP, 0f, maxX(f)));
+        f.syncTarget();
+        return true;
+    }
+
+    private static boolean allowX(Flickable f) {
+        return !"VerticalFlick".equals(f.flickableDirection.peek());
+    }
+
+    private static boolean allowY(Flickable f) {
+        return !"HorizontalFlick".equals(f.flickableDirection.peek());
+    }
+
+    private static float maxX(Flickable f) {
+        return Math.max(0f, f.contentWidth.peekFloat() + f.rightMargin.peekFloat() - f.width.peekFloat());
+    }
+
+    private static float maxY(Flickable f) {
+        return Math.max(0f, f.contentHeight.peekFloat() + f.bottomMargin.peekFloat() - f.height.peekFloat());
+    }
+
     private Flickable hitTestFlickable(Item item, float x, float y) {
-        if (!item.isVisible()) return null;
-        float ix = item.x.peekFloat();
-        float iy = item.y.peekFloat();
-        float w = item.width.peekFloat();
-        float h = item.height.peekFloat();
-        float lx = x - ix;
-        float ly = y - iy;
-        if (lx < 0 || ly < 0 || lx > w || ly > h) return null;
+        List<Flickable> chain = new ArrayList<Flickable>(4);
+        hitTestFlickables(item, x, y, chain);
+        return chain.isEmpty() ? null : chain.get(0);
+    }
+
+    // Appends every interactive Flickable containing (x, y) to out, innermost first.
+    private void hitTestFlickables(Item item, float x, float y, List<Flickable> out) {
+        if (!item.isVisible()) return;
+        float lx = x - item.x.peekFloat();
+        float ly = y - item.y.peekFloat();
+        if (lx < 0 || ly < 0 || lx > item.width.peekFloat() || ly > item.height.peekFloat()) return;
         float childLx = lx;
         float childLy = ly;
         if (item instanceof Flickable) {
@@ -651,14 +688,16 @@ final class EventDispatcher {
         }
         List<Item> ordered = zOrdered(item.children);
         for (int i = ordered.size() - 1; i >= 0; i--) {
-            Flickable hit = hitTestFlickable(ordered.get(i), childLx, childLy);
-            if (hit != null) return hit;
+            int before = out.size();
+            hitTestFlickables(ordered.get(i), childLx, childLy, out);
+            // The topmost child that yields a Flickable occludes its lower siblings; one
+            // that yields none (a plain overlay such as a ScrollBar) is scrolled through.
+            if (out.size() != before) break;
         }
         if (item instanceof Flickable) {
             Flickable f = (Flickable) item;
-            if (Boolean.TRUE.equals(f.interactive.peek())) return f;
+            if (Boolean.TRUE.equals(f.interactive.peek())) out.add(f);
         }
-        return null;
     }
 
     private static float clamp(float v, float lo, float hi) {
