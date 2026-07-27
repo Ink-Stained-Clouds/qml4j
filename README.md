@@ -201,7 +201,7 @@ pick the platform natives now on the classpath. On a machine with more than one 
 hands the wrong architecture's natives to the VM and LWJGL fails to load them. Leave
 `JAVA_HOME` unset to keep using `java` from `PATH`.
 
-Exit code 137 on close is expected (NVIDIA libEGL teardown SIGSEGV, worked around by SIGKILL-self).
+On Linux, closing the window exits with code 137: the host SIGKILLs itself to dodge an NVIDIA libEGL teardown SIGSEGV. macOS and Windows release resources and exit 0 normally.
 
 ### Package a distributable jar
 
