@@ -15,6 +15,7 @@ import io.github.timer_err.qml4j.render.items.core.Item;
 
 import org.mozilla.javascript.Scriptable;
 
+import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -123,8 +124,17 @@ final class Loader implements ComponentFactory {
         Object inst;
         try {
             inst = rootClass.getDeclaredConstructor().newInstance();
+        } catch (InvocationTargetException ex) {
+            // Unwrap: the opaque InvocationTargetException hides the real failure (its
+            // getMessage() is null). Surface the actual cause — class, message AND chain —
+            // so a QML root whose constructor throws (a bad binding, a missing context
+            // object, a child type that fails to build) is diagnosable instead of "null".
+            Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+            throw new RuntimeException("QML root '" + rootClass.getName() + "' constructor threw "
+                + cause.getClass().getName() + ": " + cause.getMessage(), cause);
         } catch (ReflectiveOperationException ex) {
-            throw new RuntimeException(ex);
+            throw new RuntimeException("QML root '" + rootClass.getName() + "' instantiation failed: "
+                + ex.getClass().getName() + ": " + ex.getMessage(), ex);
         }
         if (!(inst instanceof Item)) {
             throw new IllegalArgumentException(
