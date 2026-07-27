@@ -3,6 +3,7 @@ package io.github.timer_err.qml4j.render;
 import io.github.timer_err.qml4j.render.items.core.Item;
 import io.github.timer_err.qml4j.render.items.input.FocusScope;
 import io.github.timer_err.qml4j.render.items.input.TextEditable;
+import io.github.timer_err.qml4j.render.items.input.TextInput;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,6 +41,8 @@ final class FocusManager {
                 te.setSelectionAnchor(-1);
                 te.setSelectionRange(0, 0);
             }
+            // A PasswordEchoOnEdit field masks again as soon as it loses focus.
+            if (old instanceof TextInput) ((TextInput) old).endEchoEditing();
         }
         focused = it;
         if (it != null) {

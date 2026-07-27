@@ -8,6 +8,12 @@ import io.github.timer_err.qml4j.render.Renderer;
 import io.github.timer_err.qml4j.render.Painter;
 
 public class TextInput extends Item implements TextEditable {
+    public static final int ECHO_UNKNOWN = -1;
+    public static final int ECHO_NORMAL = 0;
+    public static final int ECHO_NO_ECHO = 1;
+    public static final int ECHO_PASSWORD = 2;
+    public static final int ECHO_PASSWORD_ON_EDIT = 3;
+
     public final Property<String> text = new Property<>("");
     public final Property<String> color = new Property<>("#000000");
     public final Property<Number> fontSize = new Property<>(16);
@@ -35,6 +41,8 @@ public class TextInput extends Item implements TextEditable {
 
     public int selectionAnchor = -1;
 
+    private boolean echoEditing;
+
     public TextInput() {
         wireContentInvalidation(text, color, fontSize, cursorPosition, selectionStart,
             selectionEnd, selectionColor, selectedTextColor, echoMode, passwordCharacter,
@@ -55,6 +63,39 @@ public class TextInput extends Item implements TextEditable {
     @Override public int selectionAnchor() { return selectionAnchor; }
     @Override public void setSelectionAnchor(int a) { selectionAnchor = a; }
     @Override public boolean readOnly() { return Boolean.TRUE.equals(readOnly.peek()); }
+
+    // Qt's whitelist: QQuickTextInputPrivate::copy writes the clipboard only when
+    // m_echoMode == Normal, so every other and every unrecognised value fails closed.
+    @Override public boolean allowsClipboardCopy() {
+        return echo() == ECHO_NORMAL;
+    }
+
+    // The echoMode ordinal, or ECHO_UNKNOWN for anything that is not one of the four.
+    // QML can assign an arbitrary number at runtime, and Property holds whatever it was
+    // given, so every reader has to agree on what a non-conforming value means.
+    public int echo() {
+        Object m = echoMode.peek();
+        if (!(m instanceof Number)) return ECHO_UNKNOWN;
+        double d = ((Number) m).doubleValue();
+        int i = (int) d;
+        if (i != d || i < ECHO_NORMAL || i > ECHO_PASSWORD_ON_EDIT) return ECHO_UNKNOWN;
+        return i;
+    }
+
+    // True while the plaintext of a PasswordEchoOnEdit field may be shown. Qt reveals on
+    // the first text-producing key after focus is gained, not on focus itself
+    // (QQuickTextInput's m_passwordEchoEditing), and clears it again when focus leaves.
+    public boolean isEchoEditing() {
+        return echoEditing;
+    }
+
+    public void beginEchoEditing() {
+        echoEditing = true;
+    }
+
+    public void endEchoEditing() {
+        echoEditing = false;
+    }
     @Override public int maximumLength() { return maximumLength.peekInt(); }
     @Override public void emitTextChanged() { textChanged.emit(); }
     @Override public boolean handleEnter() { accepted.emit(); return true; }
