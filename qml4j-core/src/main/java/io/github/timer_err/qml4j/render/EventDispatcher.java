@@ -103,8 +103,8 @@ final class EventDispatcher {
     private boolean copyFromSelection(TextEditable ti, boolean alsoDelete) {
         String cur = ti.text();
         if (cur == null) cur = "";
-        int s = ti.selectionStart();
-        int e = ti.selectionEnd();
+        int s = clampPos(ti.selectionStart(), cur.length());
+        int e = clampPos(ti.selectionEnd(), cur.length());
         if (e <= s) return false;
         if (clipboard != null) clipboard.setText(cur.substring(s, e));
         if (alsoDelete) deleteSelection(ti, cur);
@@ -238,8 +238,8 @@ final class EventDispatcher {
     private static boolean applyInsert(TextEditable ti, String text) {
         String cur = ti.text();
         if (cur == null) cur = "";
-        int selS = ti.selectionStart();
-        int selE = ti.selectionEnd();
+        int selS = clampPos(ti.selectionStart(), cur.length());
+        int selE = clampPos(ti.selectionEnd(), cur.length());
         boolean hasSel = selE > selS;
         int caretBase = hasSel ? selS : clampPos(ti.cursorPosition(), cur.length());
         int reservedLen = hasSel ? cur.length() - (selE - selS) : cur.length();
@@ -257,8 +257,8 @@ final class EventDispatcher {
     }
 
     private static boolean deleteSelection(TextEditable ti, String cur) {
-        int s = ti.selectionStart();
-        int e = ti.selectionEnd();
+        int s = clampPos(ti.selectionStart(), cur.length());
+        int e = clampPos(ti.selectionEnd(), cur.length());
         if (e <= s) return false;
         ti.setText(cur.substring(0, s) + cur.substring(e));
         ti.setCursorPosition(s);

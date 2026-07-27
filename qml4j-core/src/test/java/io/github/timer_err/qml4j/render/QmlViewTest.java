@@ -2092,6 +2092,59 @@ class QmlViewTest {
         assertEquals("hi", ti.text.peek());
     }
 
+    // selectionStart/selectionEnd are bindable, so a binding can shorten the text while a
+    // selection still points past its new end. Every edit that takes a substring has to
+    // survive that; the renderer already clamps in paintSelectionRect.
+    private static TextInput staleSelection(QmlView v) {
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextInput { focus: true; text: \"hello world\" }\n" +
+            "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        ti.selectionStart.set(0);
+        ti.selectionEnd.set(11);
+        ti.text.set("hi");
+        return ti;
+    }
+
+    @Test
+    void copyClampsASelectionPastTheEndOfTheText() {
+        QmlView v = newView();
+        FakeClipboard cb = new FakeClipboard();
+        v.setClipboard(cb);
+        TextInput ti = staleSelection(v);
+        assertTrue(v.copy());
+        assertEquals("hi", cb.text);
+        assertEquals("hi", ti.text.peek());
+    }
+
+    @Test
+    void cutClampsASelectionPastTheEndOfTheText() {
+        QmlView v = newView();
+        FakeClipboard cb = new FakeClipboard();
+        v.setClipboard(cb);
+        TextInput ti = staleSelection(v);
+        assertTrue(v.cut());
+        assertEquals("hi", cb.text);
+        assertEquals("", ti.text.peek());
+    }
+
+    @Test
+    void typingClampsASelectionPastTheEndOfTheText() {
+        QmlView v = newView();
+        TextInput ti = staleSelection(v);
+        v.dispatchKey(0, "X", true);
+        assertEquals("X", ti.text.peek());
+    }
+
+    @Test
+    void backspaceClampsASelectionPastTheEndOfTheText() {
+        QmlView v = newView();
+        TextInput ti = staleSelection(v);
+        v.dispatchKey(QmlView.KEY_BACKSPACE, null, true);
+        assertEquals("", ti.text.peek());
+    }
+
     private static final class FakeClipboard implements Clipboard {
         String text;
         @Override public String getText() { return text; }
