@@ -30,7 +30,7 @@ public final class TextLayout {
         String ig = icons.iconGlyph(t);
         if (ig != null) {
             float w, h;
-            try (Font f = new Font(fonts.iconTypeface(), size)) {
+            try (Font f = FontResolver.configure(new Font(fonts.iconTypeface(), size))) {
                 if (ig.isEmpty()) {
                     w = 0f;
                 } else {

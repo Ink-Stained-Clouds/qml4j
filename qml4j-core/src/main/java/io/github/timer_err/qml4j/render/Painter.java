@@ -427,7 +427,7 @@ public final class Painter {
         for (int i = 0; i < iconFontCount; i++) {
             if (iconFontSizes[i] == size) return iconFontVals[i];
         }
-        Font f = new Font(renderer.fonts().iconTypeface(), size);
+        Font f = FontResolver.configure(new Font(renderer.fonts().iconTypeface(), size));
         if (iconFontCount == iconFontSizes.length) {
             iconFontSizes = java.util.Arrays.copyOf(iconFontSizes, iconFontCount * 2);
             iconFontVals = java.util.Arrays.copyOf(iconFontVals, iconFontCount * 2);

@@ -2,6 +2,7 @@ package io.github.timer_err.qml4j.render;
 
 import io.github.humbleui.skija.Data;
 import io.github.humbleui.skija.Font;
+import io.github.humbleui.skija.FontHinting;
 import io.github.humbleui.skija.FontMgr;
 import io.github.humbleui.skija.FontStyle;
 import io.github.humbleui.skija.Typeface;
@@ -102,12 +103,36 @@ final class FontResolver {
         String key = System.identityHashCode(tf) + ":" + size + ":" + embolden;
         Font cached = fontCache.get(key);
         if (cached != null) return cached;
-        Font f = tf != null ? new Font(tf, size) : new Font().setSize(size);
-        // Subpixel glyph positioning: text scrolls/animates smoothly instead of
-        // snapping each glyph to the pixel grid frame to frame.
-        f.setSubpixel(true);
+        Font f = configure(tf != null ? new Font(tf, size) : new Font().setSize(size));
         if (embolden) f.setEmboldened(true);
         fontCache.put(key, f);
+        return f;
+    }
+
+    /**
+     * Shared rasterisation setup for every Font the engine builds — text, icons, and
+     * the transient fonts used for measurement alike. Measured metrics must match the
+     * ones used at paint or centred content drifts, so this must not be bypassed.
+     *
+     * <p>Subpixel positioning keeps glyphs at fractional offsets, so text
+     * scrolls/animates smoothly instead of snapping to the pixel grid frame to frame.
+     *
+     * <p>Hinting is off because it is the one part of the pipeline that is not
+     * portable: FreeType (Linux) really grid-fits outlines and rounds ascent/descent/
+     * advances, DirectWrite (Windows) barely does. Centring an icon relies on the
+     * glyph's ink sitting where the font's design metrics say it does — {@code
+     * TextLayout.centeredBaseline} places the baseline at {@code -(ascent+descent)/2}
+     * below the box centre, which is exact for Material Symbols (ink centre 480/960em
+     * == -(ascent+descent)/2). Grid-fitting shifts the ink off that predicted centre,
+     * and at icon sizes (~10px) the shift is a visible fraction of the glyph, so icons
+     * land off-centre on Linux only. NONE + linear metrics gives pure scaled-outline
+     * geometry, identical on both backends, and is what subpixel positioning wants
+     * anyway — the two settings otherwise fight each other.
+     */
+    static Font configure(Font f) {
+        f.setSubpixel(true);
+        f.setHinting(FontHinting.NONE);
+        f.setMetricsLinear(true);
         return f;
     }
 
