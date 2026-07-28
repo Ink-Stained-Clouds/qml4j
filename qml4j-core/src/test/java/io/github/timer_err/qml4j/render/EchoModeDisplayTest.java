@@ -140,4 +140,71 @@ class EchoModeDisplayTest {
             assertTrue(ti.allowsClipboardCopy());
         }
     }
+
+    // A "show password" toggle binds echoMode. Flipping it back must re-mask, even though a
+    // binding write is not a focus change. Qt's setEchoMode clears the reveal the same way.
+    @Test
+    void changingEchoModeEndsAnyRevealInProgress() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { id: page; width: 200; height: 100\n"
+            + "  property bool revealed: true\n"
+            + "  TextInput { focus: true; echoMode: page.revealed ? 0 : 3 }\n"
+            + "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        v.dispatchKey(0, "h", true);
+        v.dispatchKey(0, "i", true);
+        assertEquals("hi", displayed(ti), "precondition: Normal shows plaintext");
+
+        setBool(root, "revealed", false);
+
+        assertEquals("••", displayed(ti), "flipping to PasswordEchoOnEdit must re-mask");
+        assertFalse(ti.isEchoEditing());
+    }
+
+    // A keystroke the editor refuses changes nothing, so it must not reveal anything either.
+    @Test
+    void aRejectedInsertDoesNotRevealTheField() {
+        QmlView v = newView();
+        Item root = v.load(
+            "Item { width: 200; height: 100\n"
+            + "  TextInput { focus: true; text: \"" + SECRET + "\"; echoMode: 3;"
+            + " maximumLength: 6 }\n"
+            + "}");
+        TextInput ti = (TextInput) root.children.get(0);
+        ti.cursorPosition.set(SECRET.length());
+
+        assertFalse(v.dispatchKey(0, "X", true), "the insert has no room");
+
+        assertEquals(SECRET, ti.text.peek(), "text is unchanged");
+        assertEquals("••••••", displayed(ti), "a refused keystroke must not reveal");
+        assertFalse(ti.isEchoEditing());
+    }
+
+    // Qt reveals on typing, not on a paste: pasted clipboard content must stay masked.
+    @Test
+    void pastingDoesNotRevealTheField() {
+        QmlView v = newView();
+        v.setClipboard(new Clipboard() {
+            @Override public String getText() { return "PASTED"; }
+            @Override public void setText(String t) { }
+        });
+        TextInput ti = inputWithEchoMode(v, "3");
+        ti.cursorPosition.set(SECRET.length());
+
+        assertTrue(v.paste());
+
+        assertEquals(SECRET + "PASTED", ti.text.peek(), "the paste landed");
+        assertEquals("••••••••••••", displayed(ti), "a paste must not reveal");
+        assertFalse(ti.isEchoEditing());
+    }
+
+    private static void setBool(Item root, String name, boolean value) {
+        try {
+            Object prop = root.getClass().getField(name).get(root);
+            prop.getClass().getMethod("set", Object.class).invoke(prop, value);
+        } catch (ReflectiveOperationException ex) {
+            throw new IllegalStateException("declared property " + name, ex);
+        }
+    }
 }
