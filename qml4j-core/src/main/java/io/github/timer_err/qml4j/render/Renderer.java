@@ -346,19 +346,33 @@ public final class Renderer {
             }
         }
         runLayout(node);
+        float ownW = node.width.peekFloat();
+        float ownH = node.height.peekFloat();
         applyAnchors(node);
-        // A child's anchors (centerIn/fill/...) resolve against the parent's geometry,
-        // but children are measured+anchored BEFORE the parent's own size is finalised
-        // above -- so a child centred/filled in a parent whose size comes from anchors
-        // was positioned against the parent's stale (often 0) size. Re-resolve the
-        // direct children's anchors now that the parent's box is final. If this changes
-        // a child's size it bumps the change version, so settleLayout runs another pass
-        // and the fix propagates down deeper anchor chains. On a settled frame the sets
-        // are no-ops (unchanged values don't bump). Previously this self-corrected only
-        // because the scene relayed out every frame; a static list never got pass two.
+        // This is where an anchored node's own box lands: anchors resolve against the parent,
+        // which is only final once we return. So the layout() above distributed a box the node
+        // did not have yet -- a RowLayout at `anchors.fill: parent` handed its fillWidth
+        // children the stale (usually 0) width. Redistribute now that the box is real.
+        boolean resized = node.width.peekFloat() != ownW || node.height.peekFloat() != ownH;
+        if (resized) runLayout(node);
+        // A child's anchors (centerIn/fill/...) resolve against the parent's geometry, but
+        // children are measured+anchored BEFORE the parent's own size is finalised above -- so
+        // a child centred/filled in a parent whose size comes from anchors was positioned
+        // against the parent's stale size. Re-resolve the direct children's anchors now.
         for (int i = 0, sz = kids.size(); i < sz; i++) {
             Item child = kids.get(i);
-            if (child.isVisible()) applyAnchors(child);
+            if (!child.isVisible()) continue;
+            float cw = child.width.peekFloat();
+            float ch = child.height.peekFloat();
+            applyAnchors(child);
+            // The child ended up in a different box than the one its own subtree was measured
+            // against, so re-measure it. Carrying the correction down here, rather than leaving
+            // it to the next settle pass, is what makes a chain of anchored layouts converge:
+            // a pass only ever moved it one level, so anything deeper stayed wrong once the
+            // pass cap was reached (and a static scene never got a second pass at all).
+            if (resized || child.width.peekFloat() != cw || child.height.peekFloat() != ch) {
+                measure(child);
+            }
         }
         // Snapshot the now-final child sizes so the next settle's fast-path check can
         // tell a genuinely static subtree from one whose row widths just settled.
