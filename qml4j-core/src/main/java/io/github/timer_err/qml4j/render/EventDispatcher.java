@@ -100,11 +100,10 @@ final class EventDispatcher {
         return applyInsert(ti, text);
     }
 
-    // The order here is the safety contract. The policy question is settled before
-    // any text is handed to the backend, and the write is read back and compared
-    // before a cut is allowed to destroy the selection: Clipboard.setText returns
-    // void (as does the GLFW call behind it), so a silently dropped write is only
-    // observable by reading the value back.
+    // The order here is the safety contract. The policy question is settled before any text
+    // is handed to the backend, and a cut only deletes once the write has been read back and
+    // matched: setText returns void, so a silently dropped write is otherwise invisible and a
+    // cut would destroy the only copy. A plain copy does not read back -- see below.
     private boolean copyFromSelection(TextEditable ti, boolean alsoDelete) {
         if (!ti.allowsClipboardCopy()) return false;
         if (clipboard == null) return false;
@@ -115,14 +114,19 @@ final class EventDispatcher {
         if (e <= s) return false;
         String selected = cur.substring(s, e);
         clipboard.setText(selected);
-        // A backend that cannot read its own write back yet (Wayland answers from the
-        // compositor's selection event, which has not been dispatched while we are inside
-        // the key callback) returns null. That is "unverifiable", not "failed": treat it as
-        // a copy, but never let it authorise a cut, which would destroy unsaved text.
+        // setText already happened and cannot be undone, so a read-back mismatch must not be
+        // reported as "nothing was copied" -- the caller would be told the copy failed while
+        // the user's previous clipboard is already gone. The read-back only decides whether
+        // the write is confirmed well enough to authorise deleting the original.
+        //
+        // null means the backend cannot answer yet rather than having refused: Wayland reads
+        // from the compositor's selection event, which has not been dispatched while we are
+        // still inside the key callback. A mismatch means it stored something else, e.g. a
+        // backend that normalises line endings.
+        if (!alsoDelete) return true;
         String readBack = clipboard.getText();
-        if (readBack == null) return !alsoDelete;
         if (!selected.equals(readBack)) return false;
-        if (alsoDelete) deleteSelection(ti, cur);
+        deleteSelection(ti, cur);
         return true;
     }
 
