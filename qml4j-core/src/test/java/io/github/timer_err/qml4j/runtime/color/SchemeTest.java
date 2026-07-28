@@ -17,7 +17,18 @@ class SchemeTest {
         assertEquals("#ffffff", light.get("onPrimaryColor"));
         assertEquals("#e9ddff", light.get("primaryContainer"));
         assertEquals("#7d5260", light.get("tertiary"));
-        assertEquals("#fffbfe", light.get("background"));
+        assertEquals("#fdf7ff", light.get("background"));
+    }
+
+    // MaterialDynamicColors pins background and surface to the same neutral tone; a component
+    // that masks a window-coloured hole with `surface` (the MD3 TextField's floating label)
+    // depends on it.
+    @Test
+    void backgroundEqualsSurface() {
+        Map<String, String> light = Scheme.generate(0xFF6750A4, false);
+        Map<String, String> dark = Scheme.generate(0xFF6750A4, true);
+        assertEquals(light.get("surface"), light.get("background"));
+        assertEquals(dark.get("surface"), dark.get("background"));
     }
 
     @Test

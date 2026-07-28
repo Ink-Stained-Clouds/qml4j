@@ -28,7 +28,11 @@ public final class Scheme {
         {"onErrorColor", 'E', 100, 20},
         {"errorContainer", 'E', 90, 30},
         {"onErrorContainerColor", 'E', 10, 90},
-        {"background", 'N', 99, 10},
+        // background is an alias of surface in the current spec, not the 99/10 pair of the
+        // 2021 baseline: MaterialDynamicColors gives both neutral 98 (light) / 6 (dark). They
+        // have to stay equal, or anything that paints `surface` over a `background` window
+        // shows as a patch -- e.g. the MD3 TextField's floating-label mask.
+        {"background", 'N', 98, 6},
         {"onBackgroundColor", 'N', 10, 90},
         {"surface", 'N', 98, 6},
         {"onSurfaceColor", 'N', 10, 90},
