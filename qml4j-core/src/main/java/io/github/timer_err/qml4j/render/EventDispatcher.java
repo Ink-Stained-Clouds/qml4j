@@ -100,13 +100,28 @@ final class EventDispatcher {
         return applyInsert(ti, text);
     }
 
+    // The order here is the safety contract. The policy question is settled before
+    // any text is handed to the backend, and the write is read back and compared
+    // before a cut is allowed to destroy the selection: Clipboard.setText returns
+    // void (as does the GLFW call behind it), so a silently dropped write is only
+    // observable by reading the value back.
     private boolean copyFromSelection(TextEditable ti, boolean alsoDelete) {
+        if (!ti.allowsClipboardCopy()) return false;
+        if (clipboard == null) return false;
         String cur = ti.text();
         if (cur == null) cur = "";
         int s = clampPos(ti.selectionStart(), cur.length());
         int e = clampPos(ti.selectionEnd(), cur.length());
         if (e <= s) return false;
-        if (clipboard != null) clipboard.setText(cur.substring(s, e));
+        String selected = cur.substring(s, e);
+        clipboard.setText(selected);
+        // A backend that cannot read its own write back yet (Wayland answers from the
+        // compositor's selection event, which has not been dispatched while we are inside
+        // the key callback) returns null. That is "unverifiable", not "failed": treat it as
+        // a copy, but never let it authorise a cut, which would destroy unsaved text.
+        String readBack = clipboard.getText();
+        if (readBack == null) return !alsoDelete;
+        if (!selected.equals(readBack)) return false;
         if (alsoDelete) deleteSelection(ti, cur);
         return true;
     }
@@ -236,6 +251,9 @@ final class EventDispatcher {
     }
 
     private static boolean applyInsert(TextEditable ti, String text) {
+        // Every path that puts characters into an editor funnels through here, which is
+        // where Qt starts revealing a PasswordEchoOnEdit field.
+        if (ti instanceof TextInput) ((TextInput) ti).beginEchoEditing();
         String cur = ti.text();
         if (cur == null) cur = "";
         int selS = clampPos(ti.selectionStart(), cur.length());

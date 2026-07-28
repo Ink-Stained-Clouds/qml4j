@@ -960,21 +960,27 @@ public final class Painter {
         }
     }
 
-    // The string shown for a TextInput honouring echoMode: Password masks each char with
-    // passwordCharacter, NoEcho shows nothing, else the raw text.
+    // The string shown for a TextInput honouring echoMode. Reads the mode through
+    // TextInput.echo() so that what is displayed and what may be copied are decided from
+    // one interpretation of the property: a field whose glyphs are masked is never
+    // copyable, and an unrecognised mode masks rather than falling through to plaintext.
     private static String echoDisplay(TextInput ti) {
         String raw = ti.text.peek();
         if (raw == null) raw = "";
-        int mode = ti.echoMode.peekInt();
-        if (mode == 1) return "";                 // NoEcho
-        if (mode == 2) {                           // Password
-            String pc = ti.passwordCharacter.peek();
-            char c = pc == null || pc.isEmpty() ? '•' : pc.charAt(0);
-            StringBuilder b = new StringBuilder(raw.length());
-            for (int i = 0; i < raw.length(); i++) b.append(c);
-            return b.toString();
-        }
-        return raw;
+        int mode = ti.echo();
+        if (mode == TextInput.ECHO_NORMAL) return raw;
+        if (mode == TextInput.ECHO_NO_ECHO) return "";
+        // Qt reveals PasswordEchoOnEdit only once the user has typed since gaining focus.
+        if (mode == TextInput.ECHO_PASSWORD_ON_EDIT && ti.isEchoEditing()) return raw;
+        return mask(raw, ti.passwordCharacter.peek());
+    }
+
+    private static String mask(String raw, String passwordCharacter) {
+        char c = passwordCharacter == null || passwordCharacter.isEmpty()
+            ? '•' : passwordCharacter.charAt(0);
+        StringBuilder b = new StringBuilder(raw.length());
+        for (int i = 0; i < raw.length(); i++) b.append(c);
+        return b.toString();
     }
 
     // echoDisplay is @NotNull, but keep the null-guard defensively (QML can feed odd values).

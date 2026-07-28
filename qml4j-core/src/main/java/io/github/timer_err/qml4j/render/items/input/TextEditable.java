@@ -19,6 +19,14 @@ public interface TextEditable {
     boolean readOnly();
     int maximumLength();
 
+    // Whether the editor's model text may leave the process through the clipboard.
+    // Defaults to true so existing implementations keep working unchanged; masked
+    // editors override it, because a host has no other way to tell that the text
+    // it is about to publish is a password.
+    default boolean allowsClipboardCopy() {
+        return true;
+    }
+
     void emitTextChanged();
 
     boolean handleEnter();
