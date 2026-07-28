@@ -11,6 +11,9 @@ public class TextInput extends Item implements TextEditable {
     public static final int ECHO_UNKNOWN = -1;
     public static final int ECHO_NORMAL = 0;
     public static final int ECHO_NO_ECHO = 1;
+    // Masked by the catch-all in Painter.echoDisplay rather than by name; kept so the four
+    // Qt echo modes read as a complete set.
+    @SuppressWarnings("unused")
     public static final int ECHO_PASSWORD = 2;
     public static final int ECHO_PASSWORD_ON_EDIT = 3;
 
@@ -71,8 +74,10 @@ public class TextInput extends Item implements TextEditable {
     }
 
     // The echoMode ordinal, or ECHO_UNKNOWN for anything that is not one of the four.
-    // QML can assign an arbitrary number at runtime, and Property holds whatever it was
-    // given, so every reader has to agree on what a non-conforming value means.
+    // Read through Object: a QML binding can land a Boolean or a String on this Property
+    // despite its declared type, so the instanceof is load-bearing even though the static
+    // type says it cannot fail -- reading it as Number throws instead.
+    @SuppressWarnings({"ConstantValue", "RedundantCast"})
     public int echo() {
         Object m = echoMode.peek();
         if (!(m instanceof Number)) return ECHO_UNKNOWN;
