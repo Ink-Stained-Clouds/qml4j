@@ -74,14 +74,17 @@ public class TextInput extends Item implements TextEditable {
     }
 
     // The echoMode ordinal, or ECHO_UNKNOWN for anything that is not one of the four.
-    // Read through Object: a QML binding can land a Boolean or a String on this Property
-    // despite its declared type, so the instanceof is load-bearing even though the static
-    // type says it cannot fail -- reading it as Number throws instead.
-    @SuppressWarnings({"ConstantValue", "RedundantCast"})
     public int echo() {
-        Object m = echoMode.peek();
-        if (!(m instanceof Number)) return ECHO_UNKNOWN;
-        double d = ((Number) m).doubleValue();
+        return echoOrdinal(echoMode.peek());
+    }
+
+    // Takes Object because the declared Property<Number> does not hold at runtime: erasure
+    // lets a QML binding assign a Boolean or a String, and reading such a value as Number
+    // throws at the assignment -- for a password field that kills the paint path instead of
+    // masking. Anything that is not one of the four ordinals is unknown, and unknown masks.
+    static int echoOrdinal(Object value) {
+        if (!(value instanceof Number)) return ECHO_UNKNOWN;
+        double d = ((Number) value).doubleValue();
         int i = (int) d;
         if (i != d || i < ECHO_NORMAL || i > ECHO_PASSWORD_ON_EDIT) return ECHO_UNKNOWN;
         return i;
