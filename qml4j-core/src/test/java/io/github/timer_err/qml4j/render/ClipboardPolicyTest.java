@@ -262,8 +262,11 @@ class ClipboardPolicyTest {
         assertEquals(0, changes[0], "textChanged must not fire");
     }
 
+    // A copy hands the text over and stops. Reporting false after setText has already run
+    // would tell the caller nothing was copied while the user's previous clipboard is gone --
+    // and a copy has nothing to roll back, so there is no decision left to make.
     @Test
-    void copyReturnsFalseWhenClipboardWriteCannotBeConfirmed() {
+    void copyDoesNotReadBackAndReportsSuccess() {
         QmlView v = newView();
         RecordingClipboard cb = new RecordingClipboard();
         cb.stored = "older clipboard entry";
@@ -277,11 +280,32 @@ class ClipboardPolicyTest {
         ti.selectionStart.set(0);
         ti.selectionEnd.set(5);
 
-        assertFalse(v.copy(), "copy must not claim success when the write is unconfirmed");
-        assertEquals("hello world", ti.text.peek(), "a refused copy must not edit the text");
-        assertEquals("older clipboard entry", cb.stored, "the backend kept its previous value");
+        assertTrue(v.copy(), "the text was handed to the backend");
+        assertEquals("hello world", ti.text.peek(), "a copy never edits the text");
         assertEquals(1, cb.setCalls, "the write must have been attempted once");
-        assertEquals(1, cb.getCalls, "the write must have been read back once");
+        assertEquals(0, cb.getCalls, "a copy has no reason to read the clipboard back");
+    }
+
+    // The read-back exists to protect a cut, and a cut is the only caller that can still
+    // change its mind. A rewriting backend must not be able to make cut delete the original.
+    @Test
+    void cutIsRefusedWhenTheBackendStoredSomethingElse() {
+        QmlView v = newView();
+        RecordingClipboard cb = new RecordingClipboard();
+        cb.rewrite = written -> written.replace("\n", "\r\n");
+        v.setClipboard(cb);
+        Item root = v.load(
+            "Item { width: 200; height: 100\n" +
+            "  TextEdit { focus: true; text: \"a\nb\" }\n" +
+            "}");
+        TextEdit te = (TextEdit) root.children.get(0);
+        te.selectionStart.set(0);
+        te.selectionEnd.set(3);
+        te.selectionAnchor = 0;
+        te.cursorPosition.set(3);
+
+        assertFalse(v.cut(), "an unconfirmed write must never authorise deleting the original");
+        assertEquals("a\nb", te.text.peek(), "the text must survive");
     }
 
     @Test
@@ -482,11 +506,11 @@ class ClipboardPolicyTest {
         assertTrue(v.copy(), "a read-only Normal input must still copy");
         assertEquals("hello", cb.stored, "copy must publish the selection");
         assertEquals(1, cb.setCalls, "copy writes once");
-        assertEquals(1, cb.getCalls, "copy reads back once");
+        assertEquals(0, cb.getCalls, "a copy does not read back");
 
         assertFalse(v.cut(), "a read-only input must not cut");
         assertEquals(1, cb.setCalls, "the refused cut must not write again");
-        assertEquals(1, cb.getCalls, "the refused cut must not read again");
+        assertEquals(0, cb.getCalls, "the refused cut is rejected before it touches the backend");
         assertEquals("hello world", ti.text.peek(), "the refused cut must keep the text");
         assertEquals(0, ti.selectionStart.peekInt(), "selection start must survive");
         assertEquals(5, ti.selectionEnd.peekInt(), "selection end must survive");
