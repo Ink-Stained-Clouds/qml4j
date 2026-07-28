@@ -92,6 +92,10 @@ final class FontResolver {
 
     // Bold uses the injected medium/bold face when available (real weight matches the
     // design metrics); otherwise synthesize weight via Skija's emboldening.
+    // The Font built here is deliberately not closed at the end of this method: it goes into
+    // fontCache to be reused across frames (that is the whole point of the cache) and is closed
+    // by close(). Wrapping it in try-with-resources would free the native font on first use.
+    @SuppressWarnings("resource")
     Font fontFor(float size, String text, boolean bold) {
         Typeface tf = null;
         boolean realBold = false;

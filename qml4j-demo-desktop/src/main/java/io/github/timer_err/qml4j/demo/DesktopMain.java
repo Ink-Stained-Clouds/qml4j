@@ -252,8 +252,7 @@ public final class DesktopMain {
     // that throws keeps its guard, so this is not unconditionally idempotent after a failed
     // cleanup. Does not exit the process; run() owns the platform exit.
     private void shutdown() {
-        Throwable error = null;
-        error = step(error, () -> { if (host != null) { host.dispose(); host = null; } });
+        Throwable error = step(null, () -> { if (host != null) { host.dispose(); host = null; } });
         error = step(error, () -> { if (backend != null) { backend.dispose(); backend = null; } });
         error = step(error, () -> { if (window != MemoryUtil.NULL) GLFW.glfwMakeContextCurrent(MemoryUtil.NULL); });
         error = step(error, () -> { if (window != MemoryUtil.NULL) Callbacks.glfwFreeCallbacks(window); });
