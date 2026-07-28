@@ -190,6 +190,17 @@ These map to the `-Dqml4j.fps` / `-Dqml4j.vsync` / `-Dqml4j.canvasCache` / `-Dqm
 
 `run.sh` recompiles `qml4j-core` + the desktop module from source (`-am`) and launches `java` directly with the freshly-built `target/classes` ahead of any `~/.m2` jar on the classpath — no `mvn install` after editing the engine, and a stale `~/.m2/qml4j-core` can't shadow your changes. (Plain `mvn -pl qml4j-demo-desktop exec:java` resolves `qml4j-core` from `~/.m2` and silently runs a stale engine, e.g. "unknown QML type" for a freshly-registered item.)
 
+On Darwin `run.sh` adds `-XstartOnFirstThread`, which GLFW requires in order to drive the
+AppKit event loop on the process's first thread. The flag only takes effect at JVM start-up,
+so `mvn exec:java` cannot supply it — Maven's JVM has already started off the first thread by
+the time the plugin runs.
+
+`run.sh` launches the JDK that `JAVA_HOME` points at, because that is the JDK Maven used to
+pick the platform natives now on the classpath. On a machine with more than one JDK — an x64
+`JAVA_HOME` with an arm64 `java` first on `PATH`, or the reverse — launching a different one
+hands the wrong architecture's natives to the VM and LWJGL fails to load them. Leave
+`JAVA_HOME` unset to keep using `java` from `PATH`.
+
 Exit code 137 on close is expected (NVIDIA libEGL teardown SIGSEGV, worked around by SIGKILL-self).
 
 ### Package a distributable jar
