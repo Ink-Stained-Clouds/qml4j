@@ -1,5 +1,6 @@
 package io.github.timer_err.qml4j.demo;
 
+import io.github.timer_err.qml4j.render.Clipboard;
 import io.github.timer_err.qml4j.render.QmlView;
 import io.github.timer_err.qml4j.runtime.color.StyleManager;
 import org.lwjgl.glfw.Callbacks;
@@ -16,6 +17,9 @@ import org.lwjgl.system.MemoryUtil;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.nio.file.Paths;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
 
 public final class DesktopMain {
 
@@ -23,6 +27,7 @@ public final class DesktopMain {
     private static final int INITIAL_H = 720;
 
     private long window;
+    private boolean glfwInitialized;
     private GlfwSurfaceBackend backend;
     private DesktopHost host;
 
@@ -55,46 +60,93 @@ public final class DesktopMain {
         }
         GLFWErrorCallback.createPrint(System.err).set();
         if (!GLFW.glfwInit()) {
+            freeErrorCallback();
             throw new IllegalStateException("glfwInit failed");
         }
-        createWindow();
+        glfwInitialized = true;
 
-        int[] fw = new int[1];
-        int[] fh = new int[1];
-        GLFW.glfwGetFramebufferSize(window, fw, fh);
+        // Past this point a GL context may exist (on Linux the NVIDIA driver spins its
+        // exit-fault worker), so every path -- normal close, init failure, render error --
+        // must run the ordered cleanup and then pick the platform exit. Capture the failure,
+        // release in finally, then decide.
+        Throwable failure = null;
+        try {
+            createWindow();
 
-        backend = new GlfwSurfaceBackend(window, fw[0], fh[0]);
-        backend.init(fw[0], fh[0]);
-        updateScale(fw[0], fh[0]);
+            int[] fw = new int[1];
+            int[] fh = new int[1];
+            GLFW.glfwGetFramebufferSize(window, fw, fh);
 
-        boolean dark = !"false".equals(System.getProperty("qml4j.dark", "true"));
-        ((StyleManager) StyleManager.__instance()).isDarkTheme.set(dark);
+            backend = new GlfwSurfaceBackend(window, fw[0], fh[0]);
+            backend.init(fw[0], fh[0]);
+            updateScale(fw[0], fh[0]);
 
-        if (app) {
-            host = new DesktopHost(new AppResourceLoader(), fw[0], fh[0]);
-            host.startApp();
-        } else if (mock) {
-            host = new DesktopHost(new DirResourceLoader(Paths.get(args[1])), fw[0], fh[0]);
-            java.util.Map<String, Object> ctx = new java.util.LinkedHashMap<>();
-            ctx.put("client", new MockClient());
-            host.run(args[2], ctx);
-        } else {
-            host = new DesktopHost(new DirResourceLoader(Paths.get(args[0])), fw[0], fh[0]);
-            host.run(args[1]);
-        }
+            boolean dark = !"false".equals(System.getProperty("qml4j.dark", "true"));
+            ((StyleManager) StyleManager.__instance()).isDarkTheme.set(dark);
 
-        installCallbacks();
+            Clipboard clipboard = new GlfwClipboard(window);
+            if (app) {
+                host = new DesktopHost(new AppResourceLoader(), fw[0], fh[0], clipboard);
+                host.startApp();
+            } else if (mock) {
+                host = new DesktopHost(new DirResourceLoader(Paths.get(args[1])), fw[0], fh[0], clipboard);
+                Map<String, Object> ctx = new LinkedHashMap<>();
+                ctx.put("client", new MockClient());
+                host.run(args[2], ctx);
+            } else {
+                host = new DesktopHost(new DirResourceLoader(Paths.get(args[0])), fw[0], fh[0], clipboard);
+                host.run(args[1]);
+            }
 
-        while (!GLFW.glfwWindowShouldClose(window)) {
-            host.renderFrame(backend);
-            GLFW.glfwPollEvents();
-            if (cursorMoved) {
-                cursorMoved = false;
-                host.pointerMove((float) cursorX, (float) cursorY);
+            installCallbacks();
+
+            while (!GLFW.glfwWindowShouldClose(window)) {
+                host.renderFrame(backend);
+                GLFW.glfwPollEvents();
+                if (cursorMoved) {
+                    cursorMoved = false;
+                    host.pointerMove((float) cursorX, (float) cursorY);
+                }
+            }
+        } catch (RuntimeException | Error e) {
+            failure = e;
+        } finally {
+            try {
+                shutdown();
+            } catch (RuntimeException | Error cleanupError) {
+                if (failure != null) {
+                    failure.addSuppressed(cleanupError);
+                } else {
+                    failure = cleanupError;
+                }
             }
         }
 
-        shutdown();
+        // Exit only after the release above. Linux keeps the SIGKILL driver workaround (see
+        // killSelf); every other host returns, so a real leftover non-daemon thread surfaces
+        // as a hang rather than being masked, and a normal close exits 0. A failure re-throws
+        // for a non-zero status with its stack trace; on Linux, where killSelf pre-empts the
+        // JVM's own report, print it first.
+        //
+        // Consequence on Linux: a failure exits 137 like a normal close does, so the exit
+        // code alone cannot tell them apart -- read the stack trace above it. The workaround
+        // cannot be narrowed to the success path: a GL context exists by this point either
+        // way, and the driver's exit-fault worker is exactly what a half-torn-down failure
+        // path would trip.
+        if (isLinux()) {
+            if (failure != null) {
+                failure.printStackTrace(System.err);
+            }
+            killSelf();
+        }
+        // Only RuntimeException and Error are ever caught above, so anything left here is an
+        // Error; rethrow unwrapped so the JVM reports the original type and stack.
+        if (failure instanceof RuntimeException) {
+            throw (RuntimeException) failure;
+        }
+        if (failure != null) {
+            throw (Error) failure;
+        }
     }
 
     private void createWindow() {
@@ -107,7 +159,7 @@ public final class DesktopMain {
 
         window = GLFW.glfwCreateWindow(INITIAL_W, INITIAL_H, "qml4j showcases", MemoryUtil.NULL, MemoryUtil.NULL);
         if (window == MemoryUtil.NULL) {
-            GLFW.glfwTerminate();
+            // run()'s finally drives glfwTerminate through shutdown(); don't tear down here.
             throw new IllegalStateException("glfwCreateWindow failed");
         }
         GLFW.glfwMakeContextCurrent(window);
@@ -191,29 +243,69 @@ public final class DesktopMain {
         }
     }
 
-    // The error callback is released via cb.free() below, not try-with-resources.
-    @SuppressWarnings("resource")
+    // Ordered teardown: scene and GPU resources first (while the GL context is still
+    // current), then unbind, free callbacks, destroy the window, and terminate GLFW. Each
+    // step is attempted independently so one failure cannot strand a later native release --
+    // the first error becomes primary and the rest are attached as suppressed. Guards keep it
+    // safe after a partial init, and each handle is cleared once its own step succeeds (host,
+    // backend, and the window only after destroy), so completed work is not redone; a step
+    // that throws keeps its guard, so this is not unconditionally idempotent after a failed
+    // cleanup. Does not exit the process; run() owns the platform exit.
     private void shutdown() {
-        host.dispose();
-        backend.dispose();
-        // Unbind the context before tearing GLFW down so the NVIDIA EGL driver
-        // isn't mid-flight on the window surface during eglTerminate.
-        GLFW.glfwMakeContextCurrent(MemoryUtil.NULL);
-        Callbacks.glfwFreeCallbacks(window);
-        GLFW.glfwDestroyWindow(window);
-        GLFW.glfwTerminate();
-        GLFWErrorCallback cb = GLFW.glfwSetErrorCallback(null);
-        if (cb != null) cb.free();
-        killSelf();
+        Throwable error = null;
+        error = step(error, () -> { if (host != null) { host.dispose(); host = null; } });
+        error = step(error, () -> { if (backend != null) { backend.dispose(); backend = null; } });
+        error = step(error, () -> { if (window != MemoryUtil.NULL) GLFW.glfwMakeContextCurrent(MemoryUtil.NULL); });
+        error = step(error, () -> { if (window != MemoryUtil.NULL) Callbacks.glfwFreeCallbacks(window); });
+        error = step(error, () -> {
+            if (window != MemoryUtil.NULL) {
+                GLFW.glfwDestroyWindow(window);
+                window = MemoryUtil.NULL;
+            }
+        });
+        error = step(error, () -> { if (glfwInitialized) { GLFW.glfwTerminate(); glfwInitialized = false; } });
+        error = step(error, DesktopMain::freeErrorCallback);
+        if (error instanceof RuntimeException) {
+            throw (RuntimeException) error;
+        }
+        if (error instanceof Error) {
+            throw (Error) error;
+        }
     }
 
-    // The NVIDIA EGL driver spins a worker thread that SIGSEGVs the instant this
-    // process begins to exit. Every in-process exit path reproduces it -- return,
-    // System.exit, Runtime.halt -- even with zero GL teardown, so it cannot be fixed
-    // by ordering the cleanup above. SIGKILL terminates the whole process atomically
-    // in the kernel, before the worker can fault, so there is no JVM fatal-error log
-    // or core dump. (It also sidesteps AwtClipboard's non-daemon AWT EDT, which would
-    // otherwise keep the JVM alive past main().) Last resort for this driver bug.
+    // Run one cleanup action, folding any failure into the running aggregate: the first
+    // becomes primary, later ones are suppressed on it, and every step still runs.
+    private static Throwable step(Throwable primary, Runnable action) {
+        try {
+            action.run();
+        } catch (RuntimeException | Error e) {
+            if (primary == null) {
+                return e;
+            }
+            primary.addSuppressed(e);
+        }
+        return primary;
+    }
+
+    // Released manually, not via try-with-resources; a second call is a no-op because
+    // setErrorCallback(null) then returns null.
+    @SuppressWarnings("resource")
+    private static void freeErrorCallback() {
+        GLFWErrorCallback cb = GLFW.glfwSetErrorCallback(null);
+        if (cb != null) cb.free();
+    }
+
+    private static boolean isLinux() {
+        return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("linux");
+    }
+
+    // The NVIDIA EGL driver spins a worker thread that SIGSEGVs the instant this process
+    // begins to exit. Every in-process exit path reproduces it -- return, System.exit,
+    // Runtime.halt -- even with zero GL teardown, so it cannot be fixed by ordering the
+    // cleanup above. SIGKILL terminates the whole process atomically in the kernel, before
+    // the worker can fault, so there is no JVM fatal-error log or core dump. Reached only on
+    // Linux; other hosts return normally after shutdown() releases everything. Last resort
+    // for this driver bug.
     private static void killSelf() {
         // Java 8 has no ProcessHandle; the RuntimeMXBean name is "<pid>@<host>".
         String runtimeName = ManagementFactory.getRuntimeMXBean().getName();

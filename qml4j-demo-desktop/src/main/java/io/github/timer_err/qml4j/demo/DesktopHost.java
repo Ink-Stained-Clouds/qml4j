@@ -1,6 +1,7 @@
 package io.github.timer_err.qml4j.demo;
 
 import io.github.timer_err.qml4j.engine.QmlEngine;
+import io.github.timer_err.qml4j.render.Clipboard;
 import io.github.timer_err.qml4j.render.QmlView;
 import io.github.timer_err.qml4j.render.ResourceLoader;
 import io.github.timer_err.qml4j.render.SurfaceBackend;
@@ -15,14 +16,16 @@ import java.util.Map;
 final class DesktopHost {
 
     private final ResourceLoader loader;
+    private final Clipboard clipboard;
     private QmlView view;
     private int fbW;
     private int fbH;
 
-    DesktopHost(ResourceLoader loader, int fbW, int fbH) {
+    DesktopHost(ResourceLoader loader, int fbW, int fbH, Clipboard clipboard) {
         this.loader = loader;
         this.fbW = fbW;
         this.fbH = fbH;
+        this.clipboard = clipboard;
     }
 
     // Load and render an entry .qml resolved by the loader. Untrusted content: a
@@ -80,7 +83,7 @@ final class DesktopHost {
         if (view != null) view.dispose();
         QmlEngine engine = new QmlEngine();
         view = QmlView.withStockTypes(engine).resources(rl);
-        view.setClipboard(new AwtClipboard());
+        view.setClipboard(clipboard);
         if (context != null) {
             for (Map.Entry<String, Object> e : context.entrySet()) view.context(e.getKey(), e.getValue());
         }
