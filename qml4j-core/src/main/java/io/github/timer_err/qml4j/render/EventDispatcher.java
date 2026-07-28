@@ -165,9 +165,18 @@ final class EventDispatcher {
             return setCaret(ti, cur == null ? 0 : cur.length(), shift);
         }
         if (text != null && !text.isEmpty()) {
-            return applyInsert(ti, text);
+            return typeText(ti, text);
         }
         return false;
+    }
+
+    // Qt reveals a PasswordEchoOnEdit field when the user types into it -- not when a paste
+    // or a newline lands, and not on a keystroke the editor rejected. So the reveal hangs off
+    // the typing path and only after the insert succeeded.
+    private static boolean typeText(TextEditable ti, String text) {
+        if (!applyInsert(ti, text)) return false;
+        if (ti instanceof TextInput) ((TextInput) ti).beginEchoEditing();
+        return true;
     }
 
     private boolean deliverToKeys(Item start, int keyCode, String text, boolean down, boolean shift) {
@@ -251,9 +260,6 @@ final class EventDispatcher {
     }
 
     private static boolean applyInsert(TextEditable ti, String text) {
-        // Every path that puts characters into an editor funnels through here, which is
-        // where Qt starts revealing a PasswordEchoOnEdit field.
-        if (ti instanceof TextInput) ((TextInput) ti).beginEchoEditing();
         String cur = ti.text();
         if (cur == null) cur = "";
         int selS = clampPos(ti.selectionStart(), cur.length());

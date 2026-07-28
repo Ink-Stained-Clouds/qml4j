@@ -45,6 +45,10 @@ public class TextInput extends Item implements TextEditable {
     public int selectionAnchor = -1;
 
     private boolean echoEditing;
+    // Seeded on first read rather than at construction: echoMode may be a binding that has
+    // not been evaluated yet when the field is built.
+    private int lastEcho = ECHO_UNSEEN;
+    private static final int ECHO_UNSEEN = Integer.MIN_VALUE;
 
     public TextInput() {
         wireContentInvalidation(text, color, fontSize, cursorPosition, selectionStart,
@@ -74,8 +78,18 @@ public class TextInput extends Item implements TextEditable {
     }
 
     // The echoMode ordinal, or ECHO_UNKNOWN for anything that is not one of the four.
+    // Changing the mode ends any reveal in progress, the way Qt's setEchoMode does: a
+    // "show password" toggle that binds echoMode must re-mask when it flips back, and a
+    // binding write is not a focus change, so FocusManager never sees it. Checked here
+    // rather than through a listener so it holds for every writer, binding or imperative.
     public int echo() {
-        return echoOrdinal(echoMode.peek());
+        int mode = echoOrdinal(echoMode.peek());
+        if (mode != lastEcho) {
+            boolean firstRead = lastEcho == ECHO_UNSEEN;
+            lastEcho = mode;
+            if (!firstRead) echoEditing = false;
+        }
+        return mode;
     }
 
     // Takes Object because the declared Property<Number> does not hold at runtime: erasure
