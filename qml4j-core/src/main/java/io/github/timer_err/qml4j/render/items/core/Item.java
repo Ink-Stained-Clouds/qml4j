@@ -160,6 +160,10 @@ public class Item extends QObject {
         // Reparenting on a `parent` change (Qt): `parent: overlay` moves an item into the
         // overlay's children so it renders there (z:9999), not at its declaration site.
         parent.addListener(this::onParentChanged);
+        // QML grants and drops focus by writing the property (`textInput.focus = false`), so
+        // that write has to reach the view's focus manager -- otherwise activeFocus and the
+        // key-event target keep pointing at the previously focused item.
+        focus.addListener(this::onFocusWritten);
         wireLayoutInvalidation();
     }
 
@@ -388,9 +392,25 @@ public class Item extends QObject {
     }
 
     public void forceActiveFocus() {
+        Consumer<Item> hook = rootFocusHook();
+        if (hook != null) hook.accept(this);
+    }
+
+    // Dropping focus only means "nobody is focused" when this item is the one holding it;
+    // clearing an unfocused item's flag must not steal focus from whoever has it. The manager
+    // clears activeFocus before focus on the item it is leaving, so its own writes land here
+    // as no-ops rather than recursing.
+    private void onFocusWritten(Boolean wanted) {
+        Consumer<Item> hook = rootFocusHook();
+        if (hook == null) return;
+        if (Boolean.TRUE.equals(wanted)) hook.accept(this);
+        else if (Boolean.TRUE.equals(activeFocus.peek())) hook.accept(null);
+    }
+
+    private Consumer<Item> rootFocusHook() {
         Item r = this;
         while (r.parent.peek() != null) r = r.parent.peek();
-        if (r.focusHook != null) r.focusHook.accept(this);
+        return r.focusHook;
     }
 
     // QML Object.destroy(): detach from the scene. Safe to call from inside an
