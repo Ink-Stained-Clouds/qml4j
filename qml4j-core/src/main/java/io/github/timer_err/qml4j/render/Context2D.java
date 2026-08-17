@@ -89,6 +89,52 @@ public final class Context2D {
     public void lineTo(double x, double y) {
         push(OP_LINE); push((float) x); push((float) y);
     }
+
+    // qml4j extension for animated waveforms: append the same sampled polyline a
+    // JavaScript moveTo/lineTo loop would produce, but cross the JS/Java bridge only
+    // once. The equation deliberately uses doubles and casts only while recording
+    // each command, matching calls from QML bit-for-bit.
+    //
+    // exactEnd=false: sample startX, startX + step, ... while x <= endX.
+    // exactEnd=true:  sample while x < endX, then append a point exactly at endX.
+    // The latter keeps a determinate progress tip moving continuously rather than
+    // snapping it to the sampling grid. An empty/reversed interval adds no command.
+    @SuppressWarnings("unused")
+    public void appendSineWave(double startX, double endX, double step,
+                               double centerY, double amplitude, double frequency,
+                               double phase, boolean exactEnd) {
+        if (!Double.isFinite(startX) || !Double.isFinite(endX)
+                || !Double.isFinite(step) || step <= 0
+                || !Double.isFinite(centerY) || !Double.isFinite(amplitude)
+                || !Double.isFinite(frequency) || !Double.isFinite(phase)
+                || startX > endX) {
+            return;
+        }
+
+        boolean begun = false;
+        if (exactEnd) {
+            for (double x = startX; x < endX; x += step) {
+                appendWavePoint(begun ? OP_LINE : OP_MOVE, x, centerY,
+                    amplitude, frequency, phase);
+                begun = true;
+            }
+            if (begun) {
+                appendWavePoint(OP_LINE, endX, centerY, amplitude, frequency, phase);
+            }
+        } else {
+            for (double x = startX; x <= endX; x += step) {
+                appendWavePoint(begun ? OP_LINE : OP_MOVE, x, centerY,
+                    amplitude, frequency, phase);
+                begun = true;
+            }
+        }
+    }
+
+    private void appendWavePoint(int op, double x, double centerY,
+                                 double amplitude, double frequency, double phase) {
+        double y = centerY + amplitude * Math.sin((x * frequency) + phase);
+        push(op); push((float) x); push((float) y);
+    }
     @SuppressWarnings("unused")
     public void rect(double x, double y, double w, double h) {
         push(OP_RECT); push((float) x); push((float) y); push((float) w); push((float) h);

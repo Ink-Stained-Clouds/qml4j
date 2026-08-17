@@ -146,11 +146,7 @@ Item {
             // Track (inactive)
             ctx.beginPath();
             ctx.strokeStyle = trackColor;
-            for (var x = x0; x <= x1; x += 2) {
-                var y = cy + amplitude * Math.sin((x * frequency) + phase);
-                if (x === x0) ctx.moveTo(x, y);
-                else ctx.lineTo(x, y);
-            }
+            ctx.appendSineWave(x0, x1, 2, cy, amplitude, frequency, phase, false);
             ctx.stroke();
 
             // Indicator (active)
@@ -162,29 +158,15 @@ Item {
                 var barWidth = span * 0.5;
                 var startX = x0 + (span + barWidth) * indetProgress - barWidth;
                 var endXi = startX + barWidth;
-                var begun = false;
-                for (var xi = x0; xi <= x1; xi += 2) {
-                    if (xi >= startX && xi <= endXi) {
-                        var yi = cy + amplitude * Math.sin((xi * frequency) + phase);
-                        if (!begun) { ctx.moveTo(xi, yi); begun = true; }
-                        else ctx.lineTo(xi, yi);
-                    }
-                }
+                // Keep the same 2px sampling lattice as the old filtered loop.
+                var firstXi = x0 + Math.max(0, Math.ceil((startX - x0) / 2)) * 2;
+                ctx.appendSineWave(firstXi, Math.min(x1, endXi), 2,
+                                   cy, amplitude, frequency, phase, false);
                 ctx.stroke();
             } else {
                 var endX = x0 + (x1 - x0) * Math.max(0, Math.min(1, progress));
-                var started = false;
-                for (var xd = x0; xd < endX; xd += 2) {
-                    var yd = cy + amplitude * Math.sin((xd * frequency) + phase);
-                    if (!started) { ctx.moveTo(xd, yd); started = true; }
-                    else ctx.lineTo(xd, yd);
-                }
-                // End exactly at endX (not the last 2px step) so the active tip advances
-                // continuously instead of snapping to the 2px sampling grid.
-                if (started) {
-                    var yEnd = cy + amplitude * Math.sin((endX * frequency) + phase);
-                    ctx.lineTo(endX, yEnd);
-                }
+                ctx.appendSineWave(x0, endX, 2, cy, amplitude,
+                                   frequency, phase, true);
                 ctx.stroke();
             }
         }
@@ -194,4 +176,3 @@ Item {
         onHeightChanged: requestPaint()
     }
 }
-
