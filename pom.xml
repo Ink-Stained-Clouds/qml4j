@@ -43,7 +43,7 @@
         <maven.compiler.testRelease>11</maven.compiler.testRelease>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-        <skija.version>0.143.16</skija.version>
+        <skija.version>0.143.17</skija.version>
         <antlr.version>4.13.2</antlr.version>
         <asm.version>9.7</asm.version>
         <r8.version>8.13.17</r8.version>

@@ -509,10 +509,11 @@ public final class Renderer {
                 node.cachedPicture.close();
                 node.cachedPicture = null;
             }
-            node.contentDirty = false;
+            long asyncGeneration = node.asyncContentGeneration();
             node.cachedAlpha = alpha;
             node.cachedScale = Float.NaN;
             drawForced(canvas, node, inheritedAlpha);
+            node.clearContentDirtyIfAsyncGeneration(asyncGeneration);
             return;
         }
         if (node.cachedPicture == null || contentChanged || node.cachedScale != sf) {
@@ -555,6 +556,7 @@ public final class Renderer {
     // so an opacity change re-records. Culling is disabled during the record (unbounded clip) so
     // the picture holds the full subtree regardless of the current viewport.
     private void recordBoundary(Item node, float w, float h, float alpha, float sf) {
+        long asyncGeneration = node.asyncContentGeneration();
         PictureRecorder recorder = new PictureRecorder();
         // A generous cull rect: the picture is replayed at arbitrary offsets, so don't clip its
         // contents here (Skia treats drawing outside the cull rect as undefined).
@@ -580,7 +582,7 @@ public final class Renderer {
         node.cachedPicture = pic;
         node.cachedAlpha = alpha;
         node.cachedScale = sf;
-        node.contentDirty = false;
+        node.clearContentDirtyIfAsyncGeneration(asyncGeneration);
         node.recordCount++;
         pictureRecordsThisFrame++;
         pictureRecordsTotal++;
@@ -1131,8 +1133,9 @@ public final class Renderer {
             paint.close();
             paint = null;
         }
-        fonts.close();
         painter.dispose();   // close cached native TextLine handles
+        text.dispose();
+        fonts.close();
     }
 
     // Common CSS/QML named colors. "transparent" is the critical one (MD3 uses it

@@ -9,6 +9,9 @@ import io.github.timer_err.qml4j.render.items.input.TextEdit;
 import io.github.timer_err.qml4j.render.items.window.Button;
 import io.github.timer_err.qml4j.render.items.window.Control;
 
+import java.util.HashMap;
+import java.util.Map;
+
 // Text and control measurement: implicit-size computation, line wrapping/elision
 // caching, and font line metrics. Shared by the layout pre-pass (measure) and
 // the paint pass.
@@ -16,6 +19,31 @@ public final class TextLayout {
 
     private final FontResolver fonts;
     private final IconResolver icons;
+    private final Map<IconMeasureKey, IconMetrics> iconMetrics = new HashMap<>();
+    private final IconMeasureKey iconProbe = new IconMeasureKey();
+
+    private static final class IconMeasureKey {
+        int sizeBits;
+        String glyph;
+
+        IconMeasureKey() { }
+        IconMeasureKey(int sizeBits, String glyph) {
+            this.sizeBits = sizeBits;
+            this.glyph = glyph;
+        }
+        @Override public int hashCode() { return sizeBits * 31 + glyph.hashCode(); }
+        @Override public boolean equals(Object other) {
+            if (!(other instanceof IconMeasureKey)) return false;
+            IconMeasureKey key = (IconMeasureKey) other;
+            return sizeBits == key.sizeBits && glyph.equals(key.glyph);
+        }
+    }
+
+    private static final class IconMetrics {
+        final float width;
+        final float height;
+        IconMetrics(float width, float height) { this.width = width; this.height = height; }
+    }
 
     TextLayout(FontResolver fonts, IconResolver icons) {
         this.fonts = fonts;
@@ -29,17 +57,23 @@ public final class TextLayout {
 
         String ig = icons.iconGlyph(t);
         if (ig != null) {
-            float w, h;
-            try (Font f = FontResolver.configure(new Font(fonts.iconTypeface(), size))) {
-                if (ig.isEmpty()) {
-                    w = 0f;
-                } else {
-                    try (TextLine tl = TextLine.make(ig, f)) {
-                        w = tl.getWidth();
+            int sizeBits = Float.floatToIntBits(size);
+            iconProbe.sizeBits = sizeBits;
+            iconProbe.glyph = ig;
+            IconMetrics metrics = iconMetrics.get(iconProbe);
+            if (metrics == null) {
+                Font font = fonts.iconFont(size);
+                float width = 0f;
+                if (!ig.isEmpty()) {
+                    try (TextLine line = TextLine.make(ig, font)) {
+                        width = line.getWidth();
                     }
                 }
-                h = lineHeight(f);
+                metrics = new IconMetrics(width, lineHeight(font));
+                iconMetrics.put(new IconMeasureKey(sizeBits, ig), metrics);
             }
+            float w = metrics.width;
+            float h = metrics.height;
             if (!t.implicitWidth.isBound()) t.implicitWidth.set(w);
             if (!t.implicitHeight.isBound()) t.implicitHeight.set(h);
             if (canMeasureW) { t.width.set(w); t.lastSetWidth = w; }
@@ -101,6 +135,10 @@ public final class TextLayout {
             t.height.set(h);
             t.lastSetHeight = h;
         }
+    }
+
+    void dispose() {
+        iconMetrics.clear();
     }
 
     public void measureButton(Button b) {

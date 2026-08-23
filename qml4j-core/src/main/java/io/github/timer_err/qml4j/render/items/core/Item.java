@@ -72,7 +72,7 @@ public class Item extends QObject {
     // arming walk, but never measured/laid-out/drawn, and not in `children` so a binding
     // like `container.children[0]` resolves to the first real visual child (Qt: a Behavior
     // is a property modifier, not a child).
-    public final List<Item> resources = new ArrayList<>();
+    public final List<Item> resources = new ObservableList<>();
     public final Anchors anchors = new Anchors();
     public final ChildrenRect childrenRect = new ChildrenRect();
     // QtQuick.Layouts attached props (Layout.fillWidth, Layout.leftMargin, ...).
@@ -135,7 +135,13 @@ public class Item extends QObject {
     // this boundary's subtree. Pure position/scale/rotation of the boundary ITSELF does not set
     // it -- that only changes the replay matrix (see markTransformDirty). New boundaries start
     // dirty (cachedPicture == null forces the first record regardless).
-    public boolean contentDirty = true;
+    public volatile boolean contentDirty = true;
+    // Background producers (currently ImageLoader) can finish while a boundary is being
+    // recorded. A plain boolean mark can then be lost when recordBoundary clears contentDirty
+    // at the end of the recording. This generation is advanced under the boundary monitor for
+    // asynchronous marks; the renderer only clears the flag when no such mark arrived during
+    // the draw. Normal Property invalidations stay on the render thread and keep the cheap path.
+    private long asyncContentGeneration;
     // Diagnostic: how many times this boundary re-recorded its picture (the record-count guard
     // in the tests: a pure-geometry animation records 0 times, a local change records only the
     // affected boundary).
@@ -151,6 +157,16 @@ public class Item extends QObject {
     // so a scene that never caches pays nothing for the extra invalidation wiring.
     private static boolean contentCacheEnabled;
 
+    // QmlView keeps a flat table of Animatable nodes instead of recursively walking the
+    // complete resident scene on every frame. Any visual/non-visual child mutation bumps
+    // this process-wide generation so the table is rebuilt before the next animation tick.
+    // A process normally owns one view; a second view merely causes a harmless extra rebuild.
+    private static long animationStructureVersion;
+
+    public static long animationStructureVersion() {
+        return animationStructureVersion;
+    }
+
     public static void setContentCacheEnabled(boolean on) {
         contentCacheEnabled = on;
     }
@@ -164,7 +180,13 @@ public class Item extends QObject {
         // that write has to reach the view's focus manager -- otherwise activeFocus and the
         // key-event target keep pointing at the previously focused item.
         focus.addListener(this::onFocusWritten);
+        ((ObservableList<Item>) children).addStructuralListener(Item::bumpAnimationStructure);
+        ((ObservableList<Item>) resources).addStructuralListener(Item::bumpAnimationStructure);
         wireLayoutInvalidation();
+    }
+
+    private static void bumpAnimationStructure() {
+        animationStructureVersion++;
     }
 
     // Connect the geometry + draw properties to the draw-phase content cache: a change to a
@@ -213,6 +235,27 @@ public class Item extends QObject {
         if (!contentCacheEnabled) return;
         Item b = nearestBoundary(this);
         if (b != null) b.contentDirty = true;
+    }
+
+    /** Thread-safe cache invalidation for content published by a background worker. */
+    public void markContentDirtyAsync() {
+        if (!contentCacheEnabled) return;
+        Item b = nearestBoundary(this);
+        if (b == null) return;
+        synchronized (b) {
+            b.asyncContentGeneration++;
+            b.contentDirty = true;
+        }
+    }
+
+    /** Snapshot used by the renderer to avoid losing an asynchronous mark mid-recording. */
+    public synchronized long asyncContentGeneration() {
+        return asyncContentGeneration;
+    }
+
+    /** Clear a rendered boundary only if no background result arrived during that draw. */
+    public synchronized void clearContentDirtyIfAsyncGeneration(long expected) {
+        if (asyncContentGeneration == expected) contentDirty = false;
     }
 
     // Mark for a change (x/y/scale/rotation/z) that is replay-only for the item on which it

@@ -58,7 +58,7 @@ Maven:
 <dependency>
     <groupId>io.github.humbleui</groupId>
     <artifactId>skija-linux-x64</artifactId>
-    <version>0.143.16</version>
+    <version>0.143.17</version>
 </dependency>
 ```
 
@@ -67,7 +67,7 @@ Gradle:
 ```kotlin
 implementation("io.github.timer-err:qml4j-core:0.1.1")
 // pick your platform: skija-linux-x64 / skija-windows-x64 / skija-macos-x64 / skija-macos-arm64
-runtimeOnly("io.github.humbleui:skija-linux-x64:0.143.16")
+runtimeOnly("io.github.humbleui:skija-linux-x64:0.143.17")
 ```
 
 The engine keeps Skija `provided` so you choose the platform-native artifact yourself; it transitively pulls in the ANTLR runtime, Rhino and ASM. Java 8+.

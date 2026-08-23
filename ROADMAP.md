@@ -92,7 +92,7 @@ cut/copy/paste through a `Clipboard` SPI (`AndroidClipboard` +
 
 Desktop demo (LWJGL+GL) and Android APK (D8 → DEX →
 `InMemoryDexClassLoader`) both load arbitrary `.qml` at runtime.
-Skija android-arm64 0.143.16 has several `_n*` JNI bugs we shim
+Skija android-arm64 0.143.17 has several `_n*` JNI bugs we shim
 around (`Font.getMetrics`, `Paint.setAlphaf`, etc.).
 
 ## Strategic direction

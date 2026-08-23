@@ -17,6 +17,7 @@ import io.github.humbleui.skija.PathEllipseArc;
 import io.github.humbleui.skija.PathFillMode;
 import io.github.humbleui.skija.Shader;
 import io.github.humbleui.skija.Surface;
+import io.github.humbleui.skija.TextBlob;
 import io.github.humbleui.skija.TextLine;
 import io.github.humbleui.types.RRect;
 import io.github.humbleui.types.Rect;
@@ -224,13 +225,6 @@ public final class Painter {
     // and re-runs every frame for every icon; cache the shaped TextLine (and per-size Font)
     // keyed on (name, size). Native handles are long-lived and bounded by the app's distinct
     // icon/size set, so they are intentionally not closed.
-    // Per-size icon Font cache as parallel arrays. A float-keyed Map would autobox
-    // the size to a Float on every icon draw every frame; the distinct icon sizes
-    // are a tiny set, so a linear scan is faster and allocation-free.
-    private float[] iconFontSizes = new float[8];
-    private Font[] iconFontVals = new Font[8];
-    private int iconFontCount;
-
     // Render runs single-threaded, so each text cache uses ONE reusable probe key
     // for lookups: get() mutates the probe and never retains it; only a cache MISS
     // allocates an immutable key to put(). The steady-state scroll path is all hits,
@@ -283,6 +277,7 @@ public final class Painter {
     // Icon ligatures (name -> glyph via GSUB). Unbounded (bounded by the app's
     // distinct icon/size set); handles are long-lived and intentionally not closed.
     private final Map<LineKey, TextLine> iconLines = new HashMap<>();
+    private final Map<TextLine, TextBlob> lineBlobs = new java.util.IdentityHashMap<>();
 
     // Shaping a string (HarfBuzz via Skia) on every drawString/measureTextWidth
     // re-runs for every visible label every frame -- the dominant paint cost. Cache
@@ -293,6 +288,7 @@ public final class Painter {
             @Override
             protected boolean removeEldestEntry(Map.Entry<LineKey, TextLine> e) {
                 if (size() > 600) {
+                    closeBlob(e.getValue());
                     e.getValue().close();
                     return true;
                 }
@@ -306,8 +302,26 @@ public final class Painter {
         TextLine hit = cache.get(lineProbe);
         if (hit != null) return hit;
         TextLine line = TextLine.make(s, font);
+        TextBlob blob = line.getTextBlob();
+        if (blob != null) lineBlobs.put(line, blob);
         cache.put(new LineKey(fontId, s), line);
         return line;
+    }
+
+    private void drawTextLine(TextLine line, float x, float y, Paint paint) {
+        TextBlob blob = lineBlobs.get(line);
+        if (blob == null) {
+            blob = line.getTextBlob();
+            if (blob != null) lineBlobs.put(line, blob);
+        }
+        if (blob != null) canvas.drawTextBlob(blob, x, y, paint);
+    }
+
+    private void closeBlob(TextLine line) {
+        TextBlob blob = lineBlobs.remove(line);
+        if (blob != null) {
+            try { blob.close(); } catch (Throwable ignored) { }
+        }
     }
 
     private TextLine textLine(Font font, String s) {
@@ -345,13 +359,16 @@ public final class Painter {
     // heap, so leaving them for GC leaks them across hot-reloads. Called from Renderer.dispose().
     void dispose() {
         for (TextLine l : iconLines.values()) {
+            closeBlob(l);
             if (l != null) { try { l.close(); } catch (Throwable ignored) {} }
         }
         iconLines.clear();
         for (TextLine l : textLines.values()) {
+            closeBlob(l);
             if (l != null) { try { l.close(); } catch (Throwable ignored) {} }
         }
         textLines.clear();
+        lineBlobs.clear();
         elideCache.clear();
         wrapCache.clear();
     }
@@ -423,23 +440,8 @@ public final class Painter {
         return result;
     }
 
-    private Font iconFont(float size) {
-        for (int i = 0; i < iconFontCount; i++) {
-            if (iconFontSizes[i] == size) return iconFontVals[i];
-        }
-        Font f = FontResolver.configure(new Font(renderer.fonts().iconTypeface(), size));
-        if (iconFontCount == iconFontSizes.length) {
-            iconFontSizes = java.util.Arrays.copyOf(iconFontSizes, iconFontCount * 2);
-            iconFontVals = java.util.Arrays.copyOf(iconFontVals, iconFontCount * 2);
-        }
-        iconFontSizes[iconFontCount] = size;
-        iconFontVals[iconFontCount] = f;
-        iconFontCount++;
-        return f;
-    }
-
     public void drawIconGlyph(String name, float boxW, float boxH, int argb, float size, int hAlign) {
-        Font f = iconFont(size);
+        Font f = renderer.fonts().iconFont(size);
         TextLine line = cachedLine(iconLines, System.identityHashCode(f), name, f);
         FontMetrics fm = f.getMetrics();
         float baseline = boxH / 2f - (fm.getAscent() + fm.getDescent()) / 2f;
@@ -454,7 +456,7 @@ public final class Painter {
         p.setMode(PaintMode.FILL);
         p.setShader(null);
         p.setColor(argb);
-        canvas.drawTextLine(line, x, baseline, p);
+        drawTextLine(line, x, baseline, p);
     }
 
     // Multi-line text: optional wrap to boxW, optional right-elision, from y=0. Each line
@@ -476,7 +478,8 @@ public final class Painter {
             boolean wrapping = wrapMode != null && boxW > 0f;
             if (!wrapping && s.indexOf('\n') < 0) {
                 String line = elideRight ? elideRightToWidth(font, s, boxW) : s;
-                canvas.drawTextLine(textLine(font, line), lineOffset(line, font, boxW, hAlign), baseline0, p);
+                TextLine shaped = textLine(font, line);
+                drawTextLine(shaped, lineOffset(line, font, boxW, hAlign), baseline0, p);
                 return;
             }
             String[] lines = wrapping ? wrapLines(font, s, wrapMode, boxW) : TextLayout.splitLines(s);
@@ -498,7 +501,7 @@ public final class Painter {
                     line = elideRight ? elideRightToWidth(font, lines[i], boxW) : lines[i];
                 }
                 float tx = lineOffset(line, font, boxW, hAlign);
-                canvas.drawTextLine(textLine(font, line), tx, baseline0 + i * lineH, p);
+                drawTextLine(textLine(font, line), tx, baseline0 + i * lineH, p);
             }
         }
     }
@@ -522,7 +525,7 @@ public final class Painter {
             p.setMode(PaintMode.FILL);
             p.setShader(null);
             p.setColor(argb);
-            canvas.drawTextLine(textLine(font, s), tx, ty, p);
+            drawTextLine(textLine(font, s), tx, ty, p);
         }
     }
 
@@ -992,7 +995,7 @@ public final class Painter {
                 if (ph != null && !ph.isEmpty()) {
                     { Font font = renderer.fonts().fontFor(size, ph);
                         p.setColor(Renderer.applyAlpha(Renderer.parseColor(tf.placeholderTextColor.peek()), alpha));
-                        canvas.drawTextLine(textLine(font, ph), 0, TextLayout.centeredBaseline(font, h), p);
+                        drawTextLine(textLine(font, ph), 0, TextLayout.centeredBaseline(font, h), p);
                     }
                 }
             }
@@ -1039,7 +1042,7 @@ public final class Painter {
             if (!s.isEmpty()) {
                 Paint p = renderer.paint();
                 p.setColor(Renderer.applyAlpha(Renderer.parseColor(ti.color.peek()), alpha));
-                canvas.drawTextLine(textLine(font, s), 0, baseline, p);
+                drawTextLine(textLine(font, s), 0, baseline, p);
             }
             if (Boolean.TRUE.equals(ti.activeFocus.peek()) && caretBlinkOn()) {
                 int pos = Math.max(0, Math.min(ti.cursorPosition.peekInt(), s.length()));
@@ -1084,7 +1087,7 @@ public final class Painter {
                 String line = wrapped.lines.get(i);
                 if (!line.isEmpty()) {
                     float baseline = yOffset + i * lineH + TextLayout.baselineInLine(font);
-                    canvas.drawTextLine(textLine(font, line), 0, baseline, p);
+                    drawTextLine(textLine(font, line), 0, baseline, p);
                 }
             }
             if (Boolean.TRUE.equals(te.activeFocus.peek()) && caretBlinkOn()) {

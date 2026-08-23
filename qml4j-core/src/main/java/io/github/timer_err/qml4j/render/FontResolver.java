@@ -34,6 +34,7 @@ final class FontResolver {
     // text-heavy frames. Font/Typeface are CPU objects (no GPU handle), so caching
     // them across frames is safe; callers must NOT close the returned Font.
     private final Map<String, Font> fontCache = new HashMap<>();
+    private final Map<Integer, Font> iconFontCache = new HashMap<>();
 
     private static final String[] LATIN_CANDIDATES = {
         null, "sans-serif", "Roboto", "Droid Sans", "Arial"
@@ -150,6 +151,15 @@ final class FontResolver {
         return uiIcon;
     }
 
+    Font iconFont(float size) {
+        int key = Float.floatToIntBits(size);
+        Font cached = iconFontCache.get(key);
+        if (cached != null) return cached;
+        Font font = configure(uiIcon != null ? new Font(uiIcon, size) : new Font().setSize(size));
+        iconFontCache.put(key, font);
+        return font;
+    }
+
     private Typeface defaultTypeface() {
         if (uiDefault != null) return uiDefault;
         if (systemDefault != null) return systemDefault;
@@ -228,6 +238,10 @@ final class FontResolver {
             if (f != null) { try { f.close(); } catch (Throwable ignored) {} }
         }
         fontCache.clear();
+        for (Font f : iconFontCache.values()) {
+            if (f != null) { try { f.close(); } catch (Throwable ignored) {} }
+        }
+        iconFontCache.clear();
         for (Typeface t : symbolCache.values()) {
             if (t != null) { try { t.close(); } catch (Throwable ignored) {} }
         }

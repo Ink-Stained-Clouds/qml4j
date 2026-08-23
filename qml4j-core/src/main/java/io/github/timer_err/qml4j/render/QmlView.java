@@ -234,7 +234,7 @@ public final class QmlView {
         dirty.install();
         try {
             long now = System.nanoTime();
-            tickAnimations(root, now);
+            tickAnimations(now);
             dirty.flush();
             // Idle-frame fast path: if nothing in the scene changed since the last full
             // layout (no animation/timer/input/binding touched a property), skip the layout
@@ -328,27 +328,57 @@ public final class QmlView {
 
     public void tickAnimations(long nowNanos) {
         if (root == null) return;
-        tickAnimations(root, nowNanos);
-    }
-
-    private void tickAnimations(Item node, long now) {
-        if (node == null) return;
-        if (node instanceof Animatable) {
-            ((Animatable) node).tick(now);
+        long structureVersion = Item.animationStructureVersion();
+        if (animationRoot != root || animationStructureVersion != structureVersion) {
+            animationEntries.clear();
+            collectAnimations(root, null, false);
+            animationRoot = root;
+            animationStructureVersion = structureVersion;
         }
-        if (node instanceof GroupAnimation) return;
-        for (int i = node.children.size() - 1; i >= 0; i--) {
-            Item c = node.children.get(i);
-            tickAnimations(c, now);
-            if (c instanceof PropertyAnimation) {
-                PropertyAnimation a = (PropertyAnimation) c;
-                if (a.ephemeral && !Boolean.TRUE.equals(a.running.peek())) {
-                    node.children.remove(i);
+        for (int i = 0, size = animationEntries.size(); i < size; i++) {
+            AnimationEntry entry = animationEntries.get(i);
+            entry.animation.tick(nowNanos);
+            if (entry.child && entry.item instanceof PropertyAnimation) {
+                PropertyAnimation animation = (PropertyAnimation) entry.item;
+                if (animation.ephemeral && !Boolean.TRUE.equals(animation.running.peek())) {
+                    entry.parent.children.remove(entry.item);
                 }
             }
         }
-        // Non-visual children (Behavior) animate too, but live off the children list.
-        for (Item r : node.resources) tickAnimations(r, now);
+    }
+
+    // Rebuilt only when the Item tree changes. GroupAnimation owns/ticks its child
+    // animations, so its descendants intentionally stay out of this top-level table.
+    private final java.util.ArrayList<AnimationEntry> animationEntries = new java.util.ArrayList<>();
+    private Item animationRoot;
+    private long animationStructureVersion = -1L;
+
+    private static final class AnimationEntry {
+        final Animatable animation;
+        final Item item;
+        final Item parent;
+        final boolean child;
+
+        AnimationEntry(Animatable animation, Item item, Item parent, boolean child) {
+            this.animation = animation;
+            this.item = item;
+            this.parent = parent;
+            this.child = child;
+        }
+    }
+
+    private void collectAnimations(Item node, Item parent, boolean child) {
+        if (node == null) return;
+        if (node instanceof Animatable) {
+            animationEntries.add(new AnimationEntry((Animatable) node, node, parent, child));
+        }
+        if (node instanceof GroupAnimation) return;
+        for (int i = node.children.size() - 1; i >= 0; i--) {
+            collectAnimations(node.children.get(i), node, true);
+        }
+        for (int i = 0, size = node.resources.size(); i < size; i++) {
+            collectAnimations(node.resources.get(i), node, false);
+        }
     }
 
     public DirtyQueue dirtyQueue() {

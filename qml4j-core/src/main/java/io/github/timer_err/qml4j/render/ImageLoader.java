@@ -68,6 +68,10 @@ final class ImageLoader {
             node.pendH = h;
             node.pendingImage = img;
             node.decodeReadyGen = gen;
+            // A cache boundary may be replaying a picture recorded while this image was still
+            // loading. Completion itself must invalidate it; otherwise adoption waits for an
+            // unrelated event (typically a list scroll) to dirty the scene.
+            node.markContentDirtyAsync();
         });
     }
 

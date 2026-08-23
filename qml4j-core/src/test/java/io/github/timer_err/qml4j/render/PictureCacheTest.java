@@ -10,6 +10,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
+import java.util.Base64;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -288,6 +291,58 @@ class PictureCacheTest {
         v.renderFrame(bk);
 
         assertEquals(before + 1, panel.recordCount, "gradient stop change re-records the boundary");
+    }
+
+    // The first cached picture can be recorded while an Image worker is still decoding. The
+    // worker's completion must invalidate that picture itself instead of relying on a later
+    // scroll/hover/property change to make the cover appear.
+    @Test
+    void asyncImageCompletionInvalidatesCachedBoundary() throws Exception {
+        byte[] png = Base64.getDecoder().decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2jXkAAAAASUVORK5CYII=");
+        CountDownLatch loadStarted = new CountDownLatch(1);
+        CountDownLatch releaseLoad = new CountDownLatch(1);
+        QmlView v = QmlView.withStockTypes(new QmlEngine()).resources(source -> {
+            loadStarted.countDown();
+            try {
+                if (!releaseLoad.await(2, TimeUnit.SECONDS)) return null;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return null;
+            }
+            return png;
+        });
+        Item root = v.load(
+            "import QtQuick\n"
+            + "Item { width: 80; height: 80\n"
+            + "  Rectangle { objectName: \"panel\"; width: 80; height: 80; color: \"#222222\"\n"
+            + "    Image { objectName: \"cover\"; width: 64; height: 64; source: \"cover.png\" } }\n"
+            + "}");
+        root.width.set(80);
+        root.height.set(80);
+        v.renderer().setPictureCache(true);
+        RasterBackend bk = new RasterBackend(80, 80);
+
+        bk.surface.getCanvas().clear(0);
+        v.renderFrame(bk); // records the boundary while the worker is deliberately blocked
+        assertTrue(loadStarted.await(1, TimeUnit.SECONDS), "image load started");
+        Item panel = v.findByObjectName("panel");
+        assertEquals(1, panel.recordCount);
+
+        releaseLoad.countDown();
+        io.github.timer_err.qml4j.render.items.core.Image cover =
+            (io.github.timer_err.qml4j.render.items.core.Image) v.findByObjectName("cover");
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+        while (cover.status.peek().intValue() != 1 && System.nanoTime() < deadline) {
+            Thread.sleep(5);
+            bk.surface.getCanvas().clear(0);
+            v.renderFrame(bk);
+        }
+
+        assertEquals(1, cover.status.peek().intValue(), "pending image was adopted without scrolling");
+        assertTrue(panel.recordCount >= 2, "completion re-recorded the cached boundary");
+        v.dispose();
+        bk.dispose();
     }
 
     // Cached pictures are native memory; disposing an item (or the whole view) must close them.
