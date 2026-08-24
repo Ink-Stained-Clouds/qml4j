@@ -16,7 +16,7 @@ import java.util.Set;
 // injects the UI faces (default / bold / CJK / icon) via the setters below, and
 // the system font manager is only a last-resort fallback. fontFor() picks the
 // face that actually covers the given text.
-final class FontResolver implements AutoCloseable {
+final class FontResolver {
 
     // App-injected faces. The default also covers CJK when no separate CJK face is
     // given (a font like PingFang spans both scripts); bold null → synthesized.
@@ -248,8 +248,7 @@ final class FontResolver implements AutoCloseable {
         return false;
     }
 
-    @Override
-    public void close() {
+    void close() {
         // Close the cached Fonts FIRST: each holds a native ref to its Typeface, so closing
         // only the Typefaces below would leave the (large, e.g. CJK) glyph data alive until a
         // GC collects these Font wrappers -- and native memory never triggers a GC, so it
