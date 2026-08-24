@@ -4,7 +4,7 @@
 # this::m to a functional interface) or polymorphic hooks (Item.paint) — which is
 # why parameter-level "unused" analysis is delegated here, not to the maven gate.
 version: "1.0"
-linter: jetbrains/qodana-jvm-community:latest
+linter: jetbrains/qodana-jvm-community:2026.2
 # Default is qodana.starter (a focused subset, no unused-declaration checks).
 # qodana.recommended adds the full IDE inspection set -- unused declarations and
 # parameters included, with the hierarchy/contract awareness PMD/ECJ lack.

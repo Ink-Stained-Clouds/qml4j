@@ -22,7 +22,9 @@ jobs:
       - name: Qodana Scan
         uses: JetBrains/qodana-action@v2026.2
         with:
-          args: --report-dir,${{ runner.temp }}/qodana/results,--baseline,qodana.sarif.json
+          args: |
+            --report-dir ${{ runner.temp }}/qodana/results
+            --baseline qodana.sarif.json
 
       # Publish the raw SARIF so it can be downloaded and committed as the baseline
       # (qodana.sarif.json at repo root). Once the baseline is in place, future runs
