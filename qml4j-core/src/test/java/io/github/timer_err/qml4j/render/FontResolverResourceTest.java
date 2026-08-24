@@ -1,0 +1,56 @@
+package io.github.timer_err.qml4j.render;
+
+import io.github.humbleui.skija.Font;
+import org.junit.jupiter.api.Test;
+
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class FontResolverResourceTest {
+
+    @Test
+    void replacingUiTypefaceClosesFontsCachedAgainstOldFace() throws Exception {
+        FontResolver resolver = new FontResolver();
+        Font old = resolver.fontFor(16f, "QPlayer");
+        assertFalse(old.isClosed());
+
+        resolver.setUiTypefaces(resource("/fonts/Roboto-Regular.ttf"), null);
+
+        assertTrue(old.isClosed());
+        Font replacement = resolver.fontFor(16f, "QPlayer");
+        assertNotSame(old, replacement);
+        resolver.close();
+        assertTrue(replacement.isClosed());
+    }
+
+    @Test
+    void replacingIconTypefaceClosesOldCachedIconFont() throws Exception {
+        FontResolver resolver = new FontResolver();
+        byte[] icons = resource("/fonts/MaterialSymbolsRounded.ttf");
+        resolver.setIconTypeface(icons);
+        Font old = resolver.iconFont(20f);
+
+        resolver.setIconTypeface(icons);
+
+        assertTrue(old.isClosed());
+        Font replacement = resolver.iconFont(20f);
+        assertNotSame(old, replacement);
+        resolver.close();
+        assertTrue(replacement.isClosed());
+    }
+
+    private static byte[] resource(String path) throws Exception {
+        try (InputStream in = FontResolverResourceTest.class.getResourceAsStream(path);
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            if (in == null) throw new IllegalStateException("missing test resource " + path);
+            byte[] buffer = new byte[8192];
+            int count;
+            while ((count = in.read(buffer)) != -1) out.write(buffer, 0, count);
+            return out.toByteArray();
+        }
+    }
+}

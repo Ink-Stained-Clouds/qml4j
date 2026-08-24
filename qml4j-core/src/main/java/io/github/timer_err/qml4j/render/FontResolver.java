@@ -8,13 +8,15 @@ import io.github.humbleui.skija.FontStyle;
 import io.github.humbleui.skija.Typeface;
 
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.Set;
 
 // Typeface selection and caching. The engine ships no fonts of its own: the host
 // injects the UI faces (default / bold / CJK / icon) via the setters below, and
 // the system font manager is only a last-resort fallback. fontFor() picks the
 // face that actually covers the given text.
-final class FontResolver {
+final class FontResolver implements AutoCloseable {
 
     // App-injected faces. The default also covers CJK when no separate CJK face is
     // given (a font like PingFang spans both scripts); bold null → synthesized.
@@ -51,37 +53,51 @@ final class FontResolver {
     // null to leave that face unchanged. The regular face also serves as the CJK
     // face unless a separate one is set via {@link #setCjkTypeface}.
     void setUiTypefaces(byte[] regular, byte[] medium) {
-        if (regular != null) {
-            Typeface t = makeFace(regular);
-            if (t != null) uiDefault = t;
+        Typeface newDefault = regular != null ? makeFace(regular) : null;
+        Typeface newBold = medium != null ? makeFace(medium) : null;
+        if (newDefault == null && newBold == null) return;
+
+        // Fonts retain native references to their typefaces. Release them before
+        // replacing a face, then invalidate symbol fallbacks that may alias the
+        // old default/CJK face.
+        clearFonts(fontCache);
+        clearSymbolCache();
+        if (newDefault != null) {
+            closeQuietly(uiDefault);
+            uiDefault = newDefault;
         }
-        if (medium != null) {
-            Typeface t = makeFace(medium);
-            if (t != null) uiBold = t;
+        if (newBold != null) {
+            closeQuietly(uiBold);
+            uiBold = newBold;
         }
-        fontCache.clear();
     }
 
     /** Inject a dedicated CJK face (optional; default font is used otherwise). */
     void setCjkTypeface(byte[] bytes) {
         Typeface t = makeFace(bytes);
         if (t != null) {
+            clearFonts(fontCache);
+            clearSymbolCache();
+            closeQuietly(uiCjk);
             uiCjk = t;
-            fontCache.clear();
         }
     }
 
     /** Inject the icon face (e.g. Material Symbols; glyphs are name ligatures). */
     void setIconTypeface(byte[] bytes) {
         Typeface t = makeFace(bytes);
-        if (t != null) uiIcon = t;
+        if (t != null) {
+            clearFonts(iconFontCache);
+            closeQuietly(uiIcon);
+            uiIcon = t;
+        }
     }
 
     private static Typeface makeFace(byte[] bytes) {
         FontMgr mgr = FontMgr.getDefault();
         if (bytes == null || mgr == null) return null;
-        try {
-            return mgr.makeFromData(Data.makeFromBytes(bytes));
+        try (Data data = Data.makeFromBytes(bytes)) {
+            return mgr.makeFromData(data);
         } catch (Throwable t) {
             return null;
         }
@@ -151,6 +167,9 @@ final class FontResolver {
         return uiIcon;
     }
 
+    // Deliberately transferred to iconFontCache and closed by setIconTypeface()
+    // or close(); try-with-resources here would invalidate the cached Font.
+    @SuppressWarnings("resource")
     Font iconFont(float size) {
         int key = Float.floatToIntBits(size);
         Font cached = iconFontCache.get(key);
@@ -229,28 +248,58 @@ final class FontResolver {
         return false;
     }
 
-    void close() {
+    @Override
+    public void close() {
         // Close the cached Fonts FIRST: each holds a native ref to its Typeface, so closing
         // only the Typefaces below would leave the (large, e.g. CJK) glyph data alive until a
         // GC collects these Font wrappers -- and native memory never triggers a GC, so it
         // accumulates across hot-reloads. Closing them here frees the font data deterministically.
-        for (Font f : fontCache.values()) {
-            if (f != null) { try { f.close(); } catch (Throwable ignored) {} }
-        }
-        fontCache.clear();
-        for (Font f : iconFontCache.values()) {
-            if (f != null) { try { f.close(); } catch (Throwable ignored) {} }
-        }
-        iconFontCache.clear();
+        clearFonts(fontCache);
+        clearFonts(iconFontCache);
+
+        // A symbol fallback can be the exact same Typeface wrapper as uiDefault,
+        // uiCjk, or systemCjk. Close each wrapper once even when several caches
+        // alias it.
+        Set<Typeface> closed = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Typeface t : symbolCache.values()) closeOnce(t, closed);
+        symbolCache.clear();
+        closeOnce(systemDefault, closed); systemDefault = null;
+        closeOnce(systemCjk, closed); systemCjk = null;
+        closeOnce(uiDefault, closed); uiDefault = null;
+        closeOnce(uiBold, closed); uiBold = null;
+        closeOnce(uiCjk, closed); uiCjk = null;
+        closeOnce(uiIcon, closed); uiIcon = null;
+    }
+
+    private void clearSymbolCache() {
+        Set<Typeface> retained = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+        if (systemDefault != null) retained.add(systemDefault);
+        if (systemCjk != null) retained.add(systemCjk);
+        if (uiDefault != null) retained.add(uiDefault);
+        if (uiBold != null) retained.add(uiBold);
+        if (uiCjk != null) retained.add(uiCjk);
+        if (uiIcon != null) retained.add(uiIcon);
+        Set<Typeface> closed = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
         for (Typeface t : symbolCache.values()) {
-            if (t != null) { try { t.close(); } catch (Throwable ignored) {} }
+            if (t != null && !retained.contains(t) && closed.add(t)) closeQuietly(t);
         }
         symbolCache.clear();
-        if (systemDefault != null) { systemDefault.close(); systemDefault = null; }
-        if (systemCjk != null) { systemCjk.close(); systemCjk = null; }
-        if (uiDefault != null) { uiDefault.close(); uiDefault = null; }
-        if (uiBold != null) { uiBold.close(); uiBold = null; }
-        if (uiCjk != null) { uiCjk.close(); uiCjk = null; }
-        if (uiIcon != null) { uiIcon.close(); uiIcon = null; }
+    }
+
+    private static void clearFonts(Map<?, Font> cache) {
+        for (Font font : cache.values()) closeQuietly(font);
+        cache.clear();
+    }
+
+    private static void closeOnce(Typeface typeface, Set<Typeface> closed) {
+        if (typeface != null && closed.add(typeface)) closeQuietly(typeface);
+    }
+
+    private static void closeQuietly(AutoCloseable resource) {
+        if (resource == null) return;
+        try {
+            resource.close();
+        } catch (Throwable ignored) {
+        }
     }
 }
