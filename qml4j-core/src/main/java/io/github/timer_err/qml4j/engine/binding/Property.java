@@ -21,9 +21,14 @@ public final class Property<T> {
     private Binding binding;
     private boolean evaluating;
     private WriteInterceptor<T> interceptor;
-    private final List<Consumer<T>> valueListeners = new ArrayList<>();
-    private final List<Runnable> invalidationListeners = new ArrayList<>();
-    private final List<Runnable> bindingUnsubscribes = new ArrayList<>();
+    // A compiled QML tree owns hundreds of thousands of Property instances, while
+    // most never receive any listener and most of the remainder receive exactly
+    // one. Each slot is therefore null, the listener itself, or (only from the
+    // second listener onward) a List. This avoids both an empty ArrayList per slot
+    // and a one-element ArrayList + backing array for the common case.
+    private Object valueListeners;
+    private Object invalidationListeners;
+    private Object bindingUnsubscribes;
 
     public Property() {
         this(null);
@@ -92,18 +97,19 @@ public final class Property<T> {
     // set in the whole scene (every scroll frame, every animation tick, the 5 Hz play
     // clock) and was pure churn. Only a list with >1 listener can be structurally
     // mutated by one of its own callbacks mid-iteration, so only that case is copied.
+    @SuppressWarnings("unchecked")
     private void fireListeners() {
-        int ni = invalidationListeners.size();
-        if (ni == 1) {
-            invalidationListeners.get(0).run();
-        } else if (ni > 1) {
-            for (Runnable r : new ArrayList<>(invalidationListeners)) r.run();
+        Object invalidations = invalidationListeners;
+        if (invalidations instanceof List) {
+            for (Runnable r : new ArrayList<>((List<Runnable>) invalidations)) r.run();
+        } else if (invalidations != null) {
+            ((Runnable) invalidations).run();
         }
-        int nv = valueListeners.size();
-        if (nv == 1) {
-            valueListeners.get(0).accept(value);
-        } else if (nv > 1) {
-            for (Consumer<T> l : new ArrayList<>(valueListeners)) l.accept(value);
+        Object values = valueListeners;
+        if (values instanceof List) {
+            for (Consumer<T> l : new ArrayList<>((List<Consumer<T>>) values)) l.accept(value);
+        } else if (values != null) {
+            ((Consumer<T>) values).accept(value);
         }
     }
 
@@ -214,20 +220,20 @@ public final class Property<T> {
     }
 
     public void addListener(Consumer<T> l) {
-        valueListeners.add(l);
+        valueListeners = addToStore(valueListeners, l);
     }
 
     // Wire a QML on<Prop>Changed handler: Qt's change handlers take no args (they
     // read the property), so the new value is dropped.
     public void addChangeHandler(SignalHandler h) {
-        valueListeners.add(v -> h.invoke(EMPTY_ARGS));
+        valueListeners = addToStore(valueListeners, (Consumer<T>) v -> h.invoke(EMPTY_ARGS));
     }
 
     private static final Object[] EMPTY_ARGS = new Object[0];
 
     @SuppressWarnings("unused")
     public void removeListener(Consumer<T> l) {
-        valueListeners.remove(l);
+        valueListeners = removeFromStore(valueListeners, l);
     }
 
     // Qt's implicit per-property <prop>Changed() signal, emitted manually from QML to
@@ -240,11 +246,11 @@ public final class Property<T> {
     }
 
     public void addInvalidationListener(Runnable r) {
-        invalidationListeners.add(r);
+        invalidationListeners = addToStore(invalidationListeners, r);
     }
 
     public void removeInvalidationListener(Runnable r) {
-        invalidationListeners.remove(r);
+        invalidationListeners = removeFromStore(invalidationListeners, r);
     }
 
     // Bumped on every actual property change in the scene, so the renderer can detect a
@@ -280,8 +286,7 @@ public final class Property<T> {
 
     private void clearBinding() {
         binding = null;
-        for (Runnable r : bindingUnsubscribes) r.run();
-        bindingUnsubscribes.clear();
+        clearBindingUnsubscribes();
     }
 
     @SuppressWarnings("unchecked")
@@ -293,8 +298,7 @@ public final class Property<T> {
         evaluating = true;
         try {
             Set<Property<?>> reads = new LinkedHashSet<>();
-            for (Runnable r : bindingUnsubscribes) r.run();
-            bindingUnsubscribes.clear();
+            clearBindingUnsubscribes();
 
             Object result;
             BindingEvaluationContext.push(reads);
@@ -313,7 +317,8 @@ public final class Property<T> {
                 if (dep == this) continue;
                 dep.addInvalidationListener(invalidate);
                 final Property<?> capturedDep = dep;
-                bindingUnsubscribes.add(() -> capturedDep.removeInvalidationListener(invalidate));
+                bindingUnsubscribes = addToStore(bindingUnsubscribes,
+                        (Runnable) () -> capturedDep.removeInvalidationListener(invalidate));
             }
             if (interceptor != null) {
                 interceptor.write(this, (T) result);
@@ -323,5 +328,44 @@ public final class Property<T> {
         } finally {
             evaluating = false;
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void clearBindingUnsubscribes() {
+        Object unsubscribes = bindingUnsubscribes;
+        if (unsubscribes == null) return;
+        // Detach before callbacks run so this Property no longer retains an empty
+        // list and a callback cannot make this traversal structurally unstable.
+        bindingUnsubscribes = null;
+        if (unsubscribes instanceof List) {
+            for (Runnable unsubscribe : (List<Runnable>) unsubscribes) unsubscribe.run();
+        } else {
+            ((Runnable) unsubscribes).run();
+        }
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static Object addToStore(Object store, Object listener) {
+        if (store == null) return listener;
+        if (store instanceof List) {
+            ((List) store).add(listener);
+            return store;
+        }
+        List<Object> listeners = new ArrayList<>(2);
+        listeners.add(store);
+        listeners.add(listener);
+        return listeners;
+    }
+
+    @SuppressWarnings("rawtypes")
+    private static Object removeFromStore(Object store, Object listener) {
+        if (store == null) return null;
+        if (!(store instanceof List)) {
+            return Objects.equals(store, listener) ? null : store;
+        }
+        List listeners = (List) store;
+        listeners.remove(listener);
+        if (listeners.isEmpty()) return null;
+        return listeners.size() == 1 ? listeners.get(0) : listeners;
     }
 }

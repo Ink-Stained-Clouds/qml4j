@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -13,6 +14,31 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PropertyTest {
+
+    @Test
+    void listenerStorageIsLazyAndReleasedWhenEmpty() throws Exception {
+        Property<Integer> p = new Property<>(0);
+        var valueField = Property.class.getDeclaredField("valueListeners");
+        var invalidationField = Property.class.getDeclaredField("invalidationListeners");
+        var unsubscribeField = Property.class.getDeclaredField("bindingUnsubscribes");
+        valueField.setAccessible(true);
+        invalidationField.setAccessible(true);
+        unsubscribeField.setAccessible(true);
+
+        assertEquals(null, valueField.get(p));
+        assertEquals(null, invalidationField.get(p));
+        assertEquals(null, unsubscribeField.get(p));
+
+        Consumer<Integer> valueListener = ignored -> {};
+        Runnable invalidationListener = () -> {};
+        p.addListener(valueListener);
+        p.addInvalidationListener(invalidationListener);
+        p.removeListener(valueListener);
+        p.removeInvalidationListener(invalidationListener);
+
+        assertEquals(null, valueField.get(p));
+        assertEquals(null, invalidationField.get(p));
+    }
 
     @Test
     void getSetAndListener() {
