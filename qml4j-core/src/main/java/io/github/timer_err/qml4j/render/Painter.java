@@ -459,51 +459,95 @@ public final class Painter {
         drawTextLine(line, x, baseline, p);
     }
 
+    // Qt Text.Outline's default look is a fixed ~1px offset ring (see qquicktextnode.cpp);
+    // styleWidth <= 0 reproduces that same thickness via a real stroked pass instead.
+    private static final float DEFAULT_OUTLINE_WIDTH = 1f;
+    // Qt draws Raised/Sunken as a single styleColor copy shifted 1px down/up, underneath
+    // the normal-coloured text (qquicktextnode.cpp shiftForStyle).
+    private static final float RAISED_SUNKEN_OFFSET = 1f;
+
     // Multi-line text: optional wrap to boxW, optional right-elision, from y=0. Each line
     // is offset by hAlign (Text.AlignHCenter/AlignRight) within boxW, so a centred Text
-    // centres every wrapped line, not just the block.
-    public void drawWrappedText(String s, float boxW, int argb, float size,
-                                int wrapModeEnum, boolean elideRight, boolean bold, int hAlign,
-                                int maxLines) {
-        String wrapMode = TextLayout.wrapModeString(wrapModeEnum);
-        { Font font = renderer.fonts().fontFor(size, s, bold);
-            float baseline0 = TextLayout.baselineInLine(font);
-            Paint p = renderer.paint();
-            p.setMode(PaintMode.FILL);
-            p.setShader(null);
-            p.setColor(argb);
-            // Common path drawn every frame: no wrapping and no embedded newline -> a
-            // single line. Draw it directly; splitLines(s) would allocate a String[]
-            // per label per frame just to hold that one line.
-            boolean wrapping = wrapMode != null && boxW > 0f;
-            if (!wrapping && s.indexOf('\n') < 0) {
-                String line = elideRight ? elideRightToWidth(font, s, boxW) : s;
-                TextLine shaped = textLine(font, line);
-                drawTextLine(shaped, lineOffset(line, font, boxW, hAlign), baseline0, p);
-                return;
-            }
-            String[] lines = wrapping ? wrapLines(font, s, wrapMode, boxW) : TextLayout.splitLines(s);
-            // Clamp to maximumLineCount: draw only the first maxLines rows and mark the
-            // last kept row truncated so it gets a trailing ellipsis.
-            int drawCount = lines.length;
-            boolean truncated = false;
-            if (maxLines > 0 && drawCount > maxLines) {
-                drawCount = maxLines;
-                truncated = true;
-            }
-            float lineH = TextLayout.lineHeight(font);
-            for (int i = 0; i < drawCount; i++) {
-                if (lines[i].isEmpty()) continue;
-                String line;
-                if (truncated && i == drawCount - 1) {
-                    line = elideForceEllipsis(font, lines[i], boxW);
-                } else {
-                    line = elideRight ? elideRightToWidth(font, lines[i], boxW) : lines[i];
-                }
-                float tx = lineOffset(line, font, boxW, hAlign);
-                drawTextLine(textLine(font, line), tx, baseline0 + i * lineH, p);
-            }
+    // centres every wrapped line, not just the block. t.style selects Qt's Outline/Raised/
+    // Sunken text decoration, drawn under the normal fill pass.
+    public void drawWrappedText(Text t, String s, float boxW, float alpha) {
+        int argb = alphaColor(t.color.peek(), alpha);
+        float size = t.effectiveFontSize();
+        boolean elideRight = t.elide.peekInt() == 3; // Text.ElideRight
+        boolean bold = Boolean.TRUE.equals(t.font.bold.peek()) || t.font.weight.peekInt() >= 63;
+        int hAlign = t.horizontalAlignment.peekInt();
+        int maxLines = t.maximumLineCount.peekInt();
+        int style = t.style.peekInt();
+        int styleArgb = style == Text.STYLE_NORMAL ? 0 : alphaColor(t.styleColor.peek(), alpha);
+        float styleWidth = t.styleWidth.peekFloat();
+
+        String wrapMode = TextLayout.wrapModeString(t.wrapMode.peekInt());
+        Font font = renderer.fonts().fontFor(size, s, bold);
+        float baseline0 = TextLayout.baselineInLine(font);
+        Paint p = renderer.paint();
+        p.setShader(null);
+        // Common path drawn every frame: no wrapping and no embedded newline -> a
+        // single line. Draw it directly; splitLines(s) would allocate a String[]
+        // per label per frame just to hold that one line.
+        boolean wrapping = wrapMode != null && boxW > 0f;
+        if (!wrapping && s.indexOf('\n') < 0) {
+            String line = elideRight ? elideRightToWidth(font, s, boxW) : s;
+            TextLine shaped = textLine(font, line);
+            drawStyledGlyphLine(shaped, lineOffset(line, font, boxW, hAlign), baseline0,
+                                argb, style, styleArgb, styleWidth, p);
+            return;
         }
+        String[] lines = wrapping ? wrapLines(font, s, wrapMode, boxW) : TextLayout.splitLines(s);
+        // Clamp to maximumLineCount: draw only the first maxLines rows and mark the
+        // last kept row truncated so it gets a trailing ellipsis.
+        int drawCount = lines.length;
+        boolean truncated = false;
+        if (maxLines > 0 && drawCount > maxLines) {
+            drawCount = maxLines;
+            truncated = true;
+        }
+        float lineH = TextLayout.lineHeight(font);
+        for (int i = 0; i < drawCount; i++) {
+            if (lines[i].isEmpty()) continue;
+            String line;
+            if (truncated && i == drawCount - 1) {
+                line = elideForceEllipsis(font, lines[i], boxW);
+            } else {
+                line = elideRight ? elideRightToWidth(font, lines[i], boxW) : lines[i];
+            }
+            float tx = lineOffset(line, font, boxW, hAlign);
+            drawStyledGlyphLine(textLine(font, line), tx, baseline0 + i * lineH,
+                                argb, style, styleArgb, styleWidth, p);
+        }
+    }
+
+    // Draws one shaped line's Text.style decoration (Outline/Raised/Sunken), then the
+    // normal fill pass on top -- the decoration sits underneath so the fill reads cleanly.
+    private void drawStyledGlyphLine(TextLine line, float x, float y, int fillArgb,
+                                     int style, int styleArgb, float styleWidth, Paint p) {
+        switch (style) {
+            case Text.STYLE_OUTLINE:
+                p.setMode(PaintMode.STROKE);
+                p.setStrokeWidth(styleWidth > 0f ? styleWidth : DEFAULT_OUTLINE_WIDTH);
+                p.setColor(styleArgb);
+                drawTextLine(line, x, y, p);
+                break;
+            case Text.STYLE_RAISED:
+                p.setMode(PaintMode.FILL);
+                p.setColor(styleArgb);
+                drawTextLine(line, x, y + RAISED_SUNKEN_OFFSET, p);
+                break;
+            case Text.STYLE_SUNKEN:
+                p.setMode(PaintMode.FILL);
+                p.setColor(styleArgb);
+                drawTextLine(line, x, y - RAISED_SUNKEN_OFFSET, p);
+                break;
+            default:
+                break;
+        }
+        p.setMode(PaintMode.FILL);
+        p.setColor(fillArgb);
+        drawTextLine(line, x, y, p);
     }
 
     // The x offset placing a line within boxW per its horizontal alignment.
