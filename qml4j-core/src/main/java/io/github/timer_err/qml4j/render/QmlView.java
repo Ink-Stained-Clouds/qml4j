@@ -8,6 +8,7 @@ import io.github.timer_err.qml4j.render.items.input.TextEditable;
 import io.github.timer_err.qml4j.render.items.input.TextInput;
 
 import io.github.humbleui.skija.Canvas;
+import io.github.timer_err.qml4j.compiler.CompiledSceneCache;
 import io.github.timer_err.qml4j.compiler.TypeRegistry;
 import io.github.timer_err.qml4j.compiler.bytecode.rhino.RhinoScope;
 import io.github.timer_err.qml4j.engine.QmlEngine;
@@ -45,6 +46,16 @@ public final class QmlView {
     public QmlView resources(ResourceLoader res) {
         loader.setResources(res);
         renderer.setResourceLoader(res);
+        return this;
+    }
+
+    /**
+     * Reuse a host-persisted generated scene for the first {@link #load} call.
+     * The host owns {@code key}; it must change whenever any reachable QML, qmldir,
+     * JavaScript import, context contract, or qml4j version changes.
+     */
+    public QmlView compilationCache(CompiledSceneCache cache, String key) {
+        loader.setCompilationCache(cache, key);
         return this;
     }
 
